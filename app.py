@@ -8,6 +8,16 @@ from pathlib import Path
 import re
 
 st.set_page_config(page_title="CRM Clienti & Contratti — v3", layout="wide")
+# ---- HOTFIX for missing columns from old CSV/session ----
+EXPECTED_CLIENTI_COLS = ["ClienteID","RagioneSociale","NomeCliente","Indirizzo","Città","CAP","Telefono","Email","PartitaIVA","IBAN","SDI","UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita","Note"]
+
+def ensure_clienti_cols(df: pd.DataFrame) -> pd.DataFrame:
+    for c in EXPECTED_CLIENTI_COLS:
+        if c not in df.columns:
+            df[c] = None
+    return df
+
+# call this right after we pull from session/loaders
 
 # =========================
 # Helpers & Config

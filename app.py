@@ -1,3 +1,8 @@
+# ============================================================
+# CRM SHT CLIENTI - v6
+# Autore: Fabio Scaranello / SHT srl
+# Gestione Clienti, Contratti e Preventivi
+# ============================================================
 
 import streamlit as st
 import pandas as pd
@@ -7,310 +12,325 @@ from io import BytesIO
 from pathlib import Path
 import re
 
-st.set_page_config(page_title="CRM Clienti & Contratti — v3 FIX7", layout="wide")
+# ------------------------------------------------------------
+# CONFIGURAZIONE E STILE
+# ------------------------------------------------------------
+st.set_page_config(page_title="CRM SHT CLIENTI", layout="wide")
+PRIMARY_COLOR = "#0078A0"
 
-# =========================
-# Helpers
-# =========================
+st.markdown(f"""
+    <style>
+    h1, h2, h3, h4, h5, h6 {{ color: {PRIMARY_COLOR} !important; }}
+    div.stButton > button:first-child {{
+        background-color: {PRIMARY_COLOR};
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 0.4em 1em;
+    }}
+    div.stButton > button:hover {{
+        background-color: #005f80;
+        color: white;
+    }}
+    .metric-label, .stMetricLabel {{ color: {PRIMARY_COLOR} !important; }}
+    </style>
+""", unsafe_allow_html=True)
+
+# ------------------------------------------------------------
+# COLONNE CLIENTI
+# ------------------------------------------------------------
+EXPECTED_CLIENTI_COLS = [
+    "ClienteID","RagioneSociale","NomeCliente","Indirizzo","Città","CAP",
+    "Telefono","Email","PartitaIVA","IBAN","SDI",
+    "UltimoRecall","UltimaVisita","Note"
+]
+
+def ensure_clienti_cols(df):
+    for c in EXPECTED_CLIENTI_COLS:
+        if c not in df.columns:
+            df[c] = None
+    return df
+
+# ------------------------------------------------------------
+# FUNZIONI DI SUPPORTO
+# ------------------------------------------------------------
 DATE_FMT = "%d/%m/%Y"
 
 def fmt_date(d):
-    if pd.isna(d) or d is None or d == "":
+    if pd.isna(d) or d in [None, ""]:
         return ""
     if isinstance(d, str):
-        for f in ["%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y"]:
+        for f in ["%Y-%m-%d","%d/%m/%Y","%d-%m-%Y","%m/%d/%Y"]:
             try:
-                return datetime.strptime(d, f).strftime(DATE_FMT)
-            except Exception:
+                return datetime.strptime(d,f).strftime(DATE_FMT)
+            except:
                 pass
         return d
-    if isinstance(d, (datetime, date)):
+    if isinstance(d,(datetime,date)):
         return d.strftime(DATE_FMT)
     return str(d)
 
 def parse_date_str(s):
-    if not s: return None
-    s = s.strip()
-    for f in ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"]:
-        try: return datetime.strptime(s, f).date()
-        except Exception: pass
+    if not s:
+        return None
+    for f in ["%d/%m/%Y","%Y-%m-%d","%d-%m-%Y","%m/%d/%Y"]:
+        try:
+            return datetime.strptime(s.strip(),f).date()
+        except:
+            pass
     return None
 
-def numify(x):
-    if x is None or (isinstance(x, float) and np.isnan(x)):
-        return 0.0
-    s = str(x).strip()
-    if s == "" or s.lower() == "nan":
-        return 0.0
-    s = s.replace("€", "").replace(" ", "")
-    if "," in s and "." in s:
-        s = s.replace(".", "").replace(",", ".")
-    elif "," in s and "." not in s:
-        s = s.replace(",", ".")
-    try: return float(s)
-    except Exception: return 0.0
-
 def euro(x):
-    v = numify(x)
-    if v == 0: return ""
-    s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    try:
+        v = float(x)
+    except:
+        return "-"
+    s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X",".")
     return f"€ {s}"
 
-def status_class(s):
-    s = str(s or "").strip().lower()
-    if s == "chiuso": return "closed"
-    if s == "aperto": return "open"
-    if s == "sospeso": return "suspended"
-    return "unknown"
+def parse_money(x):
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return np.nan
+    if isinstance(x, (int, float)):
+        return float(x)
+    s = str(x).strip().replace("€","").replace(" ","")
+    s = s.replace(".", "").replace(",", ".")
+    try:
+        return float(s)
+    except:
+        return np.nan
 
-EXPECTED_CLIENTI_COLS = ["ClienteID","RagioneSociale","NomeCliente","Indirizzo","Città","CAP","Telefono","Email","PartitaIVA","IBAN","SDI","UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita","Note"]
-def ensure_clienti_cols(df: pd.DataFrame) -> pd.DataFrame:
-    if df is None or len(df)==0:
-        return pd.DataFrame(columns=EXPECTED_CLIENTI_COLS)
-    for c in EXPECTED_CLIENTI_COLS:
-        if c not in df.columns: df[c] = None
-    return df
+def valid_cap(s): return bool(re.fullmatch(r"\d{5}", (s or "").strip()))
+def valid_piva(s): return bool(re.fullmatch(r"\d{11}", (s or "").strip()))
+def valid_iban_it(s):
+    ss = (s or "").replace(" ", "").upper()
+    return ss.startswith("IT") and len(ss)==27 and ss.isalnum()
+def valid_sdi(s):
+    ss = (s or "").strip().upper()
+    return ss=="0000000" or bool(re.fullmatch(r"[A-Z0-9]{7}", ss))
 
-# =========================
-# Data loading
-# =========================
+# ------------------------------------------------------------
+# NUMERAZIONE PREVENTIVI
+# ------------------------------------------------------------
+def next_quote_number(df_quotes):
+    today = date.today()
+    yy = today.strftime("%Y")
+    if df_quotes.empty:
+        return f"PRE-{yy}-0001"
+    mask = df_quotes["Numero"].fillna("").str.startswith(f"PRE-{yy}-")
+    last = df_quotes[mask]["Numero"].sort_values().iloc[-1] if mask.any() else None
+    if not last:
+        return f"PRE-{yy}-0001"
+    n = int(last.split("-")[-1])
+    return f"PRE-{yy}-{n+1:04d}"
+
+# ------------------------------------------------------------
+# CARICAMENTO / SALVATAGGIO CSV
+# ------------------------------------------------------------
 @st.cache_data
 def load_csv_with_fallback(main_path, fallbacks):
     p = Path(main_path)
-    if p.exists(): return pd.read_csv(p)
+    if p.exists():
+        return pd.read_csv(p)
     for fb in fallbacks:
         if Path(fb).exists():
             return pd.read_csv(fb)
     return pd.DataFrame()
 
-def compute_tot(row):
-    return round(numify(row.get("NOL_FIN")) + numify(row.get("NOL_INT")), 2)
-
 @st.cache_data
 def load_data():
-    clienti = load_csv_with_fallback("clienti.csv", ["clienti_batch1.csv","clienti_normalizzati.csv","preview_clienti.csv"])
+    clienti = load_csv_with_fallback("clienti.csv", [])
     clienti = ensure_clienti_cols(clienti)
     clienti["ClienteID"] = pd.to_numeric(clienti["ClienteID"], errors="coerce").astype("Int64")
-    clienti = clienti[EXPECTED_CLIENTI_COLS]
 
-    ctr_cols = ["ClienteID","NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]
-    contratti = load_csv_with_fallback("contratti.csv", ["contratti_batch1.csv","contratti_normalizzati.csv","preview_contratti.csv"])
-    for c in ctr_cols:
-        if c not in contratti.columns: contratti[c] = None
+    contratti = load_csv_with_fallback("contratti.csv", [])
+    for c in ["ClienteID","NumeroContratto","DataInizio","DataFine",
+              "Durata","DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]:
+        if c not in contratti.columns:
+            contratti[c] = None
     contratti["ClienteID"] = pd.to_numeric(contratti["ClienteID"], errors="coerce").astype("Int64")
     contratti["DataInizio"] = contratti["DataInizio"].apply(fmt_date)
     contratti["DataFine"] = contratti["DataFine"].apply(fmt_date)
     for col in ["NOL_FIN","NOL_INT","TotRata"]:
-        contratti[col] = contratti[col].apply(numify)
-    contratti["Stato"] = contratti["Stato"].astype(str).replace({"nan":""})
+        contratti[col] = contratti[col].apply(parse_money)
 
-    # ricalcolo TotRata (se mancante o diverso dal calcolato)
-    contratti["TotRataCalc"] = contratti.apply(compute_tot, axis=1)
-    diff = (contratti["TotRata"] - contratti["TotRataCalc"]).abs().fillna(0)
-    contratti.loc[(contratti["TotRata"].isna()) | (diff > 0.01), "TotRata"] = contratti["TotRataCalc"]
-    contratti = contratti[ctr_cols]
-
-    q_cols = ["ClienteID","Numero","Data","Template","FileName"]
     preventivi = load_csv_with_fallback("preventivi.csv", [])
     if preventivi.empty:
-        preventivi = pd.DataFrame(columns=q_cols)
-    for c in q_cols:
-        if c not in preventivi.columns: preventivi[c] = None
-    preventivi = preventivi[q_cols]
-
+        preventivi = pd.DataFrame(columns=["ClienteID","Numero","Data","Template","FileName"])
     return clienti, contratti, preventivi
 
 def save_csv(df, path):
     df.to_csv(path, index=False)
 
-# =========================
-# Auth
-# =========================
-USERS = {"admin":{"password":"admin","role":"Admin"},
-         "op":{"password":"op","role":"Operatore"},
-         "view":{"password":"view","role":"Viewer"}}
+# ------------------------------------------------------------
+# AUTENTICAZIONE
+# ------------------------------------------------------------
+USERS = {
+    "admin": {"password": "admin", "role": "Admin"},
+    "op": {"password": "op", "role": "Operatore"},
+    "view": {"password": "view", "role": "Viewer"},
+}
 
 def do_login():
-    st.title("Accesso CRM")
+    st.title("Accesso CRM SHT CLIENTI")
     u = st.text_input("Utente", value="admin")
     p = st.text_input("Password", type="password", value="admin")
     if st.button("Entra"):
-        if u in USERS and USERS[u]["password"]==p:
-            st.session_state["auth_user"]=u; st.session_state["auth_role"]=USERS[u]["role"]; st.rerun()
+        if u in USERS and USERS[u]["password"] == p:
+            st.session_state["auth_user"] = u
+            st.session_state["auth_role"] = USERS[u]["role"]
+            st.success(f"Benvenuto, {u}!")
+            st.rerun()
         else:
             st.error("Credenziali non valide.")
 
-if "auth_user" not in st.session_state:
-    do_login(); st.stop()
-role = st.session_state.get("auth_role","Viewer")
+# ------------------------------------------------------------
+# SIDEBAR
+# ------------------------------------------------------------
+def sidebar(role):
+    st.sidebar.title("CRM SHT CLIENTI")
+    st.sidebar.caption("Gestione Clienti, Contratti e Preventivi • v6")
+    return st.sidebar.radio(
+        "Naviga",
+        ["Dashboard","Scheda Cliente","Contratti","Impostazioni"]
+    )
 
-# bootstrap session
-clienti, contratti, preventivi = load_data()
-st.session_state.setdefault("clienti", clienti.copy())
-st.session_state.setdefault("contratti", contratti.copy())
-st.session_state.setdefault("preventivi", preventivi.copy())
+# ------------------------------------------------------------
+# DASHBOARD
+# ------------------------------------------------------------
+def monthly_revenue_open(contratti: pd.DataFrame) -> float:
+    df = contratti.copy()
+    open_mask = df["Stato"].astype(str).str.lower().eq("aperto")
+    tot = df.loc[open_mask, "TotRata"]
+    fallback = df.loc[open_mask, "NOL_FIN"].fillna(0) + df.loc[open_mask, "NOL_INT"].fillna(0)
+    tot = tot.where(~tot.isna(), fallback)
+    return float(tot.fillna(0).sum())
 
-# =========================
-# Sidebar
-# =========================
-st.sidebar.title("CRM")
-page = st.sidebar.radio("Naviga", ["Dashboard","Clienti","Contratti","Impostazioni"])
+def render_dashboard(clienti, contratti):
+    st.title("🧭 CRM SHT CLIENTI")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Clienti", len(clienti))
+    c2.metric("Contratti", len(contratti))
+    c3.metric("Aperti", int((contratti["Stato"].fillna('').str.lower()=="aperto").sum()))
+    c4.metric("Rata mensile (aperti)", euro(monthly_revenue_open(contratti)))
 
-# =========================
-# Dashboard
-# =========================
-def monthly_revenue_open_client(contratti, cid):
-    df = contratti[(contratti["ClienteID"]==int(cid)) & (contratti["Stato"].str.lower()=="aperto")]
-    return float(df["TotRata"].sum())
+    st.markdown("### 🔍 Ricerca cliente per Ragione Sociale o Città")
+    query = st.text_input("Cerca cliente", placeholder="Es. Rossi SRL o Verona")
+    if query:
+        ql = query.lower()
+        risultati = clienti[
+            clienti.fillna("").apply(
+                lambda r: ql in str(r["RagioneSociale"]).lower() or ql in str(r["Città"]).lower(),
+                axis=1
+            )
+        ]
+        if risultati.empty:
+            st.warning("Nessun cliente trovato.")
+        else:
+            sel = st.selectbox("Seleziona cliente", risultati["RagioneSociale"].tolist())
+            scelto = risultati[risultati["RagioneSociale"] == sel].iloc[0]
+            if st.button("Apri scheda cliente"):
+                st.session_state["open_client"] = int(scelto["ClienteID"])
+                st.session_state["next_page"] = "Scheda Cliente"
+                st.rerun()
 
-def monthly_revenue_open_all(contratti):
-    df = contratti[contratti["Stato"].str.lower()=="aperto"]
-    return float(df["TotRata"].sum())
-
-def render_dashboard():
-    st.title("📊 Dashboard")
-    c1,c2,c3 = st.columns(3)
-    c1.metric("Clienti", len(st.session_state["clienti"]))
-    c2.metric("Contratti", len(st.session_state["contratti"]))
-    c3.metric("Rata mensile (aperti)", euro(monthly_revenue_open_all(st.session_state["contratti"])))
-
-    st.subheader("Prossimi promemoria")
-    cli = ensure_clienti_cols(st.session_state["clienti"])
-    rem = cli[["ClienteID","RagioneSociale","ProssimoRecall","ProssimaVisita"]].copy()
-    st.dataframe(rem, use_container_width=True)
-
-# =========================
-# Clienti
-# =========================
-def render_clienti():
-    clienti = ensure_clienti_cols(st.session_state["clienti"])
-    contratti = st.session_state["contratti"]
-
-    st.title("👥 Clienti")
-    if len(clienti)==0:
-        st.info("Nessun cliente caricato.")
+# ------------------------------------------------------------
+# SCHEDA CLIENTE
+# ------------------------------------------------------------
+def render_scheda_cliente(clienti, contratti, preventivi, role):
+    st.title("👤 Scheda Cliente")
+    if "open_client" not in st.session_state:
+        st.info("Seleziona un cliente dalla Dashboard.")
         return
+    det_id = int(st.session_state["open_client"])
+    if det_id not in clienti["ClienteID"].values:
+        st.warning("Cliente non trovato.")
+        return
+    c = clienti.loc[clienti["ClienteID"] == det_id].iloc[0]
+    st.markdown(f"### 🏢 {c['RagioneSociale']}")
+    st.caption(f"{c['Città'] or ''}  ·  📞 {c['Telefono'] or '-'}  ·  📧 {c['Email'] or '-'}")
+    st.write(f"**P.IVA:** {c['PartitaIVA'] or '-'}  ·  **IBAN:** {c['IBAN'] or '-'}  ·  **SDI:** {c['SDI'] or '-'}")
+    st.info(c["Note"] or "–")
+    ct = contratti[contratti["ClienteID"] == det_id].copy().fillna("")
+    st.markdown("### 📃 Contratti del cliente")
+    if ct.empty:
+        st.info("Nessun contratto per questo cliente.")
+    else:
+        st.dataframe(ct, use_container_width=True, height=350)
 
-    det_id = st.number_input("Apri scheda ClienteID", min_value=int(clienti["ClienteID"].min()), max_value=int(clienti["ClienteID"].max()), step=1, value=int(clienti["ClienteID"].min()))
-    dettaglio = clienti[clienti["ClienteID"] == int(det_id)]
-    if dettaglio.empty:
-        st.info("Cliente non trovato."); return
-    c = dettaglio.iloc[0]
+# ------------------------------------------------------------
+# IMPOSTAZIONI
+# ------------------------------------------------------------
+def render_settings(clienti, contratti, preventivi, role):
+    st.title("⚙️ Impostazioni e salvataggio dati")
 
-    st.markdown(f"### {c['RagioneSociale']}")
-    a1,a2 = st.columns(2)
-    with a1:
-        st.write(f"**Persona di riferimento:** {c['NomeCliente'] or ''}")
-        st.write(f"**Indirizzo:** {c['Indirizzo'] or ''}")
-        st.write(f"**Città:** {c['Città'] or ''}  **CAP:** {c['CAP'] or ''}")
-        st.write(f"**Telefono:** {c['Telefono'] or ''}")
-        st.write(f"**Email:** {c['Email'] or ''}")
-    with a2:
-        st.write(f"**Partita IVA:** {c['PartitaIVA'] or ''}")
-        st.write(f"**IBAN:** {c['IBAN'] or ''}")
-        st.write(f"**SDI:** {c['SDI'] or ''}")
-        st.write(f"**Ultimo Recall:** {c['UltimoRecall'] or ''}")
-        st.write(f"**Prossimo Recall:** {c['ProssimoRecall'] or ''}")
-        st.write(f"**Ultima Visita:** {c['UltimaVisita'] or ''}")
-        st.write(f"**Prossima Visita:** {c['ProssimaVisita'] or ''}")
-    if (c["Note"] or "") != "":
-        st.info(c["Note"])
-
-    ct = st.session_state["contratti"]
-    ct_cli = ct[ct["ClienteID"]==int(det_id)]
-    m1,m2,m3 = st.columns(3)
-    m1.metric("Contratti", len(ct_cli))
-    m2.metric("Aperti", int((ct_cli["Stato"].str.lower()=="aperto").sum()))
-    m3.metric("Rata mensile (aperti)", euro(monthly_revenue_open_client(ct, det_id)))
-
-    st.write("### Contratti (rosso = chiusi)")
-    df = ct_cli.copy().fillna("")
-    df["NOL_FIN_e"] = df["NOL_FIN"].apply(euro)
-    df["NOL_INT_e"] = df["NOL_INT"].apply(euro)
-    df["TotRata_e"] = df["TotRata"].apply(euro)
-    show = df[["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","NOL_FIN_e","NOL_INT_e","TotRata_e","Stato"]]            .rename(columns={"NOL_FIN_e":"NOL_FIN","NOL_INT_e":"NOL_INT","TotRata_e":"TotRata"})
-    st.dataframe(show, use_container_width=True)
-
-# =========================
-# Contratti (per cliente) 
-# =========================
-def render_contratti():
-    clienti = ensure_clienti_cols(st.session_state["clienti"])
-    contratti = st.session_state["contratti"]
-    st.title("📃 Contratti per cliente")
-
-    if len(clienti)==0:
-        st.info("Nessun cliente caricato."); return
-
-    opts = [(int(cid), nm if pd.notna(nm) else "") for cid,nm in zip(clienti["ClienteID"], clienti["RagioneSociale"])]
-    labels = [f"{cid} — {nm}" for cid, nm in opts]
-    choice = st.selectbox("Seleziona cliente", ["(seleziona)"] + labels, index=0)
-    if choice == "(seleziona)":
-        st.info("Seleziona un cliente per vedere i suoi contratti."); return
-    try:
-        sel_cid = int(str(choice).split(" — ")[0])
-    except Exception:
-        st.warning("Selezione non valida."); return
-
-    df = contratti[contratti["ClienteID"]==sel_cid].copy().fillna("")
-    for col in ["NOL_FIN","NOL_INT","TotRata"]:
-        df[col] = df[col].apply(euro)
-    st.dataframe(df, use_container_width=True)
-
-# =========================
-# Impostazioni (load/save)
-# =========================
-def render_settings():
-    role = st.session_state.get("auth_role","Viewer")
-    st.title("⚙️ Impostazioni & Salvataggio")
-    c1,c2,c3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
     if c1.button("💾 Salva clienti.csv", disabled=role=="Viewer"):
-        save_csv(st.session_state["clienti"], "clienti.csv"); st.toast("clienti.csv salvato.", icon="✅")
+        save_csv(st.session_state["clienti"], "clienti.csv")
+        st.toast("clienti.csv salvato.", icon="✅")
     if c2.button("💾 Salva contratti.csv", disabled=role=="Viewer"):
-        save_csv(st.session_state["contratti"], "contratti.csv"); st.toast("contratti.csv salvato.", icon="✅")
+        save_csv(st.session_state["contratti"], "contratti.csv")
+        st.toast("contratti.csv salvato.", icon="✅")
     if c3.button("💾 Salva preventivi.csv", disabled=role=="Viewer"):
-        save_csv(st.session_state["preventivi"], "preventivi.csv"); st.toast("preventivi.csv salvato.", icon="✅")
+        save_csv(st.session_state["preventivi"], "preventivi.csv")
+        st.toast("preventivi.csv salvato.", icon="✅")
 
-    st.write("---")
-    colA, colB, colC = st.columns(3)
+    st.markdown("---")
+    st.subheader("📂 Carica file CSV aggiornati")
+    colA, colB = st.columns(2)
     uc = colA.file_uploader("Carica clienti.csv", type=["csv"])
     if uc is not None and role != "Viewer":
-        tmp = pd.read_csv(uc)
-        st.session_state["clienti"] = ensure_clienti_cols(tmp)
-        st.toast("Clienti caricati (ricordati di salvare).", icon="✅")
+        df = pd.read_csv(uc)
+        df = ensure_clienti_cols(df)
+        st.session_state["clienti"] = df
+        st.toast(f"{len(df)} clienti caricati.", icon="✅")
+        st.rerun()
     ut = colB.file_uploader("Carica contratti.csv", type=["csv"])
     if ut is not None and role != "Viewer":
-        tmp = pd.read_csv(ut)
-        # normalizza e ricalcola TotRata
-        tmp["DataInizio"] = tmp["DataInizio"].apply(fmt_date) if "DataInizio" in tmp.columns else ""
-        tmp["DataFine"] = tmp["DataFine"].apply(fmt_date) if "DataFine" in tmp.columns else ""
-        for col in ["NOL_FIN","NOL_INT","TotRata"]:
-            if col in tmp.columns: tmp[col] = tmp[col].apply(numify)
-        if "NOL_FIN" in tmp.columns and "NOL_INT" in tmp.columns:
-            calc = (tmp["NOL_FIN"].apply(numify) + tmp["NOL_INT"].apply(numify)).round(2)
-            if "TotRata" in tmp.columns:
-                mask = tmp["TotRata"].isna() | (tmp["TotRata"] - calc).abs().fillna(0) > 0.01
-                tmp.loc[mask, "TotRata"] = calc
-            else:
-                tmp["TotRata"] = calc
-        tmp["Stato"] = tmp["Stato"].astype(str).replace({"nan":""}) if "Stato" in tmp.columns else ""
-        st.session_state["contratti"] = tmp
-        st.toast("Contratti caricati (ricordati di salvare).", icon="✅")
+        df = pd.read_csv(ut)
+        for c in ["NOL_FIN","NOL_INT","TotRata"]:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce")
+        df["DataInizio"] = df["DataInizio"].apply(fmt_date)
+        df["DataFine"] = df["DataFine"].apply(fmt_date)
+        st.session_state["contratti"] = df
+        st.toast(f"{len(df)} contratti caricati.", icon="✅")
+        st.rerun()
 
+    st.markdown("---")
     st.subheader("📄 Template preventivi (Word .docx)")
-    tpls = colC.file_uploader("Carica template (.docx) con {{NUMERO}}, {{CLIENTE}}, {{DATA}}", type=["docx"], accept_multiple_files=True)
+    tpls = st.file_uploader("Carica template .docx", type=["docx"], accept_multiple_files=True)
     if tpls:
         st.session_state["quote_templates"] = [(f.name, f.read()) for f in tpls]
-        st.toast(f"{len(tpls)} template caricati (temporanei).", icon="✅")
+        st.toast(f"{len(tpls)} template caricati.", icon="✅")
 
-# =========================
-# Router
-# =========================
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+if "auth_user" not in st.session_state:
+    do_login()
+    st.stop()
+
+role = st.session_state.get("auth_role", "Viewer")
+clienti, contratti, preventivi = load_data()
+clienti = ensure_clienti_cols(clienti)
+if "clienti" not in st.session_state:
+    st.session_state["clienti"] = clienti.copy()
+if "contratti" not in st.session_state:
+    st.session_state["contratti"] = contratti.copy()
+if "preventivi" not in st.session_state:
+    st.session_state["preventivi"] = preventivi.copy()
+
+page = sidebar(role)
+if "next_page" in st.session_state:
+    page = st.session_state["next_page"]
+    del st.session_state["next_page"]
+
 if page == "Dashboard":
-    render_dashboard()
-elif page == "Clienti":
-    render_clienti()
+    render_dashboard(st.session_state["clienti"], st.session_state["contratti"])
+elif page == "Scheda Cliente":
+    render_scheda_cliente(st.session_state["clienti"], st.session_state["contratti"], st.session_state["preventivi"], role)
 elif page == "Contratti":
-    render_contratti()
+    st.dataframe(st.session_state["contratti"], use_container_width=True)
 else:
-    render_settings()
+    render_settings(st.session_state["clienti"], st.session_state["contratti"], st.session_state["preventivi"], role)

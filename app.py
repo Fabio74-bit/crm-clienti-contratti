@@ -77,7 +77,7 @@ def save_csv(df: pd.DataFrame, path: str):
 # Auth (semplice)
 # -------------------------
 USERS = {
-    "admin": {"password": "admin", "role": "Admin"},
+    "admin": {"password": "Matrix@74!", "role": "Admin"},
     "op": {"password": "op", "role": "Operatore"},
     "view": {"password": "view", "role": "Viewer"},
 }

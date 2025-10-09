@@ -1,0 +1,10 @@
+[project]
+name = "crm-clienti-contratti"
+version = "0.0.1"
+description = "CRM Streamlit"
+requires-python = ">=3.10,<3.12"
+
+# (facoltativo ma utile per uv)
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

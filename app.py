@@ -12,6 +12,13 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components  # <-- al posto di st.html
 from docx import Document
+# --- compat per rerun: Streamlit >=1.27 usa st.rerun ---
+def do_rerun():
+    """Chiama st.rerun() se disponibile, altrimenti (per versioni vecchie) st.experimental_rerun()."""
+    if hasattr(st, "rerun"):
+        st.rerun()
+    else:
+        st.experimental_rerun()
 
 # -----------------------------------------------------------------------------
 # Config e costanti

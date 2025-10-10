@@ -1,5 +1,5 @@
-# app.py — CRM Clienti & Contratti  (layout separato)
-# v5.0
+# app.py — CRM Clienti & Contratti (layout separato)
+# v5.1
 
 import os, io, sys, re
 from pathlib import Path
@@ -16,8 +16,9 @@ from reportlab.platypus import Table, TableStyle, SimpleDocTemplate, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet
 
 st.set_page_config(page_title="CRM Clienti & Contratti", layout="wide")
-print(">>> app.py v5.0", file=sys.stderr)
+print(">>> app.py v5.1", file=sys.stderr)
 
+# --------------------------------- Costanti ---------------------------------
 DATE_FMT = "%d/%m/%Y"
 SAFE_CONTRACT_COLS = [
     "NumeroContratto","DataInizio","DataFine","Durata",
@@ -29,7 +30,11 @@ EXPECTED_CLIENTI_COLS = [
     "UltimaVisita","ProssimaVisita","Note"
 ]
 
-# ---------------- Utils base ----------------
+PAGES = ["Dashboard","Clienti","Contratti","Impostazioni"]
+if "sidebar_page" not in st.session_state:
+    st.session_state["sidebar_page"] = "Clienti"
+
+# --------------------------------- Utils ---------------------------------
 def fmt_date(d):
     if pd.isna(d) or d is None or d == "": return ""
     if isinstance(d, str):
@@ -87,35 +92,7 @@ def next_contract_number(df_ct, cid):
     n = int(last.split("-")[-1])
     return f"{prefix}{n+1:04d}"
 
-# ---------------- Normalizzazione tabelle ----------------
-def ensure_clienti_cols(df: pd.DataFrame) -> pd.DataFrame:
-    df = pd.DataFrame(df).copy()
-    if df.empty: return pd.DataFrame(columns=EXPECTED_CLIENTI_COLS)
-    for c in EXPECTED_CLIENTI_COLS:
-        if c not in df.columns: df[c] = None
-    df["ClienteID"] = pd.to_numeric(df["ClienteID"], errors="coerce").astype("Int64")
-    return df[EXPECTED_CLIENTI_COLS]
-
-def sanitize_contracts_df(df) -> pd.DataFrame:
-    if df is None: df = pd.DataFrame()
-    if isinstance(df, pd.Series):
-        df = df.to_frame().T
-    elif isinstance(df, (list, dict)):
-        df = pd.DataFrame(df)
-    else:
-        df = pd.DataFrame(df).copy()
-    for c in SAFE_CONTRACT_COLS:
-        if c not in df.columns:
-            df[c] = 0.0 if c in ["NOL_FIN","NOL_INT","TotRata"] else ""
-    df = df[[c for c in SAFE_CONTRACT_COLS]]
-    for c in ["NOL_FIN","NOL_INT","TotRata"]:
-        df[c] = df[c].apply(numify)
-    for dcol in ["DataInizio","DataFine"]:
-        df[dcol] = df[dcol].apply(fmt_date)
-    df["Stato"] = df["Stato"].astype(str).replace({"nan":""})
-    return df
-
-# alias intestazioni da Excel/italiano
+# -------------------- Normalizzazione tabelle --------------------
 CONTRACT_ALIASES = {
     "NumeroContratto": ["NumeroContratto","N.CONTRATTO","N. CONTRATTO","N_CONTRATTO","NUMERO CONTRATTO","NUM_CONTRATTO"],
     "DataInizio":      ["DataInizio","DATA INIZIO","DATA_INIZIO","DATAINIZIO","Data inizio"],
@@ -127,6 +104,14 @@ CONTRACT_ALIASES = {
     "TotRata":         ["TotRata","TOT. RATA","TOT RATA","RATA","RATA MENSILE","TOT_RATE","TOTALE RATA"],
     "Stato":           ["Stato","CTR Chiuso","STATO","STATO CONTRATTO"]
 }
+
+def ensure_clienti_cols(df: pd.DataFrame) -> pd.DataFrame:
+    df = pd.DataFrame(df).copy()
+    if df.empty: return pd.DataFrame(columns=EXPECTED_CLIENTI_COLS)
+    for c in EXPECTED_CLIENTI_COLS:
+        if c not in df.columns: df[c] = None
+    df["ClienteID"] = pd.to_numeric(df["ClienteID"], errors="coerce").astype("Int64")
+    return df[EXPECTED_CLIENTI_COLS]
 
 def normalize_contract_headers(raw: pd.DataFrame) -> pd.DataFrame:
     if raw is None or raw.empty:
@@ -147,7 +132,7 @@ def normalize_contract_headers(raw: pd.DataFrame) -> pd.DataFrame:
     out_df = pd.DataFrame(out)
     out_df.insert(0, "ClienteID", pd.to_numeric(df.get("ClienteID", np.nan), errors="coerce").astype("Int64"))
 
-    # normalizzo numero contratto (tolgo eventuale "+")
+    # normalizzo NumeroContratto (tolgo eventuale "+")
     out_df["NumeroContratto"] = (
         out_df["NumeroContratto"].astype(str).str.strip().str.replace(r"^\+", "", regex=True)
     )
@@ -167,6 +152,22 @@ def normalize_contract_headers(raw: pd.DataFrame) -> pd.DataFrame:
     out_df = out_df[["ClienteID"] + SAFE_CONTRACT_COLS]
     return out_df
 
+def sanitize_contracts_df(df) -> pd.DataFrame:
+    if df is None: df = pd.DataFrame()
+    if isinstance(df, pd.Series): df = df.to_frame().T
+    elif isinstance(df, (list, dict)): df = pd.DataFrame(df)
+    else: df = pd.DataFrame(df).copy()
+    for c in SAFE_CONTRACT_COLS:
+        if c not in df.columns:
+            df[c] = 0.0 if c in ["NOL_FIN","NOL_INT","TotRata"] else ""
+    df = df[[c for c in SAFE_CONTRACT_COLS]]
+    for c in ["NOL_FIN","NOL_INT","TotRata"]:
+        df[c] = df[c].apply(numify)
+    for dcol in ["DataInizio","DataFine"]:
+        df[dcol] = df[dcol].apply(fmt_date)
+    df["Stato"] = df["Stato"].astype(str).replace({"nan":""})
+    return df
+
 def ensure_contratti_cols(df) -> pd.DataFrame:
     df_norm = normalize_contract_headers(pd.DataFrame(df))
     core = sanitize_contracts_df(df_norm.drop(columns=["ClienteID"]))
@@ -174,7 +175,7 @@ def ensure_contratti_cols(df) -> pd.DataFrame:
                      core.reset_index(drop=True)], axis=1)
     return out[["ClienteID"] + SAFE_CONTRACT_COLS]
 
-# ---------------- Load/save CSV ----------------
+# -------------------- Load / Save CSV --------------------
 @st.cache_data
 def load_csv_with_fallback(main_path, fallbacks):
     p = Path(main_path)
@@ -204,7 +205,7 @@ def load_data():
 
 def save_csv(df, path): df.to_csv(path, index=False)
 
-# ---------------- Storage (Local / S3 / Dropbox) ----------------
+# -------------------- Storage (local / S3 / Dropbox) --------------------
 class StorageBase:
     def upload(self, key:str, data:bytes): raise NotImplementedError
     def list(self, prefix:str): raise NotImplementedError
@@ -298,7 +299,7 @@ def next_quote_number(df_prev: pd.DataFrame) -> str:
     n = int(last.split("-")[-1])
     return f"{prefix}{n+1:04d}"
 
-# ---------------- Word template replace ----------------
+# -------------------- Template Word --------------------
 def _replace_in_paragraph(paragraph, mapping: dict):
     for k, v in mapping.items():
         if k in paragraph.text:
@@ -319,7 +320,7 @@ def fill_docx_template(template_bytes: bytes, mapping: dict) -> bytes:
     for t in doc.tables: _replace_in_table(t, mapping)
     out = io.BytesIO(); doc.save(out); return out.getvalue()
 
-# ---------------- Auth minima ----------------
+# -------------------- Auth minima --------------------
 USERS = {
     "admin":{"password":"admin","role":"Admin"},
     "op":{"password":"op","role":"Operatore"},
@@ -341,60 +342,31 @@ if "auth_user" not in st.session_state:
 role = st.session_state.get("auth_role","Viewer")
 editable = role in ["Admin","Operatore"]
 
-# ---------------- Helper UI ----------------
+# -------------------- Helper UI --------------------
 def show_html(html: str, **kw):
     if hasattr(st, "html"): st.html(html, **kw)
     else: st.markdown(html, unsafe_allow_html=True)
 
-PAGES = ["Dashboard","Clienti","Contratti","Impostazioni"]
-if "sidebar_page" not in st.session_state: st.session_state["sidebar_page"] = "Clienti"
-# ---------------- Router ----------------
-st.sidebar.title("CRM")
+def go_to(page_name: str):
+    # non tocco direttamente il widget radio della sidebar
+    st.session_state["nav_target"] = page_name
+    st.rerun()
 
-# pagina da mostrare (se c'è un "target" imposto da go_to lo uso una volta sola)
-default_page = st.session_state.get("nav_target",
-                 st.session_state.get("sidebar_page", "Clienti"))
-if "nav_target" in st.session_state:
-    del st.session_state["nav_target"]
-
-page = st.sidebar.radio(
-    "Naviga",
-    PAGES,
-    index=PAGES.index(default_page) if default_page in PAGES else 0,
+# -------------------- Stato principale --------------------
+clienti_df, contratti_df = load_data()
+st.session_state.setdefault("clienti", clienti_df.copy())
+st.session_state.setdefault("contratti", contratti_df.copy())
+st.session_state.setdefault(
+    "selected_client_id",
+    int(clienti_df["ClienteID"].min()) if len(clienti_df) else 1
 )
 
-# salvo l'ultima scelta DOPO aver creato il widget (safe)
-st.session_state["sidebar_page"] = page
-
-# dispatch
-if page == "Dashboard":
-    render_dashboard()
-elif page == "Clienti":
-    render_clienti()
-elif page == "Contratti":
-    render_contratti()
-else:
-    render_settings()
-
-
-# ---------------- Stato ----------------
-clienti, contratti = load_data()
-st.session_state.setdefault("clienti", clienti.copy())
-st.session_state.setdefault("contratti", contratti.copy())
-st.session_state.setdefault("selected_client_id", int(clienti["ClienteID"].min()) if len(clienti) else 1)
-
-# ---------------- Metriche ----------------
-def monthly_revenue_open_client(df_ctr, cid):
-    df = df_ctr[(df_ctr["ClienteID"]==int(cid)) & (df_ctr["Stato"].str.lower()=="aperto")]
-    return float(df["TotRata"].sum())
-def monthly_revenue_all_client(df_ctr, cid):
-    df = df_ctr[df_ctr["ClienteID"]==int(cid)]
-    return float(df["TotRata"].sum())
+# -------------------- Metriche --------------------
 def monthly_revenue_open_all(df_ctr):
     df = df_ctr[df_ctr["Stato"].str.lower()=="aperto"]
     return float(df["TotRata"].sum())
 
-# ---------------- HTML Tabella contratti ----------------
+# -------------------- HTML tabella contratti --------------------
 def contracts_html(df):
     df = sanitize_contracts_df(df).copy()
     df = df.where(df.notna(), "")
@@ -424,7 +396,7 @@ def contracts_html(df):
     return css + '<table class="ctr-table"><thead><tr>'+header+'</tr></thead><tbody>' \
            + "\n".join(rows) + "</tbody></table>"
 
-# ---------------- Dashboard ----------------
+# -------------------- Pagine --------------------
 def render_dashboard():
     st.title("📊 Dashboard")
     c1,c2,c3 = st.columns(3)
@@ -433,6 +405,7 @@ def render_dashboard():
     c3.metric("Rata mensile (aperti)", euro(monthly_revenue_open_all(
         ensure_contratti_cols(st.session_state["contratti"])
     )))
+
     st.subheader("Promemoria in arrivo (30 giorni)")
     cli = ensure_clienti_cols(st.session_state["clienti"]).copy()
     today = date.today(); horizon = date.fromordinal(today.toordinal()+30)
@@ -444,7 +417,6 @@ def render_dashboard():
                  .sort_values(by=["ProssimoRecall","ProssimaVisita"], na_position="last")
     st.dataframe(upcoming, use_container_width=True)
 
-# ---------------- Clienti (anagrafica + promemoria + preventivi) ----------------
 def render_clienti():
     clienti  = ensure_clienti_cols(st.session_state["clienti"])
     ct       = ensure_contratti_cols(st.session_state["contratti"])
@@ -495,7 +467,6 @@ def render_clienti():
 
     if len(clienti)==0: st.info("Nessun cliente presente."); return
 
-    # selezione cliente memorizzata (riusata in 'Contratti')
     det_id = st.number_input("Apri scheda ClienteID",
                              min_value=int(clienti["ClienteID"].min()),
                              max_value=int(clienti["ClienteID"].max()),
@@ -531,7 +502,6 @@ def render_clienti():
             st.session_state["clienti"].loc[mask, "Note"] = new_note
             st.success("Note aggiornate. Ricorda di salvare (💾).")
 
-    # PROMEMORIA
     with st.expander("🔔 Promemoria cliente (recall / visite)", expanded=False):
         colp1, colp2 = st.columns(2)
         with colp1: pross_recall = st.date_input("Prossimo Recall", value=None, key=f"recall_{det_id}")
@@ -542,7 +512,6 @@ def render_clienti():
             st.session_state["clienti"].loc[mask,"ProssimaVisita"] = fmt_date(pross_visita) if pross_visita else ""
             st.success("Promemoria aggiornati. Ricorda di salvare (💾).")
 
-    # PREVENTIVI (colonna sx lista, colonna dx azioni)
     st.subheader("🧾 Preventivi")
     c_left, c_right = st.columns([0.45, 0.55])
 
@@ -603,7 +572,6 @@ def render_clienti():
     if colS2.button("➡️ Vai alla gestione contratti di questo cliente"):
         go_to("Contratti")
 
-# ---------------- Contratti (solo gestione) ----------------
 def render_contratti():
     clienti = ensure_clienti_cols(st.session_state["clienti"])
     ct      = ensure_contratti_cols(st.session_state["contratti"])
@@ -611,10 +579,9 @@ def render_contratti():
 
     if len(clienti)==0: st.info("Nessun cliente caricato."); return
 
-    # cliente preselezionato dalla pagina "Clienti"
     opts = [(int(cid), nm if pd.notna(nm) else "") for cid,nm in zip(clienti["ClienteID"], clienti["RagioneSociale"])]
     labels = [f"{cid} — {nm}" for cid,nm in opts]
-    def _lbl(cid): 
+    def _lbl(cid):
         row = clienti[clienti["ClienteID"]==cid]
         if row.empty: return labels[0]
         return f"{cid} — {row.iloc[0]['RagioneSociale']}"
@@ -627,7 +594,6 @@ def render_contratti():
     st.markdown("**Elenco contratti (rosso = chiusi)**")
     show_html(contracts_html(df_cli), height=min(460, 120 + 28*len(df_cli)))
 
-    # Export / Stampa
     with st.expander("📤 Esporta / Stampa (selezione)", expanded=False):
         nums = df_cli["NumeroContratto"].astype(str).tolist()
         sel = st.multiselect("Numeri contratto da stampare (vuoto = tutti)", nums, default=[])
@@ -733,7 +699,6 @@ def render_contratti():
     if colS2.button("⬅️ Torna alla scheda cliente"):
         go_to("Clienti")
 
-# ---------------- Impostazioni ----------------
 def render_settings():
     st.title("⚙️ Impostazioni & Salvataggio")
     c1,c2 = st.columns(2)
@@ -752,12 +717,30 @@ def render_settings():
         tmp = pd.read_csv(ut); st.session_state["contratti"] = ensure_contratti_cols(tmp)
         st.toast("Contratti caricati (ricordati di salvare).", icon="✅")
 
-# ---------------- Router ----------------
+# -------------------- Router (DEVE stare in fondo) --------------------
 st.sidebar.title("CRM")
-page = st.sidebar.radio("Naviga", PAGES, index=PAGES.index(st.session_state["sidebar_page"]),
-                        key="sidebar_page")
 
-if page=="Dashboard": render_dashboard()
-elif page=="Clienti": render_clienti()
-elif page=="Contratti": render_contratti()
-else: render_settings()
+# pagina da mostrare (se go_to ha impostato un target, usalo una volta)
+default_page = st.session_state.get("nav_target",
+                 st.session_state.get("sidebar_page", "Clienti"))
+if "nav_target" in st.session_state:
+    del st.session_state["nav_target"]
+
+page = st.sidebar.radio(
+    "Naviga",
+    PAGES,
+    index=PAGES.index(default_page) if default_page in PAGES else 0,
+)
+
+# salvo l'ultima scelta DOPO aver creato il widget (safe)
+st.session_state["sidebar_page"] = page
+
+# dispatch
+if page == "Dashboard":
+    render_dashboard()
+elif page == "Clienti":
+    render_clienti()
+elif page == "Contratti":
+    render_contratti()
+else:
+    render_settings()

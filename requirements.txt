@@ -2,7 +2,6 @@ streamlit==1.50.0
 pandas==2.3.3
 numpy==2.0.2
 python-docx==1.1.2
-boto3==1.35.36      # S3
-dropbox==11.36.2    # Dropbox
-reportlab==4.2.2    # PDF
-openpyxl==3.1.5     # Excel writer
+xlsxwriter==3.2.0
+SQLAlchemy==2.0.36
+PyMySQL==1.1.1

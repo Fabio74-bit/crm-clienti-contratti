@@ -1,5 +1,7 @@
 # app.py — CRM Clienti & Contratti
-# v4  (Storage S3/Dropbox/Locale + Excel export + PDF stampa + Preventivi + Allegati + Promemoria)
+# v4.1  (Fix dashboard date filter, date parsing dd/mm/aaaa, contracts_html clean, TotRata recompute,
+#        Preventivi Word mapping <<...>>/{{...}}, Storage S3/Dropbox/Locale, Excel/PDF export)
+
 import os, io, sys, re
 from pathlib import Path
 from datetime import date, datetime
@@ -11,12 +13,11 @@ import numpy as np
 from docx import Document
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.pdfgen import canvas
 from reportlab.platypus import Table, TableStyle, SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
-st.set_page_config(page_title="CRM Clienti & Contratti — v4", layout="wide")
-print(">>> app.py import OK v4", file=sys.stderr)
+st.set_page_config(page_title="CRM Clienti & Contratti — v4.1", layout="wide")
+print(">>> app.py import OK v4.1", file=sys.stderr)
 
 DATE_FMT = "%d/%m/%Y"
 
@@ -32,14 +33,27 @@ EXPECTED_CLIENTI_COLS = [
 
 # ---------- Utils base ----------
 def fmt_date(d):
+    """Ritorna stringa dd/mm/aaaa (DATE_FMT)."""
     if pd.isna(d) or d is None or d == "": return ""
     if isinstance(d, str):
-        for f in ["%Y-%m-%d","%d/%m/%Y","%d-%m-%Y","%m/%d/%Y"]:
-            try: return datetime.strptime(d, f).strftime(DATE_FMT)
+        s = d.strip()
+        # prova vari formati
+        for f in ["%d/%m/%Y","%Y-%m-%d","%d-%m-%Y","%m/%d/%Y"]:
+            try: return datetime.strptime(s, f).strftime(DATE_FMT)
             except: pass
-        return d
+        return s
     if isinstance(d, (datetime, date)): return d.strftime(DATE_FMT)
     return str(d)
+
+def parse_date_safe(s):
+    """Converte stringa in date; supporta dd/mm/aaaa e varianti. Ritorna None se non parsabile."""
+    if s is None or str(s).strip()=="" or str(s).lower()=="nan": return None
+    if isinstance(s, (datetime, date)): return s if isinstance(s, date) else s.date()
+    ss = str(s).strip()
+    for f in ["%d/%m/%Y","%Y-%m-%d","%d-%m-%Y","%m/%d/%Y"]:
+        try: return datetime.strptime(ss, f).date()
+        except: pass
+    return None
 
 def numify(x):
     if x is None or (isinstance(x, float) and np.isnan(x)): return 0.0
@@ -135,9 +149,15 @@ def load_data():
               ["contratti_batch1.csv","contratti_normalizzati.csv","preview_contratti.csv"])
     contratti = ensure_contratti_cols(contratti)
 
+    # Ricalcolo TotRata se mancante/0 o incoerente
     tot_calc = contratti.apply(compute_tot, axis=1)
-    mask_fix = contratti["TotRata"].isna() | (contratti["TotRata"] - tot_calc).abs().fillna(0) > 0.01
-    contratti.loc[mask_fix, "TotRata"] = tot_calc
+    need_fix = (
+        contratti["TotRata"].isna()
+        | (contratti["TotRata"].apply(numify)==0)
+        | ((contratti["TotRata"].apply(numify) - tot_calc).abs() > 0.01)
+    )
+    contratti.loc[need_fix, "TotRata"] = tot_calc
+
     return clienti, contratti
 
 def save_csv(df, path): df.to_csv(path, index=False)
@@ -184,7 +204,6 @@ class S3Storage(StorageBase):
         for obj in resp["Contents"]:
             k = obj["Key"]
             if k.endswith("/"): continue
-            # strip prefix
             keys.append(k[len(self.prefix)+1:] if self.prefix and k.startswith(self.prefix+"/") else k)
         return keys
     def download(self, key):
@@ -199,7 +218,6 @@ class DropboxStorage(StorageBase):
         self.prefix = os.environ.get("DROPBOX_PREFIX","/allegati")
         if not self.prefix.startswith("/"): self.prefix="/"+self.prefix
     def _full(self, key):
-        # dropbox paths must start with "/"
         return f"{self.prefix}/{key}".replace("//","/")
     def upload(self, key, data):
         import dropbox
@@ -271,7 +289,6 @@ def _replace_in_table(table, mapping: dict):
                 _replace_in_paragraph(paragraph, mapping)
 
 def fill_docx_template(template_bytes: bytes, mapping: dict) -> bytes:
-    # carica da bytes, salva in bytes
     tmp = io.BytesIO(template_bytes)
     doc = Document(tmp)
     for p in doc.paragraphs: _replace_in_paragraph(p, mapping)
@@ -319,9 +336,14 @@ def monthly_revenue_open_all(df_ctr):
     df = df_ctr[df_ctr["Stato"].str.lower()=="aperto"]
     return float(df["TotRata"].sum())
 
-# ---------- HTML contratti ----------
+# ---------- HTML contratti (pulito) ----------
 def contracts_html(df):
-    df = sanitize_contracts_df(df)
+    df = sanitize_contracts_df(df).copy()
+    # rimpiazza NaN/None con ""
+    df = df.where(df.notna(), "")
+    for c in df.columns:
+        df[c] = df[c].apply(lambda x: "" if str(x).strip().lower()=="nan" else x)
+
     css = """
     <style>
       .ctr-table { width:100%; border-collapse:collapse; font-size:0.95rem; }
@@ -330,22 +352,25 @@ def contracts_html(df):
       .row-chiuso { background:#ffecec; color:#7a0b0b; }
     </style>
     """
+    header = "".join(f"<th>{c}</th>" for c in SAFE_CONTRACT_COLS)
     if df.empty:
-        header = "".join(f"<th>{c}</th>" for c in SAFE_CONTRACT_COLS)
-        return css + '<table class="ctr-table">' + f"<thead><tr>{header}</tr></thead>" + \
-               '<tbody><tr><td colspan="9" style="text-align:center;color:#777;">Nessun contratto</td></tr></tbody></table>'
+        return css + '<table class="ctr-table"><thead><tr>'+header+'</tr></thead>' \
+               + '<tbody><tr><td colspan="9" style="text-align:center;color:#777;">Nessun contratto</td></tr></tbody></table>'
+
     df2 = df.copy()
     for c in ["NOL_FIN","NOL_INT","TotRata"]:
-        if c in df2.columns: df2[c] = df2[c].apply(euro)
-    header_cols = [c for c in SAFE_CONTRACT_COLS if c in df2.columns]
-    header = "".join(f"<th>{c}</th>" for c in header_cols)
+        if c in df2.columns:
+            df2[c] = df2[c].apply(lambda v: euro(v) if numify(v)!=0 else "")
+
     rows=[]
     for _, r in df2.iterrows():
         stato=(str(r.get("Stato","")) or "").strip().lower()
         cls = "row-chiuso" if stato=="chiuso" else ""
-        cells="".join(f"<td>{r.get(c,'')}</td>" for c in header_cols)
+        cells="".join(f"<td>{r.get(c,'') or ''}</td>" for c in SAFE_CONTRACT_COLS)
         rows.append(f"<tr class='{cls}'>{cells}</tr>")
-    return css + '<table class="ctr-table">' + f"<thead><tr>{header}</tr></thead><tbody>" + "\n".join(rows) + "</tbody></table>"
+
+    return css + '<table class="ctr-table"><thead><tr>'+header+'</tr></thead><tbody>' \
+           + "\n".join(rows) + "</tbody></table>"
 
 # ---------- Dashboard ----------
 def render_dashboard():
@@ -359,20 +384,21 @@ def render_dashboard():
 
     st.subheader("Promemoria in arrivo (30 giorni)")
     cli = ensure_clienti_cols(st.session_state["clienti"]).copy()
-    def to_date_safe(x):
-        try: return datetime.strptime(fmt_date(x), DATE_FMT).date()
-        except: return None
+
     today = date.today()
-    horizon = today.toordinal() + 30
-    cli["PR_dt"] = cli["ProssimoRecall"].apply(to_date_safe)
-    cli["PV_dt"] = cli["ProssimaVisita"].apply(to_date_safe)
-    mask = (
-        (cli["PR_dt"].notna() & (cli["PR_dt"].apply(lambda d: today <= d <= date.fromordinal(horizon))))
-        | (cli["PV_dt"].notna() & (cli["PV_dt"].apply(lambda d: today <= d <= date.fromordinal(horizon))))
-    )
-    upcoming = cli.loc[mask, ["ClienteID","RagioneSociale","ProssimoRecall","ProssimaVisita"]].sort_values(
-        by=["ProssimoRecall","ProssimaVisita"], na_position="last"
-    )
+    horizon = date.fromordinal(today.toordinal() + 30)
+
+    # converti stringhe -> date (None se non parsabile)
+    cli["PR_dt"] = cli["ProssimoRecall"].apply(parse_date_safe)
+    cli["PV_dt"] = cli["ProssimaVisita"].apply(parse_date_safe)
+
+    def in_range(d):
+        return isinstance(d, date) and (today <= d <= horizon)
+
+    mask = cli["PR_dt"].apply(in_range) | cli["PV_dt"].apply(in_range)
+
+    upcoming = cli.loc[mask, ["ClienteID","RagioneSociale","ProssimoRecall","ProssimaVisita"]] \
+                  .sort_values(by=["ProssimoRecall","ProssimaVisita"], na_position="last")
     st.dataframe(upcoming, use_container_width=True)
 
 # ---------- Clienti ----------
@@ -382,7 +408,7 @@ def render_clienti():
 
     st.title("👥 Clienti")
 
-    # Aggiunta/eliminazione cliente (come prima) -------------
+    # Aggiunta/eliminazione cliente -------------
     with st.expander("➕ Aggiungi cliente", expanded=False):
         with st.form("form_add_cliente"):
             col1,col2,col3 = st.columns(3)
@@ -416,6 +442,7 @@ def render_clienti():
                        "UltimoRecall":"","ProssimoRecall":"","UltimaVisita":"","ProssimaVisita":"","Note":note}
                 st.session_state["clienti"] = pd.concat([clienti, pd.DataFrame([row])], ignore_index=True)
                 st.success("Cliente creato. Ricorda di salvare.")
+
     with st.expander("🗑️ Elimina cliente", expanded=False):
         ids = clienti["ClienteID"].astype(int).tolist()
         del_id = st.selectbox("Seleziona ClienteID da eliminare", ids) if ids else None
@@ -464,7 +491,7 @@ def render_clienti():
     st.write("### Contratti (rosso = chiusi)")
     st.markdown(contracts_html(ct_cli), unsafe_allow_html=True)
 
-    # ====== PROMEMORIA ======
+    # ====== PROMEMORIA (date dd/mm/aaaa) ======
     with st.expander("🔔 Promemoria cliente (recall / visite)", expanded=False):
         colp1, colp2 = st.columns(2)
         with colp1: pross_recall = st.date_input("Prossimo Recall", value=None, key=f"recall_{det_id}")
@@ -475,7 +502,7 @@ def render_clienti():
             st.session_state["clienti"].loc[mask,"ProssimaVisita"] = fmt_date(pross_visita) if pross_visita else ""
             st.success("Promemoria aggiornati. Ricorda di salvare (💾).")
 
-    # ====== ALLEGATI (su storage selezionato) ======
+    # ====== ALLEGATI ======
     with st.expander("📎 Allegati cliente", expanded=False):
         up = st.file_uploader("Carica file (PDF/IMG/DOC/XLS...)", type=None, key=f"upl_{det_id}")
         prefix = f"CLI-{det_id}"
@@ -493,23 +520,32 @@ def render_clienti():
         else:
             st.info("Nessun allegato per questo cliente.")
 
-    # ====== PREVENTIVI WORD ======
+    # ====== PREVENTIVI WORD (supporto <<...>> e {{...}}) ======
     with st.expander("🧾 Preventivi", expanded=False):
-        st.write("Carica un **template .docx** con segnaposto (es: {{RAGIONE_SOCIALE}}, {{NUMERO_PREVENTIVO}} ...)")
+        st.write("Carica un **template .docx** (segnaposto <<...>> o {{...}}) e genera il preventivo.")
         tmpl = st.file_uploader("Template .docx", type=["docx"], key=f"tmpl_{det_id}")
         df_prev = load_preventivi()
         prossimo_num = next_quote_number(df_prev)
         rif_pers = st.text_input("Riferimento/Contatto", value=str(c["NomeCliente"] or ""))
         if st.button("Genera preventivo dal template", disabled=(tmpl is None)):
             mapping = {
-                "{{RAGIONE_SOCIALE}}": str(c["RagioneSociale"] or ""),
-                "{{CLIENTE_ID}}": str(int(det_id)),
-                "{{DATA}}": fmt_date(date.today()),
+                # stile <<...>> (es. i tuoi template Word)
+                "<<CLIENTE>>":           str(c["RagioneSociale"] or ""),
+                "<<INDIRIZZO>>":         str(c["Indirizzo"] or ""),
+                "<<CITTA>>":             str(c["Città"] or ""),
+                "<<CAP>>":               str(c["CAP"] or ""),
+                "<<RIFERIMENTO>>":       rif_pers or "",
+                "<<NUMERO_OFFERTA>>":    prossimo_num,
+                "<<DATA>>":              fmt_date(date.today()),
+                # alias stile {{...}}
+                "{{RAGIONE_SOCIALE}}":   str(c["RagioneSociale"] or ""),
+                "{{CLIENTE_ID}}":        str(int(det_id)),
+                "{{DATA}}":              fmt_date(date.today()),
                 "{{NUMERO_PREVENTIVO}}": prossimo_num,
-                "{{INDIRIZZO}}": str(c["Indirizzo"] or ""),
-                "{{CITTA}}": str(c["Città"] or ""),
-                "{{CAP}}": str(c["CAP"] or ""),
-                "{{RIFERIMENTO}}": rif_pers or "",
+                "{{INDIRIZZO}}":         str(c["Indirizzo"] or ""),
+                "{{CITTA}}":             str(c["Città"] or ""),
+                "{{CAP}}":               str(c["CAP"] or ""),
+                "{{RIFERIMENTO}}":       rif_pers or "",
             }
             out_bytes = fill_docx_template(tmpl.getbuffer(), mapping)
             key = f"CLI-{det_id}/PREVENTIVI/{prossimo_num}__CLI-{det_id}.docx"
@@ -520,6 +556,7 @@ def render_clienti():
             save_preventivi(df_prev)
             st.success(f"Preventivo generato: {rec['FileName']}")
             st.download_button("⬇️ Scarica subito", data=out_bytes, file_name=rec["FileName"], key=f"dl_prev_{rec['FileName']}")
+
         df_prev_cli = df_prev[df_prev["ClienteID"]==int(det_id)].sort_values("Data", ascending=False)
         if len(df_prev_cli):
             st.write("Preventivi generati:")
@@ -538,7 +575,6 @@ def render_clienti():
 
     # ====== ESPORTA CONTRATTI EXCEL + STAMPA PDF ======
     with st.expander("📤 Esporta / Stampa contratti", expanded=False):
-        # selezione righe
         nums = ct_cli["NumeroContratto"].astype(str).tolist()
         sel = st.multiselect("Seleziona contratti da stampare (vuoto = tutti)", nums, default=[])
 
@@ -547,24 +583,19 @@ def render_clienti():
 
         # --- Excel ---
         b = io.BytesIO()
-        # serve openpyxl per engine
-        df_to_xlsx = df_sel[SAFE_CONTRACT_COLS].copy()
         with pd.ExcelWriter(b, engine="openpyxl") as writer:
-            df_to_xlsx.to_excel(writer, index=False, sheet_name="Contratti")
+            df_sel[SAFE_CONTRACT_COLS].to_excel(writer, index=False, sheet_name="Contratti")
         st.download_button("⬇️ Esporta Excel", data=b.getvalue(),
-                           file_name=f"contratti_CLI-{det_id}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                           file_name=f"contratti_CLI-{det_id}.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
         # --- PDF semplice con intestazione ---
         def make_pdf_bytes(ragione, df):
             buf = io.BytesIO()
             doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
             styles = getSampleStyleSheet()
-            story = []
-            story.append(Paragraph(f"<b>{ragione}</b>", styles["Title"]))
-            story.append(Spacer(1,12))
-            story.append(Paragraph("Contratti", styles["h2"]))
-            story.append(Spacer(1,6))
-            # tabella
+            story = [Paragraph(f"<b>{ragione}</b>", styles["Title"]), Spacer(1,12),
+                     Paragraph("Contratti", styles["h2"]), Spacer(1,6)]
             data = [SAFE_CONTRACT_COLS] + df[SAFE_CONTRACT_COLS].astype(str).values.tolist()
             tbl = Table(data, repeatRows=1)
             tbl.setStyle(TableStyle([
@@ -579,9 +610,10 @@ def render_clienti():
             return buf.getvalue()
 
         pdf_data = make_pdf_bytes(str(c["RagioneSociale"] or ""), df_sel)
-        st.download_button("🖨️ Stampa PDF", data=pdf_data, file_name=f"contratti_CLI-{det_id}.pdf", mime="application/pdf")
+        st.download_button("🖨️ Stampa PDF", data=pdf_data,
+                           file_name=f"contratti_CLI-{det_id}.pdf", mime="application/pdf")
 
-    # ====== Aggiungi/Modifica/Elimina contratti (come prima) ======
+    # ====== Aggiungi/Modifica/Elimina contratti ======
     with st.expander("➕ Aggiungi contratto", expanded=False):
         with st.form("form_add_ctr"):
             col1,col2,col3 = st.columns(3)
@@ -613,16 +645,11 @@ def render_clienti():
         target = st.selectbox("Seleziona numero", nums2) if len(nums2)>0 else None
         if target:
             old = ct_cli[ct_cli["NumeroContratto"].astype(str)==str(target)].iloc[0]
-            def parse_date_local(s):
-                for f in ["%d/%m/%Y","%Y-%m-%d","%d-%m-%Y","%m/%d/%Y"]:
-                    try: return datetime.strptime(str(s), f).date()
-                    except: pass
-                return date.today()
             with st.form("form_edit_ctr"):
                 col1,col2,col3 = st.columns(3)
                 with col1:
-                    d_in = st.date_input("Data inizio", value=parse_date_local(old["DataInizio"]))
-                    d_fi = st.date_input("Data fine", value=parse_date_local(old["DataFine"]))
+                    d_in = st.date_input("Data inizio", value=parse_date_safe(old["DataInizio"]) or date.today())
+                    d_fi = st.date_input("Data fine", value=parse_date_safe(old["DataFine"]) or date.today())
                     durata = st.text_input("Durata", value=str(old["Durata"] or ""))
                 with col2:
                     descr = st.text_input("Descrizione", value=str(old["DescrizioneProdotto"] or ""))
@@ -658,7 +685,7 @@ def render_clienti():
     if c2.button("💾 Salva clienti adesso"):
         save_csv(ensure_clienti_cols(st.session_state["clienti"]), "clienti.csv"); st.success("Clienti salvati.")
 
-# ---------- Contratti per cliente (solo viewing + salva) ----------
+# ---------- Contratti per cliente ----------
 def render_contratti():
     clienti = ensure_clienti_cols(st.session_state["clienti"])
     ct      = ensure_contratti_cols(st.session_state["contratti"])

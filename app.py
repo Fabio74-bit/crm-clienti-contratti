@@ -1,5 +1,5 @@
 # app.py — CRM Clienti & Contratti
-# v3 FIX13  (CRUD + righe rosse + salva rapido + robust table + fix ClienteID)
+# v3 FIX14 (robust tables + CRUD + save buttons + red rows for closed)
 
 import streamlit as st
 import pandas as pd
@@ -7,17 +7,19 @@ import numpy as np
 from datetime import date, datetime
 from pathlib import Path
 import re
+import sys
 
-st.set_page_config(page_title="CRM Clienti & Contratti — v3 FIX13", layout="wide")
+st.set_page_config(page_title="CRM Clienti & Contratti — v3 FIX14", layout="wide")
+print(">>> app.py import OK", file=sys.stderr)
 
 # =========================
-# Helpers & costanti
+# Costanti e colonne
 # =========================
 DATE_FMT = "%d/%m/%Y"
 
 SAFE_CONTRACT_COLS = [
-    "NumeroContratto","DataInizio","DataFine","Durata",
-    "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"
+    "NumeroContratto", "DataInizio", "DataFine", "Durata",
+    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
 ]
 EXPECTED_CLIENTI_COLS = [
     "ClienteID","RagioneSociale","NomeCliente","Indirizzo","Città","CAP",
@@ -25,6 +27,9 @@ EXPECTED_CLIENTI_COLS = [
     "UltimaVisita","ProssimaVisita","Note"
 ]
 
+# =========================
+# Helper generali
+# =========================
 def fmt_date(d):
     if pd.isna(d) or d is None or d == "": return ""
     if isinstance(d, str):
@@ -38,7 +43,7 @@ def fmt_date(d):
 def numify(x):
     if x is None or (isinstance(x, float) and np.isnan(x)): return 0.0
     s = str(x).strip()
-    if s == "" or s.lower()=="nan": return 0.0
+    if s == "" or s.lower() == "nan": return 0.0
     s = s.replace("€","").replace(" ","")
     if "," in s and "." in s: s = s.replace(".","").replace(",",".")
     elif "," in s and "." not in s: s = s.replace(",",".")
@@ -88,30 +93,50 @@ def ensure_clienti_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df[EXPECTED_CLIENTI_COLS]
 
 def sanitize_contracts_df(df) -> pd.DataFrame:
-    """Rende la tabella contratti a prova di KeyError; NON contiene ClienteID."""
-    df = pd.DataFrame(df).copy()
+    """
+    Rende la tabella contratti a prova di buchi/KeyError; NON contiene ClienteID.
+    Accetta DataFrame/Series/list/dict.
+    """
+    if df is None:
+        df = pd.DataFrame()
+    if isinstance(df, pd.Series):
+        df = df.to_frame().T
+    elif isinstance(df, list):
+        df = pd.DataFrame(df)
+    else:
+        df = pd.DataFrame(df).copy()
+
+    # crea eventuali colonne mancanti
     for c in SAFE_CONTRACT_COLS:
         if c not in df.columns:
-            df[c] = 0.0 if c in ["NOL_FIN","NOL_INT","TotRata"] else ""
-    df = df[SAFE_CONTRACT_COLS]
-    for c in ["NOL_FIN","NOL_INT","TotRata"]: df[c] = df[c].apply(numify)
-    for dcol in ["DataInizio","DataFine"]: df[dcol] = df[dcol].apply(fmt_date)
-    df["Stato"] = df["Stato"].astype(str).replace({"nan":""})
+            df[c] = 0.0 if c in ["NOL_FIN", "NOL_INT", "TotRata"] else ""
+
+    # ordine colonne
+    df = df[[c for c in SAFE_CONTRACT_COLS]]
+
+    # tipizza importi
+    for c in ["NOL_FIN", "NOL_INT", "TotRata"]:
+        df[c] = df[c].apply(numify)
+
+    # date formato locale
+    for dcol in ["DataInizio", "DataFine"]:
+        df[dcol] = df[dcol].apply(fmt_date)
+
+    df["Stato"] = df["Stato"].astype(str).replace({"nan": ""})
     return df
 
 def ensure_contratti_cols(df) -> pd.DataFrame:
     """
-    Garantisce la presenza di ClienteID + SAFE_CONTRACT_COLS e li ordina.
+    Garantisce presenza di ClienteID + colonne contratti, e le ordina.
     """
     df = pd.DataFrame(df).copy()
     if "ClienteID" not in df.columns:
         df["ClienteID"] = None
     df["ClienteID"] = pd.to_numeric(df["ClienteID"], errors="coerce").astype("Int64")
 
-    # applica la sanitizzazione sulle altre colonne
     core = sanitize_contracts_df(df)
-    # unisci ClienteID conservando l'ordine
-    out = pd.concat([df[["ClienteID"]].reset_index(drop=True), core.reset_index(drop=True)], axis=1)
+    out = pd.concat([df[["ClienteID"]].reset_index(drop=True),
+                     core.reset_index(drop=True)], axis=1)
     return out[["ClienteID"] + SAFE_CONTRACT_COLS]
 
 # =========================
@@ -192,11 +217,19 @@ def monthly_revenue_open_all(df_ctr):
     return float(df["TotRata"].sum())
 
 # =========================
-# Render tabella contratti (HTML con righe rosse)
+# Tabella HTML contratti (difensiva)
 # =========================
 def contracts_html(df):
+    """
+    Tabella HTML contratti. Totalmente difensiva:
+    - accetta DataFrame/Series/list/dict
+    - non rompe se mancano colonne
+    - righe rosse per 'chiuso'
+    """
     df = sanitize_contracts_df(df)
+
     if df.empty:
+        header_cols = SAFE_CONTRACT_COLS
         head = """
         <style>
           .ctr-table { width:100%; border-collapse:collapse; font-size:0.95rem; }
@@ -208,13 +241,14 @@ def contracts_html(df):
           <thead><tr>{}</tr></thead>
           <tbody><tr><td colspan="9" style="text-align:center;color:#777;">Nessun contratto</td></tr></tbody>
         </table>
-        """.format("".join([f"<th>{c}</th>" for c in SAFE_CONTRACT_COLS]))
+        """.format("".join(f"<th>{c}</th>" for c in header_cols))
         return head
 
     df2 = df.copy()
-    df2["NOL_FIN"] = df2["NOL_FIN"].apply(euro)
-    df2["NOL_INT"] = df2["NOL_INT"].apply(euro)
-    df2["TotRata"] = df2["TotRata"].apply(euro)
+    for c in ["NOL_FIN","NOL_INT","TotRata"]:
+        if c in df2.columns: df2[c] = df2[c].apply(euro)
+
+    header_cols = [c for c in SAFE_CONTRACT_COLS if c in df2.columns]
 
     head = """
     <style>
@@ -225,13 +259,15 @@ def contracts_html(df):
     </style>
     <table class="ctr-table">
       <thead><tr>{}</tr></thead><tbody>
-    """.format("".join([f"<th>{c}</th>" for c in SAFE_CONTRACT_COLS]))
+    """.format("".join(f"<th>{c}</th>" for c in header_cols))
 
     rows = []
     for _, r in df2.iterrows():
-        cls = "row-chiuso" if str(r["Stato"]).strip().lower()=="chiuso" else ""
-        cells = "".join([f"<td>{r[c]}</td>" for c in SAFE_CONTRACT_COLS])
+        stato = (str(r.get("Stato","")) or "").strip().lower()
+        cls = "row-chiuso" if stato == "chiuso" else ""
+        cells = "".join(f"<td>{r.get(c, '')}</td>" for c in header_cols)
         rows.append(f"<tr class='{cls}'>{cells}</tr>")
+
     return head + "\n".join(rows) + "</tbody></table>"
 
 # =========================
@@ -242,7 +278,9 @@ def render_dashboard():
     c1,c2,c3 = st.columns(3)
     c1.metric("Clienti", len(st.session_state["clienti"]))
     c2.metric("Contratti", len(st.session_state["contratti"]))
-    c3.metric("Rata mensile (aperti)", euro(monthly_revenue_open_all(ensure_contratti_cols(st.session_state["contratti"]))))
+    c3.metric("Rata mensile (aperti)", euro(monthly_revenue_open_all(
+        ensure_contratti_cols(st.session_state["contratti"])
+    )))
 
     st.subheader("Promemoria (prossimo recall/visita)")
     cli = ensure_clienti_cols(st.session_state["clienti"])
@@ -250,13 +288,12 @@ def render_dashboard():
     st.dataframe(rem, use_container_width=True)
 
 def render_clienti():
-    # sempre normalize
     clienti  = ensure_clienti_cols(st.session_state["clienti"])
     ct       = ensure_contratti_cols(st.session_state["contratti"])
 
     st.title("👥 Clienti")
 
-    # Aggiungi
+    # Aggiungi cliente
     with st.expander("➕ Aggiungi cliente", expanded=False):
         with st.form("form_add_cliente"):
             col1,col2,col3 = st.columns(3)
@@ -294,7 +331,7 @@ def render_clienti():
                 st.session_state["clienti"] = pd.concat([clienti, pd.DataFrame([row])], ignore_index=True)
                 st.success("Cliente creato. Ricorda di salvare.")
 
-    # Elimina
+    # Elimina cliente
     with st.expander("🗑️ Elimina cliente", expanded=False):
         ids = clienti["ClienteID"].astype(int).tolist()
         del_id = st.selectbox("Seleziona ClienteID da eliminare", ids) if ids else None
@@ -334,7 +371,7 @@ def render_clienti():
         st.write(f"**Prossima Visita:** {c['ProssimaVisita'] or ''}")
     if (c["Note"] or "") != "": st.info(c["Note"])
 
-    # contratti cliente (sempre tramite ensure_contratti_cols)
+    # contratti cliente
     ct = ensure_contratti_cols(st.session_state["contratti"])
     ct_cli = ct[ct["ClienteID"]==int(det_id)].copy()
 
@@ -476,8 +513,7 @@ def render_settings():
     ut = colB.file_uploader("Carica contratti.csv", type=["csv"])
     if ut is not None:
         tmp = pd.read_csv(ut)
-        tmp = ensure_contratti_cols(tmp)
-        st.session_state["contratti"] = tmp
+        st.session_state["contratti"] = ensure_contratti_cols(tmp)
         st.toast("Contratti caricati (ricordati di salvare).", icon="✅")
 
 # =========================

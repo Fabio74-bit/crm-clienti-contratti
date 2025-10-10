@@ -144,6 +144,32 @@ def load_preventivi() -> pd.DataFrame:
 def save_csv(df: pd.DataFrame, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False)
+def new_cliente_id(df_cli: pd.DataFrame) -> int:
+    if df_cli.empty:
+        return 1
+    try:
+        return int(df_cli["ClienteID"].astype(int).max()) + 1
+    except Exception:
+        return 1
+
+
+def upsert_cliente(df_cli: pd.DataFrame, row: dict, delete: bool = False) -> pd.DataFrame:
+    """Inserisce/aggiorna oppure elimina (se delete=True) un cliente, e salva su CSV."""
+    df2 = df_cli.copy()
+    cid = str(row["ClienteID"])
+    if delete:
+        df2 = df2.loc[df2["ClienteID"].astype(str) != cid].copy()
+    else:
+        mask = df2["ClienteID"].astype(str) == cid
+        if mask.any():
+            # update
+            for k, v in row.items():
+                df2.loc[mask, k] = str(v)
+        else:
+            # insert
+            df2 = pd.concat([df2, pd.DataFrame([row])], ignore_index=True)
+    save_csv(df2, CLIENTI_PATH())
+    return df2
 
 
 # ------------------------------------------------------------------------------
@@ -213,11 +239,31 @@ def select_cliente(df_cli: pd.DataFrame, key="cliente_sel") -> Optional[dict]:
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return None
+
     df_cli = df_cli.copy()
     df_cli["__label"] = df_cli["ClienteID"].astype(str) + " — " + df_cli["RagioneSociale"].astype(str)
-    sel = st.selectbox("Cliente", df_cli["__label"].tolist(), index=0, key=key)
+    labels = df_cli["__label"].tolist()
+
+    # prova a pre-selezionare da sessione
+    default_label = None
+    if "cliente_corrente_id" in st.session_state:
+        try:
+            cid = int(st.session_state["cliente_corrente_id"])
+            r = df_cli.loc[df_cli["ClienteID"].astype(int) == cid]
+            if not r.empty:
+                default_label = f"{cid} — {r.iloc[0]['RagioneSociale']}"
+        except Exception:
+            default_label = None
+
+    idx = labels.index(default_label) if default_label in labels else 0
+    sel = st.selectbox("Cliente", labels, index=idx, key=key)
+
+    # aggiorno la sessione con la selezione corrente
     cid = int(sel.split(" — ")[0])
+    st.session_state["cliente_corrente_id"] = cid
+
     return df_cli.loc[df_cli["ClienteID"].astype(int) == cid].iloc[0].to_dict()
+
 
 
 def contracts_html(df: pd.DataFrame) -> str:
@@ -310,6 +356,32 @@ def fill_docx_template(template_path: Path, mapping: Dict[str, str], out_path: P
 
 def preventivi_panel(cliente: dict, role: str, df_prev: pd.DataFrame):
     st.markdown("### 🧾 Preventivi")
+
+    # Elenco esistente del cliente
+    my_prev = df_prev.loc[df_prev["ClienteID"].astype(str) == str(cliente["ClienteID"])].copy()
+    if not my_prev.empty:
+        st.markdown("#### Preventivi esistenti")
+        my_prev = my_prev.sort_values(["Data", "Numero"], ascending=[False, False])
+        for _, r in my_prev.iterrows():
+            file_name = r.get("FileSalvato", "")
+            file_path = TEMPLATES_DIR() / file_name if file_name else None
+            cols = st.columns([4, 2, 3, 3])
+            cols[0].write(f"**N° {r['Numero']}** – {r['Template']}")
+            cols[1].write(r.get("Data", ""))
+            cols[2].write(file_name or "")
+            if file_path and file_path.exists():
+                with open(file_path, "rb") as f:
+                    cols[3].download_button(
+                        "⬇️ Scarica",
+                        data=f.read(),
+                        file_name=file_name,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"dl_prev_{r['Numero']}_{file_name}"
+                    )
+            else:
+                cols[3].warning("File non trovato")
+
+    st.markdown("---")
     templates = [p for p in TEMPLATES_DIR().glob("*.docx")]
     if not templates:
         st.info("Carica i template .docx in **storage/templates/**")
@@ -331,10 +403,7 @@ def preventivi_panel(cliente: dict, role: str, df_prev: pd.DataFrame):
         mapping = {}
         for ph, field in PLACEHOLDERS.items():
             if field is None:
-                if ph == "DATA":
-                    mapping[ph] = data_p
-                elif ph == "NUMERO":
-                    mapping[ph] = str(nro)
+                mapping[ph] = data_p if ph == "DATA" else str(nro)
             else:
                 mapping[ph] = str(cliente.get(field, ""))
 
@@ -354,12 +423,13 @@ def preventivi_panel(cliente: dict, role: str, df_prev: pd.DataFrame):
         }
         df_prev2 = pd.concat([df_prev2, pd.DataFrame([row])], ignore_index=True)
         save_csv(df_prev2, PREVENTIVI_PATH())
-        st.success(f"Preventivo creato: {out_name}")
 
+        st.success(f"Preventivo creato e salvato in **storage/templates/{out_name}**.")
         with open(out_path, "rb") as f:
-            st.download_button("⬇️ Scarica il preventivo", f, file_name=out_name)
+            st.download_button("⬇️ Scarica preventivo", f, file_name=out_name)
 
         do_rerun()
+
 
 
 # ------------------------------------------------------------------------------
@@ -367,11 +437,52 @@ def preventivi_panel(cliente: dict, role: str, df_prev: pd.DataFrame):
 # ------------------------------------------------------------------------------
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     header("👥 Clienti")
+
+    # --- Aggiungi nuovo cliente ------------------------------------------------
+    with st.expander("➕ Aggiungi nuovo cliente", expanded=False):
+        colA, colB = st.columns(2)
+        with colA:
+            rag = st.text_input("Ragione Sociale *", key="new_rag")
+            rif = st.text_input("Persona di riferimento", key="new_rif")
+            ind = st.text_input("Indirizzo", key="new_ind")
+            citta = st.text_input("Città", key="new_citta")
+            cap = st.text_input("CAP", key="new_cap")
+            tel = st.text_input("Telefono", key="new_tel")
+            email = st.text_input("Email", key="new_email")
+        with colB:
+            piva = st.text_input("Partita IVA", key="new_piva")
+            iban = st.text_input("IBAN", key="new_iban")
+            sdi = st.text_input("SDI", key="new_sdi")
+            ult_rec = st.text_input("Ultimo Recall (dd/mm/aaaa)", key="new_ultrec")
+            pro_rec = st.text_input("Prossimo Recall (dd/mm/aaaa)", key="new_prorec")
+            ult_vis = st.text_input("Ultima Visita (dd/mm/aaaa)", key="new_ultvis")
+            pro_vis = st.text_input("Prossima Visita (dd/mm/aaaa)", key="new_provis")
+        note_new = st.text_area("Note", key="new_note")
+
+        if can_edit(role) and st.button("💾 Crea cliente"):
+            if not rag.strip():
+                st.error("Ragione Sociale obbligatoria.")
+            else:
+                cid = new_cliente_id(df_cli)
+                row = {
+                    "ClienteID": str(cid),
+                    "RagioneSociale": rag, "PersonaRiferimento": rif, "Indirizzo": ind,
+                    "Citta": citta, "CAP": cap, "Telefono": tel, "Email": email,
+                    "PartitaIVA": piva, "IBAN": iban, "SDI": sdi,
+                    "UltimoRecall": ult_rec, "ProssimoRecall": pro_rec,
+                    "UltimaVisita": ult_vis, "ProssimaVisita": pro_vis,
+                    "Note": note_new
+                }
+                df2 = upsert_cliente(df_cli, row)
+                st.session_state["cliente_corrente_id"] = cid
+                st.success(f"Cliente creato: {cid} — {rag}")
+                do_rerun()
+
+    # --- Selezione cliente e anagrafica ---------------------------------------
     cliente = select_cliente(df_cli, key="cli_select")
     if not cliente:
         return
 
-    # anagrafica
     st.markdown("#### Anagrafica")
     colL, colR = st.columns(2)
     with colL:
@@ -381,6 +492,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.write(f"**Città**: {cliente.get('Citta','')}  **CAP**: {cliente.get('CAP','')}")
         st.write(f"**Telefono**: {cliente.get('Telefono','')}")
         st.write(f"**Email**: {cliente.get('Email','')}")
+        st.write(f"**Note**: {cliente.get('Note','')}")
     with colR:
         st.write(f"**P.IVA**: {cliente.get('PartitaIVA','')}")
         st.write(f"**IBAN**: {cliente.get('IBAN','')}")
@@ -389,6 +501,27 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.write(f"**Prossimo Recall**: {cliente.get('ProssimoRecall','')}")
         st.write(f"**Ultima Visita**: {cliente.get('UltimaVisita','')}")
         st.write(f"**Prossima Visita**: {cliente.get('ProssimaVisita','')}")
+
+    # --- Modifica/Elimina ------------------------------------------------------
+    with st.expander("✏️ Modifica / 🗑️ Elimina cliente", expanded=False):
+        df_cli_cols = _default_clienti().columns.tolist()
+        edited = {}
+        for c in df_cli_cols:
+            edited[c] = st.text_input(c, value=str(cliente.get(c, "")), key=f"edit_{c}")
+
+        c_left, c_right = st.columns(2)
+        with c_left:
+            if can_edit(role) and st.button("💾 Salva modifiche"):
+                df_cli2 = upsert_cliente(df_cli, edited)
+                st.success("Cliente aggiornato.")
+                do_rerun()
+        with c_right:
+            if can_edit(role) and st.button("🗑️ Elimina cliente"):
+                df_cli2 = upsert_cliente(df_cli, edited, delete=True)
+                st.success("Cliente eliminato.")
+                # pulisco selezione
+                st.session_state.pop("cliente_corrente_id", None)
+                do_rerun()
 
     st.markdown("---")
     if st.button("➡️ Vai alla gestione contratti di questo cliente"):
@@ -400,45 +533,45 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     preventivi_panel(cliente, role, df_prev)
 
 
+
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     header("📑 Contratti (rosso = chiusi)")
-    # selezione cliente (preferisci quello in sessione)
-    default_label = None
-    if "cliente_corrente_id" in st.session_state:
-        try:
-            cid = int(st.session_state["cliente_corrente_id"])
-            r = df_cli.loc[df_cli["ClienteID"].astype(int) == cid]
-            if not r.empty:
-                default_label = f"{cid} — {r.iloc[0]['RagioneSociale']}"
-        except:
-            default_label = None
 
-    cliente = select_cliente(df_cli, key="cli_in_contratti")
+    cliente = select_cliente(df_cli, key="cli_in_contratti")  # ora mantiene il default corretto
     if not cliente:
         return
 
     cid = int(cliente["ClienteID"])
     ct_cli = df_ct.loc[df_ct["ClienteID"].astype(str) == str(cid)].copy()
 
-    st.markdown("#### Elenco")
-    html = contracts_html(ct_cli)
-    show_html(html, height=min(460, 120 + 28 * len(ct_cli)))
+    # Tabella "vera" semplificata
+    st.markdown("#### Elenco contratti")
+    if ct_cli.empty:
+        st.info("Nessun contratto per questo cliente.")
+    else:
+        df_show = ct_cli.copy()
+        for c in ("NOL_FIN", "NOL_INT", "TotRata"):
+            if c in df_show.columns:
+                df_show[c] = df_show[c].apply(_fmt_eur)
+        st.dataframe(
+            df_show[
+                ["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]
+            ],
+            use_container_width=True
+        )
 
-    # esporta/stampa
-    col1, col2 = st.columns(2)
-    with col1:
-        xls = export_contratti_excel(ct_cli, cliente["RagioneSociale"])
-        st.download_button("⬇️ Esporta in Excel", data=xls,
-                           file_name=f"contratti_{cid}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    with col2:
-        st.info("Per la stampa, usa l'Excel esportato o il comando stampa del browser.")
+    # Esporta Excel
+    xls = export_contratti_excel(ct_cli, cliente["RagioneSociale"])
+    st.download_button("⬇️ Esporta in Excel", data=xls,
+                       file_name=f"contratti_{cid}.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     if not can_edit(role):
         st.warning("Solo Admin/Editor possono aggiungere o modificare contratti.")
         return
 
     st.markdown("---")
-    st.markdown("#### ➕ Aggiungi / ✏️ Modifica contratto")
+    st.markdown("#### ➕ Aggiungi / ✏️ Modifica / 🗑️ Elimina contratto")
 
     # form add/update
     colA, colB, colC = st.columns(3)
@@ -459,7 +592,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with colX:
         if st.button("💾 Salva/aggiorna"):
             df2 = df_ct.copy()
-            # se numero esiste per quel cliente -> update, altrimenti append
             mask = (df2["ClienteID"].astype(str) == str(cid)) & (df2["NumeroContratto"].astype(str) == numero)
             row = {
                 "ClienteID": str(cid),
@@ -488,6 +620,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             save_csv(df2, CONTRATTI_PATH())
             st.success("Contratto eliminato (se esisteva).")
             do_rerun()
+
 
 
 # ------------------------------------------------------------------------------

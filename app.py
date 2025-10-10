@@ -14,6 +14,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle, SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from streamlit.components.v1 import html as components_html
 
 st.set_page_config(page_title="CRM Clienti & Contratti", layout="wide")
 print(">>> app.py v5.1", file=sys.stderr)
@@ -343,14 +344,10 @@ role = st.session_state.get("auth_role","Viewer")
 editable = role in ["Admin","Operatore"]
 
 # -------------------- Helper UI --------------------
-def show_html(html: str, **kw):
-    if hasattr(st, "html"): st.html(html, **kw)
-    else: st.markdown(html, unsafe_allow_html=True)
+def show_html(html: str, height: int = 420):
+    # Usa sempre il componente classico, stabile su Cloud e locale.
+    components_html(html, height=height, scrolling=True)
 
-def go_to(page_name: str):
-    # non tocco direttamente il widget radio della sidebar
-    st.session_state["nav_target"] = page_name
-    st.rerun()
 
 # -------------------- Stato principale --------------------
 clienti_df, contratti_df = load_data()

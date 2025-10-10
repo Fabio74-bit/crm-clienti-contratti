@@ -1,9 +1,11 @@
+# .streamlit/config.toml
+
 [theme]
-base="light"
-primaryColor="#1e88e5"
-backgroundColor="#e3f2fd"
-secondaryBackgroundColor="#ffffff"
-textColor="#0d1117"
+base = "light"
+primaryColor = "#2563eb"            # blu principale
+backgroundColor = "#f8fafc"         # grigio/azzurro molto chiaro
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0d1117"               # quasi nero
 
 [server]
 headless = true

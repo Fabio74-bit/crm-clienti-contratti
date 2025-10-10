@@ -348,9 +348,34 @@ def show_html(html: str, **kw):
 
 PAGES = ["Dashboard","Clienti","Contratti","Impostazioni"]
 if "sidebar_page" not in st.session_state: st.session_state["sidebar_page"] = "Clienti"
-def go_to(page_name: str):
-    st.session_state["sidebar_page"] = page_name
-    st.rerun()
+# ---------------- Router ----------------
+st.sidebar.title("CRM")
+
+# pagina da mostrare (se c'è un "target" imposto da go_to lo uso una volta sola)
+default_page = st.session_state.get("nav_target",
+                 st.session_state.get("sidebar_page", "Clienti"))
+if "nav_target" in st.session_state:
+    del st.session_state["nav_target"]
+
+page = st.sidebar.radio(
+    "Naviga",
+    PAGES,
+    index=PAGES.index(default_page) if default_page in PAGES else 0,
+)
+
+# salvo l'ultima scelta DOPO aver creato il widget (safe)
+st.session_state["sidebar_page"] = page
+
+# dispatch
+if page == "Dashboard":
+    render_dashboard()
+elif page == "Clienti":
+    render_clienti()
+elif page == "Contratti":
+    render_contratti()
+else:
+    render_settings()
+
 
 # ---------------- Stato ----------------
 clienti, contratti = load_data()

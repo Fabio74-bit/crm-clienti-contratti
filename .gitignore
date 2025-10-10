@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# --- SHT-Gestione-Clienti (aggiunte progetto) ---
+.DS_Store
+__pycache__/
+
+# cartelle generate dall'app (non versionare documenti/allegati)
+storage/allegati/
+storage/preventivi_docs/
+
+# secrets locali (se mai usati in locale)
+.streamlit/secrets.toml

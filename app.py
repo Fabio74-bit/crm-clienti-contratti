@@ -1,42 +1,30 @@
 from __future__ import annotations
-import os
 from pathlib import Path
 from typing import Tuple
-
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-from datetime import datetime
 
 # ======================================================================================
-# ---------------------------------  AUTH (LOGIN GATE)  --------------------------------
+# ------------------------------- LOGIN / AUTH (prima di tutto) ------------------------
 # ======================================================================================
 
 def _read_users_from_secrets() -> dict:
-    """
-    Legge la sezione [auth.users] dai Secrets.
-    Esempio atteso nei Secrets:
-      [auth.users.fabio]
-      password = "xxxx"
-      role     = "admin"
-    """
     auth = st.secrets.get("auth", {})
     return auth.get("users", {}) or {}
 
-
 def _login_page(users: dict) -> None:
-    """Render della pagina di login (bloccante finché non si effettua l'accesso)."""
     st.title("GESTIONALE CLIENTI – SHT")
     st.subheader("Login")
 
-    with st.form("login_form", clear_on_submit=False):
+    with st.form("login_form"):
         usr = st.selectbox("Utente", list(users.keys()))
         pwd = st.text_input("Password", type="password")
-        ok = st.form_submit_button("Entra", use_container_width=True)
+        ok  = st.form_submit_button("Entra", use_container_width=True)
 
     if ok:
         real_pwd = users.get(usr, {}).get("password", "")
-        role = users.get(usr, {}).get("role", "viewer")
+        role     = users.get(usr, {}).get("role", "viewer")
         if pwd == real_pwd:
             st.session_state["auth_user"] = usr
             st.session_state["auth_role"] = role
@@ -44,16 +32,11 @@ def _login_page(users: dict) -> None:
         else:
             st.error("Password errata")
 
-
 def require_login() -> Tuple[str, str]:
-    """
-    Va chiamata PRIMA di tutto in main().
-    Se non loggato, mostra la pagina di login e blocca il resto.
-    """
     users = _read_users_from_secrets()
     if not users:
         st.title("GESTIONALE CLIENTI – SHT")
-        st.error("Autenticazione non configurata: aggiungi [auth.users] nei Secrets.")
+        st.error("Autenticazione non configurata. Aggiungi [auth.users] nei Secrets.")
         st.stop()
 
     if "auth_user" in st.session_state and "auth_role" in st.session_state:
@@ -62,9 +45,7 @@ def require_login() -> Tuple[str, str]:
     _login_page(users)
     st.stop()
 
-
 def sidebar_userbox() -> None:
-    """Box in sidebar con info utente e pulsante di logout."""
     if "auth_user" in st.session_state:
         st.sidebar.markdown(f"**Utente:** {st.session_state['auth_user']}")
         st.sidebar.caption(f"Ruolo: {st.session_state.get('auth_role','viewer')}")
@@ -73,15 +54,12 @@ def sidebar_userbox() -> None:
                 st.session_state.pop(k, None)
             st.rerun()
 
-
 # ======================================================================================
-# -----------------------------  UTILS / CARICAMENTO DATI  -----------------------------
+# --------------------------- Utilities caricamento/gestione dati ----------------------
 # ======================================================================================
 
-# Directory locale per i file
 STORAGE_DIR = Path(st.secrets.get("LOCAL_STORAGE_DIR", "storage"))
 
-# Colonne attese (usate come fallback se i file non esistono o sono vuoti)
 CLIENTI_COLS = [
     "ClienteID","RagioneSociale","PersonaRiferimento","Indirizzo","Citta","CAP",
     "Telefono","Email","PartitaIVA","IBAN","SDI",
@@ -91,12 +69,9 @@ CONTRATTI_COLS = [
     "ClienteID","NumeroContratto","DataInizio","DataFine","Durata",
     "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"
 ]
-PREVENTIVI_COLS = [
-    "PreventivoID","ClienteID","Data","Numero","File","Totale"
-]
+PREVENTIVI_COLS = ["PreventivoID","ClienteID","Data","Numero","File","Totale"]
 
 def ensure_cols(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    """Assicura che il DataFrame contenga tutte le colonne indicate (aggiunge vuote se mancano)."""
     if df is None or df.empty:
         return pd.DataFrame(columns=cols)
     for c in cols:
@@ -105,7 +80,6 @@ def ensure_cols(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return df[cols]
 
 def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
-    """Carica un CSV in modo sicuro; se non esiste ritorna DF con colonne attese."""
     try:
         if path.exists():
             df = pd.read_csv(path, dtype=str).fillna("")
@@ -115,10 +89,8 @@ def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
         df = pd.DataFrame(columns=cols)
     return ensure_cols(df, cols)
 
-
 def to_date(x):
-    """Trasforma vari formati in Timestamp; dd/mm/yyyy supportato."""
-    if x is None or (isinstance(x, float) and pd.isna(x)) or x == "":
+    if x is None or x == "" or (isinstance(x, float) and pd.isna(x)):
         return pd.NaT
     if isinstance(x, pd.Timestamp):
         return x
@@ -128,17 +100,15 @@ def to_date(x):
         return pd.NaT
 
 def fmt_date(d):
-    """Format dd/mm/yyyy sicuro anche con NaT/blank."""
-    if d is None or d == "" or (isinstance(d, float) and pd.isna(d)) or (isinstance(d, pd.Timestamp) and pd.isna(d)):
+    if d is None or d == "" or (isinstance(d, float) and pd.isna(d)):
         return ""
     try:
         return pd.to_datetime(d).strftime("%d/%m/%Y")
     except Exception:
         return ""
 
-
 # ======================================================================================
-# ---------------------------  HTML TABLE (render compatibile)  ------------------------
+# ----------------------------- HTML table renderer compatibile ------------------------
 # ======================================================================================
 
 TABLE_CSS = """
@@ -151,12 +121,10 @@ TABLE_CSS = """
 </style>
 """
 
-def show_html(html: str, *, height: int = 420):
-    """Renderizza HTML in iframe (nessun artefatto)."""
+def show_html_table(html: str, *, height: int = 420):
     components.html(html, height=height, scrolling=True)
 
 def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str:
-    """Crea tabella HTML; righe 'chiuse' in rosso chiaro."""
     if df is None or df.empty:
         return TABLE_CSS + "<div style='padding:8px;color:#666'>Nessun dato</div>"
 
@@ -164,11 +132,12 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
     thead = "<thead><tr>" + "".join(f"<th>{c}</th>" for c in cols) + "</tr></thead>"
 
     rows_html = []
-    for i, row in df.iterrows():
+    # attenzione: uso il positional i per closed_mask
+    for i, row in enumerate(df.itertuples(index=False)):
         tr_class = " class='ctr-row-closed'" if (closed_mask is not None and bool(closed_mask.iloc[i])) else ""
         tds = []
-        for c in cols:
-            sval = "" if pd.isna(row.get(c, "")) else str(row.get(c, ""))
+        for c, val in zip(cols, row):
+            sval = "" if pd.isna(val) else str(val)
             sval = sval.replace("\n", "<br>")
             tds.append(f"<td class='ellipsis'>{sval}</td>")
         rows_html.append(f"<tr{tr_class}>" + "".join(tds) + "</tr>")
@@ -176,14 +145,13 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
     tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
     return TABLE_CSS + f"<table class='ctr-table'>{thead}{tbody}</table>"
 
-
 # ======================================================================================
-# ------------------------------------  DASHBOARD  -------------------------------------
+# -------------------------------------- DASHBOARD -------------------------------------
 # ======================================================================================
 
 KPI_CARD_CSS = """
 <style>
-.kpi-wrap{display:grid;grid-template-columns:1fr;gap:12px}
+.kpi-wrap{display:grid;grid-template-columns:1fr;gap:12px;margin:6px 0 14px 0}
 @media(min-width:900px){.kpi-wrap{grid-template-columns:1fr 1fr 1fr 1fr}}
 .kpi{border:2px solid #e5e7eb;border-radius:16px;padding:18px 22px;background:#fff}
 .kpi h4{margin:0 0 8px 0;font-size:14px;color:#374151;font-weight:600}
@@ -194,18 +162,21 @@ KPI_CARD_CSS = """
 </style>
 """
 
-def kpi_card(title: str, value: str|int|float, color: str=""):
-    return f"""
-    <div class="kpi {color}">
-      <h4>{title}</h4>
-      <div class="v">{value}</div>
-    </div>
-    """
+def kpi_grid_html(clienti_attivi:int, contratti_aperti:int, contratti_chiusi:int, contratti_anno:int, year_now:int)->str:
+    # HTML senza indentazioni, per evitare che Markdown lo tratti come code block
+    return (
+        KPI_CARD_CSS +
+        '<div class="kpi-wrap">'
+        '<div class="kpi"><h4>Clienti attivi</h4><div class="v">'+str(clienti_attivi)+'</div></div>'
+        '<div class="kpi green"><h4>Contratti aperti</h4><div class="v">'+str(contratti_aperti)+'</div></div>'
+        '<div class="kpi red"><h4>Contratti chiusi</h4><div class="v">'+str(contratti_chiusi)+'</div></div>'
+        '<div class="kpi yellow"><h4>Contratti '+str(year_now)+'</h4><div class="v">'+str(contratti_anno)+'</div></div>'
+        '</div>'
+    )
 
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("## Dashboard")
 
-    # ---- KPI ----
     today = pd.Timestamp.today().normalize()
     year_now = today.year
 
@@ -217,18 +188,14 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     contratti_anno = int((ct["DataInizioD"].dt.year == year_now).sum())
     clienti_attivi = int(df_cli["ClienteID"].nunique())
 
-    st.markdown(KPI_CARD_CSS, unsafe_allow_html=True)
-    html_kpi = (
-        '<div class="kpi-wrap">'
-        + kpi_card("Clienti attivi", clienti_attivi)
-        + kpi_card("Contratti aperti", contratti_aperti, "green")
-        + kpi_card("Contratti chiusi", contratti_chiusi, "red")
-        + kpi_card(f"Contratti {year_now}", contratti_anno, "yellow")
-        + "</div>"
+    # RENDER KPI in iframe (niente più HTML “in chiaro”)
+    components.html(
+        kpi_grid_html(clienti_attivi, contratti_aperti, contratti_chiusi, contratti_anno, year_now),
+        height=150,
+        scrolling=False
     )
-    st.markdown(html_kpi, unsafe_allow_html=True)
 
-    # ---- Cerca cliente ----
+    # Cerca cliente
     st.markdown("#### Cerca cliente")
     q = st.text_input("Digita il nome o l'ID cliente...", label_visibility="collapsed")
     if q.strip():
@@ -245,7 +212,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # ---- Contratti in scadenza (entro 6 mesi) ----
+    # Contratti in scadenza (entro 6 mesi)
     st.markdown("### Contratti in scadenza (entro 6 mesi)")
     temp = df_ct.copy()
     temp["DataFineD"] = temp["DataFine"].apply(to_date)
@@ -259,7 +226,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scad = scad.groupby("ClienteID", as_index=False).first()
 
     if scad.empty:
-        show_html(html_table(pd.DataFrame()), height=160)
+        show_html_table(html_table(pd.DataFrame()), height=160)
     else:
         labels = df_cli.set_index("ClienteID")["RagioneSociale"]
         disp = pd.DataFrame({
@@ -268,9 +235,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             "DescrizioneProdotto": scad["DescrizioneProdotto"].fillna(""),
             "TotRata": scad["TotRata"].apply(lambda x: "" if x=="" else f"{pd.to_numeric(x, errors='coerce') or 0:.2f}")
         })
-        show_html(html_table(disp), height=220)
+        show_html_table(html_table(disp), height=220)
 
-    # ---- Ultimi recall (> 3 mesi) & Ultime visite (> 6 mesi) ----
+    # Ultimi recall / visite
     c1, c2 = st.columns(2)
 
     with c1:
@@ -280,9 +247,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         soglia = today - pd.DateOffset(months=3)
         r = cli[cli["UltimoRecallD"].notna() & (cli["UltimoRecallD"] <= soglia)].copy()
         tab = r.loc[:, ["ClienteID","RagioneSociale","UltimoRecall","ProssimoRecall"]].copy()
-        tab["UltimoRecall"] = tab["UltimoRecall"].apply(fmt_date)
+        tab["UltimoRecall"]   = tab["UltimoRecall"].apply(fmt_date)
         tab["ProssimoRecall"] = tab["ProssimoRecall"].apply(fmt_date)
-        show_html(html_table(tab), height=260)
+        show_html_table(html_table(tab), height=260)
 
     with c2:
         st.markdown("### Ultime visite (> 6 mesi)")
@@ -291,31 +258,24 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         soglia_v = today - pd.DateOffset(months=6)
         v = cli[cli["UltimaVisitaD"].notna() & (cli["UltimaVisitaD"] <= soglia_v)].copy()
         tabv = v.loc[:, ["ClienteID","RagioneSociale","UltimaVisita","ProssimaVisita"]].copy()
-        tabv["UltimaVisita"] = tabv["UltimaVisita"].apply(fmt_date)
+        tabv["UltimaVisita"]   = tabv["UltimaVisita"].apply(fmt_date)
         tabv["ProssimaVisita"] = tabv["ProssimaVisita"].apply(fmt_date)
-        show_html(html_table(tabv), height=260)
-
+        show_html_table(html_table(tabv), height=260)
 
 # ======================================================================================
-# -----------------------------  PLACEHOLDER ALTRE PAGINE  -----------------------------
+# ----------------------------- Placeholder “Clienti” e “Contratti” --------------------
 # ======================================================================================
 
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("## Clienti")
-    st.info("Pagina Clienti (placeholder). La dashboard resta invariata. "
-            "Qui puoi inserire in seguito la tua gestione completa.")
-    # Focus: dashboard – lascio volutamente minimale
-
+    st.info("Pagina Clienti (placeholder). La completiamo dopo, la dashboard resta invariata.")
 
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("## Contratti")
-    st.info("Pagina Contratti (placeholder). Da completare con la tabella avanzata "
-            "e tutte le funzioni di chiusura/stampa che desideri.")
-    # Focus: dashboard – lascio volutamente minimale
-
+    st.info("Pagina Contratti (placeholder). La realizziamo dopo, con tabella completa.")
 
 # ======================================================================================
-# ---------------------------------------- MAIN ----------------------------------------
+# -------------------------------------------- MAIN ------------------------------------
 # ======================================================================================
 
 PAGES = {
@@ -325,32 +285,31 @@ PAGES = {
 }
 
 def main():
-    # ---- LOGIN PRIMA DI TUTTO ----
+    # 1) LOGIN
     user, role = require_login()
     sidebar_userbox()
 
+    # 2) MENU
     st.sidebar.title("Menu")
     if "nav_page" not in st.session_state:
         st.session_state["nav_page"] = "Dashboard"
     st.session_state["nav_page"] = st.sidebar.radio(
-        label="",
-        options=list(PAGES.keys()),
+        label="", options=list(PAGES.keys()),
         index=list(PAGES.keys()).index(st.session_state["nav_page"]),
         label_visibility="collapsed",
     )
 
-    # ---- CARICAMENTO DATI ----
+    # 3) DATI
     df_cli = load_csv(STORAGE_DIR / "clienti.csv", CLIENTI_COLS)
     df_ct  = load_csv(STORAGE_DIR / "contratti_clienti.csv", CONTRATTI_COLS)
-    _      = load_csv(STORAGE_DIR / "preventivi.csv", PREVENTIVI_COLS)  # per future feature
+    _      = load_csv(STORAGE_DIR / "preventivi.csv", PREVENTIVI_COLS)
 
-    # ---- TITOLO BANNER (non tocco il layout della dashboard) ----
+    # 4) Banner titolo (non tocco il layout sotto)
     st.markdown("### GESTIONALE CLIENTI – SHT")
 
-    # ---- DISPATCH ----
+    # 5) PAGE DISPATCH
     page_fn = PAGES[st.session_state["nav_page"]]
     page_fn(df_cli, df_ct, role)
-
 
 if __name__ == "__main__":
     main()

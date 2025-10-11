@@ -6,7 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ======================================================================================
-# ------------------------------- LOGIN / AUTH (prima di tutto) ------------------------
+# ------------------------------- LOGIN / AUTH -----------------------------------------
 # ======================================================================================
 
 def _read_users_from_secrets() -> dict:
@@ -107,8 +107,17 @@ def fmt_date(d):
     except Exception:
         return ""
 
+def fmt_money(x) -> str:
+    try:
+        v = pd.to_numeric(x, errors="coerce")
+        if pd.isna(v):
+            return ""
+        return f"{v:.2f}"
+    except Exception:
+        return ""
+
 # ======================================================================================
-# ----------------------------- HTML table renderer compatibile ------------------------
+# ----------------------------- HTML table renderer ------------------------------------
 # ======================================================================================
 
 TABLE_CSS = """
@@ -121,9 +130,6 @@ TABLE_CSS = """
 </style>
 """
 
-def show_html_table(html: str, *, height: int = 420):
-    components.html(html, height=height, scrolling=True)
-
 def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str:
     if df is None or df.empty:
         return TABLE_CSS + "<div style='padding:8px;color:#666'>Nessun dato</div>"
@@ -132,11 +138,10 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
     thead = "<thead><tr>" + "".join(f"<th>{c}</th>" for c in cols) + "</tr></thead>"
 
     rows_html = []
-    # attenzione: uso il positional i per closed_mask
     for i, row in enumerate(df.itertuples(index=False)):
         tr_class = " class='ctr-row-closed'" if (closed_mask is not None and bool(closed_mask.iloc[i])) else ""
         tds = []
-        for c, val in zip(cols, row):
+        for val in row:
             sval = "" if pd.isna(val) else str(val)
             sval = sval.replace("\n", "<br>")
             tds.append(f"<td class='ellipsis'>{sval}</td>")
@@ -145,13 +150,16 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
     tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
     return TABLE_CSS + f"<table class='ctr-table'>{thead}{tbody}</table>"
 
+def show_html(html: str, *, height: int = 420, scrolling: bool = True):
+    components.html(html, height=height, scrolling=scrolling)
+
 # ======================================================================================
 # -------------------------------------- DASHBOARD -------------------------------------
 # ======================================================================================
 
 KPI_CARD_CSS = """
 <style>
-.kpi-wrap{display:grid;grid-template-columns:1fr;gap:12px;margin:6px 0 14px 0}
+.kpi-wrap{display:grid;grid-template-columns:1fr;gap:12px;margin:6px 0 14px 0;box-sizing:border-box}
 @media(min-width:900px){.kpi-wrap{grid-template-columns:1fr 1fr 1fr 1fr}}
 .kpi{border:2px solid #e5e7eb;border-radius:16px;padding:18px 22px;background:#fff}
 .kpi h4{margin:0 0 8px 0;font-size:14px;color:#374151;font-weight:600}
@@ -163,7 +171,7 @@ KPI_CARD_CSS = """
 """
 
 def kpi_grid_html(clienti_attivi:int, contratti_aperti:int, contratti_chiusi:int, contratti_anno:int, year_now:int)->str:
-    # HTML senza indentazioni, per evitare che Markdown lo tratti come code block
+    # HTML compatto (nessuna indentazione) per non farlo trattare come codice
     return (
         KPI_CARD_CSS +
         '<div class="kpi-wrap">'
@@ -188,11 +196,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     contratti_anno = int((ct["DataInizioD"].dt.year == year_now).sum())
     clienti_attivi = int(df_cli["ClienteID"].nunique())
 
-    # RENDER KPI in iframe (niente più HTML “in chiaro”)
-    components.html(
+    # RENDER KPI (altezza aumentata per evitare “tagli”)
+    show_html(
         kpi_grid_html(clienti_attivi, contratti_aperti, contratti_chiusi, contratti_anno, year_now),
-        height=150,
-        scrolling=False
+        height=260, scrolling=False
     )
 
     # Cerca cliente
@@ -226,18 +233,18 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scad = scad.groupby("ClienteID", as_index=False).first()
 
     if scad.empty:
-        show_html_table(html_table(pd.DataFrame()), height=160)
+        show_html(html_table(pd.DataFrame()), height=160)
     else:
         labels = df_cli.set_index("ClienteID")["RagioneSociale"]
         disp = pd.DataFrame({
             "NumeroContratto": scad["NumeroContratto"].fillna(""),
             "DataFine": scad["DataFineD"].apply(fmt_date),
             "DescrizioneProdotto": scad["DescrizioneProdotto"].fillna(""),
-            "TotRata": scad["TotRata"].apply(lambda x: "" if x=="" else f"{pd.to_numeric(x, errors='coerce') or 0:.2f}")
+            "TotRata": scad["TotRata"].apply(fmt_money)
         })
-        show_html_table(html_table(disp), height=220)
+        show_html(html_table(disp), height=220)
 
-    # Ultimi recall / visite
+    # Ultimi recall / visite (robusti a dati mancanti)
     c1, c2 = st.columns(2)
 
     with c1:
@@ -246,10 +253,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cli["UltimoRecallD"] = cli["UltimoRecall"].apply(to_date)
         soglia = today - pd.DateOffset(months=3)
         r = cli[cli["UltimoRecallD"].notna() & (cli["UltimoRecallD"] <= soglia)].copy()
-        tab = r.loc[:, ["ClienteID","RagioneSociale","UltimoRecall","ProssimoRecall"]].copy()
-        tab["UltimoRecall"]   = tab["UltimoRecall"].apply(fmt_date)
-        tab["ProssimoRecall"] = tab["ProssimoRecall"].apply(fmt_date)
-        show_html_table(html_table(tab), height=260)
+        if r.empty:
+            show_html(html_table(pd.DataFrame()), height=160)
+        else:
+            tab = r.loc[:, ["ClienteID","RagioneSociale","UltimoRecall","ProssimoRecall"]].copy()
+            tab["UltimoRecall"]   = tab["UltimoRecall"].apply(fmt_date)
+            tab["ProssimoRecall"] = tab["ProssimoRecall"].apply(fmt_date)
+            show_html(html_table(tab), height=260)
 
     with c2:
         st.markdown("### Ultime visite (> 6 mesi)")
@@ -257,10 +267,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cli["UltimaVisitaD"] = cli["UltimaVisita"].apply(to_date)
         soglia_v = today - pd.DateOffset(months=6)
         v = cli[cli["UltimaVisitaD"].notna() & (cli["UltimaVisitaD"] <= soglia_v)].copy()
-        tabv = v.loc[:, ["ClienteID","RagioneSociale","UltimaVisita","ProssimaVisita"]].copy()
-        tabv["UltimaVisita"]   = tabv["UltimaVisita"].apply(fmt_date)
-        tabv["ProssimaVisita"] = tabv["ProssimaVisita"].apply(fmt_date)
-        show_html_table(html_table(tabv), height=260)
+        if v.empty:
+            show_html(html_table(pd.DataFrame()), height=160)
+        else:
+            tabv = v.loc[:, ["ClienteID","RagioneSociale","UltimaVisita","ProssimaVisita"]].copy()
+            tabv["UltimaVisita"]   = tabv["UltimaVisita"].apply(fmt_date)
+            tabv["ProssimaVisita"] = tabv["ProssimaVisita"].apply(fmt_date)
+            show_html(html_table(tabv), height=260)
 
 # ======================================================================================
 # ----------------------------- Placeholder “Clienti” e “Contratti” --------------------
@@ -304,7 +317,7 @@ def main():
     df_ct  = load_csv(STORAGE_DIR / "contratti_clienti.csv", CONTRATTI_COLS)
     _      = load_csv(STORAGE_DIR / "preventivi.csv", PREVENTIVI_COLS)
 
-    # 4) Banner titolo (non tocco il layout sotto)
+    # 4) Titolo
     st.markdown("### GESTIONALE CLIENTI – SHT")
 
     # 5) PAGE DISPATCH

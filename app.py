@@ -1,4 +1,4 @@
-# app.py — Gestionale Clienti SHT (dashboard “buona” + login + clienti + contratti + preventivi)
+# app.py — Gestionale Clienti SHT (dashboard “buona” + login + clienti + contratti + preventivi + VALIDAZIONI)
 from __future__ import annotations
 
 from pathlib import Path
@@ -113,6 +113,69 @@ def slugify_name(name: str) -> str:
     s = re.sub(r"[^A-Z0-9]+", "-", s)
     s = re.sub(r"-{2,}", "-", s).strip("-")
     return s[:24] if len(s) > 24 else s
+
+# ============== VALIDAZIONI ==============
+
+def validate_cap_it(cap: str) -> tuple[bool, str]:
+    """CAP italiano: 5 cifre."""
+    cap = (cap or "").strip()
+    if not re.fullmatch(r"\d{5}", cap):
+        return False, "CAP non valido: inserisci 5 cifre (es. 20121)."
+    return True, cap
+
+def validate_piva_it(piva: str) -> tuple[bool, str]:
+    """P.IVA italiana: 11 cifre con checksum ufficiale."""
+    raw = (piva or "").strip()
+    if not re.fullmatch(r"\d{11}", raw):
+        return False, "P.IVA non valida: devono essere 11 cifre (mantieni eventuali zeri iniziali)."
+    # checksum
+    digits = [int(c) for c in raw]
+    pari = sum(((d*2 - 9) if (d*2 > 9) else d*2) for d in digits[1:10:2])  # pos 2,4,6,8,10 (indice 1,3,5,7,9)
+    dispari = sum(digits[0:10:2])                                          # pos 1,3,5,7,9  (indice 0,2,4,6,8)
+    check = (10 - ((pari + dispari) % 10)) % 10
+    if check != digits[-1]:
+        return False, "P.IVA non valida: checksum errato."
+    return True, raw  # mantieni zeri
+
+def _iban_to_int_string(iban: str) -> str:
+    out = []
+    for ch in iban:
+        if ch.isdigit():
+            out.append(ch)
+        else:
+            out.append(str(ord(ch) - 55))  # A->10 ... Z->35
+    return "".join(out)
+
+def validate_iban(iban: str) -> tuple[bool, str]:
+    """IBAN generale con check mod-97; per IT: 27 char e prefisso IT."""
+    raw = (iban or "").replace(" ", "").upper()
+    if not raw:
+        return True, ""  # opzionale
+    if raw.startswith("IT") and len(raw) != 27:
+        return False, "IBAN IT deve avere 27 caratteri."
+    if len(raw) < 15 or len(raw) > 34:
+        return False, "IBAN non valido: lunghezza fuori standard."
+    rearr = raw[4:] + raw[:4]
+    num = _iban_to_int_string(rearr)
+    # mod 97 su stringone: calcoliamo a blocchi
+    remainder = 0
+    for i in range(0, len(num), 9):
+        block = int(str(remainder) + num[i:i+9])
+        remainder = block % 97
+    if remainder != 1:
+        return False, "IBAN non valido: controllo mod-97 fallito."
+    return True, raw
+
+def validate_sdi(sdi: str) -> tuple[bool, str]:
+    """Codice destinatario SDI: 7 alfanumerici oppure '0000000'."""
+    raw = (sdi or "").strip().upper()
+    if not raw:
+        return True, ""  # opzionale
+    if raw == "0000000":
+        return True, raw
+    if not re.fullmatch(r"[A-Z0-9]{7}", raw):
+        return False, "SDI non valido: usa 7 caratteri alfanumerici (oppure 0000000)."
+    return True, raw
 
 # ==========================
 # I/O DATI
@@ -416,41 +479,60 @@ def _form_nuovo_cliente_primo_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFram
             stato     = st.selectbox("Stato", ["aperto", "chiuso"], index=0)
 
         if st.form_submit_button("Crea"):
+            errors = []
+
             if not cliente_id.strip() or not ragsoc.strip():
-                st.error("ClienteID e Ragione sociale sono obbligatori.")
-            elif cliente_id in df_cli["ClienteID"].astype(str).tolist():
-                st.error("ClienteID già esistente.")
-            else:
-                # aggiungi cliente
-                new_cli = {
-                    "ClienteID": cliente_id, "RagioneSociale": ragsoc, "PersonaRiferimento": ref,
-                    "Indirizzo": indir, "Citta": citta, "CAP": cap, "Telefono": tel, "Cell": cell,
-                    "Email": mail, "PartitaIVA": piva, "IBAN": iban, "SDI": sdi,
-                    "UltimoRecall": "", "ProssimoRecall": "", "UltimaVisita": "", "ProssimaVisita": "", "Note": note
+                errors.append("ClienteID e Ragione sociale sono obbligatori.")
+
+            ok_cap, cap_norm = validate_cap_it(cap) if cap.strip() else (True, cap)
+            if not ok_cap: errors.append(cap_norm)
+
+            ok_piva, piva_norm = validate_piva_it(piva) if piva.strip() else (True, piva)
+            if not ok_piva: errors.append(piva_norm)
+
+            ok_iban, iban_norm = validate_iban(iban)
+            if not ok_iban: errors.append(iban_norm)
+
+            ok_sdi, sdi_norm = validate_sdi(sdi)
+            if not ok_sdi: errors.append(sdi_norm)
+
+            if cliente_id in df_cli["ClienteID"].astype(str).tolist():
+                errors.append("ClienteID già esistente.")
+
+            if errors:
+                for e in errors: st.error(e)
+                return
+
+            # aggiungi cliente
+            new_cli = {
+                "ClienteID": cliente_id, "RagioneSociale": ragsoc, "PersonaRiferimento": ref,
+                "Indirizzo": indir, "Citta": citta, "CAP": cap_norm, "Telefono": tel, "Cell": cell,
+                "Email": mail, "PartitaIVA": piva_norm, "IBAN": iban_norm, "SDI": sdi_norm,
+                "UltimoRecall": "", "ProssimoRecall": "", "UltimaVisita": "", "ProssimaVisita": "", "Note": note
+            }
+            df_cli2 = pd.concat([df_cli, pd.DataFrame([new_cli])], ignore_index=True)
+            save_clienti(df_cli2)
+
+            # aggiungi contratto (se compilato almeno descrizione o data)
+            if descr.strip() or data_in or data_end or num_ctr.strip():
+                new_ctr = {
+                    "ClienteID": cliente_id,
+                    "NumeroContratto": num_ctr,
+                    "DataInizio": pd.to_datetime(data_in) if data_in else "",
+                    "DataFine":   pd.to_datetime(data_end) if data_end else "",
+                    "Durata": durata,
+                    "DescrizioneProdotto": descr,
+                    "NOL_FIN": nol_fin,
+                    "NOL_INT": nol_int,
+                    "TotRata": tot_rata,
+                    "Stato": stato
                 }
-                df_cli2 = pd.concat([df_cli, pd.DataFrame([new_cli])], ignore_index=True)
-                save_clienti(df_cli2)
+                df_ct2 = pd.concat([df_ct, pd.DataFrame([new_ctr])], ignore_index=True)
+                save_contratti(df_ct2)
 
-                # aggiungi contratto (se compilato almeno descrizione o data)
-                if descr.strip() or data_in or data_end or num_ctr.strip():
-                    new_ctr = {
-                        "ClienteID": cliente_id,
-                        "NumeroContratto": num_ctr,
-                        "DataInizio": pd.to_datetime(data_in) if data_in else "",
-                        "DataFine":   pd.to_datetime(data_end) if data_end else "",
-                        "Durata": durata,
-                        "DescrizioneProdotto": descr,
-                        "NOL_FIN": nol_fin,
-                        "NOL_INT": nol_int,
-                        "TotRata": tot_rata,
-                        "Stato": stato
-                    }
-                    df_ct2 = pd.concat([df_ct, pd.DataFrame([new_ctr])], ignore_index=True)
-                    save_contratti(df_ct2)
-
-                st.success("Cliente (e primo contratto) creati.")
-                st.session_state["selected_client_id"] = str(cliente_id)
-                st.rerun()
+            st.success("Cliente (e primo contratto) creati.")
+            st.session_state["selected_client_id"] = str(cliente_id)
+            st.rerun()
 
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Clienti")
@@ -476,24 +558,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     sel_id = str(df_cli.iloc[labels[labels==sel_label].index[0]]["ClienteID"])
 
     row = df_cli[df_cli["ClienteID"].astype(str)==sel_id].iloc[0]
+    _summary_box(row)
 
-    # ---- RIEPILOGO ----
-    st.markdown("### Riepilogo")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f"**ClienteID:** {safe_str(row.get('ClienteID'))}")
-        st.markdown(f"**Ragione Sociale:** {safe_str(row.get('RagioneSociale'))}")
-        st.markdown(f"**Riferimento:** {safe_str(row.get('PersonaRiferimento'))}")
-    with c2:
-        st.markdown(f"**Indirizzo:** {safe_str(row.get('Indirizzo'))}")
-        st.markdown(f"**CAP/Città:** {safe_str(row.get('CAP'))} {safe_str(row.get('Citta'))}")
-        st.markdown(f"**Telefono/Cell:** {safe_str(row.get('Telefono'))} / {safe_str(row.get('Cell'))}")
-    with c3:
-        st.markdown(f"**Email:** {safe_str(row.get('Email'))}")
-        st.markdown(f"**P.IVA:** {safe_str(row.get('PartitaIVA'))}")
-        st.markdown(f"**SDI:** {safe_str(row.get('SDI'))}")
-
-    # ---- NOTE FUORI DALL’EXPANDER ----
     st.markdown("### Note cliente")
     note_cache_key = f"note_{sel_id}"
     default_note = st.session_state.get(note_cache_key, safe_str(row.get("Note")))
@@ -520,9 +586,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             tel    = st.text_input("Telefono", safe_str(row.get("Telefono")))
             cell   = st.text_input("Cell", safe_str(row.get("Cell")))
             mail   = st.text_input("Email", safe_str(row.get("Email")))
-            piva   = st.text_input("Partita IVA", safe_str(row.get("PartitaIVA")))  # stringa -> mantiene zeri
+            piva   = st.text_input("Partita IVA", safe_str(row.get("PartitaIVA")))
+            iban   = st.text_input("IBAN", safe_str(row.get("IBAN")))
             sdi    = st.text_input("SDI", safe_str(row.get("SDI")))
-            # Note fuori dall’expander
 
             c1, c2, c3, c4 = st.columns(4)
             with c1:
@@ -535,18 +601,36 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pross_visita = st.date_input("Prossima visita", value=to_date_widget(row.get("ProssimaVisita")))
 
             if st.form_submit_button("Salva modifiche", use_container_width=True):
+                errors = []
+
+                ok_cap, cap_norm = validate_cap_it(cap) if cap.strip() else (True, cap)
+                if not ok_cap: errors.append(cap_norm)
+
+                ok_piva, piva_norm = validate_piva_it(piva) if piva.strip() else (True, piva)
+                if not ok_piva: errors.append(piva_norm)
+
+                ok_iban, iban_norm = validate_iban(iban)
+                if not ok_iban: errors.append(iban_norm)
+
+                ok_sdi, sdi_norm = validate_sdi(sdi)
+                if not ok_sdi: errors.append(sdi_norm)
+
+                if errors:
+                    for e in errors: st.error(e)
+                    return
+
                 idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
                 df_cli.loc[idx_row, "RagioneSociale"]     = ragsoc
                 df_cli.loc[idx_row, "Indirizzo"]          = indir
-                df_cli.loc[idx_row, "CAP"]                = cap
+                df_cli.loc[idx_row, "CAP"]                = cap_norm
                 df_cli.loc[idx_row, "Citta"]              = citta
                 df_cli.loc[idx_row, "PersonaRiferimento"] = ref
                 df_cli.loc[idx_row, "Telefono"]           = tel
                 df_cli.loc[idx_row, "Cell"]               = cell
                 df_cli.loc[idx_row, "Email"]              = mail
-                df_cli.loc[idx_row, "PartitaIVA"]         = piva
-                df_cli.loc[idx_row, "SDI"]                = sdi
-                # Note: non tocchiamo "Note" qui
+                df_cli.loc[idx_row, "PartitaIVA"]         = piva_norm
+                df_cli.loc[idx_row, "IBAN"]               = iban_norm
+                df_cli.loc[idx_row, "SDI"]                = sdi_norm
                 df_cli.loc[idx_row, "UltimoRecall"]       = pd.to_datetime(ult_recall) if ult_recall else ""
                 df_cli.loc[idx_row, "ProssimoRecall"]     = pd.to_datetime(pross_recall) if pross_recall else ""
                 df_cli.loc[idx_row, "UltimaVisita"]       = pd.to_datetime(ult_visita) if ult_visita else ""
@@ -718,17 +802,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             if selected_rows.empty:
                 st.warning("Nessuna riga selezionata.")
             else:
-                # crea file XLSX con intestazione cliente
                 from io import BytesIO
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                    # prima riga: intestazione con nome cliente
                     workbook  = writer.book
                     worksheet = workbook.add_worksheet("Contratti")
                     title_fmt = workbook.add_format({"bold": True, "align": "center"})
-                    worksheet.merge_range(0, 0, 0, selected_rows.shape[1]-1, f"Cliente: {df_cli[df_cli['ClienteID'].astype(str)==str(sel_id)].iloc[0]['RagioneSociale']}", title_fmt)
-                    # tabella
-                    selected_rows.drop(columns=["Seleziona"], errors="ignore").to_excel(writer, sheet_name="Contratti", startrow=2, index=False)
+                    cliente_nome = df_cli[df_cli['ClienteID'].astype(str)==str(sel_id)].iloc[0]['RagioneSociale']
+                    worksheet.merge_range(0, 0, 0, selected_rows.drop(columns=["Seleziona"], errors="ignore").shape[1]-1,
+                                          f"Cliente: {cliente_nome}", title_fmt)
+                    selected_rows.drop(columns=["Seleziona"], errors="ignore").to_excel(
+                        writer, sheet_name="Contratti", startrow=2, index=False
+                    )
                 st.download_button(
                     "Scarica Excel",
                     data=output.getvalue(),

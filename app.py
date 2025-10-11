@@ -31,28 +31,24 @@ PATH_PREVENTIVI = STORAGE_DIR / "preventivi.csv"
 # ------------------------------------------------------------------------------
 # Utility: date & money
 # ------------------------------------------------------------------------------
+# ---------- Sostituisci da qui: utility & I/O CSV robusti ---------------------
+
 DATE_FMT = "%d/%m/%Y"
 
 def to_date(s: str | float | int | None) -> pd.Timestamp | pd.NaT:
-    if pd.isna(s) or s is None or str(s).strip() == "":
+    if s is None or (isinstance(s, float) and np.isnan(s)) or str(s).strip() == "":
         return pd.NaT
     s = str(s).strip()
-    # prova dd/mm/yyyy, yyyy-mm-dd
     for fmt in (DATE_FMT, "%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d"):
         try:
             return pd.to_datetime(s, format=fmt, dayfirst=True)
         except Exception:
             pass
-    # fallback generico
-    try:
-        return pd.to_datetime(s, dayfirst=True, errors="coerce")
-    except Exception:
-        return pd.NaT
+    return pd.to_datetime(s, dayfirst=True, errors="coerce")
 
 def fmt_date(x) -> str:
     if pd.isna(x) or x is None:
         return ""
-    # supporta sia Timestamp che stringhe “ISO”
     try:
         if not isinstance(x, (pd.Timestamp, datetime, date)):
             x = to_date(x)
@@ -72,72 +68,100 @@ def to_float(s) -> float:
     except Exception:
         return 0.0
 
-# ------------------------------------------------------------------------------
-# I/O CSV
-# ------------------------------------------------------------------------------
-def _ensure_csv(path: Path, header: List[str]):
+def _ensure_csv(path: Path, header: list[str]):
     if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(",".join(header) + "\n", encoding="utf-8")
 
+# colonne attese
+CLIENTI_COLS = [
+    "ClienteID","RagioneSociale","PersonaRiferimento","Indirizzo","Citta","CAP",
+    "Telefono","Email","PartitaIVA","IBAN","SDI","UltimoRecall","ProssimoRecall",
+    "UltimaVisita","ProssimaVisita","Note"
+]
+CLIENTI_DATE_COLS = ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]
+
+CONTRATTI_COLS = [
+    "ClienteID","NumeroContratto","DataInizio","DataFine","Durata",
+    "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"
+]
+CONTRATTI_DATE_COLS = ["DataInizio","DataFine"]
+CONTRATTI_NUM_COLS  = ["NOL_FIN","NOL_INT","TotRata"]
+
+PREVENTIVI_COLS = ["ClienteID","Data","Numero","Template","File"]
+PREVENTIVI_DATE_COLS = ["Data"]
+
+def _add_missing_cols(df: pd.DataFrame, required: list[str], fill="") -> pd.DataFrame:
+    for c in required:
+        if c not in df.columns:
+            df[c] = fill
+    # mantieni solo le colonne richieste + eventuali extra in coda
+    return df
+
 def load_clienti() -> pd.DataFrame:
-    _ensure_csv(
-        PATH_CLIENTI,
-        [
-            "ClienteID","RagioneSociale","PersonaRiferimento","Indirizzo","Citta","CAP","Telefono",
-            "Email","PartitaIVA","IBAN","SDI","UltimoRecall","ProssimoRecall","UltimaVisita",
-            "ProssimaVisita","Note",
-        ],
-    )
+    _ensure_csv(PATH_CLIENTI, CLIENTI_COLS)
     df = pd.read_csv(PATH_CLIENTI, dtype=str, keep_default_na=False)
-    for c in ("UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"):
-        df[c] = df[c].apply(to_date)
-    # normalizza ClienteID come int-like string
-    if "ClienteID" not in df.columns:
-        df["ClienteID"] = ""
-    df["ClienteID"] = df["ClienteID"].astype(str).str.replace(r"\.0$","", regex=True)
+    df = _add_missing_cols(df, CLIENTI_COLS, "")
+    # normalizza ID
+    df["ClienteID"] = df["ClienteID"].astype(str).str.replace(r"\.0$", "", regex=True)
+    # converti SOLO se la colonna c'è davvero
+    for c in CLIENTI_DATE_COLS:
+        if c in df.columns:
+            df[c] = df[c].apply(to_date)
     return df
 
 def save_clienti(df: pd.DataFrame):
     df_to = df.copy()
-    for c in ("UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"):
-        df_to[c] = df_to[c].apply(fmt_date)
+    for c in CLIENTI_DATE_COLS:
+        if c in df_to.columns:
+            df_to[c] = df_to[c].apply(fmt_date)
     df_to.to_csv(PATH_CLIENTI, index=False, encoding="utf-8")
 
 def load_contratti() -> pd.DataFrame:
-    _ensure_csv(
-        PATH_CONTRATTI,
-        ["ClienteID","NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto",
-         "NOL_FIN","NOL_INT","TotRata","Stato"],
-    )
+    _ensure_csv(PATH_CONTRATTI, CONTRATTI_COLS)
     df = pd.read_csv(PATH_CONTRATTI, dtype=str, keep_default_na=False)
-    for c in ("DataInizio","DataFine"):
-        df[c] = df[c].apply(to_date)
-    for c in ("NOL_FIN","NOL_INT","TotRata"):
-        df[c] = df[c].apply(to_float)
-    if "Stato" not in df.columns:
+    df = _add_missing_cols(df, CONTRATTI_COLS, "")
+    df["ClienteID"] = df["ClienteID"].astype(str).str.replace(r"\.0$", "", regex=True)
+
+    for c in CONTRATTI_DATE_COLS:
+        if c in df.columns:
+            df[c] = df[c].apply(to_date)
+    for c in CONTRATTI_NUM_COLS:
+        if c in df.columns:
+            df[c] = df[c].apply(to_float)
+    if "Stato" in df.columns:
+        df["Stato"] = df["Stato"].replace("", "aperto")
+    else:
         df["Stato"] = "aperto"
-    df["ClienteID"] = df["ClienteID"].astype(str).str.replace(r"\.0$","", regex=True)
     return df
 
 def save_contratti(df: pd.DataFrame):
     df_to = df.copy()
-    for c in ("DataInizio","DataFine"):
-        df_to[c] = df_to[c].apply(fmt_date)
-    for c in ("NOL_FIN","NOL_INT","TotRata"):
-        df_to[c] = df_to[c].astype(float)
+    for c in CONTRATTI_DATE_COLS:
+        if c in df_to.columns:
+            df_to[c] = df_to[c].apply(fmt_date)
+    for c in CONTRATTI_NUM_COLS:
+        if c in df_to.columns:
+            df_to[c] = df_to[c].astype(float)
     df_to.to_csv(PATH_CONTRATTI, index=False, encoding="utf-8")
 
 def load_preventivi() -> pd.DataFrame:
-    _ensure_csv(PATH_PREVENTIVI, ["ClienteID","Data","Numero","Template","File"])
+    _ensure_csv(PATH_PREVENTIVI, PREVENTIVI_COLS)
     df = pd.read_csv(PATH_PREVENTIVI, dtype=str, keep_default_na=False)
-    df["Data"] = df["Data"].apply(to_date)
-    df["ClienteID"] = df["ClienteID"].astype(str).str.replace(r"\.0$","", regex=True)
+    df = _add_missing_cols(df, PREVENTIVI_COLS, "")
+    df["ClienteID"] = df["ClienteID"].astype(str).str.replace(r"\.0$", "", regex=True)
+    for c in PREVENTIVI_DATE_COLS:
+        if c in df.columns:
+            df[c] = df[c].apply(to_date)
     return df
 
 def save_preventivi(df: pd.DataFrame):
     df_to = df.copy()
-    df_to["Data"] = df_to["Data"].apply(fmt_date)
+    for c in PREVENTIVI_DATE_COLS:
+        if c in df_to.columns:
+            df_to[c] = df_to[c].apply(fmt_date)
     df_to.to_csv(PATH_PREVENTIVI, index=False, encoding="utf-8")
+# ---------- fino a qui ---------------------------------------------------------
 
 # ------------------------------------------------------------------------------
 # HTML TABLE RENDER (no f-string con backslash!)

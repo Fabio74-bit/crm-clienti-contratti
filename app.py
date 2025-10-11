@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date  # datetime = timestamp, date = per i widget
 from typing import Tuple, Dict
 
 import pandas as pd
@@ -58,6 +58,7 @@ TEMPLATE_OPTIONS: Dict[str, str] = {
 # ==========================
 
 def as_date(x):
+    """Converte robustamente in Timestamp; supporto dd/mm/yyyy."""
     if x is None or (isinstance(x, float) and pd.isna(x)):
         return pd.NaT
     if isinstance(x, (pd.Timestamp, pd.NaT.__class__)):
@@ -97,6 +98,16 @@ def safe_str(v) -> str:
         return "" if (v is None or pd.isna(v)) else str(v)
     except Exception:
         return ""
+
+def to_date_widget(x):
+    """Per i widget Streamlit: None oppure datetime.date (evita errori con pd.NaT)."""
+    d = as_date(x)
+    if d is None or pd.isna(d):
+        return None
+    try:
+        return pd.to_datetime(d).date()
+    except Exception:
+        return None
 
 # ==========================
 # I/O DATI
@@ -142,7 +153,7 @@ def load_preventivi() -> pd.DataFrame:
     else:
         df = pd.DataFrame(columns=PREVENTIVI_COLS)
         df.to_csv(PREVENTIVI_CSV, index=False)
-    return ensure_columns(df, PREVENTIVI_COLS)
+    return ensure_columns(df, PREVENTIVI_CLS if False else PREVENTIVI_COLS)  # safe
 
 def save_preventivi(df: pd.DataFrame):
     df.to_csv(PREVENTIVI_CSV, index=False)
@@ -398,13 +409,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             c1, c2, c3, c4 = st.columns(4)
             with c1:
-                ult_recall   = st.date_input("Ultimo recall", value=as_date(row.get("UltimoRecall")))
+                ult_recall   = st.date_input("Ultimo recall",   value=to_date_widget(row.get("UltimoRecall")))
             with c2:
-                pross_recall = st.date_input("Prossimo recall", value=as_date(row.get("ProssimoRecall")))
+                pross_recall = st.date_input("Prossimo recall", value=to_date_widget(row.get("ProssimoRecall")))
             with c3:
-                ult_visita   = st.date_input("Ultima visita", value=as_date(row.get("UltimaVisita")))
+                ult_visita   = st.date_input("Ultima visita",   value=to_date_widget(row.get("UltimaVisita")))
             with c4:
-                pross_visita = st.date_input("Prossima visita", value=as_date(row.get("ProssimaVisita")))
+                pross_visita = st.date_input("Prossima visita", value=to_date_widget(row.get("ProssimaVisita")))
 
             if st.form_submit_button("Salva modifiche", use_container_width=True):
                 idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
@@ -501,13 +512,16 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 with box:
                     c1, c2, c3 = st.columns([0.55, 0.25, 0.20])
                     with c1:
-                        st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}")
-                        st.caption(r.get("DataCreazione",""))
+                        st.markdown(f"**{safe_str(r['NumeroOfferta'])}** — {safe_str(r['Template'])}")
+                        st.caption(safe_str(r.get("DataCreazione","")))
                     with c2:
-                        st.caption(r.get("NomeFile",""))
-                        st.caption(Path(r["Percorso"]).parent.name)
+                        st.caption(safe_str(r.get("NomeFile","")))
+                        try:
+                            st.caption(Path(safe_str(r["Percorso"])).parent.name)
+                        except Exception:
+                            st.caption("")
                     with c3:
-                        path = Path(r["Percorso"])
+                        path = Path(safe_str(r["Percorso"]))
                         if path.exists():
                             with open(path, "rb") as fh:
                                 st.download_button(
@@ -564,7 +578,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with c2:
             st.caption(f"{safe_str(r['NumeroContratto'])} — {safe_str(r['DescrizioneProdotto'])}")
         with c3:
-            curr = safe_str(r["Stato"]).lower() or "aperto"
+            curr = (safe_str(r["Stato"]).lower() or "aperto")
             if curr == "chiuso":
                 if st.button("Riapri", key=f"open_{i}"):
                     df_ct.loc[i, "Stato"] = "aperto"

@@ -1,4 +1,3 @@
-   # app.py — SHT – Gestione Clienti (Dashboard + Contratti + Login)
 st.set_page_config(page_title="SHT – Gestione Clienti", layout="wide")
 
 from __future__ import annotations

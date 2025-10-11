@@ -146,6 +146,7 @@ def save_preventivi(df: pd.DataFrame):
 # HTML TABLE COMPATIBILE
 # ==========================
 
+# ---------- HTML TABLE (fix backslash in f-strings) ----------
 TABLE_CSS = """
 <style>
 .ctr-table { width:100%; border-collapse: collapse; table-layout: fixed; }
@@ -159,8 +160,10 @@ TABLE_CSS = """
 def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str:
     if df is None or df.empty:
         return TABLE_CSS + "<div style='padding:8px;color:#666'>Nessun dato</div>"
+
     cols = list(df.columns)
-    thead = "<thead><tr>" + "".join(f"<th>{c}</th>" for c in cols) + "</tr></thead>"
+    thead = "<thead><tr>" + "".join("<th>{}</th>".format(c) for c in cols) + "</tr></thead>"
+
     rows = []
     for i, r in df.iterrows():
         closed = (closed_mask is not None) and bool(closed_mask.loc[i])
@@ -168,10 +171,14 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
         tds = []
         for c in cols:
             sval = "" if pd.isna(r.get(c, "")) else str(r.get(c, ""))
-            tds.append(f"<td class='ellipsis'>{sval.replace('\\n','<br>')}</td>")
-        rows.append(f"<tr{trc}>{''.join(tds)}</tr>")
+            # fare la sostituzione PRIMA ed evitare backslash nell'espressione dell'f-string
+            sval = sval.replace("\n", "<br>")
+            tds.append("<td class='ellipsis'>{}</td>".format(sval))
+        rows.append("<tr{}>{}</tr>".format(trc, "".join(tds)))
+
     tbody = "<tbody>" + "".join(rows) + "</tbody>"
-    return TABLE_CSS + f"<table class='ctr-table'>{thead}{tbody}</table>"
+    return TABLE_CSS + "<table class='ctr-table'>{}{}</table>".format(thead, tbody)
+
 
 # ==========================
 # AUTH SEMPLICE

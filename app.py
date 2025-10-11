@@ -101,11 +101,14 @@ def load_clienti() -> pd.DataFrame:
     ]
     ensure_csv(CLIENTI_CSV, cols)
     df = pd.read_csv(CLIENTI_CSV, dtype=str).fillna("")
-    # normalizza ID numerico/string
-    if "ClienteID" in df.columns:
-        # manteniamo tutto stringa per coerenza UI
-        df["ClienteID"] = df["ClienteID"].astype(str)
+    # Aggiunta automatica delle colonne mancanti
+    for col in cols:
+        if col not in df.columns:
+            df[col] = ""
+    df = df[cols]  # ordina colonne
+    df["ClienteID"] = df["ClienteID"].astype(str)
     return df
+
 
 def save_clienti(df: pd.DataFrame):
     df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8")

@@ -148,39 +148,50 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
     return TABLE_CSS + f"<table class='ctr-table'>{thead}{tbody}</table>"
 
 # ==========================
-# AUTH (semplice, opzionale)
+# AUTH — LOGIN PRIMA DI ENTRARE
 # ==========================
 
-def do_login() -> Tuple[str, str]:
-    """
-    Login semplice basato su st.secrets['auth']['users'].
-    Ritorna (username, ruolo). Se non configurato, entra come ospite.
-    """
-    users = st.secrets.get("auth", {}).get("users", {})
-    if not users:
-        # Nessun auth configurato: accesso libero
-        return ("ospite", "viewer")
+def _read_users_from_secrets() -> dict:
+    """Legge gli utenti da st.secrets['auth']['users']."""
+    return st.secrets.get("auth", {}).get("users", {}) or {}
 
-    st.sidebar.subheader("Login")
-    usr = st.sidebar.selectbox("Utente", list(users.keys()))
-    pwd = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Entra", use_container_width=True):
-        true_pwd = users[usr].get("password", "")
-        role = users[usr].get("role", "viewer")
+def _login_page(users: dict) -> None:
+    st.set_page_config(page_title="SHT – Login", layout="wide")
+    st.markdown(f"<h3 style='margin-top:8px'>{APP_TITLE}</h3>", unsafe_allow_html=True)
+    st.markdown("### Login")
+
+    with st.form("login_form", clear_on_submit=False):
+        usr = st.selectbox("Utente", list(users.keys()))
+        pwd = st.text_input("Password", type="password")
+        ok  = st.form_submit_button("Entra", use_container_width=True)
+
+    if ok:
+        true_pwd = users.get(usr, {}).get("password", "")
+        role     = users.get(usr, {}).get("role", "viewer")
         if pwd == true_pwd:
-            # memorizza lo stato ed esegue rerun (API moderna)
             st.session_state["auth_user"] = usr
             st.session_state["auth_role"] = role
-            st.rerun()            # <<<<< era st.experimental_rerun()
+            st.rerun()
         else:
-            st.sidebar.error("Password errata")
+            st.error("Password errata")
 
-    # già loggato?
-    if "auth_user" in st.session_state:
-        return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
+def require_login() -> Tuple[str, str]:
+    """
+    Mostra la schermata di login e blocca l'accesso finché l'utente non è autenticato.
+    Ritorna (user, role).
+    """
+    users = _read_users_from_secrets()
+    if not users:
+        # Se non è configurato alcun utente, consentiamo l'accesso come ospite.
+        return ("ospite", "viewer")
 
-    # non ancora loggato
-    return ("", "")
+    # Già loggato?
+    if "auth_user" in st.session_state and "auth_role" in st.session_state:
+        return st.session_state["auth_user"], st.session_state["auth_role"]
+
+    # Mostra form di login e ferma qui
+    _login_page(users)
+    st.stop()
 
 # ==========================
 # PAGINE
@@ -254,6 +265,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("### Contratti in scadenza (entro 6 mesi)")
     ct = df_ct.copy()
     ct["DataFine"] = to_date_series(ct["DataFine"])
+    today = pd.Timestamp.today().normalize()
     open_mask = ct["Stato"].fillna("aperto").str.lower() != "chiuso"
     within_6m = (ct["DataFine"].notna() &
                  (ct["DataFine"] >= today) &
@@ -395,27 +407,32 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # ==========================
 
 def main():
+    # 1) login PRIMA di tutto
+    user, role = require_login()
+
+    # 2) impostazioni pagina
     st.set_page_config(page_title="SHT – Gestionale", layout="wide")
     st.markdown(f"<h3 style='margin-top:8px'>{APP_TITLE}</h3>", unsafe_allow_html=True)
 
-    # login (opzionale)
-    user, role = do_login()
-    if user and role:
-        st.sidebar.success(f"Utente: {user} — Ruolo: {role}")
-    else:
-        st.sidebar.info("Accesso come ospite")
+    # box utente + logout
+    st.sidebar.markdown(f"**Utente:** {user}")
+    st.sidebar.caption(f"Ruolo: {role}")
+    if st.sidebar.button("Logout", use_container_width=True):
+        for k in ("auth_user", "auth_role"):
+            st.session_state.pop(k, None)
+        st.rerun()
 
-    # nav
+    # 3) menu
     PAGES = {"Dashboard": page_dashboard, "Clienti": page_clienti, "Contratti": page_contratti}
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio("Menu", list(PAGES.keys()),
                             index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0)
 
-    # load dati
+    # 4) dati
     df_cli = load_clienti()
     df_ct  = load_contratti()
 
-    # run pagina
+    # 5) pagina
     PAGES[page](df_cli, df_ct, role)
 
 if __name__ == "__main__":

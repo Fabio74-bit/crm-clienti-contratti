@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import datetime, date
 from typing import Tuple, Dict
+import re
 
 import pandas as pd
 import streamlit as st
@@ -106,6 +107,12 @@ def to_date_widget(x):
         return pd.to_datetime(d).date()
     except Exception:
         return None
+
+def slugify_name(name: str) -> str:
+    s = (name or "").upper().strip()
+    s = re.sub(r"[^A-Z0-9]+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s[:24] if len(s) > 24 else s
 
 # ==========================
 # I/O DATI
@@ -342,8 +349,11 @@ def _summary_box(row: pd.Series):
         st.markdown(f"**P.IVA:** {safe_str(row.get('PartitaIVA'))}")
         st.markdown(f"**SDI:** {safe_str(row.get('SDI'))}")
 
-def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str) -> str:
-    sub = df_prev[df_prev["ClienteID"].astype(str) == str(cliente_id)]
+def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str, cliente_nome: str) -> str:
+    """Numerazione per cliente basata sul nome (slug): SHT-MI-<NOME>-NNN"""
+    slug = slugify_name(cliente_nome) or f"ID{cliente_id}"
+    sub = df_prev[(df_prev["ClienteID"].astype(str) == str(cliente_id)) |
+                  (df_prev["NumeroOfferta"].fillna("").str.contains(f"SHT-MI-{slug}-"))]
     if sub.empty:
         seq = 1
     else:
@@ -351,7 +361,7 @@ def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str) -> str:
             seq = max(int(x.split("-")[-1]) for x in sub["NumeroOfferta"].tolist() if "-" in x) + 1
         except Exception:
             seq = len(sub) + 1
-    return f"SHT-MI-{cliente_id}-{seq:03d}"
+    return f"SHT-MI-{slug}-{seq:03d}"
 
 def _replace_docx_placeholders(doc: Document, mapping: Dict[str, str]):
     """Sostituisce segnaposto <<...>> in paragrafi e celle tabella (run-safe)."""
@@ -466,7 +476,22 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     sel_id = str(df_cli.iloc[labels[labels==sel_label].index[0]]["ClienteID"])
 
     row = df_cli[df_cli["ClienteID"].astype(str)==sel_id].iloc[0]
-    _summary_box(row)
+
+    # ---- RIEPILOGO ----
+    st.markdown("### Riepilogo")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"**ClienteID:** {safe_str(row.get('ClienteID'))}")
+        st.markdown(f"**Ragione Sociale:** {safe_str(row.get('RagioneSociale'))}")
+        st.markdown(f"**Riferimento:** {safe_str(row.get('PersonaRiferimento'))}")
+    with c2:
+        st.markdown(f"**Indirizzo:** {safe_str(row.get('Indirizzo'))}")
+        st.markdown(f"**CAP/Città:** {safe_str(row.get('CAP'))} {safe_str(row.get('Citta'))}")
+        st.markdown(f"**Telefono/Cell:** {safe_str(row.get('Telefono'))} / {safe_str(row.get('Cell'))}")
+    with c3:
+        st.markdown(f"**Email:** {safe_str(row.get('Email'))}")
+        st.markdown(f"**P.IVA:** {safe_str(row.get('PartitaIVA'))}")
+        st.markdown(f"**SDI:** {safe_str(row.get('SDI'))}")
 
     # ---- NOTE FUORI DALL’EXPANDER ----
     st.markdown("### Note cliente")
@@ -561,7 +586,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 client_folder = EXTERNAL_PROPOSALS_DIR / str(sel_id)
                 client_folder.mkdir(parents=True, exist_ok=True)
 
-                numero_offerta = _gen_offerta_number(df_prev, sel_id)
+                numero_offerta = _gen_offerta_number(
+                    df_prev, sel_id, safe_str(row.get("RagioneSociale"))
+                )
 
                 doc = Document(str(tpl_path))
                 mapping = {

@@ -45,7 +45,7 @@ CONTRATTI_COLS = [
 ]
 PREVENTIVI_COLS = ["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"]
 
-# Mappa radio -> file template (nomi come hai in storage/templates)
+# Mappa radio -> file template
 TEMPLATE_OPTIONS: Dict[str, str] = {
     "Offerta – Centralino":     "Offerta_Centralino.docx",
     "Offerta – Varie":          "Offerta_Varie.docx",
@@ -58,7 +58,6 @@ TEMPLATE_OPTIONS: Dict[str, str] = {
 # ==========================
 
 def as_date(x):
-    """Converte robustamente in Timestamp; supporto dd/mm/yyyy."""
     if x is None or (isinstance(x, float) and pd.isna(x)):
         return pd.NaT
     if isinstance(x, (pd.Timestamp, pd.NaT.__class__)):
@@ -92,6 +91,13 @@ def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
             df[c] = pd.NA
     return df[cols].copy()
 
+def safe_str(v) -> str:
+    """Restituisce sempre una stringa 'pulita' per i widget Streamlit (evita pd.NA)."""
+    try:
+        return "" if (v is None or pd.isna(v)) else str(v)
+    except Exception:
+        return ""
+
 # ==========================
 # I/O DATI
 # ==========================
@@ -103,7 +109,6 @@ def load_clienti() -> pd.DataFrame:
         df = pd.DataFrame(columns=CLIENTI_COLS)
         df.to_csv(CLIENTI_CSV, index=False)
     df = ensure_columns(df, CLIENTI_COLS)
-    # date
     for c in ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]:
         df[c] = to_date_series(df[c])
     return df
@@ -143,7 +148,7 @@ def save_preventivi(df: pd.DataFrame):
     df.to_csv(PREVENTIVI_CSV, index=False)
 
 # ==========================
-# HTML TABLE COMPATIBILE
+# HTML TABLE
 # ==========================
 
 TABLE_CSS = """
@@ -157,7 +162,6 @@ TABLE_CSS = """
 """
 
 def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str:
-    """Tabella HTML senza backslash nelle f-string (compatibile Streamlit 1.50)."""
     if df is None or df.empty:
         return TABLE_CSS + "<div style='padding:8px;color:#666'>Nessun dato</div>"
 
@@ -170,7 +174,7 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
         trc = " class='ctr-row-closed'" if closed else ""
         tds = []
         for c in cols:
-            sval = "" if pd.isna(r.get(c, "")) else str(r.get(c, ""))
+            sval = safe_str(r.get(c, ""))
             sval = sval.replace("\n", "<br>")
             tds.append("<td class='ellipsis'>{}</td>".format(sval))
         rows.append("<tr{}>{}</tr>".format(trc, "".join(tds)))
@@ -179,7 +183,7 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
     return TABLE_CSS + "<table class='ctr-table'>{}{}</table>".format(thead, tbody)
 
 # ==========================
-# AUTH SEMPLICE (sidebar)
+# AUTH
 # ==========================
 
 def do_login() -> Tuple[str, str]:
@@ -220,7 +224,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     contratti_anno   = int((to_date_series(df_ct["DataInizio"]).dt.year == year_now).sum())
     clienti_attivi   = int(df_cli["ClienteID"].nunique())
 
-    # KPI cards (layout “buono”)
     kpi_html = f"""
     <style>
       .kpi-row{{display:flex;gap:18px;flex-wrap:nowrap;margin:8px 0 16px 0}}
@@ -264,7 +267,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # Contratti in scadenza entro 6 mesi (CLIENTE + DataFine + Descrizione + TotRata)
+    # Scadenze (Cliente + DataFine + Descrizione + TotRata)
     st.markdown("### Contratti in scadenza (entro 6 mesi)")
     ct = df_ct.copy()
     ct["DataFine"] = to_date_series(ct["DataFine"])
@@ -278,7 +281,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     disp = pd.DataFrame()
     if not scad.empty:
-        # mappo ClienteID -> RagioneSociale
         labels = df_cli.set_index("ClienteID")["RagioneSociale"]
         disp = pd.DataFrame({
             "Cliente": scad["ClienteID"].map(labels).fillna(scad["ClienteID"].astype(str)),
@@ -290,7 +292,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # Ultimi recall (>3 mesi) e visite (>6 mesi)
+    # Ultimi recall / visite
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("### Ultimi recall (> 3 mesi)")
@@ -318,20 +320,19 @@ def _summary_box(row: pd.Series):
     st.markdown("### Riepilogo")
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown(f"**ClienteID:** {row.get('ClienteID','')}")
-        st.markdown(f"**Ragione Sociale:** {row.get('RagioneSociale','')}")
-        st.markdown(f"**Riferimento:** {row.get('PersonaRiferimento','')}")
+        st.markdown(f"**ClienteID:** {safe_str(row.get('ClienteID'))}")
+        st.markdown(f"**Ragione Sociale:** {safe_str(row.get('RagioneSociale'))}")
+        st.markdown(f"**Riferimento:** {safe_str(row.get('PersonaRiferimento'))}")
     with c2:
-        st.markdown(f"**Indirizzo:** {row.get('Indirizzo','')}")
-        st.markdown(f"**CAP/Città:** {row.get('CAP','')} {row.get('Citta','')}")
-        st.markdown(f"**Telefono/Cell:** {row.get('Telefono','')} / {row.get('Cell','')}")
+        st.markdown(f"**Indirizzo:** {safe_str(row.get('Indirizzo'))}")
+        st.markdown(f"**CAP/Città:** {safe_str(row.get('CAP'))} {safe_str(row.get('Citta'))}")
+        st.markdown(f"**Telefono/Cell:** {safe_str(row.get('Telefono'))} / {safe_str(row.get('Cell'))}")
     with c3:
-        st.markdown(f"**Email:** {row.get('Email','')}")
-        st.markdown(f"**P.IVA:** {row.get('PartitaIVA','')}")
-        st.markdown(f"**SDI:** {row.get('SDI','')}")
+        st.markdown(f"**Email:** {safe_str(row.get('Email'))}")
+        st.markdown(f"**P.IVA:** {safe_str(row.get('PartitaIVA'))}")
+        st.markdown(f"**SDI:** {safe_str(row.get('SDI'))}")
 
 def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str) -> str:
-    # prendo il max seq per quel cliente e incremento
     sub = df_prev[df_prev["ClienteID"].astype(str) == str(cliente_id)]
     if sub.empty:
         seq = 1
@@ -343,7 +344,6 @@ def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str) -> str:
     return f"SHT-MI-{cliente_id}-{seq:03d}"
 
 def _replace_docx_placeholders(doc: Document, mapping: Dict[str, str]):
-    """Sostituisce segnaposto <<...>> in tutto il documento, incluse run spezzate."""
     def repl_in_paragraph(p):
         for run in p.runs:
             for key, val in mapping.items():
@@ -365,7 +365,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
-    # selezione (mantieni eventuale selezione da dashboard)
     pre = st.session_state.get("selected_client_id")
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     idx = 0
@@ -382,20 +381,20 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # ---- Sezione anagrafica modificabile (collapsible)
+    # ---- Anagrafica
     with st.expander("Anagrafica (modificabile)", expanded=False):
         with st.form("frm_anagrafica"):
-            ragsoc = st.text_input("Ragione sociale", row.get("RagioneSociale",""))
-            indir  = st.text_input("Indirizzo", row.get("Indirizzo",""))
-            cap    = st.text_input("CAP", row.get("CAP",""))
-            citta  = st.text_input("Città", row.get("Citta",""))
-            ref    = st.text_input("Persona di riferimento", row.get("PersonaRiferimento",""))
-            tel    = st.text_input("Telefono", row.get("Telefono",""))
-            cell   = st.text_input("Cell", row.get("Cell",""))
-            mail   = st.text_input("Email", row.get("Email",""))
-            piva   = st.text_input("Partita IVA", str(row.get("PartitaIVA","")))  # text: mantiene zero iniziale
-            sdi    = st.text_input("SDI", row.get("SDI",""))
-            note   = st.text_area("Note", row.get("Note",""))
+            ragsoc = st.text_input("Ragione sociale", safe_str(row.get("RagioneSociale")))
+            indir  = st.text_input("Indirizzo", safe_str(row.get("Indirizzo")))
+            cap    = st.text_input("CAP", safe_str(row.get("CAP")))
+            citta  = st.text_input("Città", safe_str(row.get("Citta")))
+            ref    = st.text_input("Persona di riferimento", safe_str(row.get("PersonaRiferimento")))
+            tel    = st.text_input("Telefono", safe_str(row.get("Telefono")))
+            cell   = st.text_input("Cell", safe_str(row.get("Cell")))
+            mail   = st.text_input("Email", safe_str(row.get("Email")))
+            piva   = st.text_input("Partita IVA", safe_str(row.get("PartitaIVA")))  # stringa per zeri iniziali
+            sdi    = st.text_input("SDI", safe_str(row.get("SDI")))
+            note   = st.text_area("Note", safe_str(row.get("Note")))
 
             c1, c2, c3, c4 = st.columns(4)
             with c1:
@@ -409,7 +408,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             if st.form_submit_button("Salva modifiche", use_container_width=True):
                 idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
-                # aggiorno
                 df_cli.loc[idx_row, "RagioneSociale"]    = ragsoc
                 df_cli.loc[idx_row, "Indirizzo"]         = indir
                 df_cli.loc[idx_row, "CAP"]               = cap
@@ -418,7 +416,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 df_cli.loc[idx_row, "Telefono"]          = tel
                 df_cli.loc[idx_row, "Cell"]              = cell
                 df_cli.loc[idx_row, "Email"]             = mail
-                df_cli.loc[idx_row, "PartitaIVA"]        = piva  # stringa
+                df_cli.loc[idx_row, "PartitaIVA"]        = piva
                 df_cli.loc[idx_row, "SDI"]               = sdi
                 df_cli.loc[idx_row, "Note"]              = note
                 df_cli.loc[idx_row, "UltimoRecall"]      = pd.to_datetime(ult_recall) if ult_recall else ""
@@ -443,49 +441,40 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("### Preventivi")
 
     df_prev = load_preventivi()
-    # radio template
-    tpl_label = st.radio(
-        "Seleziona template",
-        list(TEMPLATE_OPTIONS.keys()),
-        horizontal=True
-    )
+    tpl_label = st.radio("Seleziona template", list(TEMPLATE_OPTIONS.keys()), horizontal=True)
     tpl_file = TEMPLATE_OPTIONS[tpl_label]
     tpl_path = TEMPLATES_DIR / tpl_file
 
     col_a, col_b = st.columns([0.5, 0.5], gap="large")
     with col_a:
         st.caption("Campi compilati automaticamente")
-        st.write(f"**Cliente:** {row.get('RagioneSociale','')}")
-        st.write(f"**Indirizzo:** {row.get('Indirizzo','')} — {row.get('CAP','')} {row.get('Citta','')}")
+        st.write(f"**Cliente:** {safe_str(row.get('RagioneSociale'))}")
+        st.write(f"**Indirizzo:** {safe_str(row.get('Indirizzo'))} — {safe_str(row.get('CAP'))} {safe_str(row.get('Citta'))}")
         st.write("**Data documento:** oggi")
 
         if st.button("Genera preventivo", type="primary"):
             if not tpl_path.exists():
                 st.error(f"Template non trovato: {tpl_file}")
             else:
-                # Crea cartella cliente (OneDrive o storage) e numero offerta
                 client_folder = EXTERNAL_PROPOSALS_DIR / str(sel_id)
                 client_folder.mkdir(parents=True, exist_ok=True)
 
                 numero_offerta = _gen_offerta_number(df_prev, sel_id)
 
-                # prepara DOCX
                 doc = Document(str(tpl_path))
                 mapping = {
-                    "CLIENTE": row.get("RagioneSociale",""),
-                    "INDIRIZZO": row.get("Indirizzo",""),
-                    "CITTA": f"{row.get('CAP','')} {row.get('Citta','')}".strip(),
+                    "CLIENTE": safe_str(row.get("RagioneSociale")),
+                    "INDIRIZZO": safe_str(row.get("Indirizzo")),
+                    "CITTA": f"{safe_str(row.get('CAP'))} {safe_str(row.get('Citta'))}".strip(),
                     "DATA": datetime.today().strftime("%d/%m/%Y"),
                     "NUMERO_OFFERTA": numero_offerta,
                 }
                 _replace_docx_placeholders(doc, mapping)
 
-                # salva
                 filename = f"{numero_offerta}.docx"
                 out_path = client_folder / filename
                 doc.save(str(out_path))
 
-                # aggiorna registry
                 new_row = {
                     "ClienteID": sel_id,
                     "NumeroOfferta": numero_offerta,
@@ -573,9 +562,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with c1:
             st.write(" ")
         with c2:
-            st.caption(f"{r['NumeroContratto'] or ''} — {r['DescrizioneProdotto'] or ''}")
+            st.caption(f"{safe_str(r['NumeroContratto'])} — {safe_str(r['DescrizioneProdotto'])}")
         with c3:
-            curr = (r["Stato"] or "aperto").lower()
+            curr = safe_str(r["Stato"]).lower() or "aperto"
             if curr == "chiuso":
                 if st.button("Riapri", key=f"open_{i}"):
                     df_ct.loc[i, "Stato"] = "aperto"

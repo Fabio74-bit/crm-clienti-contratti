@@ -152,28 +152,36 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
 # ==========================
 
 def do_login() -> Tuple[str, str]:
-    """Ritorna (username, ruolo). Se non configurato, entra come ospite."""
+    """
+    Login semplice basato su st.secrets['auth']['users'].
+    Ritorna (username, ruolo). Se non configurato, entra come ospite.
+    """
     users = st.secrets.get("auth", {}).get("users", {})
     if not users:
+        # Nessun auth configurato: accesso libero
         return ("ospite", "viewer")
 
     st.sidebar.subheader("Login")
     usr = st.sidebar.selectbox("Utente", list(users.keys()))
     pwd = st.sidebar.text_input("Password", type="password")
-    ok = st.sidebar.button("Entra")
-    if ok:
+    if st.sidebar.button("Entra", use_container_width=True):
         true_pwd = users[usr].get("password", "")
         role = users[usr].get("role", "viewer")
         if pwd == true_pwd:
+            # memorizza lo stato ed esegue rerun (API moderna)
             st.session_state["auth_user"] = usr
             st.session_state["auth_role"] = role
-            st.experimental_rerun()
+            st.rerun()            # <<<<< era st.experimental_rerun()
         else:
             st.sidebar.error("Password errata")
+
     # già loggato?
     if "auth_user" in st.session_state:
         return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
-    return ("", "")  # non loggato
+
+    # non ancora loggato
+    return ("", "")
+
 
 # ==========================
 # PAGINE

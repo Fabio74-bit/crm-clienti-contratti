@@ -140,7 +140,7 @@ def save_preventivi(df: pd.DataFrame):
     df.to_csv(PREVENTIVI_CSV, index=False)
 
 # ==========================
-# HTML TABLE (no backslash in f-strings)
+# HTML TABLE
 # ==========================
 TABLE_CSS = """
 <style>
@@ -214,7 +214,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     contratti_anno   = int((to_date_series(df_ct["DataInizio"]).dt.year == year_now).sum())
     clienti_attivi   = int(df_cli["ClienteID"].nunique())
 
-    # KPI cards (layout “buono”)
     kpi_html = f"""
     <style>
       .kpi-row{{display:flex;gap:18px;flex-wrap:nowrap;margin:8px 0 16px 0}}
@@ -283,7 +282,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # Ultimi recall (>3 mesi) e visite (>6 mesi)
+    # Ultimi recall / visite
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("### Ultimi recall (> 3 mesi)")
@@ -334,12 +333,10 @@ def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str, ragione: str) ->
             seq = max(int(x.split("-")[-1]) for x in sub["NumeroOfferta"].tolist() if "-" in x) + 1
         except Exception:
             seq = len(sub) + 1
-    # accorcia ragione per nome file, senza spazi
     label = (ragione or "").strip().replace(" ", "_")[:24]
     return f"{base}-{seq:03d}-{label}"
 
 def _replace_docx_placeholders(doc: Document, mapping: Dict[str, str]):
-    # sostituzione semplice (run-spezzate: approccio best-effort)
     def repl_in_paragraph(p):
         for run in p.runs:
             for key, val in mapping.items():
@@ -375,7 +372,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # NOTE — chiesta fuori dall’expander
+    # NOTE fuori dall’expander
     note_new = st.text_area("Note", row.get("Note",""))
     if st.button("Salva note"):
         idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
@@ -483,7 +480,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 df_prev = pd.concat([df_prev, pd.DataFrame([new_row])], ignore_index=True)
                 save_preventivi(df_prev)
                 st.success(f"Preventivo creato: {filename}")
-                # for safety, offriamo subito il download
                 with open(out_path, "rb") as fh:
                     st.download_button("Scarica subito", data=fh.read(), file_name=filename,
                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
@@ -526,7 +522,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
-    # selezione cliente (pre-selezione dalla dashboard o scheda cliente)
+    # selezione cliente (pre-selezione)
     pre = st.session_state.get("selected_client_id")
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     idx = 0
@@ -543,7 +539,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto per questo cliente.")
         return
 
-    # normalizza
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     ct["DataInizio"] = to_date_series(ct["DataInizio"])
     ct["DataFine"]   = to_date_series(ct["DataFine"])
@@ -551,40 +546,29 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # ---------- ANTEPRIMA DESCRIZIONE (click riga)
     st.markdown("### Anteprima descrizione (seleziona la riga qui sotto)")
     prev_idx = st.selectbox(
-        "", 
+        "",
         [fmt_date(x) for x in ct["DataInizio"]],
         index=0,
         label_visibility="collapsed"
     )
-    # default preview = prima riga
     preview_text = ct.iloc[0]["DescrizioneProdotto"] or ""
-    # tabella vista principale (unica)
+
+    # tabella unica
     disp = ct.copy()
     disp = disp[["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]]
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"]   = disp["DataFine"].apply(fmt_date)
     disp["TotRata"]    = disp["TotRata"].apply(money)
 
-    # colonna di selezione per export
-    sel_col = [False] * len(disp)
-    if "sel_mask" not in st.session_state:
-        st.session_state["sel_mask"] = sel_col
-    # small UI: click = aggiorna anteprima
-    for i in disp.index:
-        if st.button(f"Apri • {disp.loc[i,'NumeroContratto'] or ''}", key=f"apri_{i}"):
-            preview_text = ct.loc[i, "DescrizioneProdotto"] or ""
-    # header + tabella compatta (righe chiuse rosse)
     closed_mask = ct["Stato"].str.lower() == "chiuso"
     st.markdown(html_table(disp, closed_mask=closed_mask), unsafe_allow_html=True)
 
-    # anteprima grande
     st.markdown(f"<div class='badge'>{preview_text}</div>", unsafe_allow_html=True)
 
     st.divider()
 
     # ---------- SELEZIONE & EXPORT
     st.markdown("### Selezione / Esportazione")
-    # checkboxes in 4 colonne
     sel = []
     cols = st.columns(4)
     for k, i in enumerate(disp.index):
@@ -600,12 +584,24 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.warning("Seleziona almeno una riga.")
             else:
                 out = disp.loc[sel].copy()
-                bio = BytesIO()
-                with pd.ExcelWriter(bio, engine="openpyxl") as xw:
-                    out.to_excel(xw, index=False, sheet_name="Contratti")
-                st.download_button("Scarica Excel", data=bio.getvalue(),
-                                   file_name=f"contratti_{sel_id}.xlsx",
-                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                # Prova XLSX con xlsxwriter → fallback CSV se non disponibile
+                data_bytes: bytes
+                filename: str
+                mime: str
+                try:
+                    import xlsxwriter  # noqa: F401
+                    bio = BytesIO()
+                    with pd.ExcelWriter(bio, engine="xlsxwriter") as xw:
+                        out.to_excel(xw, index=False, sheet_name="Contratti")
+                    data_bytes = bio.getvalue()
+                    filename = f"contratti_{sel_id}.xlsx"
+                    mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                except Exception:
+                    data_bytes = out.to_csv(index=False).encode("utf-8-sig")
+                    filename = f"contratti_{sel_id}.csv"
+                    mime = "text/csv"
+                st.download_button("Scarica file", data=data_bytes, file_name=filename, mime=mime)
+
     with c_mid:
         if st.button("Stampa selezionati in PDF"):
             if not sel:

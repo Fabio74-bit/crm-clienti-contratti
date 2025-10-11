@@ -1,15 +1,47 @@
+# app.py — SHT – Gestione Clienti (skeleton con login + dashboard)
+
+from __future__ import annotations
+import os
+from pathlib import Path
+from datetime import datetime
+from typing import Tuple
+
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-from datetime import datetime
-# ---------- RENDER HTML in modo compatibile con Streamlit 1.50 ----------
+
+# ============================================================
+# CONFIGURAZIONE BASE
+# ============================================================
+
+st.set_page_config(page_title="SHT – Gestione Clienti", page_icon="📒", layout="wide")
+
+APP_TITLE = "SHT – Gestione Clienti"
+STORAGE_DIR = Path("storage")
+FILE_CLIENTI = STORAGE_DIR / "clienti.csv"
+FILE_CONTRATTI = STORAGE_DIR / "contratti_clienti.csv"
+
+# Colonne minime richieste dai DataFrame
+CLIENTI_COLS = [
+    "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
+    "Telefono", "Email", "PartitaIVA", "IBAN", "SDI",
+    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita", "Note"
+]
+CONTRATTI_COLS = [
+    "ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
+]
+
+# ============================================================
+# UTILITY HTML / DATE / TABELLA
+# ============================================================
+
 def show_html(html: str, *, height: int = 420):
-    """Renderizza HTML/CSS in un iframe (evita artefatti di st.markdown)."""
+    """Renderizza HTML in iframe (compatibile con Streamlit 1.50)."""
     components.html(html, height=height, scrolling=True)
 
-# ---------- Helper date ----------
 def to_date(x):
-    """Trasforma vari formati in Timestamp; dd/mm/yyyy supportato."""
+    """Parsa date in modo tollerante; supporta dd/mm/yyyy."""
     if x is None or (isinstance(x, float) and pd.isna(x)):
         return pd.NaT
     if isinstance(x, pd.Timestamp):
@@ -22,11 +54,12 @@ def to_date(x):
 def fmt_date(d):
     return "" if (d is None or pd.isna(d)) else pd.to_datetime(d).strftime("%d/%m/%Y")
 
-# ---------- CSS e builder tabella HTML ----------
 TABLE_CSS = """
 <style>
 .ctr-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.ctr-table th, .ctr-table td { border: 1px solid #d0d7de; padding: 8px 10px; font-size: 13px; vertical-align: top; }
+.ctr-table th, .ctr-table td {
+  border: 1px solid #d0d7de; padding: 8px 10px; font-size: 13px; vertical-align: top;
+}
 .ctr-table th { background: #e3f2fd; font-weight: 600; }
 .ctr-row-closed td { background: #ffefef; color: #8a0000; }
 .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -34,7 +67,7 @@ TABLE_CSS = """
 """
 
 def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str:
-    """Restituisce l'HTML della tabella (no backslash in f-string)."""
+    """Ritorna HTML tabella con stile; evidenzia righe chiuse se closed_mask True."""
     if df is None or df.empty:
         return TABLE_CSS + "<div style='padding:8px;color:#666'>Nessun dato</div>"
 
@@ -48,17 +81,96 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
         for c in cols:
             val = row.get(c, "")
             sval = "" if pd.isna(val) else str(val)
-            # sostituisco \n fuori dalle f-string
             sval = sval.replace("\n", "<br>")
             tds.append(f"<td class='ellipsis'>{sval}</td>")
         rows_html.append(f"<tr{tr_class}>" + "".join(tds) + "</tr>")
 
     tbody = "<tbody>" + "".join(rows_html) + "</tbody>"
     return TABLE_CSS + f"<table class='ctr-table'>{thead}{tbody}</table>"
+
+# ============================================================
+# DATA ACCESS: load/save + bootstrap file vuoti se mancanti
+# ============================================================
+
+def _ensure_csv(path: Path, cols: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        pd.DataFrame(columns=cols).to_csv(path, index=False)
+
+def load_clienti() -> pd.DataFrame:
+    _ensure_csv(FILE_CLIENTI, CLIENTI_COLS)
+    df = pd.read_csv(FILE_CLIENTI, dtype=str).fillna("")
+    for c in CLIENTI_COLS:
+        if c not in df.columns:
+            df[c] = ""
+    df = df[CLIENTI_COLS]
+    return df
+
+def load_contratti() -> pd.DataFrame:
+    _ensure_csv(FILE_CONTRATTI, CONTRATTI_COLS)
+    df = pd.read_csv(FILE_CONTRATTI, dtype=str).fillna("")
+    for c in CONTRATTI_COLS:
+        if c not in df.columns:
+            df[c] = ""
+    df = df[CONTRATTI_COLS]
+    return df
+
+# ============================================================
+# LOGIN SEMPLICE (secrets o fallback)
+# ============================================================
+
+def get_users_from_secrets() -> dict:
+    """
+    Legge utenti da Secrets:
+    [auth.users.fabio]
+    password = "admin"
+    role = "admin"
+    """
+    users = {}
+    try:
+        # Streamlit Secrets: st.secrets["auth"]["users"][username]["password"]
+        auth = st.secrets.get("auth", {})
+        users_conf = auth.get("users", {})
+        for uname, conf in users_conf.items():
+            users[uname] = {"password": str(conf.get("password", "")), "role": str(conf.get("role", "user"))}
+    except Exception:
+        pass
+    # fallback se vuoto
+    if not users:
+        users = {"fabio": {"password": "admin", "role": "admin"}}
+    return users
+
+def require_login() -> Tuple[str | None, str | None]:
+    users = get_users_from_secrets()
+
+    # già loggato?
+    if st.session_state.get("auth_user"):
+        return st.session_state["auth_user"], st.session_state.get("auth_role", "user")
+
+    st.title(APP_TITLE)
+    st.subheader("Login")
+    with st.form("login"):
+        u = st.text_input("Utente", value="")
+        p = st.text_input("Password", type="password")
+        ok = st.form_submit_button("Entra")
+    if ok:
+        if u in users and p == users[u]["password"]:
+            st.session_state["auth_user"] = u
+            st.session_state["auth_role"] = users[u]["role"]
+            st.success(f"Benvenuto, {u}!")
+            st.rerun()
+        else:
+            st.error("Credenziali non valide.")
+    st.stop()  # interrompe qui finché non loggato
+
+# ============================================================
+# DASHBOARD (quella che mi hai chiesto di mantenere)
+# ============================================================
+
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Dashboard")
 
-    # ----------------- KPI -----------------
+    # KPI
     today = pd.Timestamp.today().normalize()
     year_now = today.year
 
@@ -75,7 +187,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with k3: st.metric("Contratti chiusi", contratti_chiusi)
     with k4: st.metric(f"Contratti {year_now}", contratti_anno)
 
-    # ----------------- Ricerca rapida cliente -----------------
+    # Ricerca rapida cliente
     st.markdown("**Cerca cliente**")
     q = st.text_input("Digita il nome o l'ID cliente...", label_visibility="collapsed")
     if q.strip():
@@ -86,13 +198,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         if not filt.empty:
             fid = str(filt.iloc[0]["ClienteID"])
             if st.button(f"Apri scheda cliente {fid}"):
-                st.session_state["nav_target"] = "Clienti"        # tua pagina Clienti
-                st.session_state["selected_client_id"] = fid       # passa id selezionato
+                st.session_state["nav_target"] = "Clienti"
+                st.session_state["selected_client_id"] = fid
                 st.rerun()
 
     st.markdown("---")
 
-    # ----------------- Contratti in scadenza (entro 6 mesi) -----------------
+    # Contratti in scadenza (entro 6 mesi)
     st.markdown("### Contratti in scadenza (entro 6 mesi)")
 
     ct = df_ct.copy()
@@ -103,7 +215,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                  (ct["DataFine"] <= today + pd.DateOffset(months=6)))
     scad = ct[open_mask & within_6m].copy()
 
-    # prendi il primo in scadenza per cliente (quello più vicino)
     if not scad.empty:
         scad = scad.sort_values(["ClienteID", "DataFine"])
         scad = scad.groupby("ClienteID", as_index=False).first()
@@ -116,12 +227,14 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             "NumeroContratto": scad["NumeroContratto"].fillna(""),
             "DescrizioneProdotto": scad["DescrizioneProdotto"].fillna(""),
             "DataFine": scad["DataFine"].apply(fmt_date),
-            "TotRata": scad["TotRata"].apply(lambda x: f"{pd.to_numeric(x, errors='coerce') or 0:.2f}")
+            "TotRata": scad["TotRata"].apply(
+                lambda x: f"{(pd.to_numeric(x, errors='coerce') or 0):.2f}" if str(x).strip() else "0.00"
+            ),
         })
 
     show_html(html_table(disp_scad), height=240)
 
-    # ----------------- Ultimi recall (> 3 mesi) e Ultime visite (> 6 mesi) -----------------
+    # Ultimi recall (> 3 mesi) e Ultime visite (> 6 mesi)
     c1, c2 = st.columns(2)
 
     with c1:
@@ -145,3 +258,48 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         tab["UltimaVisita"] = tab["UltimaVisita"].apply(fmt_date)
         tab["ProssimaVisita"] = tab["ProssimaVisita"].apply(fmt_date)
         show_html(html_table(tab), height=260)
+
+# ============================================================
+# NAVIGAZIONE
+# ============================================================
+
+PAGES = {
+    "Dashboard": page_dashboard,
+    # "Clienti": page_clienti,            # le aggiungeremo pagina per pagina
+    # "Contratti": page_contratti,
+}
+
+def sidebar_nav() -> str:
+    st.sidebar.title("SHT")
+    page = st.sidebar.radio("Sezioni", list(PAGES.keys()), index=0)
+    return page
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+    # LOGIN
+    user, role = require_login()  # blocca finché non loggato
+
+    # CARICAMENTO DATI
+    try:
+        df_cli = load_clienti()
+        df_ct = load_contratti()
+    except Exception as e:
+        st.error(f"Errore nel caricamento dati: {e}")
+        return
+
+    # NAV
+    current = st.session_state.get("nav_target") or sidebar_nav()
+    st.session_state["nav_target"] = current
+
+    st.caption(f"Utente: **{user}** · Ruolo: **{role}**")
+
+    # RENDER PAGINA
+    page_fn = PAGES.get(current, page_dashboard)
+    page_fn(df_cli, df_ct, role)
+
+
+if __name__ == "__main__":
+    main()

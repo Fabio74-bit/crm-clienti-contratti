@@ -146,7 +146,6 @@ def save_preventivi(df: pd.DataFrame):
 # HTML TABLE COMPATIBILE
 # ==========================
 
-# ---------- HTML TABLE (fix backslash in f-strings) ----------
 TABLE_CSS = """
 <style>
 .ctr-table { width:100%; border-collapse: collapse; table-layout: fixed; }
@@ -158,6 +157,7 @@ TABLE_CSS = """
 """
 
 def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str:
+    """Tabella HTML senza backslash nelle f-string (compatibile Streamlit 1.50)."""
     if df is None or df.empty:
         return TABLE_CSS + "<div style='padding:8px;color:#666'>Nessun dato</div>"
 
@@ -171,7 +171,6 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
         tds = []
         for c in cols:
             sval = "" if pd.isna(r.get(c, "")) else str(r.get(c, ""))
-            # fare la sostituzione PRIMA ed evitare backslash nell'espressione dell'f-string
             sval = sval.replace("\n", "<br>")
             tds.append("<td class='ellipsis'>{}</td>".format(sval))
         rows.append("<tr{}>{}</tr>".format(trc, "".join(tds)))
@@ -179,9 +178,8 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
     tbody = "<tbody>" + "".join(rows) + "</tbody>"
     return TABLE_CSS + "<table class='ctr-table'>{}{}</table>".format(thead, tbody)
 
-
 # ==========================
-# AUTH SEMPLICE
+# AUTH SEMPLICE (sidebar)
 # ==========================
 
 def do_login() -> Tuple[str, str]:
@@ -222,7 +220,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     contratti_anno   = int((to_date_series(df_ct["DataInizio"]).dt.year == year_now).sum())
     clienti_attivi   = int(df_cli["ClienteID"].nunique())
 
-    # KPI cards (non toccare layout “buono”)
+    # KPI cards (layout “buono”)
     kpi_html = f"""
     <style>
       .kpi-row{{display:flex;gap:18px;flex-wrap:nowrap;margin:8px 0 16px 0}}
@@ -266,12 +264,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # Contratti in scadenza entro 6 mesi
+    # Contratti in scadenza entro 6 mesi (CLIENTE + DataFine + Descrizione + TotRata)
     st.markdown("### Contratti in scadenza (entro 6 mesi)")
     ct = df_ct.copy()
     ct["DataFine"] = to_date_series(ct["DataFine"])
     open_mask = ct["Stato"].fillna("aperto").str.lower() != "chiuso"
-    today = pd.Timestamp.today().normalize()
     within_6m = (ct["DataFine"].notna() &
                  (ct["DataFine"] >= today) &
                  (ct["DataFine"] <= today + pd.DateOffset(months=6)))
@@ -281,8 +278,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     disp = pd.DataFrame()
     if not scad.empty:
+        # mappo ClienteID -> RagioneSociale
+        labels = df_cli.set_index("ClienteID")["RagioneSociale"]
         disp = pd.DataFrame({
-            "NumeroContratto": scad["NumeroContratto"].fillna(""),
+            "Cliente": scad["ClienteID"].map(labels).fillna(scad["ClienteID"].astype(str)),
             "DataFine": scad["DataFine"].apply(fmt_date),
             "DescrizioneProdotto": scad["DescrizioneProdotto"].fillna(""),
             "TotRata": scad["TotRata"].apply(money)
@@ -337,7 +336,6 @@ def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str) -> str:
     if sub.empty:
         seq = 1
     else:
-        # NumeroOfferta è tipo SHT-MI-<id>-NNN
         try:
             seq = max(int(x.split("-")[-1]) for x in sub["NumeroOfferta"].tolist() if "-" in x) + 1
         except Exception:
@@ -412,21 +410,21 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             if st.form_submit_button("Salva modifiche", use_container_width=True):
                 idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
                 # aggiorno
-                df_cli.loc[idx_row, "RagioneSociale"]   = ragsoc
-                df_cli.loc[idx_row, "Indirizzo"]        = indir
-                df_cli.loc[idx_row, "CAP"]              = cap
-                df_cli.loc[idx_row, "Citta"]            = citta
+                df_cli.loc[idx_row, "RagioneSociale"]    = ragsoc
+                df_cli.loc[idx_row, "Indirizzo"]         = indir
+                df_cli.loc[idx_row, "CAP"]               = cap
+                df_cli.loc[idx_row, "Citta"]             = citta
                 df_cli.loc[idx_row, "PersonaRiferimento"]= ref
-                df_cli.loc[idx_row, "Telefono"]         = tel
-                df_cli.loc[idx_row, "Cell"]             = cell
-                df_cli.loc[idx_row, "Email"]            = mail
-                df_cli.loc[idx_row, "PartitaIVA"]       = piva  # stringa
-                df_cli.loc[idx_row, "SDI"]              = sdi
-                df_cli.loc[idx_row, "Note"]             = note
-                df_cli.loc[idx_row, "UltimoRecall"]     = pd.to_datetime(ult_recall) if ult_recall else ""
-                df_cli.loc[idx_row, "ProssimoRecall"]   = pd.to_datetime(pross_recall) if pross_recall else ""
-                df_cli.loc[idx_row, "UltimaVisita"]     = pd.to_datetime(ult_visita) if ult_visita else ""
-                df_cli.loc[idx_row, "ProssimaVisita"]   = pd.to_datetime(pross_visita) if pross_visita else ""
+                df_cli.loc[idx_row, "Telefono"]          = tel
+                df_cli.loc[idx_row, "Cell"]              = cell
+                df_cli.loc[idx_row, "Email"]             = mail
+                df_cli.loc[idx_row, "PartitaIVA"]        = piva  # stringa
+                df_cli.loc[idx_row, "SDI"]               = sdi
+                df_cli.loc[idx_row, "Note"]              = note
+                df_cli.loc[idx_row, "UltimoRecall"]      = pd.to_datetime(ult_recall) if ult_recall else ""
+                df_cli.loc[idx_row, "ProssimoRecall"]    = pd.to_datetime(pross_recall) if pross_recall else ""
+                df_cli.loc[idx_row, "UltimaVisita"]      = pd.to_datetime(ult_visita) if ult_visita else ""
+                df_cli.loc[idx_row, "ProssimaVisita"]    = pd.to_datetime(pross_visita) if pross_visita else ""
                 save_clienti(df_cli)
                 st.success("Dati cliente aggiornati.")
                 st.rerun()

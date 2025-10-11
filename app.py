@@ -1,7 +1,8 @@
-# app.py — Gestionale Clienti SHT
+# app.py — Gestionale Clienti SHT (dashboard “buona” + clienti + contratti + preventivi)
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Tuple, Dict

@@ -223,99 +223,84 @@ def do_login() -> Tuple[str, str]:
 # ==========================
 # DASHBOARD
 # ==========================
+# ==========================
+# DASHBOARD
+# ==========================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    st.subheader("Dashboard")
+    st.title("📊 Dashboard CRM")
 
-    today = pd.Timestamp.today().normalize()
-    year_now = today.year
-    stato = df_ct["Stato"].fillna("aperto").str.lower()
-    contratti_aperti = int((stato != "chiuso").sum())
-    contratti_chiusi = int((stato == "chiuso").sum())
-    contratti_anno = int((to_date_series(df_ct["DataInizio"]).dt.year == year_now).sum())
-    clienti_attivi = int(df_cli["ClienteID"].nunique())
+    today = pd.Timestamp.now().normalize()
 
-    # KPI
-    kpi_html = f"""
-    <style>
-      .kpi-row{{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0 16px 0}}
-      .kpi{{flex:1;min-width:230px;background:#fff;border:1px solid #d0d7de;
-             border-radius:14px;padding:16px 18px;box-shadow:0 0 0 2px #f8fafc inset}}
-      .kpi .t{{color:#475569;font-weight:600;font-size:15px}}
-      .kpi .v{{font-weight:800;font-size:28px;margin-top:6px}}
-    </style>
-    <div class="kpi-row">
-      <div class="kpi"><div class="t">Clienti attivi</div><div class="v">{clienti_attivi}</div></div>
-      <div class="kpi"><div class="t">Contratti aperti</div><div class="v">{contratti_aperti}</div></div>
-      <div class="kpi"><div class="t">Contratti chiusi</div><div class="v">{contratti_chiusi}</div></div>
-      <div class="kpi"><div class="t">Contratti {year_now}</div><div class="v">{contratti_anno}</div></div>
-    </div>
-    """
-    st.markdown(kpi_html, unsafe_allow_html=True)
-
-    # Ricerca cliente
-    st.markdown("**Cerca cliente**")
-    q = st.text_input("Digita il nome o l'ID cliente…", label_visibility="collapsed", placeholder="Nome o ID")
-    if q.strip():
-        filt = df_cli[
-            df_cli["RagioneSociale"].str.contains(q, case=False, na=False) |
-            df_cli["ClienteID"].astype(str).str.contains(q, na=False)
+    # --- BOX KPI sintetici ---
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Clienti attivi", len(df_cli))
+    with col2:
+        st.metric("Contratti attivi", len(df_ct[df_ct["Stato"].str.lower() != "chiuso"]))
+    with col3:
+        scad = df_ct[
+            (df_ct["DataFine"].notna())
+            & (df_ct["DataFine"] >= today)
+            & (df_ct["DataFine"] <= today + pd.DateOffset(months=6))
+            & (df_ct["Stato"].str.lower() != "chiuso")
         ]
-        if not filt.empty:
-            sel_id = str(filt.iloc[0]["ClienteID"])
-            if st.button(f"Apri scheda cliente {sel_id}"):
-                st.session_state["nav_target"] = "Clienti"
-                st.session_state["selected_client_id"] = sel_id
-                st.rerun()
+        st.metric("Contratti in scadenza (6 mesi)", len(scad))
 
     st.divider()
-    st.markdown("### Contratti in scadenza (entro 6 mesi)")
-    ct = df_ct.copy()
-    ct["DataFine"] = to_date_series(ct["DataFine"])
-    open_mask = ct["Stato"].fillna("aperto").str.lower() != "chiuso"
-    within_6m = (ct["DataFine"].notna() &
-                 (ct["DataFine"] >= today) &
-                 (ct["DataFine"] <= today + pd.DateOffset(months=6)))
-    scad = ct[open_mask & within_6m].copy()
-    if not scad.empty:
-        scad = scad.sort_values(["ClienteID", "DataFine"]).groupby("ClienteID", as_index=False).first()
-        disp = pd.DataFrame({
-            "NumeroContratto": scad["NumeroContratto"].fillna(""),
-            "DataFine": scad["DataFine"].apply(fmt_date),
-            "DescrizioneProdotto": scad["DescrizioneProdotto"].fillna(""),
-            "TotRata": scad["TotRata"].apply(money)
-        })
-        st.dataframe(disp, hide_index=True, use_container_width=True)
+
+    # --- BOX CONTRATTI IN SCADENZA ---
+    st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
+    if scad.empty:
+        st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
     else:
-        st.info("Nessun contratto in scadenza entro 6 mesi.")
+        # prendo solo il contratto con la data più vicina per ogni cliente
+        scad = scad.sort_values("DataFine").groupby("ClienteID").first().reset_index()
+        scad = scad.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+        scad_show = scad[["RagioneSociale", "NumeroContratto", "DataFine", "Descrizione"]].copy()
+        scad_show["DataFine"] = scad_show["DataFine"].dt.strftime("%d/%m/%Y")
+        scad_show["Descrizione"] = scad_show["Descrizione"].astype(str).str.slice(0, 50) + "..."
+        st.dataframe(scad_show, use_container_width=True, hide_index=True)
 
     st.divider()
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("### Ultimi recall (> 3 mesi)")
-        cli = df_cli.copy()
-        cli["UltimoRecall"] = to_date_series(cli["UltimoRecall"])
-        soglia = pd.Timestamp.today().normalize() - pd.DateOffset(months=3)
-        r = cli[cli["UltimoRecall"].notna() & (cli["UltimoRecall"] <= soglia)]
-        if not r.empty:
-            r["UltimoRecall"] = r["UltimoRecall"].apply(fmt_date)
-            r["ProssimoRecall"] = to_date_series(r["ProssimoRecall"]).apply(fmt_date)
-            st.dataframe(r[["ClienteID", "RagioneSociale", "UltimoRecall", "ProssimoRecall"]],
-                         hide_index=True, use_container_width=True)
-        else:
-            st.info("Nessun recall oltre 3 mesi.")
-    with c2:
-        st.markdown("### Ultime visite (> 6 mesi)")
-        cli = df_cli.copy()
-        cli["UltimaVisita"] = to_date_series(cli["UltimaVisita"])
-        soglia_v = pd.Timestamp.today().normalize() - pd.DateOffset(months=6)
-        v = cli[cli["UltimaVisita"].notna() & (cli["UltimaVisita"] <= soglia_v)]
-        if not v.empty:
-            v["UltimaVisita"] = v["UltimaVisita"].apply(fmt_date)
-            v["ProssimaVisita"] = to_date_series(v["ProssimaVisita"]).apply(fmt_date)
-            st.dataframe(v[["ClienteID", "RagioneSociale", "UltimaVisita", "ProssimaVisita"]],
-                         hide_index=True, use_container_width=True)
-        else:
-            st.info("Nessuna visita oltre 6 mesi.")
+
+    # --- BOX PROMEMORIA CONTRATTI SENZA DATA FINE ---
+    st.subheader("⏰ Promemoria: Contratti Senza Data Fine (da oggi in poi)")
+    recenti = df_ct[
+        (df_ct["DataInizio"].notna())
+        & (df_ct["DataInizio"] >= today)
+        & (df_ct["DataFine"].isna())
+        & (df_ct["Stato"].str.lower() != "chiuso")
+    ]
+    if recenti.empty:
+        st.info("✅ Nessun nuovo contratto senza data fine.")
+    else:
+        recenti = recenti.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+        recenti_show = recenti[["RagioneSociale", "NumeroContratto", "DataInizio", "Descrizione"]].copy()
+        recenti_show["DataInizio"] = recenti_show["DataInizio"].dt.strftime("%d/%m/%Y")
+        st.dataframe(recenti_show, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # --- BOX ULTIMI RECALL E VISITE ---
+    st.subheader("📞 Ultimi Recall e 🧳 Visite")
+    recall_visite = []
+    for _, r in df_cli.iterrows():
+        if pd.notna(r.get("UltimoRecall")):
+            recall_visite.append(
+                {"Cliente": r["RagioneSociale"], "Data": r["UltimoRecall"], "Tipo": "Recall"}
+            )
+        if pd.notna(r.get("UltimaVisita")):
+            recall_visite.append(
+                {"Cliente": r["RagioneSociale"], "Data": r["UltimaVisita"], "Tipo": "Visita"}
+            )
+    df_rv = pd.DataFrame(recall_visite)
+    if df_rv.empty:
+        st.info("Nessun recall o visita registrata.")
+    else:
+        df_rv = df_rv.sort_values("Data", ascending=False).head(10)
+        df_rv["Data"] = df_rv["Data"].dt.strftime("%d/%m/%Y")
+        st.dataframe(df_rv, use_container_width=True, hide_index=True)
+
 
 # ==========================
 # CLIENTI

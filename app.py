@@ -494,10 +494,21 @@ def generate_pdf_table(df: pd.DataFrame, title: str = "Contratti") -> bytes | No
     except Exception:
         return None
 
+    def latin1(s) -> str:
+        """Converte qualsiasi valore in str Latin-1 safe (caratteri fuori range rimossi)."""
+        if s is None:
+            return ""
+        try:
+            if pd.isna(s):  # gestisce pd.NA / NaN
+                return ""
+        except Exception:
+            pass
+        return str(s).encode("latin-1", errors="ignore").decode("latin-1")
+
     class PDF(FPDF):
         def header(self):
             self.set_font("Arial", "B", 12)
-            self.cell(0, 8, title, ln=1, align="C")
+            self.cell(0, 8, latin1(title), ln=1, align="C")
             self.ln(2)
 
     pdf = PDF(orientation="L", unit="mm", format="A4")
@@ -505,34 +516,38 @@ def generate_pdf_table(df: pd.DataFrame, title: str = "Contratti") -> bytes | No
     pdf.set_auto_page_break(auto=True, margin=10)
     pdf.set_font("Arial", size=9)
 
+    # Colonne e larghezze pensate per A4 orizzontale
     columns = [
         "NumeroContratto", "DataInizio", "DataFine", "Durata",
         "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
     ]
     col_widths = [30, 25, 25, 20, 120, 20, 20, 25, 20]
 
+    # Header
     for i, col in enumerate(columns):
-        pdf.cell(col_widths[i], 8, col, border=1)
+        pdf.cell(col_widths[i], 8, latin1(col), border=1)
     pdf.ln()
 
+    # Righe (usa multi_cell sulla descrizione)
     for _, row in df.iterrows():
         for i, col in enumerate(columns):
-            text = "" if pd.isna(row.get(col, "")) else str(row.get(col, ""))
+            text = latin1(row.get(col, ""))
             if col == "DescrizioneProdotto":
                 x = pdf.get_x(); y = pdf.get_y()
                 pdf.multi_cell(col_widths[i], 6, txt=text, border=1)
                 h = pdf.get_y() - y
                 pdf.set_xy(x + col_widths[i], y)
-                for j in range(i+1, len(columns)):
-                    t2 = "" if pd.isna(row.get(columns[j], "")) else str(row.get(columns[j], ""))
+                for j in range(i + 1, len(columns)):
+                    t2 = latin1(row.get(columns[j], ""))
                     pdf.cell(col_widths[j], h, t2, border=1)
                 pdf.ln()
                 break
             else:
                 pdf.cell(col_widths[i], 6, text, border=1)
 
-    return pdf.output(return pdf.output(dest="S").encode("latin-1", errors="ignore")
-="S").encode("latin-1")
+    # NB: output(dest="S") restituisce una str; forziamo Latin-1 in modo tollerante
+    return pdf.output(dest="S").encode("latin-1", errors="ignore")
+
 
 # ==========================
 # EXCEL (xlsxwriter) — fallback CSV

@@ -531,7 +531,8 @@ def generate_pdf_table(df: pd.DataFrame, title: str = "Contratti") -> bytes | No
             else:
                 pdf.cell(col_widths[i], 6, text, border=1)
 
-    return pdf.output(dest="S").encode("latin-1")
+    return pdf.output(return pdf.output(dest="S").encode("latin-1", errors="ignore")
+="S").encode("latin-1")
 
 # ==========================
 # EXCEL (xlsxwriter) — fallback CSV

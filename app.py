@@ -304,8 +304,24 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # ==========================
-# CLIENTI
+# RIEPILOGO CLIENTE
 # ==========================
+def _summary_box(row: pd.Series):
+    st.markdown("### 📋 Riepilogo Cliente")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"**ClienteID:** {row.get('ClienteID','')}")
+        st.markdown(f"**Ragione Sociale:** {row.get('RagioneSociale','')}")
+        st.markdown(f"**Riferimento:** {row.get('PersonaRiferimento','')}")
+    with c2:
+        st.markdown(f"**Indirizzo:** {row.get('Indirizzo','')}")
+        st.markdown(f"**CAP/Città:** {row.get('CAP','')} {row.get('Citta','')}")
+        st.markdown(f"**Telefono/Cell:** {row.get('Telefono','')} / {row.get('Cell','')}")
+    with c3:
+        st.markdown(f"**Email:** {row.get('Email','')}")
+        st.markdown(f"**P.IVA:** {row.get('PartitaIVA','')}")
+        st.markdown(f"**SDI:** {row.get('SDI','')}")
+
 # ==========================
 # CLIENTI (anagrafica estesa + recall e visita automatici)
 # ==========================

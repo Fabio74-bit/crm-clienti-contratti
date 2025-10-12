@@ -478,12 +478,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     else:
                         st.error("File non trovato (verifica OneDrive).")
 
+
 # ==========================
-# CONTRATTI
+# CONTRATTI (versione con AgGrid + azioni + esportazione)
 # ==========================
-# ==========================
-# CONTRATTI (con chiusura/riapertura e esportazioni)
-# ==========================
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
 def safe_text(txt):
     return str(txt).encode("latin-1", "replace").decode("latin-1")
 
@@ -542,19 +542,38 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         return
 
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
-    closed_mask = ct["Stato"].str.lower() == "chiuso"
 
+    # Formattazione visiva
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
     disp["TotRata"] = disp["TotRata"].apply(money)
 
     st.markdown("### Elenco contratti")
-    st.markdown(html_table(
-        disp[["NumeroContratto","DataInizio","DataFine","Durata",
-              "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]],
-        closed_mask=closed_mask
-    ), unsafe_allow_html=True)
+
+    # --- AgGrid interattivo ---
+    gb = GridOptionsBuilder.from_dataframe(disp)
+    gb.configure_selection(selection_mode="single", use_checkbox=False)
+    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
+    gb.configure_grid_options(domLayout='normal')
+    grid_opts = gb.build()
+
+    grid_resp = AgGrid(
+        disp,
+        gridOptions=grid_opts,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        allow_unsafe_jscode=True,
+        theme="balham",
+        height=350
+    )
+
+    selected = grid_resp.get("selected_rows")
+    if selected:
+        sel = selected[0]
+        st.markdown("### 📄 Descrizione completa")
+        st.info(sel.get("DescrizioneProdotto", ""))
+
+    st.divider()
 
     # --- Azioni Chiudi / Riapri ---
     st.markdown("### Aggiorna stato contratto")
@@ -563,7 +582,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with c1:
             st.write(" ")
         with c2:
-            st.caption(f"{r['NumeroContratto']} — {r['DescrizioneProdotto'][:50]}")
+            st.caption(f"{r['NumeroContratto']} — {r['DescrizioneProdotto'][:60]}")
         with c3:
             curr = (r["Stato"] or "aperto").lower()
             if curr == "chiuso":
@@ -596,7 +615,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(25, 6, safe_text(row["DataInizio"]), 1)
                 pdf.cell(25, 6, safe_text(row["DataFine"]), 1)
                 pdf.cell(20, 6, safe_text(row["Durata"]), 1)
-                pdf.cell(80, 6, safe_text(row["DescrizioneProdotto"])[:50], 1)
+                pdf.cell(80, 6, safe_text(row["DescrizioneProdotto"])[:60], 1)
                 pdf.cell(20, 6, safe_text(row["TotRata"]), 1)
                 pdf.cell(20, 6, safe_text(row["Stato"]), 1)
                 pdf.ln()

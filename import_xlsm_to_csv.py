@@ -1,116 +1,136 @@
 import pandas as pd
-from openpyxl import load_workbook
+import openpyxl
+from openpyxl.utils import get_column_letter
 from datetime import datetime
 
-FILE_XLSM = "GESTIONE_CLIENTI .xlsm"
-OUT_CLIENTI = "storage/clienti.csv"
-OUT_CONTRATTI = "storage/contratti_clienti.csv"
+# === Funzioni di supporto ===
 
-def excel_to_date(value):
-    if pd.isna(value) or str(value).strip() == "":
+def excel_to_date(val):
+    """Converte valori Excel in datetime o stringa vuota."""
+    if pd.isna(val) or str(val).strip() == "":
         return ""
     try:
-        if isinstance(value, (int, float)):
-            return pd.to_datetime("1899-12-30") + pd.to_timedelta(int(value), "D")
-        d = pd.to_datetime(value, errors="coerce", dayfirst=True)
-        return d if pd.notna(d) else ""
+        if isinstance(val, (float, int)):
+            return datetime(1899, 12, 30) + pd.to_timedelta(val, unit="D")
+        elif isinstance(val, str):
+            return pd.to_datetime(val, errors="coerce", dayfirst=True)
+        elif isinstance(val, datetime):
+            return val
+    except Exception:
+        return ""
+    return ""
+
+
+def fmt_date(val):
+    """Restituisce una data formattata dd/mm/yyyy"""
+    if pd.isna(val) or val == "":
+        return ""
+    try:
+        return pd.to_datetime(val).strftime("%d/%m/%Y")
     except Exception:
         return ""
 
-def fmt_date(value):
-    if isinstance(value, pd.Timestamp):
-        return value.strftime("%d/%m/%Y")
-    return ""
 
-print(f"📘 Lettura del file: {FILE_XLSM}")
-wb = load_workbook(FILE_XLSM, data_only=True)
-skip_sheets = {"Indice", "STATISTICHE", "CAP_Lista", "Contatori", "NuovoContratto", "LOG_AGGIORNAMENTI"}
+# === Lettura file principale ===
 
-clienti_data, contratti_data = [], []
+file_path = "GESTIONE_CLIENTI .xlsm"
+print(f"\n📘 Lettura del file: {file_path}")
+xls = pd.ExcelFile(file_path)
 
-for sheet_name in wb.sheetnames:
-    if sheet_name in skip_sheets:
-        continue
-    ws = wb[sheet_name]
-    print(f"➡️ Elaboro foglio cliente: {sheet_name}")
+clienti_data = []
+contratti_data = []
 
-    # === Lettura anagrafica ===
-    cliente = {"RagioneSociale": sheet_name}
-    for row in ws.iter_rows(min_row=1, max_row=30, max_col=2, values_only=True):
-        key, val = row
-        if not key:
-            continue
-        k = str(key).strip().lower()
-        if "iva" in k:
-            cliente["PIVA"] = str(val or "")
-        elif "indirizzo" in k:
-            cliente["Indirizzo"] = str(val or "")
-        elif "cap" in k and not "recap" in k:
-            cliente["CAP"] = str(val or "")
-        elif "città" in k or "comune" in k:
-            cliente["Citta"] = str(val or "")
-        elif "telefono" in k:
-            cliente["Telefono"] = str(val or "")
-        elif "email" in k:
-            cliente["Email"] = str(val or "")
-        elif "ultimo recall" in k:
-            cliente["UltimoRecall"] = fmt_date(excel_to_date(val))
-        elif "ultima visita" in k:
-            cliente["UltimaVisita"] = fmt_date(excel_to_date(val))
-        elif "prossimo recall" in k:
-            cliente["ProssimoRecall"] = fmt_date(excel_to_date(val))
-        elif "prossima visita" in k:
-            cliente["ProssimaVisita"] = fmt_date(excel_to_date(val))
-
-    clienti_data.append(cliente)
-
-    # === Lettura tabella contratti ===
-    start_row = 21
-    headers = [cell.value for cell in ws[start_row - 1] if cell.value]
-    if not headers:
+for sheet in xls.sheet_names:
+    if sheet in ["Indice", "STATISTICHE", "CAP_Lista", "NuovoContratto", "Contatori", "LOG_AGGIORNAMENTI"]:
         continue
 
-    valid_ct = 0
-    for r in range(start_row, ws.max_row + 1):
-        values = [c.value for c in ws[r][:len(headers)]]
-        if all(v in (None, "", " ") for v in values):
+    try:
+        df = pd.read_excel(xls, sheet_name=sheet, header=None, dtype=str)
+    except Exception:
+        continue
+
+    # Cerca la riga intestazione (dove inizia "Contratti di Noleggio")
+    start_idx = None
+    for i in range(len(df)):
+        if df.iloc[i].astype(str).str.contains("Contratti di Noleggio", case=False, na=False).any():
+            start_idx = i + 1
+            break
+
+    # Leggi anagrafica cliente
+    try:
+        nome = df.iloc[3, 1] if df.shape[0] > 3 else sheet
+        telefono = df.iloc[8, 1] if df.shape[0] > 8 else ""
+        citta = df.iloc[6, 1] if df.shape[0] > 6 else ""
+        cap = str(df.iloc[7, 1]).strip() if df.shape[0] > 7 else ""
+        piva = str(df.iloc[13, 1]).strip() if df.shape[0] > 13 else ""
+        mail = df.iloc[14, 1] if df.shape[0] > 14 else ""
+    except Exception:
+        nome, telefono, citta, cap, piva, mail = sheet, "", "", "", "", ""
+
+    clienti_data.append({
+        "RagioneSociale": nome,
+        "Telefono": telefono,
+        "Citta": citta,
+        "CAP": cap,
+        "PartitaIVA": piva,
+        "Email": mail
+    })
+
+    # Sezione contratti
+    if start_idx is None:
+        continue
+
+    contratti = df.iloc[start_idx + 1:, :13]
+    contratti.columns = [
+        "DATA INIZIO", "DATA FINE", "DURATA", "Descrizione prodotto",
+        "NOL. FIN.", "N.CONTRATTO", "NOL. INT.", "TOT. RATA",
+        "COPIE B/N", "ECC. B/N", "COPIE COL.", "ECC. COL.", "Stato"
+    ]
+
+    for _, contr in contratti.iterrows():
+        contr = contr.fillna("")
+        descr = str(contr.get("Descrizione prodotto", "")).strip()
+
+        # Filtro righe realmente valide
+        valido = False
+        if contr.get("N.CONTRATTO") not in (None, "", " "):
+            valido = True
+        elif descr != "":
+            valido = True
+        elif "VENDITA" in str(contr.get("DATA INIZIO", "")).upper():
+            valido = True
+
+        if not valido:
             continue
 
-        contr = dict(zip(headers, values))
-        contr["Cliente"] = sheet_name
+        stato = "vendita" if "VENDITA" in str(contr.get("DATA INIZIO", "")).upper() else str(contr.get("Stato", "")).lower()
+        stato = "chiuso" if "x" in stato else stato
 
-        # Filtro righe utili: accettiamo anche VENDITA
-        if not contr.get("DATA INIZIO") and not contr.get("N.CONTRATTO") and "VENDITA" not in str(contr.get("Descrizione prodotto", "")).upper():
-            continue
+        contratti_data.append({
+            "Cliente": nome,
+            "NumeroContratto": str(contr.get("N.CONTRATTO", "")).strip(),
+            "DataInizio": excel_to_date(contr.get("DATA INIZIO")),
+            "DataFine": excel_to_date(contr.get("DATA FINE")),
+            "Durata": contr.get("DURATA", ""),
+            "DescrizioneProdotto": descr,
+            "TotRata": contr.get("TOT. RATA", ""),
+            "Stato": stato
+        })
 
-        # Stato contratto
-        stato = "aperto"
-        if str(contr.get("CTR Chiuso", "")).strip().lower() in ("x", "chiuso", "1", "si"):
-            stato = "chiuso"
+# === Esporta i dati ===
 
-        fill_colors = [c.fill.start_color.index for c in ws[r][:len(headers)]]
-        if any("FF0000" in str(col) for col in fill_colors):
-            stato = "chiuso"
+df_cli_all = pd.DataFrame(clienti_data)
+df_ct_all = pd.DataFrame(contratti_data)
 
-        if str(contr.get("DATA INIZIO", "")).strip().upper() == "VENDITA" or "VENDITA" in str(contr.get("Descrizione prodotto", "")).upper():
-            stato = "vendita"
+# Converte le date nel formato richiesto
+df_ct_all["DataInizio"] = df_ct_all["DataInizio"].apply(fmt_date)
+df_ct_all["DataFine"] = df_ct_all["DataFine"].apply(fmt_date)
 
-        contr["Stato"] = stato
-        contr["DataInizio"] = fmt_date(excel_to_date(contr.get("DATA INIZIO")))
-        contr["DataFine"] = fmt_date(excel_to_date(contr.get("DATA FINE")))
-
-        contratti_data.append(contr)
-        valid_ct += 1
-
-    print(f"   ➕ {valid_ct} contratti trovati")
-
-df_cli = pd.DataFrame(clienti_data).fillna("")
-df_ct = pd.DataFrame(contratti_data).fillna("")
-
-df_cli.to_csv(OUT_CLIENTI, index=False)
-df_ct.to_csv(OUT_CONTRATTI, index=False)
+# Salva nei file CSV
+df_cli_all.to_csv("storage/clienti.csv", index=False)
+df_ct_all.to_csv("storage/contratti_clienti.csv", index=False)
 
 print("\n✅ Esportazione completata:")
-print(f"- Clienti: {len(df_cli)} -> {OUT_CLIENTI}")
-print(f"- Contratti validi: {len(df_ct)} -> {OUT_CONTRATTI}")
+print(f"- Clienti: {len(df_cli_all)} -> storage/clienti.csv")
+print(f"- Contratti validi: {len(df_ct_all)} -> storage/contratti_clienti.csv\n")
 

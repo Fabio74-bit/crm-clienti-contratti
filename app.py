@@ -481,6 +481,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # ==========================
 # CONTRATTI
 # ==========================
+# ==========================
+# CONTRATTI (con chiusura/riapertura e esportazioni)
+# ==========================
 def safe_text(txt):
     return str(txt).encode("latin-1", "replace").decode("latin-1")
 
@@ -496,13 +499,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     idx = 0
     if pre:
         try:
-            idx = int(df_cli.index[df_cli["ClienteID"].astype(str)==str(pre)][0])
+            idx = int(df_cli.index[df_cli["ClienteID"].astype(str) == str(pre)][0])
         except Exception:
             idx = 0
-    sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
-    sel_id = df_cli.iloc[labels[labels==sel_label].index[0]]["ClienteID"]
-    rag_soc = df_cli[df_cli["ClienteID"].astype(str)==str(sel_id)].iloc[0]["RagioneSociale"]
 
+    sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
+    sel_id = df_cli.iloc[labels[labels == sel_label].index[0]]["ClienteID"]
+    rag_soc = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]["RagioneSociale"]
+
+    # --- Nuovo contratto ---
     with st.expander(f"Nuovo contratto per «{rag_soc}»"):
         with st.form("frm_new_contract"):
             num = st.text_input("Numero Contratto")
@@ -530,13 +535,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.success("Contratto creato.")
                 st.rerun()
 
-    ct = df_ct[df_ct["ClienteID"].astype(str)==str(sel_id)].copy()
+    # --- Elenco contratti ---
+    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
         return
 
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
-    closed_mask = ct["Stato"].str.lower()=="chiuso"
+    closed_mask = ct["Stato"].str.lower() == "chiuso"
+
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
@@ -544,10 +551,35 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.markdown("### Elenco contratti")
     st.markdown(html_table(
-        disp[["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]],
+        disp[["NumeroContratto","DataInizio","DataFine","Durata",
+              "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]],
         closed_mask=closed_mask
     ), unsafe_allow_html=True)
 
+    # --- Azioni Chiudi / Riapri ---
+    st.markdown("### Aggiorna stato contratto")
+    for i, r in ct.iterrows():
+        c1, c2, c3 = st.columns([0.05, 0.7, 0.25])
+        with c1:
+            st.write(" ")
+        with c2:
+            st.caption(f"{r['NumeroContratto']} — {r['DescrizioneProdotto'][:50]}")
+        with c3:
+            curr = (r["Stato"] or "aperto").lower()
+            if curr == "chiuso":
+                if st.button("🔓 Riapri", key=f"open_{i}"):
+                    df_ct.loc[i, "Stato"] = "aperto"
+                    save_contratti(df_ct)
+                    st.success(f"Contratto {r['NumeroContratto']} riaperto.")
+                    st.rerun()
+            else:
+                if st.button("❌ Chiudi", key=f"close_{i}"):
+                    df_ct.loc[i, "Stato"] = "chiuso"
+                    save_contratti(df_ct)
+                    st.success(f"Contratto {r['NumeroContratto']} chiuso.")
+                    st.rerun()
+
+    # --- Esportazioni ---
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
@@ -569,9 +601,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(20, 6, safe_text(row["Stato"]), 1)
                 pdf.ln()
             pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
-            st.download_button("📘 Esporta PDF", pdf_bytes, f"contratti_{rag_soc}.pdf", "application/pdf")
+            st.download_button("📘 Esporta PDF", pdf_bytes,
+                               f"contratti_{rag_soc}.pdf", "application/pdf")
         except Exception as e:
             st.error(f"Errore PDF: {e}")
+
 
 # ==========================
 # MAIN APP

@@ -301,7 +301,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         tab["UltimaVisita"] = tab["UltimaVisita"].apply(fmt_date)
         tab["ProssimaVisita"] = to_date_series(tab["ProssimaVisita"]).apply(fmt_date)
         st.markdown(html_table(tab), unsafe_allow_html=True)
-
 # ==========================
 # RIEPILOGO CLIENTE
 # ==========================
@@ -323,7 +322,7 @@ def _summary_box(row: pd.Series):
 
 
 # ==========================
-# CLIENTI (completo con recall/visite automatici)
+# CLIENTI COMPLETO
 # ==========================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Clienti")
@@ -365,39 +364,42 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # --- Recall e Visita automatici ---
     st.markdown("### 📞 Recall e 🧳 Visite")
 
-    ult_recall = as_date(row.get("UltimoRecall"))
-    ult_visita = as_date(row.get("UltimaVisita"))
-    pross_recall = as_date(row.get("ProssimoRecall"))
-    pross_visita = as_date(row.get("ProssimaVisita"))
+    curr_ult_recall = as_date(row.get("UltimoRecall"))
+    curr_ult_visita = as_date(row.get("UltimaVisita"))
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        new_ult_recall = date_input_opt("Ultimo recall", ult_recall, key=f"ur_{sel_id}")
-    with c2:
-        st.date_input("Prossimo recall (auto)", pross_recall if not pd.isna(pross_recall) else None,
-                      key=f"pr_{sel_id}", disabled=True)
+        new_ult_recall = date_input_opt("Ultimo recall", curr_ult_recall, key=f"ur_{sel_id}")
     with c3:
-        new_ult_visita = date_input_opt("Ultima visita", ult_visita, key=f"uv_{sel_id}")
+        new_ult_visita = date_input_opt("Ultima visita", curr_ult_visita, key=f"uv_{sel_id}")
+
+    # Calcolo live dei prossimi
+    live_next_recall = pd.to_datetime(new_ult_recall) + pd.DateOffset(months=3) if new_ult_recall else pd.NaT
+    live_next_visita = pd.to_datetime(new_ult_visita) + pd.DateOffset(months=6) if new_ult_visita else pd.NaT
+
+    with c2:
+        st.date_input(
+            "Prossimo recall (auto)",
+            value=None if pd.isna(live_next_recall) else live_next_recall.date(),
+            key=f"pr_{sel_id}",
+            disabled=True
+        )
     with c4:
-        st.date_input("Prossima visita (auto)", pross_visita if not pd.isna(pross_visita) else None,
-                      key=f"pv_{sel_id}", disabled=True)
+        st.date_input(
+            "Prossima visita (auto)",
+            value=None if pd.isna(live_next_visita) else live_next_visita.date(),
+            key=f"pv_{sel_id}",
+            disabled=True
+        )
 
     if st.button("💾 Aggiorna recall/visite"):
         idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
-
-        # Aggiorna gli ultimi
         df_cli.loc[idx_row, "UltimoRecall"] = pd.to_datetime(new_ult_recall) if new_ult_recall else ""
         df_cli.loc[idx_row, "UltimaVisita"] = pd.to_datetime(new_ult_visita) if new_ult_visita else ""
-
-        # Calcola i prossimi automaticamente
-        next_recall = (pd.to_datetime(new_ult_recall) + pd.DateOffset(months=3)) if new_ult_recall else pd.NaT
-        next_visita = (pd.to_datetime(new_ult_visita) + pd.DateOffset(months=6)) if new_ult_visita else pd.NaT
-
-        df_cli.loc[idx_row, "ProssimoRecall"] = next_recall
-        df_cli.loc[idx_row, "ProssimaVisita"] = next_visita
-
+        df_cli.loc[idx_row, "ProssimoRecall"] = live_next_recall if not pd.isna(live_next_recall) else ""
+        df_cli.loc[idx_row, "ProssimaVisita"] = live_next_visita if not pd.isna(live_next_visita) else ""
         save_clienti(df_cli)
-        st.success("✅ Recall e visite aggiornati automaticamente.")
+        st.success("✅ Recall e visite aggiornati automaticamente (+3m / +6m).")
         st.rerun()
 
     st.divider()
@@ -434,10 +436,83 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 df_cli.loc[idx_row, "Email"] = mail
                 df_cli.loc[idx_row, "IBAN"] = iban
                 df_cli.loc[idx_row, "SDI"] = sdi
-
                 save_clienti(df_cli)
                 st.success("✅ Anagrafica aggiornata.")
                 st.rerun()
+
+    st.divider()
+
+    # --- PREVENTIVI ---
+    st.markdown("### 📄 Preventivi")
+
+    df_prev = load_preventivi()
+    tpl_label = st.radio("Seleziona template", list(TEMPLATE_OPTIONS.keys()), horizontal=True)
+    tpl_file = TEMPLATE_OPTIONS[tpl_label]
+    tpl_path = TEMPLATES_DIR / tpl_file
+
+    col_a, col_b = st.columns([0.5, 0.5], gap="large")
+    with col_a:
+        st.caption("Campi compilati automaticamente")
+        st.write(f"**Cliente:** {row.get('RagioneSociale','')}")
+        st.write(f"**Indirizzo:** {row.get('Indirizzo','')} — {row.get('CAP','')} {row.get('Citta','')}")
+        st.write("**Data documento:** oggi")
+        if st.button("Genera preventivo", type="primary"):
+            if not tpl_path.exists():
+                st.error(f"Template non trovato: {tpl_file}")
+            else:
+                client_folder = EXTERNAL_PROPOSALS_DIR / str(sel_id)
+                client_folder.mkdir(parents=True, exist_ok=True)
+                numero_offerta = _gen_offerta_number(df_prev, sel_id, row.get("RagioneSociale",""))
+                doc = Document(str(tpl_path))
+                mapping = {
+                    "CLIENTE": row.get("RagioneSociale",""),
+                    "INDIRIZZO": row.get("Indirizzo",""),
+                    "CITTA": f"{row.get('CAP','')} {row.get('Citta','')}".strip(),
+                    "DATA": datetime.today().strftime("%d/%m/%Y"),
+                    "NUMERO_OFFERTA": numero_offerta,
+                }
+                _replace_docx_placeholders(doc, mapping)
+                filename = f"{numero_offerta}.docx"
+                out_path = client_folder / filename
+                doc.save(str(out_path))
+                new_row = {
+                    "ClienteID": sel_id,
+                    "NumeroOfferta": numero_offerta,
+                    "Template": tpl_file,
+                    "NomeFile": filename,
+                    "Percorso": str(out_path),
+                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                }
+                df_prev = pd.concat([df_prev, pd.DataFrame([new_row])], ignore_index=True)
+                save_preventivi(df_prev)
+                st.success(f"Preventivo creato: {filename}")
+                st.rerun()
+
+    with col_b:
+        sub = df_prev[df_prev["ClienteID"].astype(str) == sel_id].copy().sort_values("DataCreazione", ascending=False)
+        if sub.empty:
+            st.info("Nessun preventivo per questo cliente.")
+        else:
+            for _, r in sub.iterrows():
+                box = st.container()
+                with box:
+                    c1, c2 = st.columns([0.7, 0.3])
+                    with c1:
+                        st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}")
+                        st.caption(r.get("DataCreazione",""))
+                    with c2:
+                        path = Path(r["Percorso"])
+                        if path.exists():
+                            with open(path, "rb") as fh:
+                                st.download_button(
+                                    "Apri/Scarica",
+                                    data=fh.read(),
+                                    file_name=path.name,
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    key=f"dl_prev_{r['NumeroOfferta']}"
+                                )
+                        else:
+                            st.error("File non trovato (controlla percorso).")
 
     st.divider()
 

@@ -482,18 +482,22 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # ==========================
 # CONTRATTI (versione con AgGrid + azioni + esportazione)
 # ==========================
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+# ==========================
+# CONTRATTI (versione estetica con AgGrid, stato e descrizione estesa)
+# ==========================
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
 def safe_text(txt):
     return str(txt).encode("latin-1", "replace").decode("latin-1")
 
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    st.subheader("Contratti")
+    st.markdown("<h2 style='margin-top:0'>📄 Contratti</h2>", unsafe_allow_html=True)
 
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
 
+    # Selezione cliente
     pre = st.session_state.get("selected_client_id")
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     idx = 0
@@ -503,21 +507,27 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception:
             idx = 0
 
-    sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
+    sel_label = st.selectbox("Seleziona cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
     sel_id = df_cli.iloc[labels[labels == sel_label].index[0]]["ClienteID"]
     rag_soc = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]["RagioneSociale"]
 
     # --- Nuovo contratto ---
-    with st.expander(f"Nuovo contratto per «{rag_soc}»"):
+    with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
         with st.form("frm_new_contract"):
-            num = st.text_input("Numero Contratto")
-            din = st.date_input("Data inizio", format="DD/MM/YYYY")
-            durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-            desc = st.text_area("Descrizione prodotto")
-            nol_fin = st.text_input("NOL_FIN")
-            nol_int = st.text_input("NOL_INT")
-            tota = st.text_input("TotRata")
-            if st.form_submit_button("Crea contratto"):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                num = st.text_input("Numero Contratto")
+            with c2:
+                din = st.date_input("Data inizio", format="DD/MM/YYYY")
+            with c3:
+                durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+            desc = st.text_area("Descrizione prodotto", height=100)
+            nol_fin, nol_int, tota = st.columns(3)
+            with nol_fin: nf = st.text_input("NOL_FIN")
+            with nol_int: ni = st.text_input("NOL_INT")
+            with tota: tot = st.text_input("TotRata")
+
+            if st.form_submit_button("💾 Crea contratto"):
                 row = {
                     "ClienteID": str(sel_id),
                     "NumeroContratto": num,
@@ -525,17 +535,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     "DataFine": pd.to_datetime(din) + pd.DateOffset(months=int(durata)),
                     "Durata": durata,
                     "DescrizioneProdotto": desc,
-                    "NOL_FIN": nol_fin,
-                    "NOL_INT": nol_int,
-                    "TotRata": tota,
+                    "NOL_FIN": nf,
+                    "NOL_INT": ni,
+                    "TotRata": tot,
                     "Stato": "aperto"
                 }
                 df_ct = pd.concat([df_ct, pd.DataFrame([row])], ignore_index=True)
                 save_contratti(df_ct)
-                st.success("Contratto creato.")
+                st.success("✅ Contratto creato con successo.")
                 st.rerun()
 
-    # --- Elenco contratti ---
+    # --- Tabella contratti ---
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
@@ -543,19 +553,33 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
 
-    # Formattazione visiva
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
     disp["TotRata"] = disp["TotRata"].apply(money)
 
-    st.markdown("### Elenco contratti")
+    # Nascondi ClienteID
+    disp = disp.drop(columns=["ClienteID"], errors="ignore")
 
-    # --- AgGrid interattivo ---
+    st.divider()
+    st.markdown(f"<h4>📋 Elenco contratti di <b>{rag_soc}</b></h4>", unsafe_allow_html=True)
+
+    # Configurazione AgGrid
     gb = GridOptionsBuilder.from_dataframe(disp)
+    gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
     gb.configure_selection(selection_mode="single", use_checkbox=False)
-    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
-    gb.configure_grid_options(domLayout='normal')
+
+    # Colorazione righe chiuse
+    js_code = JsCode("""
+    function(params) {
+        if (params.data.Stato && params.data.Stato.toLowerCase() === 'chiuso') {
+            return { 'backgroundColor': '#ffe5e5', 'color': '#a10000' };
+        }
+        return {};
+    }
+    """)
+
+    gb.configure_grid_options(getRowStyle=js_code)
     grid_opts = gb.build()
 
     grid_resp = AgGrid(
@@ -570,13 +594,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     selected = grid_resp.get("selected_rows")
     if selected:
         sel = selected[0]
-        st.markdown("### 📄 Descrizione completa")
+        st.markdown("### 📝 Descrizione completa")
         st.info(sel.get("DescrizioneProdotto", ""))
 
+    # --- Azioni Chiudi/Riapri ---
     st.divider()
-
-    # --- Azioni Chiudi / Riapri ---
-    st.markdown("### Aggiorna stato contratto")
+    st.markdown("### ⚙️ Gestione stato contratti")
     for i, r in ct.iterrows():
         c1, c2, c3 = st.columns([0.05, 0.7, 0.25])
         with c1:

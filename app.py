@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 from docx import Document
+from fpdf import FPDF  # Assicurati di avere: pip install fpdf
 
 # ==========================
 # CONFIG / COSTANTI
@@ -93,7 +94,6 @@ def _safe_txt(x: object) -> str:
         return ""
     s = str(x)
     return "" if s.lower() in ("nan", "nat", "none") else s
-
 # ==========================
 # I/O DATI
 # ==========================
@@ -104,13 +104,13 @@ def load_clienti() -> pd.DataFrame:
         df = pd.DataFrame(columns=CLIENTI_COLS)
         df.to_csv(CLIENTI_CSV, index=False)
     df = ensure_columns(df, CLIENTI_COLS)
-    for c in ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]:
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         df[c] = to_date_series(df[c])
     return df
 
 def save_clienti(df: pd.DataFrame):
     out = df.copy()
-    for c in ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]:
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         out[c] = out[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
     out.to_csv(CLIENTI_CSV, index=False)
 
@@ -121,13 +121,13 @@ def load_contratti() -> pd.DataFrame:
         df = pd.DataFrame(columns=CONTRATTI_COLS)
         df.to_csv(CONTRATTI_CSV, index=False)
     df = ensure_columns(df, CONTRATTI_COLS)
-    for c in ["DataInizio","DataFine"]:
+    for c in ["DataInizio", "DataFine"]:
         df[c] = to_date_series(df[c])
     return df
 
 def save_contratti(df: pd.DataFrame):
     out = df.copy()
-    for c in ["DataInizio","DataFine"]:
+    for c in ["DataInizio", "DataFine"]:
         out[c] = out[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
     out.to_csv(CONTRATTI_CSV, index=False)
 
@@ -235,9 +235,8 @@ def do_login() -> Tuple[str, str]:
     if "auth_user" in st.session_state:
         return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
     return ("", "")
-
 # ==========================
-# PAGINE
+# PAGINA DASHBOARD
 # ==========================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Dashboard")
@@ -323,53 +322,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         tab["UltimaVisita"] = tab["UltimaVisita"].apply(fmt_date)
         tab["ProssimaVisita"] = to_date_series(tab["ProssimaVisita"]).apply(fmt_date)
         st.markdown(html_table(tab), unsafe_allow_html=True)
-
-# ==========================
-# CLIENTI
-# ==========================
-def _summary_box(row: pd.Series):
-    st.markdown("### Riepilogo")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f"**ClienteID:** {_safe_txt(row.get('ClienteID'))}")
-        st.markdown(f"**Ragione Sociale:** {_safe_txt(row.get('RagioneSociale'))}")
-        st.markdown(f"**Riferimento:** {_safe_txt(row.get('PersonaRiferimento'))}")
-    with c2:
-        st.markdown(f"**Indirizzo:** {_safe_txt(row.get('Indirizzo'))}")
-        st.markdown(f"**CAP/Città:** {_safe_txt(row.get('CAP'))} {_safe_txt(row.get('Citta'))}")
-        st.markdown(f"**Telefono/Cell:** {_safe_txt(row.get('Telefono'))} / {_safe_txt(row.get('Cell'))}")
-    with c3:
-        st.markdown(f"**Email:** {_safe_txt(row.get('Email'))}")
-        st.markdown(f"**P.IVA:** {_safe_txt(row.get('PartitaIVA'))}")
-        st.markdown(f"**SDI:** {_safe_txt(row.get('SDI'))}")
-
-def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str, ragione: str) -> str:
-    sub = df_prev[df_prev["ClienteID"].astype(str) == str(cliente_id)]
-    if sub.empty:
-        seq = 1
-    else:
-        try:
-            seq = max(int(x.split("-")[-1]) for x in sub["NumeroOfferta"].tolist() if "-" in x) + 1
-        except Exception:
-            seq = len(sub) + 1
-    slug = "".join(ch for ch in ragione.upper() if ch.isalnum())[:12] or str(cliente_id)
-    return f"SHT-MI-{slug}-{seq:03d}"
-
-def _replace_docx_placeholders(doc: Document, mapping: Dict[str, str]):
-    def repl_in_paragraph(p):
-        for run in p.runs:
-            for key, val in mapping.items():
-                token = f"<<{key}>>"
-                if token in run.text:
-                    run.text = run.text.replace(token, val)
-    for p in doc.paragraphs:
-        repl_in_paragraph(p)
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    repl_in_paragraph(p)
-
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Clienti")
     if df_cli.empty:
@@ -449,7 +401,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.session_state["nav_target"] = "Contratti"
         st.session_state["selected_client_id"] = sel_id
         st.rerun()
-
     st.divider()
 
     st.markdown("### Preventivi")
@@ -529,46 +480,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                                 )
                         else:
                             st.error("File non trovato (controlla percorso OneDrive).")
-
-from fpdf import FPDF  # Assicurati che sia installato: `pip install fpdf`
-
-def generate_pdf_table(df: pd.DataFrame, title: str = "Contratti") -> bytes:
-    class PDF(FPDF):
-        def header(self):
-            self.set_font("Arial", "B", 12)
-            self.cell(0, 10, title, ln=1, align="C")
-            self.ln(2)
-
-    pdf = PDF(orientation="L", unit="mm", format="A4")
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=10)
-    pdf.set_font("Arial", size=9)
-
-    # Define column widths
-    col_widths = [30, 25, 25, 20, 90, 20, 20, 25, 20]
-    columns = [
-        "NumeroContratto", "DataInizio", "DataFine", "Durata",
-        "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
-    ]
-
-    # Header
-    for i, col in enumerate(columns):
-        pdf.cell(col_widths[i], 8, col, border=1)
-    pdf.ln()
-
-    # Rows
-    for _, row in df.iterrows():
-        for i, col in enumerate(columns):
-            text = str(row.get(col, ""))
-            # Wrapping for DescrizioneProdotto
-            if col == "DescrizioneProdotto":
-                lines = pdf.multi_cell(col_widths[i], 6, text, border=1, ln=3, max_line_height=pdf.font_size)
-            else:
-                pdf.cell(col_widths[i], 6, text, border=1)
-        pdf.ln()
-    return pdf.output(dest="S").encode("latin-1")
-
-
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Contratti")
 
@@ -594,7 +505,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ct["DataFine"]   = to_date_series(ct["DataFine"])
 
     st.markdown(BASE_CSS, unsafe_allow_html=True)
-    st.markdown(f"<div style='display:flex;gap:10px;align-items:center;flex-wrap:wrap'><div style='font-size:18px;font-weight:800'>Contratti di</div> <span class='badge'>{ragione}</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:center;margin:16px 0;font-size:20px;font-weight:800'>Contratti di <span class='badge'>{ragione}</span></div>", unsafe_allow_html=True)
 
     st.divider()
 
@@ -634,7 +545,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     save_contratti(df_full)
                     st.success("Contratto inserito.")
                     st.rerun()
-
     st.divider()
 
     if ct.empty:
@@ -652,7 +562,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for i, r in disp.iterrows():
         with st.container(border=True):
             cols = st.columns([2, 2, 2, 1, 4, 1, 1, 1, 1])
-            fields = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
+            fields = ["NumeroContratto", "DataInizio", "DataFine", "Durata",
+                      "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
             for col, field in zip(cols, fields):
                 value = r[field]
                 if field == "DescrizioneProdotto":
@@ -675,12 +586,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("### Esporta tutti i contratti in PDF")
     if st.button("📄 Esporta PDF A4 Orizzontale"):
         pdf_bytes = generate_pdf_table(disp)
-        st.download_button("Scarica PDF", data=pdf_bytes, file_name=f"contratti_{sel_id}.pdf", mime="application/pdf")
-
-
-# ==========================
-# APP
-# ==========================
+        st.download_button("Scarica PDF", data=pdf_bytes,
+                           file_name=f"contratti_{sel_id}.pdf", mime="application/pdf")
 def main():
     st.set_page_config(page_title="SHT – Gestionale", layout="wide")
     st.markdown(f"<h3 style='margin-top:8px'>{APP_TITLE}</h3>", unsafe_allow_html=True)
@@ -691,14 +598,23 @@ def main():
     else:
         st.sidebar.info("Accesso come ospite")
 
-    PAGES = {"Dashboard": page_dashboard, "Clienti": page_clienti, "Contratti": page_contratti}
+    PAGES = {
+        "Dashboard": page_dashboard,
+        "Clienti": page_clienti,
+        "Contratti": page_contratti
+    }
+
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio("Menu", list(PAGES.keys()),
                             index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0)
 
+    # Carica i dati
     df_cli = load_clienti()
     df_ct  = load_contratti()
+
+    # Avvia la pagina selezionata
     PAGES[page](df_cli, df_ct, role)
+
 
 if __name__ == "__main__":
     main()

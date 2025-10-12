@@ -306,34 +306,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # ==========================
 # CLIENTI
 # ==========================
-def _replace_docx_placeholders(doc: Document, mapping: Dict[str, str]):
-    """Sostituisce segnaposto <<...>> in tutto il documento, incluse run spezzate."""
-    def repl_in_paragraph(p):
-        for run in p.runs:
-            for key, val in mapping.items():
-                token = f"<<{key}>>"
-                if token in run.text:
-                    run.text = run.text.replace(token, val)
-    for p in doc.paragraphs:
-        repl_in_paragraph(p)
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    repl_in_paragraph(p)
-
-def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str, nome_cliente: str) -> str:
-    sub = df_prev[df_prev["ClienteID"].astype(str) == str(cliente_id)]
-    if sub.empty:
-        seq = 1
-    else:
-        try:
-            seq = max(int(x.split("-")[-1]) for x in sub["NumeroOfferta"].tolist() if "-" in x) + 1
-        except Exception:
-            seq = len(sub) + 1
-    safe_name = "".join(ch if ch.isalnum() else "_" for ch in str(nome_cliente)).strip("_")
-    return f"SHT-MI-{safe_name}-{cliente_id}-{seq:03d}"
-
+# ==========================
+# CLIENTI (anagrafica estesa + recall e visita automatici)
+# ==========================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Clienti")
 
@@ -341,6 +316,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
+    # selezione cliente
     pre = st.session_state.get("selected_client_id")
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     idx = 0
@@ -351,17 +327,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             idx = 0
     sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
     sel_id = str(df_cli.iloc[labels[labels==sel_label].index[0]]["ClienteID"])
+
     row = df_cli[df_cli["ClienteID"].astype(str)==sel_id].iloc[0]
+    _summary_box(row)
 
-    # riepilogo
-    st.markdown(f"### {s(row['RagioneSociale'])}")
-    st.write(f"**ClienteID:** {s(row['ClienteID'])}")
-    st.write(f"**Email:** {s(row['Email'])} — **Telefono:** {s(row['Telefono'])}")
-    st.write(f"**Città:** {s(row['Citta'])} — **P.IVA:** {s(row['PartitaIVA'])}")
-
-    st.divider()
-    note_new = st.text_area("Note", s(row.get("Note", "")))
-    if st.button("Salva note"):
+    # === NOTE cliente ===
+    note_new = st.text_area("📝 Note interne", row.get("Note",""))
+    if st.button("💾 Salva note"):
         idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
         df_cli.loc[idx_row, "Note"] = note_new
         save_clienti(df_cli)
@@ -369,114 +341,88 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.rerun()
 
     st.divider()
-    with st.expander("Modifica anagrafica"):
-        with st.form("frm_anagrafica"):
-            ragsoc = st.text_input("Ragione sociale", s(row.get("RagioneSociale")))
-            indir  = st.text_input("Indirizzo", s(row.get("Indirizzo")))
-            cap    = st.text_input("CAP", s(row.get("CAP")))
-            citta  = st.text_input("Città", s(row.get("Citta")))
-            ref    = st.text_input("Persona di riferimento", s(row.get("PersonaRiferimento")))
-            tel    = st.text_input("Telefono", s(row.get("Telefono")))
-            cell   = st.text_input("Cell", s(row.get("Cell")))
-            mail   = st.text_input("Email", s(row.get("Email")))
-            piva   = st.text_input("Partita IVA", s(row.get("PartitaIVA")))
-            sdi    = st.text_input("SDI", s(row.get("SDI")))
 
-            c1, c2, c3, c4 = st.columns(4)
-            with c1:
-                ult_recall = date_input_opt("Ultimo recall", row.get("UltimoRecall"), key="ur")
-            with c2:
-                pross_recall = date_input_opt("Prossimo recall", row.get("ProssimoRecall"), key="pr")
-            with c3:
-                ult_visita = date_input_opt("Ultima visita", row.get("UltimaVisita"), key="uv")
-            with c4:
-                pross_visita = date_input_opt("Prossima visita", row.get("ProssimaVisita"), key="pv")
+    # === Recall e Visita (visibili sempre) ===
+    st.markdown("### 📞 Recall e 🧳 Visite")
 
-            if st.form_submit_button("Salva anagrafica"):
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        ult_recall = date_input_opt("Ultimo recall", row.get("UltimoRecall"), key=f"ur_{sel_id}")
+    with c2:
+        pross_recall = to_date_series(pd.Series([row.get("ProssimoRecall")])).iloc[0]
+        st.date_input("Prossimo recall", pross_recall if not pd.isna(pross_recall) else None,
+                      key=f"pr_{sel_id}", disabled=True)
+    with c3:
+        ult_visita = date_input_opt("Ultima visita", row.get("UltimaVisita"), key=f"uv_{sel_id}")
+    with c4:
+        pross_visita = to_date_series(pd.Series([row.get("ProssimaVisita")])).iloc[0]
+        st.date_input("Prossima visita", pross_visita if not pd.isna(pross_visita) else None,
+                      key=f"pv_{sel_id}", disabled=True)
+
+    if st.button("💾 Aggiorna recall/visite"):
+        idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
+
+        df_cli.loc[idx_row, "UltimoRecall"] = pd.to_datetime(ult_recall) if ult_recall else ""
+        df_cli.loc[idx_row, "UltimaVisita"] = pd.to_datetime(ult_visita) if ult_visita else ""
+
+        # aggiorna automatico prossimi
+        next_recall = (pd.to_datetime(ult_recall) + pd.DateOffset(months=3)) if ult_recall else pd.NaT
+        next_visita = (pd.to_datetime(ult_visita) + pd.DateOffset(months=6)) if ult_visita else pd.NaT
+
+        df_cli.loc[idx_row, "ProssimoRecall"] = next_recall
+        df_cli.loc[idx_row, "ProssimaVisita"] = next_visita
+
+        save_clienti(df_cli)
+        st.success("✅ Dati recall e visite aggiornati automaticamente.")
+        st.rerun()
+
+    st.divider()
+
+    # === Anagrafica completa (in espander) ===
+    with st.expander("🏢 Anagrafica (modificabile)", expanded=False):
+        with st.form("frm_anagrafica_estesa"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                ragsoc = st.text_input("Ragione sociale", row.get("RagioneSociale",""))
+                ref = st.text_input("Persona di riferimento", row.get("PersonaRiferimento",""))
+                piva = st.text_input("Partita IVA", str(row.get("PartitaIVA","")))
+            with col2:
+                indir = st.text_input("Indirizzo", row.get("Indirizzo",""))
+                citta = st.text_input("Città", row.get("Citta",""))
+                cap = st.text_input("CAP", row.get("CAP",""))
+            with col3:
+                tel = st.text_input("Telefono", row.get("Telefono",""))
+                cell = st.text_input("Cellulare", row.get("Cell",""))
+                mail = st.text_input("Email", row.get("Email",""))
+                iban = st.text_input("IBAN", row.get("IBAN",""))
+                sdi = st.text_input("SDI", row.get("SDI",""))
+
+            if st.form_submit_button("💾 Salva anagrafica", use_container_width=True):
                 idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
-                df_cli.loc[idx_row, ["RagioneSociale","Indirizzo","CAP","Citta","PersonaRiferimento",
-                                     "Telefono","Cell","Email","PartitaIVA","SDI"]] = [
-                    ragsoc, indir, cap, citta, ref, tel, cell, mail, piva, sdi
-                ]
-                df_cli.loc[idx_row, "UltimoRecall"] = pd.to_datetime(ult_recall) if ult_recall else ""
-                df_cli.loc[idx_row, "ProssimoRecall"] = pd.to_datetime(pross_recall) if pross_recall else ""
-                df_cli.loc[idx_row, "UltimaVisita"] = pd.to_datetime(ult_visita) if ult_visita else ""
-                df_cli.loc[idx_row, "ProssimaVisita"] = pd.to_datetime(pross_visita) if pross_visita else ""
+                df_cli.loc[idx_row, "RagioneSociale"] = ragsoc
+                df_cli.loc[idx_row, "PersonaRiferimento"] = ref
+                df_cli.loc[idx_row, "PartitaIVA"] = piva
+                df_cli.loc[idx_row, "Indirizzo"] = indir
+                df_cli.loc[idx_row, "Citta"] = citta
+                df_cli.loc[idx_row, "CAP"] = cap
+                df_cli.loc[idx_row, "Telefono"] = tel
+                df_cli.loc[idx_row, "Cell"] = cell
+                df_cli.loc[idx_row, "Email"] = mail
+                df_cli.loc[idx_row, "IBAN"] = iban
+                df_cli.loc[idx_row, "SDI"] = sdi
+
                 save_clienti(df_cli)
-                st.success("Dati aggiornati.")
+                st.success("✅ Anagrafica aggiornata.")
                 st.rerun()
 
     st.divider()
-    if st.button("Vai ai contratti di questo cliente"):
+
+    # === Pulsante navigazione ai contratti ===
+    if st.button("📄 Vai ai contratti di questo cliente"):
         st.session_state["nav_target"] = "Contratti"
         st.session_state["selected_client_id"] = sel_id
         st.rerun()
 
-    st.divider()
-    st.markdown("### Preventivi")
-    df_prev = load_preventivi()
-    tpl_label = st.radio("Seleziona template", list(TEMPLATE_OPTIONS.keys()), horizontal=True)
-    tpl_file = TEMPLATE_OPTIONS[tpl_label]
-    tpl_path = TEMPLATES_DIR / tpl_file
-
-    col_a, col_b = st.columns([0.5, 0.5], gap="large")
-    with col_a:
-        if st.button("Genera preventivo", type="primary"):
-            if not tpl_path.exists():
-                st.error(f"Template non trovato: {tpl_file}")
-            else:
-                client_folder = EXTERNAL_PROPOSALS_DIR / str(sel_id)
-                client_folder.mkdir(parents=True, exist_ok=True)
-
-                numero_offerta = _gen_offerta_number(df_prev, sel_id, row.get("RagioneSociale",""))
-                doc = Document(str(tpl_path))
-                mapping = {
-                    "CLIENTE": row.get("RagioneSociale",""),
-                    "INDIRIZZO": row.get("Indirizzo",""),
-                    "CITTA": f"{row.get('CAP','')} {row.get('Citta','')}".strip(),
-                    "DATA": datetime.today().strftime("%d/%m/%Y"),
-                    "NUMERO_OFFERTA": numero_offerta,
-                }
-                _replace_docx_placeholders(doc, mapping)
-
-                filename = f"{numero_offerta}.docx"
-                out_path = client_folder / filename
-                doc.save(str(out_path))
-
-                new_row = {
-                    "ClienteID": sel_id,
-                    "NumeroOfferta": numero_offerta,
-                    "Template": tpl_file,
-                    "NomeFile": filename,
-                    "Percorso": str(out_path),
-                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-                df_prev = pd.concat([df_prev, pd.DataFrame([new_row])], ignore_index=True)
-                save_preventivi(df_prev)
-                st.success(f"Preventivo creato: {filename}")
-                st.rerun()
-
-    with col_b:
-        sub = df_prev[df_prev["ClienteID"].astype(str) == sel_id].copy().sort_values("DataCreazione", ascending=False)
-        if sub.empty:
-            st.info("Nessun preventivo per questo cliente.")
-        else:
-            for _, r in sub.iterrows():
-                box = st.container(border=True)
-                with box:
-                    st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}")
-                    st.caption(r.get("DataCreazione",""))
-                    path = Path(r["Percorso"])
-                    if path.exists():
-                        with open(path, "rb") as fh:
-                            st.download_button(
-                                "Apri/Scarica",
-                                data=fh.read(),
-                                file_name=path.name,
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            )
-                    else:
-                        st.error("File non trovato (verifica OneDrive).")
 
 
 

@@ -443,78 +443,90 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
 
     # --- PREVENTIVI ---
-    st.markdown("### 📄 Preventivi")
+# --- PREVENTIVI ---
+st.markdown("### 📄 Preventivi")
 
-    df_prev = load_preventivi()
-    tpl_label = st.radio("Seleziona template", list(TEMPLATE_OPTIONS.keys()), horizontal=True)
-    tpl_file = TEMPLATE_OPTIONS[tpl_label]
-    tpl_path = TEMPLATES_DIR / tpl_file
+# URL base OneDrive (personalizzato)
+ONEDRIVE_BASE_URL = "https://shtsrlit-my.sharepoint.com/personal/fabio_scaranello_shtsrl_com/Documents/OFFERTE"
 
-    col_a, col_b = st.columns([0.5, 0.5], gap="large")
-    with col_a:
-        st.caption("Campi compilati automaticamente")
-        st.write(f"**Cliente:** {row.get('RagioneSociale','')}")
-        st.write(f"**Indirizzo:** {row.get('Indirizzo','')} — {row.get('CAP','')} {row.get('Citta','')}")
-        st.write("**Data documento:** oggi")
-        if st.button("Genera preventivo", type="primary"):
-            if not tpl_path.exists():
-                st.error(f"Template non trovato: {tpl_file}")
-            else:
-                client_folder = EXTERNAL_PROPOSALS_DIR / str(sel_id)
-                client_folder.mkdir(parents=True, exist_ok=True)
-                numero_offerta = _gen_offerta_number(df_prev, sel_id, row.get("RagioneSociale",""))
-                doc = Document(str(tpl_path))
-                mapping = {
-                    "CLIENTE": row.get("RagioneSociale",""),
-                    "INDIRIZZO": row.get("Indirizzo",""),
-                    "CITTA": f"{row.get('CAP','')} {row.get('Citta','')}".strip(),
-                    "DATA": datetime.today().strftime("%d/%m/%Y"),
-                    "NUMERO_OFFERTA": numero_offerta,
-                }
-                _replace_docx_placeholders(doc, mapping)
-                filename = f"{numero_offerta}.docx"
-                out_path = client_folder / filename
-                doc.save(str(out_path))
-                new_row = {
-                    "ClienteID": sel_id,
-                    "NumeroOfferta": numero_offerta,
-                    "Template": tpl_file,
-                    "NomeFile": filename,
-                    "Percorso": str(out_path),
-                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-                df_prev = pd.concat([df_prev, pd.DataFrame([new_row])], ignore_index=True)
-                save_preventivi(df_prev)
-                st.success(f"Preventivo creato: {filename}")
-                st.rerun()
+df_prev = load_preventivi()
+tpl_label = st.radio("Seleziona template", list(TEMPLATE_OPTIONS.keys()), horizontal=True)
+tpl_file = TEMPLATE_OPTIONS[tpl_label]
+tpl_path = TEMPLATES_DIR / tpl_file
 
-    with col_b:
-        sub = df_prev[df_prev["ClienteID"].astype(str) == sel_id].copy().sort_values("DataCreazione", ascending=False)
-        if sub.empty:
-            st.info("Nessun preventivo per questo cliente.")
+col_a, col_b = st.columns([0.5, 0.5], gap="large")
+
+with col_a:
+    st.caption("Campi compilati automaticamente")
+    st.write(f"**Cliente:** {row.get('RagioneSociale','')}")
+    st.write(f"**Indirizzo:** {row.get('Indirizzo','')} — {row.get('CAP','')} {row.get('Citta','')}")
+    st.write("**Data documento:** oggi")
+
+    if st.button("Genera preventivo", type="primary"):
+        if not tpl_path.exists():
+            st.error(f"Template non trovato: {tpl_file}")
         else:
-            for _, r in sub.iterrows():
-                box = st.container()
-                with box:
-                    c1, c2 = st.columns([0.7, 0.3])
-                    with c1:
-                        st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}")
-                        st.caption(r.get("DataCreazione",""))
-                    with c2:
-                        path = Path(r["Percorso"])
-                        if path.exists():
-                            with open(path, "rb") as fh:
-                                st.download_button(
-                                    "Apri/Scarica",
-                                    data=fh.read(),
-                                    file_name=path.name,
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    key=f"dl_prev_{r['NumeroOfferta']}"
-                                )
-                        else:
-                            st.error("File non trovato (controlla percorso).")
+            # Crea cartella locale per cliente
+            client_folder = EXTERNAL_PROPOSALS_DIR / str(sel_id)
+            client_folder.mkdir(parents=True, exist_ok=True)
+            numero_offerta = _gen_offerta_number(df_prev, sel_id, row.get("RagioneSociale",""))
+            doc = Document(str(tpl_path))
+            mapping = {
+                "CLIENTE": row.get("RagioneSociale",""),
+                "INDIRIZZO": row.get("Indirizzo",""),
+                "CITTA": f"{row.get('CAP','')} {row.get('Citta','')}".strip(),
+                "DATA": datetime.today().strftime("%d/%m/%Y"),
+                "NUMERO_OFFERTA": numero_offerta,
+            }
+            _replace_docx_placeholders(doc, mapping)
+            filename = f"{numero_offerta}.docx"
+            out_path = client_folder / filename
+            doc.save(str(out_path))
 
-    st.divider()
+            new_row = {
+                "ClienteID": sel_id,
+                "NumeroOfferta": numero_offerta,
+                "Template": tpl_file,
+                "NomeFile": filename,
+                "Percorso": str(out_path),
+                "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+            df_prev = pd.concat([df_prev, pd.DataFrame([new_row])], ignore_index=True)
+            save_preventivi(df_prev)
+            st.success(f"✅ Preventivo creato: {filename}")
+            st.rerun()
+
+with col_b:
+    sub = df_prev[df_prev["ClienteID"].astype(str) == sel_id].copy().sort_values("DataCreazione", ascending=False)
+    if sub.empty:
+        st.info("Nessun preventivo per questo cliente.")
+    else:
+        for _, r in sub.iterrows():
+            box = st.container()
+            with box:
+                c1, c2 = st.columns([0.7, 0.3])
+                with c1:
+                    st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}")
+                    st.caption(r.get("DataCreazione",""))
+                with c2:
+                    path = Path(r["Percorso"])
+                    if path.exists():
+                        with open(path, "rb") as fh:
+                            st.download_button(
+                                "⬇️ Scarica",
+                                data=fh.read(),
+                                file_name=path.name,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                key=f"dl_prev_{r['NumeroOfferta']}"
+                            )
+                    else:
+                        st.error("File non trovato (controlla percorso).")
+
+                # 🔗 Link diretto a OneDrive per questo cliente
+                cliente_nome = "".join(ch if ch.isalnum() else "_" for ch in str(row.get("RagioneSociale",""))).strip("_")
+                one_url = f"{ONEDRIVE_BASE_URL}/{cliente_nome}"
+                st.markdown(f"[📂 Apri cartella OneDrive cliente]({one_url})")
+
 
     # --- Navigazione ai contratti ---
     if st.button("📄 Vai ai contratti di questo cliente"):

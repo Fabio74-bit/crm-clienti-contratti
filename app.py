@@ -247,9 +247,21 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.metric("Contratti in scadenza (6 mesi)", len(scad))
 
     st.divider()
+# --- Prepara i contratti in scadenza ---
+df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+df_ct["Stato"] = df_ct["Stato"].fillna("Attivo")
+
+today = pd.Timestamp.now().normalize()
+
+scad = df_ct[
+    (df_ct["DataFine"].notna())
+    & (df_ct["DataFine"] >= today)
+    & (df_ct["DataFine"] <= today + pd.DateOffset(months=6))
+    & (df_ct["Stato"].str.lower() != "chiuso")
+]
 
     # --- BOX CONTRATTI IN SCADENZA ---
-  # --- BOX CONTRATTI IN SCADENZA ---
+
 st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
 if scad.empty:
     st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")

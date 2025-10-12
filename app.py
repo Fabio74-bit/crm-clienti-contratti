@@ -325,6 +325,9 @@ def _summary_box(row: pd.Series):
 # ==========================
 # CLIENTI (anagrafica estesa + recall e visita automatici)
 # ==========================
+# ==========================
+# CLIENTI (anagrafica estesa + recall e visita automatici con fix NA)
+# ==========================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Clienti")
 
@@ -338,19 +341,23 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     idx = 0
     if pre:
         try:
-            idx = int(df_cli.index[df_cli["ClienteID"].astype(str)==str(pre)][0])
+            idx = int(df_cli.index[df_cli["ClienteID"].astype(str) == str(pre)][0])
         except Exception:
             idx = 0
     sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
-    sel_id = str(df_cli.iloc[labels[labels==sel_label].index[0]]["ClienteID"])
+    sel_id = str(df_cli.iloc[labels[labels == sel_label].index[0]]["ClienteID"])
 
-    row = df_cli[df_cli["ClienteID"].astype(str)==sel_id].iloc[0]
+    # Riga cliente
+    row = df_cli[df_cli["ClienteID"].astype(str) == sel_id].iloc[0]
+    # Converti eventuali pd.NA in stringhe vuote per sicurezza
+    row = row.map(lambda x: "" if pd.isna(x) or x is pd.NA else x)
+
     _summary_box(row)
 
     # === NOTE cliente ===
-    note_new = st.text_area("📝 Note interne", row.get("Note",""))
+    note_new = st.text_area("📝 Note interne", row.get("Note", ""))
     if st.button("💾 Salva note"):
-        idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
+        idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
         df_cli.loc[idx_row, "Note"] = note_new
         save_clienti(df_cli)
         st.success("Note aggiornate.")
@@ -376,7 +383,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                       key=f"pv_{sel_id}", disabled=True)
 
     if st.button("💾 Aggiorna recall/visite"):
-        idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
+        idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
 
         df_cli.loc[idx_row, "UltimoRecall"] = pd.to_datetime(ult_recall) if ult_recall else ""
         df_cli.loc[idx_row, "UltimaVisita"] = pd.to_datetime(ult_visita) if ult_visita else ""
@@ -399,22 +406,22 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with st.form("frm_anagrafica_estesa"):
             col1, col2, col3 = st.columns(3)
             with col1:
-                ragsoc = st.text_input("Ragione sociale", row.get("RagioneSociale",""))
-                ref = st.text_input("Persona di riferimento", row.get("PersonaRiferimento",""))
-                piva = st.text_input("Partita IVA", str(row.get("PartitaIVA","")))
+                ragsoc = st.text_input("Ragione sociale", row.get("RagioneSociale", ""))
+                ref = st.text_input("Persona di riferimento", row.get("PersonaRiferimento", ""))
+                piva = st.text_input("Partita IVA", str(row.get("PartitaIVA", "")))
             with col2:
-                indir = st.text_input("Indirizzo", row.get("Indirizzo",""))
-                citta = st.text_input("Città", row.get("Citta",""))
-                cap = st.text_input("CAP", row.get("CAP",""))
+                indir = st.text_input("Indirizzo", row.get("Indirizzo", ""))
+                citta = st.text_input("Città", row.get("Citta", ""))
+                cap = st.text_input("CAP", row.get("CAP", ""))
             with col3:
-                tel = st.text_input("Telefono", row.get("Telefono",""))
-                cell = st.text_input("Cellulare", row.get("Cell",""))
-                mail = st.text_input("Email", row.get("Email",""))
-                iban = st.text_input("IBAN", row.get("IBAN",""))
-                sdi = st.text_input("SDI", row.get("SDI",""))
+                tel = st.text_input("Telefono", row.get("Telefono", ""))
+                cell = st.text_input("Cellulare", row.get("Cell", ""))
+                mail = st.text_input("Email", row.get("Email", ""))
+                iban = st.text_input("IBAN", row.get("IBAN", ""))
+                sdi = st.text_input("SDI", row.get("SDI", ""))
 
             if st.form_submit_button("💾 Salva anagrafica", use_container_width=True):
-                idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
+                idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
                 df_cli.loc[idx_row, "RagioneSociale"] = ragsoc
                 df_cli.loc[idx_row, "PersonaRiferimento"] = ref
                 df_cli.loc[idx_row, "PartitaIVA"] = piva
@@ -438,9 +445,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.session_state["nav_target"] = "Contratti"
         st.session_state["selected_client_id"] = sel_id
         st.rerun()
-
-
-
 
 # ==========================
 # CONTRATTI (versione estetica con AgGrid, stato e descrizione estesa)

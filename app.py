@@ -591,11 +591,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         height=350
     )
 
-    selected = grid_resp.get("selected_rows")
-    if selected:
-        sel = selected[0]
-        st.markdown("### 📝 Descrizione completa")
-        st.info(sel.get("DescrizioneProdotto", ""))
+   selected = grid_resp.get("selected_rows", [])
+
+if isinstance(selected, list) and len(selected) > 0:
+    sel = selected[0]
+    st.markdown("### 📝 Descrizione completa")
+    st.info(sel.get("DescrizioneProdotto", ""))
+
 
     # --- Azioni Chiudi/Riapri ---
     st.divider()

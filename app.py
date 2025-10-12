@@ -302,9 +302,38 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         tab["ProssimaVisita"] = to_date_series(tab["ProssimaVisita"]).apply(fmt_date)
         st.markdown(html_table(tab), unsafe_allow_html=True)
 
+
 # ==========================
 # CLIENTI
 # ==========================
+def _replace_docx_placeholders(doc: Document, mapping: Dict[str, str]):
+    """Sostituisce segnaposto <<...>> in tutto il documento, incluse run spezzate."""
+    def repl_in_paragraph(p):
+        for run in p.runs:
+            for key, val in mapping.items():
+                token = f"<<{key}>>"
+                if token in run.text:
+                    run.text = run.text.replace(token, val)
+    for p in doc.paragraphs:
+        repl_in_paragraph(p)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    repl_in_paragraph(p)
+
+def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str, nome_cliente: str) -> str:
+    sub = df_prev[df_prev["ClienteID"].astype(str) == str(cliente_id)]
+    if sub.empty:
+        seq = 1
+    else:
+        try:
+            seq = max(int(x.split("-")[-1]) for x in sub["NumeroOfferta"].tolist() if "-" in x) + 1
+        except Exception:
+            seq = len(sub) + 1
+    safe_name = "".join(ch if ch.isalnum() else "_" for ch in str(nome_cliente)).strip("_")
+    return f"SHT-MI-{safe_name}-{cliente_id}-{seq:03d}"
+
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Clienti")
 
@@ -383,9 +412,78 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.session_state["selected_client_id"] = sel_id
         st.rerun()
 
+    st.divider()
+    st.markdown("### Preventivi")
+    df_prev = load_preventivi()
+    tpl_label = st.radio("Seleziona template", list(TEMPLATE_OPTIONS.keys()), horizontal=True)
+    tpl_file = TEMPLATE_OPTIONS[tpl_label]
+    tpl_path = TEMPLATES_DIR / tpl_file
+
+    col_a, col_b = st.columns([0.5, 0.5], gap="large")
+    with col_a:
+        if st.button("Genera preventivo", type="primary"):
+            if not tpl_path.exists():
+                st.error(f"Template non trovato: {tpl_file}")
+            else:
+                client_folder = EXTERNAL_PROPOSALS_DIR / str(sel_id)
+                client_folder.mkdir(parents=True, exist_ok=True)
+
+                numero_offerta = _gen_offerta_number(df_prev, sel_id, row.get("RagioneSociale",""))
+                doc = Document(str(tpl_path))
+                mapping = {
+                    "CLIENTE": row.get("RagioneSociale",""),
+                    "INDIRIZZO": row.get("Indirizzo",""),
+                    "CITTA": f"{row.get('CAP','')} {row.get('Citta','')}".strip(),
+                    "DATA": datetime.today().strftime("%d/%m/%Y"),
+                    "NUMERO_OFFERTA": numero_offerta,
+                }
+                _replace_docx_placeholders(doc, mapping)
+
+                filename = f"{numero_offerta}.docx"
+                out_path = client_folder / filename
+                doc.save(str(out_path))
+
+                new_row = {
+                    "ClienteID": sel_id,
+                    "NumeroOfferta": numero_offerta,
+                    "Template": tpl_file,
+                    "NomeFile": filename,
+                    "Percorso": str(out_path),
+                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                }
+                df_prev = pd.concat([df_prev, pd.DataFrame([new_row])], ignore_index=True)
+                save_preventivi(df_prev)
+                st.success(f"Preventivo creato: {filename}")
+                st.rerun()
+
+    with col_b:
+        sub = df_prev[df_prev["ClienteID"].astype(str) == sel_id].copy().sort_values("DataCreazione", ascending=False)
+        if sub.empty:
+            st.info("Nessun preventivo per questo cliente.")
+        else:
+            for _, r in sub.iterrows():
+                box = st.container(border=True)
+                with box:
+                    st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}")
+                    st.caption(r.get("DataCreazione",""))
+                    path = Path(r["Percorso"])
+                    if path.exists():
+                        with open(path, "rb") as fh:
+                            st.download_button(
+                                "Apri/Scarica",
+                                data=fh.read(),
+                                file_name=path.name,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            )
+                    else:
+                        st.error("File non trovato (verifica OneDrive).")
+
 # ==========================
 # CONTRATTI
 # ==========================
+def safe_text(txt):
+    return str(txt).encode("latin-1", "replace").decode("latin-1")
+
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Contratti")
 
@@ -439,18 +537,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     closed_mask = ct["Stato"].str.lower()=="chiuso"
-
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
     disp["TotRata"] = disp["TotRata"].apply(money)
+
     st.markdown("### Elenco contratti")
     st.markdown(html_table(
         disp[["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]],
         closed_mask=closed_mask
     ), unsafe_allow_html=True)
 
-    # Esportazioni
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
@@ -461,17 +558,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf = FPDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
             pdf.set_font("Arial", size=9)
-            pdf.cell(0, 8, f"Contratti – {rag_soc}", ln=1, align="C")
+            pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
             for _, row in disp.iterrows():
-                pdf.cell(35, 6, s(row["NumeroContratto"]), 1)
-                pdf.cell(25, 6, s(row["DataInizio"]), 1)
-                pdf.cell(25, 6, s(row["DataFine"]), 1)
-                pdf.cell(20, 6, s(row["Durata"]), 1)
-                pdf.cell(80, 6, s(row["DescrizioneProdotto"])[:50], 1)
-                pdf.cell(20, 6, s(row["TotRata"]), 1)
-                pdf.cell(20, 6, s(row["Stato"]), 1)
+                pdf.cell(35, 6, safe_text(row["NumeroContratto"]), 1)
+                pdf.cell(25, 6, safe_text(row["DataInizio"]), 1)
+                pdf.cell(25, 6, safe_text(row["DataFine"]), 1)
+                pdf.cell(20, 6, safe_text(row["Durata"]), 1)
+                pdf.cell(80, 6, safe_text(row["DescrizioneProdotto"])[:50], 1)
+                pdf.cell(20, 6, safe_text(row["TotRata"]), 1)
+                pdf.cell(20, 6, safe_text(row["Stato"]), 1)
                 pdf.ln()
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", "ignore")
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
             st.download_button("📘 Esporta PDF", pdf_bytes, f"contratti_{rag_soc}.pdf", "application/pdf")
         except Exception as e:
             st.error(f"Errore PDF: {e}")

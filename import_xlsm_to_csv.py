@@ -1,144 +1,116 @@
 import pandas as pd
 from openpyxl import load_workbook
-from pathlib import Path
+from datetime import datetime
 
-EXCEL_PATH = "GESTIONE_CLIENTI .xlsm"
-OUT_DIR = Path("storage")
-OUT_DIR.mkdir(exist_ok=True)
+FILE_XLSM = "GESTIONE_CLIENTI .xlsm"
+OUT_CLIENTI = "storage/clienti.csv"
+OUT_CONTRATTI = "storage/contratti_clienti.csv"
 
-CLIENTI_CSV = OUT_DIR / "clienti.csv"
-CONTRATTI_CSV = OUT_DIR / "contratti_clienti.csv"
+def excel_to_date(value):
+    if pd.isna(value) or str(value).strip() == "":
+        return ""
+    try:
+        if isinstance(value, (int, float)):
+            return pd.to_datetime("1899-12-30") + pd.to_timedelta(int(value), "D")
+        d = pd.to_datetime(value, errors="coerce", dayfirst=True)
+        return d if pd.notna(d) else ""
+    except Exception:
+        return ""
 
-IGNORE_SHEETS = {
-    "Indice", "STATISTICHE", "CAP_Lista", "Contatori", 
-    "NuovoContratto", "LOG_AGGIORNAMENTI"
-}
+def fmt_date(value):
+    if isinstance(value, pd.Timestamp):
+        return value.strftime("%d/%m/%Y")
+    return ""
 
-print(f"📘 Lettura del file: {EXCEL_PATH}")
-wb = load_workbook(EXCEL_PATH, data_only=True)
+print(f"📘 Lettura del file: {FILE_XLSM}")
+wb = load_workbook(FILE_XLSM, data_only=True)
+skip_sheets = {"Indice", "STATISTICHE", "CAP_Lista", "Contatori", "NuovoContratto", "LOG_AGGIORNAMENTI"}
 
-clienti_data = []
-contratti_data = []
+clienti_data, contratti_data = [], []
 
 for sheet_name in wb.sheetnames:
-    if sheet_name in IGNORE_SHEETS:
+    if sheet_name in skip_sheets:
         continue
-
     ws = wb[sheet_name]
     print(f"➡️ Elaboro foglio cliente: {sheet_name}")
 
-    # === Anagrafica Cliente ===
-    cliente_info = {"ClienteID": sheet_name, "RagioneSociale": sheet_name}
-    for row in ws.iter_rows(min_row=1, max_row=15):
-        for cell in row:
-            val = str(cell.value).strip() if cell.value else ""
-            if "p.iva" in val.lower():
-                cliente_info["PartitaIVA"] = val.split(":")[-1].strip()
-            elif "indirizzo" in val.lower():
-                cliente_info["Indirizzo"] = val.split(":")[-1].strip()
-            elif "citt" in val.lower():
-                cliente_info["Citta"] = val.split(":")[-1].strip()
-            elif "tel" in val.lower():
-                cliente_info["Telefono"] = val.split(":")[-1].strip()
-            elif "mail" in val.lower():
-                cliente_info["Email"] = val.split(":")[-1].strip()
-    clienti_data.append(cliente_info)
+    # === Lettura anagrafica ===
+    cliente = {"RagioneSociale": sheet_name}
+    for row in ws.iter_rows(min_row=1, max_row=30, max_col=2, values_only=True):
+        key, val = row
+        if not key:
+            continue
+        k = str(key).strip().lower()
+        if "iva" in k:
+            cliente["PIVA"] = str(val or "")
+        elif "indirizzo" in k:
+            cliente["Indirizzo"] = str(val or "")
+        elif "cap" in k and not "recap" in k:
+            cliente["CAP"] = str(val or "")
+        elif "città" in k or "comune" in k:
+            cliente["Citta"] = str(val or "")
+        elif "telefono" in k:
+            cliente["Telefono"] = str(val or "")
+        elif "email" in k:
+            cliente["Email"] = str(val or "")
+        elif "ultimo recall" in k:
+            cliente["UltimoRecall"] = fmt_date(excel_to_date(val))
+        elif "ultima visita" in k:
+            cliente["UltimaVisita"] = fmt_date(excel_to_date(val))
+        elif "prossimo recall" in k:
+            cliente["ProssimoRecall"] = fmt_date(excel_to_date(val))
+        elif "prossima visita" in k:
+            cliente["ProssimaVisita"] = fmt_date(excel_to_date(val))
 
-    # === Contratti (da riga 21 in poi) ===
-    data_rows = []
-    for r in ws.iter_rows(min_row=21, values_only=False):
-        # Valori grezzi
-        values = [cell.value for cell in r]
+    clienti_data.append(cliente)
 
-        # Scarta righe totalmente vuote o con troppi None
-        if sum(v is not None and str(v).strip() != "" for v in values) < 3:
+    # === Lettura tabella contratti ===
+    start_row = 21
+    headers = [cell.value for cell in ws[start_row - 1] if cell.value]
+    if not headers:
+        continue
+
+    valid_ct = 0
+    for r in range(start_row, ws.max_row + 1):
+        values = [c.value for c in ws[r][:len(headers)]]
+        if all(v in (None, "", " ") for v in values):
             continue
 
-        # Serve almeno un riferimento a contratto o data
-        testo_riga = " ".join(str(v).lower() for v in values if v)
-        if not any(k in testo_riga for k in ["contratto", "offerta", "nolo", "202", "20/", "01/"]):
+        contr = dict(zip(headers, values))
+        contr["Cliente"] = sheet_name
+
+        # Filtro righe utili: accettiamo anche VENDITA
+        if not contr.get("DATA INIZIO") and not contr.get("N.CONTRATTO") and "VENDITA" not in str(contr.get("Descrizione prodotto", "")).upper():
             continue
 
+        # Stato contratto
         stato = "aperto"
-        # Rileva righe rosse (contratti chiusi)
-        if any(
-            cell.fill and cell.fill.start_color and
-            str(cell.fill.start_color.rgb).upper().startswith("FF") and
-            "FF0000" in str(cell.fill.start_color.rgb).upper()
-            for cell in r
-        ):
+        if str(contr.get("CTR Chiuso", "")).strip().lower() in ("x", "chiuso", "1", "si"):
             stato = "chiuso"
 
-        data_rows.append(values + [stato])
+        fill_colors = [c.fill.start_color.index for c in ws[r][:len(headers)]]
+        if any("FF0000" in str(col) for col in fill_colors):
+            stato = "chiuso"
 
-    # Intestazioni (riga 20)
-    headers = [str(cell.value).strip() if cell.value else "" for cell in ws[20]]
-    if not any(headers):
-        continue
+        if str(contr.get("DATA INIZIO", "")).strip().upper() == "VENDITA" or "VENDITA" in str(contr.get("Descrizione prodotto", "")).upper():
+            stato = "vendita"
 
-    # Normalizza e rendi uniche le intestazioni
-    clean_headers = []
-    seen = {}
-    for h in headers:
-        h = h.strip().replace(" ", "").replace(".", "").replace("-", "").lower() or "colonna"
-        if h in seen:
-            seen[h] += 1
-            h = f"{h}_{seen[h]}"
-        else:
-            seen[h] = 1
-        clean_headers.append(h)
-    clean_headers.append("stato")
+        contr["Stato"] = stato
+        contr["DataInizio"] = fmt_date(excel_to_date(contr.get("DATA INIZIO")))
+        contr["DataFine"] = fmt_date(excel_to_date(contr.get("DATA FINE")))
 
-    # Costruisci DataFrame solo se ha contenuti veri
-    if len(data_rows) < 1:
-        continue
+        contratti_data.append(contr)
+        valid_ct += 1
 
-    try:
-        df_ct = pd.DataFrame(data_rows, columns=clean_headers)
-        df_ct["ClienteID"] = sheet_name
+    print(f"   ➕ {valid_ct} contratti trovati")
 
-        # Rinomina colonne più comuni per compatibilità CRM
-        rename_map = {
-            "numerocontratto": "NumeroContratto",
-            "datainizio": "DataInizio",
-            "datafine": "DataFine",
-            "descrizione": "DescrizioneProdotto",
-            "totrata": "TotRata",
-        }
-        df_ct.rename(columns=rename_map, inplace=True)
+df_cli = pd.DataFrame(clienti_data).fillna("")
+df_ct = pd.DataFrame(contratti_data).fillna("")
 
-        # Rimuovi colonne duplicate
-        df_ct = df_ct.loc[:, ~df_ct.columns.duplicated()]
+df_cli.to_csv(OUT_CLIENTI, index=False)
+df_ct.to_csv(OUT_CONTRATTI, index=False)
 
-        # Filtra anche qui: serve almeno NumeroContratto o DataFine
-        if not ("NumeroContratto" in df_ct.columns or "DataFine" in df_ct.columns):
-            continue
-
-        contratti_data.append(df_ct)
-    except Exception as e:
-        print(f"⚠️  Errore nel foglio {sheet_name}: {e}")
-
-# === Salvataggio ===
-df_cli = pd.DataFrame(clienti_data)
-
-if contratti_data:
-    # Unisci senza controlli sugli indici
-    df_ct_all = pd.concat(contratti_data, ignore_index=True, sort=False)
-    df_ct_all = df_ct_all.loc[:, ~df_ct_all.columns.duplicated()]  # ultima sicurezza
-else:
-    df_ct_all = pd.DataFrame()
-
-df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-df_ct_all.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-
-# === Riepilogo finale ===
-print(f"\n✅ Importazione completata:")
-print(f"- Clienti: {len(df_cli)} -> {CLIENTI_CSV}")
-print(f"- Contratti: {len(df_ct_all)} -> {CONTRATTI_CSV}")
-
-if not df_ct_all.empty and "stato" in df_ct_all.columns:
-    aperti = (df_ct_all["stato"].str.lower() != "chiuso").sum()
-    chiusi = (df_ct_all["stato"].str.lower() == "chiuso").sum()
-    print(f"   • Contratti aperti: {aperti}")
-    print(f"   • Contratti chiusi: {chiusi}")
+print("\n✅ Esportazione completata:")
+print(f"- Clienti: {len(df_cli)} -> {OUT_CLIENTI}")
+print(f"- Contratti validi: {len(df_ct)} -> {OUT_CONTRATTI}")
 

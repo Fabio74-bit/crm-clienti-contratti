@@ -234,13 +234,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col2:
         st.metric("Contratti attivi", len(df_ct[df_ct["Stato"].str.lower() != "chiuso"]))
     with col3:
-        scad_tmp = df_ct[
+        scad = df_ct[
             (df_ct["DataFine"].notna())
             & (df_ct["DataFine"] >= today)
             & (df_ct["DataFine"] <= today + pd.DateOffset(months=6))
             & (df_ct["Stato"].str.lower() != "chiuso")
         ]
-        st.metric("Contratti in scadenza (6 mesi)", len(scad_tmp))
+        st.metric("Contratti in scadenza (6 mesi)", len(scad))
 
     st.divider()
 
@@ -260,11 +260,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if scad.empty:
         st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
     else:
-        # prendo solo il contratto con la data più vicina per ogni cliente
         scad = scad.sort_values("DataFine").groupby("ClienteID").first().reset_index()
         scad = scad.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
-        # usa la colonna giusta per la descrizione
         desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in scad.columns else "Descrizione"
         scad_show = scad[["RagioneSociale", "NumeroContratto", "DataFine", desc_col]].copy()
         scad_show = scad_show.rename(columns={desc_col: "Descrizione"})
@@ -272,6 +270,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scad_show["DataFine"] = scad_show["DataFine"].dt.strftime("%d/%m/%Y")
         scad_show["Descrizione"] = scad_show["Descrizione"].astype(str).str.slice(0, 50) + "..."
         st.dataframe(scad_show, use_container_width=True, hide_index=True)
+
+    st.divider()
 
     # --- BOX PROMEMORIA CONTRATTI SENZA DATA FINE ---
     st.subheader("⏰ Promemoria: Contratti Senza Data Fine (da oggi in poi)")
@@ -288,12 +288,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in recenti.columns else "Descrizione"
         recenti_show = recenti[["RagioneSociale", "NumeroContratto", "DataInizio", desc_col]].copy()
         recenti_show = recenti_show.rename(columns={desc_col: "Descrizione"})
-        recenti_show["DataInizio"] = recenti_show["DataInizio"].dt.strftime("%d/%m/%Y")
+        recenti_show["DataInizio"] = pd.to_datetime(recenti_show["DataInizio"], errors="coerce").dt.strftime("%d/%m/%Y")
         st.dataframe(recenti_show, use_container_width=True, hide_index=True)
 
     st.divider()
-
-       st.divider()
 
     # --- BOX ULTIMI RECALL E VISITE (SEPARATI) ---
     c1, c2 = st.columns(2)
@@ -325,6 +323,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                          hide_index=True, use_container_width=True)
         else:
             st.info("✅ Nessuna visita oltre 6 mesi.")
+
 
 
 

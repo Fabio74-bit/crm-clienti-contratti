@@ -1,1 +1,2 @@
-NumeroPrev,ClienteID,Data,Template,FileName,Key
+﻿ClienteID,NumeroOfferta,Template,NomeFile,Percorso,DataCreazione
+1,OFF-2025-1A1SRL-001,Offerta_Centralino.docx,OFF-2025-1A1SRL-001.docx,/Users/fabioscaranello/Library/CloudStorage/OneDrive-SHTSrl/Documents/OFFERTE/1/OFF-2025-1A1SRL-001.docx,2025-10-12 18:33

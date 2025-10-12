@@ -1,9 +1,19 @@
+# Librerie principali
 streamlit==1.50.0
 pandas==2.3.3
 numpy==2.0.2
+
+# Documenti e report
 python-docx==1.1.2
 xlsxwriter==3.2.0
+fpdf==1.7.2
+
+# Database
 SQLAlchemy==2.0.36
 PyMySQL==1.1.1
-fpdf
-streamlit-aggrid
+
+# Tabelle interattive
+streamlit-aggrid==0.3.4.post3
+
+# Altre utilità
+openpyxl==3.1.5

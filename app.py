@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path
 from datetime import datetime
 from io import BytesIO
@@ -17,7 +18,6 @@ from docx import Document
 # ==========================
 APP_TITLE = "GESTIONALE CLIENTI – SHT"
 
-# storage root (da secrets, fallback a ./storage)
 STORAGE_DIR = Path(
     st.secrets.get("LOCAL_STORAGE_DIR", st.secrets.get("storage", {}).get("dir", "storage"))
 )
@@ -28,13 +28,11 @@ CONTRATTI_CSV   = STORAGE_DIR / "contratti_clienti.csv"
 PREVENTIVI_CSV  = STORAGE_DIR / "preventivi.csv"
 TEMPLATES_DIR   = STORAGE_DIR / "templates"
 
-# Cartella esterna (es. OneDrive). Se non impostata → usa STORAGE_DIR/preventivi
 EXTERNAL_PROPOSALS_DIR = Path(
     st.secrets.get("storage", {}).get("proposals_dir", (STORAGE_DIR / "preventivi"))
 )
 EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
 
-# colonne canoniche
 CLIENTI_COLS = [
     "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
     "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
@@ -183,20 +181,19 @@ def html_table(df: pd.DataFrame, *, closed_mask: pd.Series | None = None) -> str
     return BASE_CSS + "<table class='ctr-table' id='tbl'>{}{}</table>".format(thead, tbody)
 
 def html_table_interactive(disp: pd.DataFrame, *, desc_series: pd.Series, closed_mask: pd.Series) -> None:
-    """Tabella HTML + JS: doppio-click riga → mostra descrizione completa."""
+    """Tabella HTML + JS: doppio-click riga → mostra descrizione completa (safe via JSON)."""
     table_html = html_table(disp, closed_mask=closed_mask)
 
-    # mappa idx -> descrizione (escape <br>)
+    # mappa idx -> descrizione (con <br>)
     mapping = {int(i): ("" if pd.isna(v) else str(v)).replace("\n", "<br>") for i, v in desc_series.items()}
-    # serializzazione JS (escape dei backtick)
-    items_js = ",".join([f"{k}: `{mapping[k].replace('`','\\`')}`" for k in mapping])
+    # serializzazione in JSON (evita backslash nelle f-string)
+    items_json = json.dumps(mapping, ensure_ascii=False)
 
-    # f-string con graffe raddoppiate nel JS/HTML per evitare errori
     html = f"""
 {table_html}
 <div class="preview" id="descBox">Doppio-click su una riga per vedere la descrizione completa.</div>
 <script>
-const DESCR = {{{{ {items_js} }}}};
+const DESCR = {items_json};
 const tbl = document.getElementById('tbl');
 const box = document.getElementById('descBox');
 if (tbl){{
@@ -328,7 +325,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown(html_table(tab), unsafe_allow_html=True)
 
 # ==========================
-# CLIENTI (versione con riepilogo + anagrafica + preventivi, NOTE fuori)
+# CLIENTI
 # ==========================
 def _summary_box(row: pd.Series):
     st.markdown("### Riepilogo")
@@ -438,7 +435,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.success("Dati cliente aggiornati.")
                 st.rerun()
 
-    # NOTE fuori dall’expander
     note_new = st.text_area("Note", _safe_txt(row.get("Note")))
     if st.button("Salva note"):
         idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
@@ -574,9 +570,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(BASE_CSS, unsafe_allow_html=True)
     st.markdown(f"<div style='display:flex;gap:10px;align-items:center;flex-wrap:wrap'><div style='font-size:18px;font-weight:800'>Contratti di</div> <span class='badge'>{ragione}</span></div>", unsafe_allow_html=True)
 
-    # ====== BLOCCO AZIONI ======
     c1, c2 = st.columns([0.50, 0.50])
-
     with c1:
         with st.expander("➕ Nuovo contratto", expanded=False):
             with st.form("frm_new_contract"):
@@ -660,7 +654,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # ====== TABELLA UNICA + DOPPIO-CLICK DESCRIZIONE ======
     disp = ct.copy()
     disp = disp[["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]]
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
@@ -669,7 +662,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     closed_mask = ct["Stato"].str.lower()=="chiuso"
 
     st.markdown("### Elenco contratti")
-    # nascondo la colonna DescrizioneProdotto nella tabella e la mostro nell’anteprima con doppio-click
     html_table_interactive(
         disp.drop(columns=["DescrizioneProdotto"]),
         desc_series=ct["DescrizioneProdotto"],
@@ -689,12 +681,7 @@ def main():
     else:
         st.sidebar.info("Accesso come ospite")
 
-    PAGES = {
-        "Dashboard": page_dashboard,
-        "Clienti": page_clienti,
-        "Contratti": page_contratti
-    }
-
+    PAGES = {"Dashboard": page_dashboard, "Clienti": page_clienti, "Contratti": page_contratti}
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio("Menu", list(PAGES.keys()),
                             index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0)

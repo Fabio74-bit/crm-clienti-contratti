@@ -479,9 +479,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         st.error("File non trovato (verifica OneDrive).")
 
 
-# ==========================
-# CONTRATTI (versione con AgGrid + azioni + esportazione)
-# ==========================
+
 # ==========================
 # CONTRATTI (versione estetica con AgGrid, stato e descrizione estesa)
 # ==========================
@@ -523,9 +521,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
             desc = st.text_area("Descrizione prodotto", height=100)
             nol_fin, nol_int, tota = st.columns(3)
-            with nol_fin: nf = st.text_input("NOL_FIN")
-            with nol_int: ni = st.text_input("NOL_INT")
-            with tota: tot = st.text_input("TotRata")
+            with nol_fin:
+                nf = st.text_input("NOL_FIN")
+            with nol_int:
+                ni = st.text_input("NOL_INT")
+            with tota:
+                tot = st.text_input("TotRata")
 
             if st.form_submit_button("💾 Crea contratto"):
                 row = {
@@ -591,13 +592,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         height=350
     )
 
-   selected = grid_resp.get("selected_rows", [])
+    # ✅ FIX: selezione sicura
+    selected = grid_resp.get("selected_rows", [])
 
-if isinstance(selected, list) and len(selected) > 0:
-    sel = selected[0]
-    st.markdown("### 📝 Descrizione completa")
-    st.info(sel.get("DescrizioneProdotto", ""))
-
+    if isinstance(selected, list) and len(selected) > 0:
+        sel = selected[0]
+        st.markdown("### 📝 Descrizione completa")
+        st.info(sel.get("DescrizioneProdotto", ""), icon="🪶")
 
     # --- Azioni Chiudi/Riapri ---
     st.divider()

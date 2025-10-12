@@ -1,136 +1,107 @@
 import pandas as pd
-import openpyxl
-from openpyxl.utils import get_column_letter
-from datetime import datetime
+from pathlib import Path
+import datetime
 
-# === Funzioni di supporto ===
+# ==========================
+# CONFIGURAZIONE
+# ==========================
+FILE_XLSM = "GESTIONE_CLIENTI.xlsm"
+OUTPUT_DIR = Path("storage")
+OUTPUT_DIR.mkdir(exist_ok=True)
 
-def excel_to_date(val):
-    """Converte valori Excel in datetime o stringa vuota."""
-    if pd.isna(val) or str(val).strip() == "":
-        return ""
-    try:
-        if isinstance(val, (float, int)):
-            return datetime(1899, 12, 30) + pd.to_timedelta(val, unit="D")
-        elif isinstance(val, str):
-            return pd.to_datetime(val, errors="coerce", dayfirst=True)
-        elif isinstance(val, datetime):
-            return val
-    except Exception:
-        return ""
-    return ""
+CLIENTI_CSV = OUTPUT_DIR / "clienti.csv"
+CONTRATTI_CSV = OUTPUT_DIR / "contratti_clienti.csv"
 
-
-def fmt_date(val):
-    """Restituisce una data formattata dd/mm/yyyy"""
-    if pd.isna(val) or val == "":
-        return ""
-    try:
-        return pd.to_datetime(val).strftime("%d/%m/%Y")
-    except Exception:
-        return ""
-
-
-# === Lettura file principale ===
-
-file_path = "GESTIONE_CLIENTI .xlsm"
-print(f"\n📘 Lettura del file: {file_path}")
-xls = pd.ExcelFile(file_path)
+print(f"📘 Lettura del file: {FILE_XLSM}")
+xls = pd.ExcelFile(FILE_XLSM)
 
 clienti_data = []
 contratti_data = []
 
+# ==========================
+# ELABORAZIONE FOGLI
+# ==========================
 for sheet in xls.sheet_names:
-    if sheet in ["Indice", "STATISTICHE", "CAP_Lista", "NuovoContratto", "Contatori", "LOG_AGGIORNAMENTI"]:
+    if sheet.strip().lower() in ["indice", "statistiche", "cap_lista", "nuovocontratto", "log_aggiornamenti"]:
         continue
 
+    print(f"➡️ Elaboro foglio cliente: {sheet}")
     try:
-        df = pd.read_excel(xls, sheet_name=sheet, header=None, dtype=str)
-    except Exception:
-        continue
+        # 🔹 Legge saltando le prime 20 righe, senza header
+        df = pd.read_excel(FILE_XLSM, sheet_name=sheet, skiprows=20, header=None)
+        print("   ➕ Prime 5 righe:", df.head(5).to_string(index=False))
 
-    # Cerca la riga intestazione (dove inizia "Contratti di Noleggio")
-    start_idx = None
-    for i in range(len(df)):
-        if df.iloc[i].astype(str).str.contains("Contratti di Noleggio", case=False, na=False).any():
-            start_idx = i + 1
-            break
-
-    # Leggi anagrafica cliente
-    try:
-        nome = df.iloc[3, 1] if df.shape[0] > 3 else sheet
-        telefono = df.iloc[8, 1] if df.shape[0] > 8 else ""
-        citta = df.iloc[6, 1] if df.shape[0] > 6 else ""
-        cap = str(df.iloc[7, 1]).strip() if df.shape[0] > 7 else ""
-        piva = str(df.iloc[13, 1]).strip() if df.shape[0] > 13 else ""
-        mail = df.iloc[14, 1] if df.shape[0] > 14 else ""
-    except Exception:
-        nome, telefono, citta, cap, piva, mail = sheet, "", "", "", "", ""
-
-    clienti_data.append({
-        "RagioneSociale": nome,
-        "Telefono": telefono,
-        "Citta": citta,
-        "CAP": cap,
-        "PartitaIVA": piva,
-        "Email": mail
-    })
-
-    # Sezione contratti
-    if start_idx is None:
-        continue
-
-    contratti = df.iloc[start_idx + 1:, :13]
-    contratti.columns = [
-        "DATA INIZIO", "DATA FINE", "DURATA", "Descrizione prodotto",
-        "NOL. FIN.", "N.CONTRATTO", "NOL. INT.", "TOT. RATA",
-        "COPIE B/N", "ECC. B/N", "COPIE COL.", "ECC. COL.", "Stato"
-    ]
-
-    for _, contr in contratti.iterrows():
-        contr = contr.fillna("")
-        descr = str(contr.get("Descrizione prodotto", "")).strip()
-
-        # Filtro righe realmente valide
-        valido = False
-        if contr.get("N.CONTRATTO") not in (None, "", " "):
-            valido = True
-        elif descr != "":
-            valido = True
-        elif "VENDITA" in str(contr.get("DATA INIZIO", "")).upper():
-            valido = True
-
-        if not valido:
+        # Verifica che ci siano abbastanza colonne per la tabella contratti
+        if df.shape[1] < 6:
+            print("   ⚠️ Troppe poche colonne, salto.")
             continue
 
-        stato = "vendita" if "VENDITA" in str(contr.get("DATA INIZIO", "")).upper() else str(contr.get("Stato", "")).lower()
-        stato = "chiuso" if "x" in stato else stato
+        # Imposta i nomi colonna standard
+        df.columns = [
+            "DataInizio", "DataFine", "Durata", "DescrizioneProdotto", "NOL_FIN",
+            "NumeroContratto", "NOL_INT", "TotRata", "CopieBN", "EccBN",
+            "CopieCol", "EccCol", "Stampa", "CTRChiuso"
+        ][:df.shape[1]]
 
-        contratti_data.append({
-            "Cliente": nome,
-            "NumeroContratto": str(contr.get("N.CONTRATTO", "")).strip(),
-            "DataInizio": excel_to_date(contr.get("DATA INIZIO")),
-            "DataFine": excel_to_date(contr.get("DATA FINE")),
-            "Durata": contr.get("DURATA", ""),
-            "DescrizioneProdotto": descr,
-            "TotRata": contr.get("TOT. RATA", ""),
-            "Stato": stato
-        })
+        # ✅ Conversione sicura
+        def safe_str(x):
+            if pd.isna(x) or x == pd.NaT:
+                return ""
+            if isinstance(x, (datetime.date, datetime.datetime)):
+                return x.strftime("%d/%m/%Y")
+            return str(x).strip()
 
-# === Esporta i dati ===
+        df = df.applymap(safe_str)
 
-df_cli_all = pd.DataFrame(clienti_data)
-df_ct_all = pd.DataFrame(contratti_data)
+        # Filtra righe che sembrano contratti reali
+        df_valid = df[
+            (df["DescrizioneProdotto"].str.strip() != "") |
+            (df["DataInizio"].str.contains("VENDITA", case=False, na=False))
+        ].copy()
 
-# Converte le date nel formato richiesto
-df_ct_all["DataInizio"] = df_ct_all["DataInizio"].apply(fmt_date)
-df_ct_all["DataFine"] = df_ct_all["DataFine"].apply(fmt_date)
+        if df_valid.empty:
+            print("   ⚠️ Nessun contratto valido, salto.")
+            continue
 
-# Salva nei file CSV
-df_cli_all.to_csv("storage/clienti.csv", index=False)
-df_ct_all.to_csv("storage/contratti_clienti.csv", index=False)
+        clienti_data.append({"ClienteID": sheet.strip(), "RagioneSociale": sheet.strip()})
+
+        for _, row in df_valid.iterrows():
+            stato = "aperto"
+            if "vendita" in row["DescrizioneProdotto"].lower():
+                stato = "vendita"
+            elif row.get("CTRChiuso", "").lower() in ["x", "chiuso", "si", "yes"]:
+                stato = "chiuso"
+
+            contratti_data.append({
+                "ClienteID": sheet.strip(),
+                "NumeroContratto": row.get("NumeroContratto", ""),
+                "DataInizio": row.get("DataInizio", ""),
+                "DataFine": row.get("DataFine", ""),
+                "Durata": row.get("Durata", ""),
+                "DescrizioneProdotto": row.get("DescrizioneProdotto", ""),
+                "NOL_FIN": row.get("NOL_FIN", ""),
+                "NOL_INT": row.get("NOL_INT", ""),
+                "TotRata": row.get("TotRata", ""),
+                "Stato": stato
+            })
+
+    except Exception as e:
+        print(f"⚠️ Errore nel foglio {sheet}: {e}")
+
+# ==========================
+# SALVATAGGIO CSV
+# ==========================
+df_cli = pd.DataFrame(clienti_data).drop_duplicates(subset=["ClienteID"])
+df_ct = pd.DataFrame(contratti_data)
+
+if not df_ct.empty:
+    df_ct = df_ct[df_ct["DescrizioneProdotto"].str.strip() != ""].copy()
+    df_ct = df_ct.drop_duplicates(subset=["ClienteID", "NumeroContratto", "DescrizioneProdotto"])
+
+df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
 print("\n✅ Esportazione completata:")
-print(f"- Clienti: {len(df_cli_all)} -> storage/clienti.csv")
-print(f"- Contratti validi: {len(df_ct_all)} -> storage/contratti_clienti.csv\n")
+print(f"- Clienti: {len(df_cli)} -> {CLIENTI_CSV}")
+print(f"- Contratti validi: {len(df_ct)} -> {CONTRATTI_CSV}")
 

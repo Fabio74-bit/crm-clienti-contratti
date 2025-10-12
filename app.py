@@ -430,7 +430,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with st.expander("Anagrafica (modificabile)", expanded=False):
         with st.form("frm_edit_client"):
             ragsoc = st.text_input("Ragione sociale", row.get("RagioneSociale",""))
-            ref    = st.text_input("Persona di riferimento", row.get("PersonaRiferimento",""))
+           ref_val = row.get("PersonaRiferimento", "")
+ref = st.text_input("Persona di riferimento", "" if pd.isna(ref_val) else str(ref_val))
+
             indir  = st.text_input("Indirizzo", row.get("Indirizzo",""))
             cap    = st.text_input("CAP", row.get("CAP",""))
             citta  = st.text_input("Città", row.get("Citta",""))

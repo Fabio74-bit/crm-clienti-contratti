@@ -530,18 +530,44 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         else:
                             st.error("File non trovato (controlla percorso OneDrive).")
 
-# ==========================
-# CONTRATTI — NUOVO LAYOUT
-# ==========================
-def _export_table_bytes(df: pd.DataFrame, base_name: str) -> Tuple[bytes, str, str]:
-    try:
-        import xlsxwriter  # noqa: F401
-        bio = BytesIO()
-        with pd.ExcelWriter(bio, engine="xlsxwriter") as xw:
-            df.to_excel(xw, index=False, sheet_name="Contratti")
-        return bio.getvalue(), f"{base_name}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    except Exception:
-        return df.to_csv(index=False).encode("utf-8-sig"), f"{base_name}.csv", "text/csv"
+from fpdf import FPDF  # Assicurati che sia installato: `pip install fpdf`
+
+def generate_pdf_table(df: pd.DataFrame, title: str = "Contratti") -> bytes:
+    class PDF(FPDF):
+        def header(self):
+            self.set_font("Arial", "B", 12)
+            self.cell(0, 10, title, ln=1, align="C")
+            self.ln(2)
+
+    pdf = PDF(orientation="L", unit="mm", format="A4")
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=10)
+    pdf.set_font("Arial", size=9)
+
+    # Define column widths
+    col_widths = [30, 25, 25, 20, 90, 20, 20, 25, 20]
+    columns = [
+        "NumeroContratto", "DataInizio", "DataFine", "Durata",
+        "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
+    ]
+
+    # Header
+    for i, col in enumerate(columns):
+        pdf.cell(col_widths[i], 8, col, border=1)
+    pdf.ln()
+
+    # Rows
+    for _, row in df.iterrows():
+        for i, col in enumerate(columns):
+            text = str(row.get(col, ""))
+            # Wrapping for DescrizioneProdotto
+            if col == "DescrizioneProdotto":
+                lines = pdf.multi_cell(col_widths[i], 6, text, border=1, ln=3, max_line_height=pdf.font_size)
+            else:
+                pdf.cell(col_widths[i], 6, text, border=1)
+        pdf.ln()
+    return pdf.output(dest="S").encode("latin-1")
+
 
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Contratti")
@@ -570,103 +596,87 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(BASE_CSS, unsafe_allow_html=True)
     st.markdown(f"<div style='display:flex;gap:10px;align-items:center;flex-wrap:wrap'><div style='font-size:18px;font-weight:800'>Contratti di</div> <span class='badge'>{ragione}</span></div>", unsafe_allow_html=True)
 
-    c1, c2 = st.columns([0.50, 0.50])
-    with c1:
-        with st.expander("➕ Nuovo contratto", expanded=False):
-            with st.form("frm_new_contract"):
-                num   = st.text_input("Numero contratto").strip()
-                di    = st.date_input("Data inizio", value=None)
-                dfine = st.date_input("Data fine",  value=None)
-                dura  = st.text_input("Durata (mesi/anni)", "")
-                desc  = st.text_area("Descrizione prodotto")
-                nol_f = st.text_input("NOL_FIN", "")
-                nol_i = st.text_input("NOL_INT", "")
-                rata  = st.text_input("TotRata", "")
-                stato = st.selectbox("Stato", ["aperto","chiuso"], index=0)
+    st.divider()
 
-                if st.form_submit_button("Salva contratto", type="primary", use_container_width=True):
-                    if not num:
-                        st.error("Numero contratto obbligatorio.")
-                    else:
-                        new = {
-                            "ClienteID": sel_id,
-                            "NumeroContratto": num,
-                            "DataInizio": pd.to_datetime(di) if di else "",
-                            "DataFine":   pd.to_datetime(dfine) if dfine else "",
-                            "Durata": dura,
-                            "DescrizioneProdotto": desc,
-                            "NOL_FIN": nol_f,
-                            "NOL_INT": nol_i,
-                            "TotRata": rata,
-                            "Stato": stato
-                        }
-                        df_full = load_contratti()
-                        df_full = ensure_columns(df_full, CONTRATTI_COLS)
-                        def _iso(x): return "" if x=="" or pd.isna(x) else pd.to_datetime(x).strftime("%Y-%m-%d")
-                        new["DataInizio"] = _iso(new["DataInizio"])
-                        new["DataFine"]   = _iso(new["DataFine"])
-                        df_full = pd.concat([df_full, pd.DataFrame([new])], ignore_index=True)
-                        save_contratti(df_full)
-                        st.success("Contratto inserito.")
-                        st.rerun()
+    with st.expander("➕ Nuovo contratto"):
+        with st.form("frm_new_contract"):
+            num   = st.text_input("Numero contratto").strip()
+            di    = st.date_input("Data inizio", value=None)
+            dfine = st.date_input("Data fine",  value=None)
+            dura  = st.text_input("Durata (mesi/anni)", "")
+            desc  = st.text_area("Descrizione prodotto")
+            nol_f = st.text_input("NOL_FIN", "")
+            nol_i = st.text_input("NOL_INT", "")
+            rata  = st.text_input("TotRata", "")
+            stato = st.selectbox("Stato", ["aperto","chiuso"], index=0)
 
-    with c2:
-        with st.expander("⤓ Esporta / Stampa / Stato", expanded=False):
-            all_disp = ct.copy()
-            all_disp["DataInizio"] = all_disp["DataInizio"].apply(fmt_date)
-            all_disp["DataFine"]   = all_disp["DataFine"].apply(fmt_date)
-            all_disp["TotRata"]    = all_disp["TotRata"].apply(money)
-
-            opts = all_disp["NumeroContratto"].tolist()
-            sel_multi = st.multiselect("Seleziona contratti", opts)
-
-            col_a, col_b, col_c = st.columns(3)
-            with col_a:
-                if st.button("Esporta selezionati"):
-                    out = all_disp[all_disp["NumeroContratto"].isin(sel_multi)] if sel_multi else all_disp
-                    if out.empty:
-                        st.warning("Nessuna riga da esportare.")
-                    else:
-                        data, fname, mime = _export_table_bytes(out, f"contratti_{sel_id}")
-                        st.download_button("Scarica file", data=data, file_name=fname, mime=mime, key="dl_export")
-            with col_b:
-                if st.button("Stampa (HTML)"):
-                    out = all_disp[all_disp["NumeroContratto"].isin(sel_multi)] if sel_multi else all_disp
-                    if out.empty:
-                        st.warning("Nessuna riga da stampare.")
-                    else:
-                        html = "<h3>Contratti selezionati</h3>" + html_table(out, closed_mask=(out["Stato"].str.lower()=="chiuso"))
-                        st.download_button("Scarica HTML", data=html.encode("utf-8"),
-                                           file_name=f"contratti_{sel_id}.html", mime="text/html", key="dl_html")
-            with col_c:
-                az = st.selectbox("Azione stato", ["Chiudi", "Riapri"])
-                if st.button("Applica"):
-                    if not sel_multi:
-                        st.warning("Seleziona almeno un contratto.")
-                    else:
-                        df_full = load_contratti()
-                        mask_cli = df_full["ClienteID"].astype(str)==sel_id
-                        mask_sel = df_full["NumeroContratto"].isin(sel_multi)
-                        df_full.loc[mask_cli & mask_sel, "Stato"] = "chiuso" if az=="Chiudi" else "aperto"
-                        save_contratti(df_full)
-                        st.success("Aggiornato lo stato.")
-                        st.rerun()
+            if st.form_submit_button("Salva contratto", type="primary"):
+                if not num:
+                    st.error("Numero contratto obbligatorio.")
+                else:
+                    new = {
+                        "ClienteID": sel_id,
+                        "NumeroContratto": num,
+                        "DataInizio": pd.to_datetime(di) if di else "",
+                        "DataFine":   pd.to_datetime(dfine) if dfine else "",
+                        "Durata": dura,
+                        "DescrizioneProdotto": desc,
+                        "NOL_FIN": nol_f,
+                        "NOL_INT": nol_i,
+                        "TotRata": rata,
+                        "Stato": stato
+                    }
+                    df_full = load_contratti()
+                    df_full = ensure_columns(df_full, CONTRATTI_COLS)
+                    new["DataInizio"] = fmt_date(new["DataInizio"])
+                    new["DataFine"]   = fmt_date(new["DataFine"])
+                    df_full = pd.concat([df_full, pd.DataFrame([new])], ignore_index=True)
+                    save_contratti(df_full)
+                    st.success("Contratto inserito.")
+                    st.rerun()
 
     st.divider()
 
+    if ct.empty:
+        st.info("Nessun contratto trovato.")
+        return
+
     disp = ct.copy()
-    disp = disp[["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"]]
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"]   = disp["DataFine"].apply(fmt_date)
     disp["TotRata"]    = disp["TotRata"].apply(money)
-    closed_mask = ct["Stato"].str.lower()=="chiuso"
+    closed_mask = disp["Stato"].str.lower() == "chiuso"
 
-    st.markdown("### Elenco contratti")
-    html_table_interactive(
-        disp.drop(columns=["DescrizioneProdotto"]),
-        desc_series=ct["DescrizioneProdotto"],
-        closed_mask=closed_mask
-    )
+    st.markdown("### Elenco contratti con azioni")
+
+    for i, r in disp.iterrows():
+        with st.container(border=True):
+            cols = st.columns([2, 2, 2, 1, 4, 1, 1, 1, 1])
+            fields = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
+            for col, field in zip(cols, fields):
+                value = r[field]
+                if field == "DescrizioneProdotto":
+                    col.text_area(field, value, height=50, disabled=True)
+                else:
+                    col.text_input(field, value, disabled=True)
+
+            c_action = st.columns([0.5, 0.5])
+            with c_action[0]:
+                if st.button(f"Chiudi" if r["Stato"] != "chiuso" else "Riapri", key=f"toggle_{i}"):
+                    df_ct_full = load_contratti()
+                    mask = (df_ct_full["ClienteID"].astype(str) == sel_id) & \
+                           (df_ct_full["NumeroContratto"] == r["NumeroContratto"])
+                    df_ct_full.loc[mask, "Stato"] = "chiuso" if r["Stato"] != "chiuso" else "aperto"
+                    save_contratti(df_ct_full)
+                    st.rerun()
+
+    st.divider()
+
+    st.markdown("### Esporta tutti i contratti in PDF")
+    if st.button("📄 Esporta PDF A4 Orizzontale"):
+        pdf_bytes = generate_pdf_table(disp)
+        st.download_button("Scarica PDF", data=pdf_bytes, file_name=f"contratti_{sel_id}.pdf", mime="application/pdf")
+
 
 # ==========================
 # APP

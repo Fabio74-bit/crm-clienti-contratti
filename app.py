@@ -293,25 +293,39 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # --- BOX ULTIMI RECALL E VISITE ---
-    st.subheader("📞 Ultimi Recall e 🧳 Visite")
-    recall_visite = []
-    for _, r in df_cli.iterrows():
-        if pd.notna(r.get("UltimoRecall")):
-            recall_visite.append(
-                {"Cliente": r["RagioneSociale"], "Data": r["UltimoRecall"], "Tipo": "Recall"}
-            )
-        if pd.notna(r.get("UltimaVisita")):
-            recall_visite.append(
-                {"Cliente": r["RagioneSociale"], "Data": r["UltimaVisita"], "Tipo": "Visita"}
-            )
-    df_rv = pd.DataFrame(recall_visite)
-    if df_rv.empty:
-        st.info("Nessun recall o visita registrata.")
-    else:
-        df_rv = df_rv.sort_values("Data", ascending=False).head(10)
-        df_rv["Data"] = df_rv["Data"].dt.strftime("%d/%m/%Y")
-        st.dataframe(df_rv, use_container_width=True, hide_index=True)
+       st.divider()
+
+    # --- BOX ULTIMI RECALL E VISITE (SEPARATI) ---
+    c1, c2 = st.columns(2)
+
+    with c1:
+        st.markdown("### 📞 Ultimi Recall (> 3 mesi)")
+        cli = df_cli.copy()
+        cli["UltimoRecall"] = pd.to_datetime(cli["UltimoRecall"], errors="coerce", dayfirst=True)
+        soglia = pd.Timestamp.today().normalize() - pd.DateOffset(months=3)
+        r = cli[cli["UltimoRecall"].notna() & (cli["UltimoRecall"] <= soglia)]
+        if not r.empty:
+            r["UltimoRecall"] = r["UltimoRecall"].dt.strftime("%d/%m/%Y")
+            r["ProssimoRecall"] = pd.to_datetime(r["ProssimoRecall"], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
+            st.dataframe(r[["ClienteID", "RagioneSociale", "UltimoRecall", "ProssimoRecall"]],
+                         hide_index=True, use_container_width=True)
+        else:
+            st.info("✅ Nessun recall oltre 3 mesi.")
+
+    with c2:
+        st.markdown("### 🧳 Ultime Visite (> 6 mesi)")
+        cli = df_cli.copy()
+        cli["UltimaVisita"] = pd.to_datetime(cli["UltimaVisita"], errors="coerce", dayfirst=True)
+        soglia_v = pd.Timestamp.today().normalize() - pd.DateOffset(months=6)
+        v = cli[cli["UltimaVisita"].notna() & (cli["UltimaVisita"] <= soglia_v)]
+        if not v.empty:
+            v["UltimaVisita"] = v["UltimaVisita"].dt.strftime("%d/%m/%Y")
+            v["ProssimaVisita"] = pd.to_datetime(v["ProssimaVisita"], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
+            st.dataframe(v[["ClienteID", "RagioneSociale", "UltimaVisita", "ProssimaVisita"]],
+                         hide_index=True, use_container_width=True)
+        else:
+            st.info("✅ Nessuna visita oltre 6 mesi.")
+
 
 
 

@@ -302,7 +302,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         tab["ProssimaVisita"] = to_date_series(tab["ProssimaVisita"]).apply(fmt_date)
         st.markdown(html_table(tab), unsafe_allow_html=True)
 
-
 # ==========================
 # RIEPILOGO CLIENTE
 # ==========================
@@ -322,11 +321,9 @@ def _summary_box(row: pd.Series):
         st.markdown(f"**P.IVA:** {row.get('PartitaIVA','')}")
         st.markdown(f"**SDI:** {row.get('SDI','')}")
 
+
 # ==========================
-# CLIENTI (anagrafica estesa + recall e visita automatici)
-# ==========================
-# ==========================
-# CLIENTI (anagrafica estesa + recall e visita automatici con fix NA)
+# CLIENTI (completo con recall/visite automatici)
 # ==========================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Clienti")
@@ -335,7 +332,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
-    # selezione cliente
+    # --- selezione cliente ---
     pre = st.session_state.get("selected_client_id")
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     idx = 0
@@ -347,15 +344,15 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
     sel_id = str(df_cli.iloc[labels[labels == sel_label].index[0]]["ClienteID"])
 
-    # Riga cliente
+    # Riga cliente e conversione sicura
     row = df_cli[df_cli["ClienteID"].astype(str) == sel_id].iloc[0]
-    # Converti eventuali pd.NA in stringhe vuote per sicurezza
     row = row.map(lambda x: "" if pd.isna(x) or x is pd.NA else x)
 
     _summary_box(row)
 
-    # === NOTE cliente ===
-    note_new = st.text_area("📝 Note interne", row.get("Note", ""))
+    # --- NOTE cliente ---
+    st.markdown("### 📝 Note interne")
+    note_new = st.text_area("Note", row.get("Note", ""), height=100)
     if st.button("💾 Salva note"):
         idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
         df_cli.loc[idx_row, "Note"] = note_new
@@ -365,43 +362,47 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === Recall e Visita (visibili sempre) ===
+    # --- Recall e Visita automatici ---
     st.markdown("### 📞 Recall e 🧳 Visite")
+
+    ult_recall = as_date(row.get("UltimoRecall"))
+    ult_visita = as_date(row.get("UltimaVisita"))
+    pross_recall = as_date(row.get("ProssimoRecall"))
+    pross_visita = as_date(row.get("ProssimaVisita"))
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        ult_recall = date_input_opt("Ultimo recall", row.get("UltimoRecall"), key=f"ur_{sel_id}")
+        new_ult_recall = date_input_opt("Ultimo recall", ult_recall, key=f"ur_{sel_id}")
     with c2:
-        pross_recall = to_date_series(pd.Series([row.get("ProssimoRecall")])).iloc[0]
-        st.date_input("Prossimo recall", pross_recall if not pd.isna(pross_recall) else None,
+        st.date_input("Prossimo recall (auto)", pross_recall if not pd.isna(pross_recall) else None,
                       key=f"pr_{sel_id}", disabled=True)
     with c3:
-        ult_visita = date_input_opt("Ultima visita", row.get("UltimaVisita"), key=f"uv_{sel_id}")
+        new_ult_visita = date_input_opt("Ultima visita", ult_visita, key=f"uv_{sel_id}")
     with c4:
-        pross_visita = to_date_series(pd.Series([row.get("ProssimaVisita")])).iloc[0]
-        st.date_input("Prossima visita", pross_visita if not pd.isna(pross_visita) else None,
+        st.date_input("Prossima visita (auto)", pross_visita if not pd.isna(pross_visita) else None,
                       key=f"pv_{sel_id}", disabled=True)
 
     if st.button("💾 Aggiorna recall/visite"):
         idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
 
-        df_cli.loc[idx_row, "UltimoRecall"] = pd.to_datetime(ult_recall) if ult_recall else ""
-        df_cli.loc[idx_row, "UltimaVisita"] = pd.to_datetime(ult_visita) if ult_visita else ""
+        # Aggiorna gli ultimi
+        df_cli.loc[idx_row, "UltimoRecall"] = pd.to_datetime(new_ult_recall) if new_ult_recall else ""
+        df_cli.loc[idx_row, "UltimaVisita"] = pd.to_datetime(new_ult_visita) if new_ult_visita else ""
 
-        # aggiorna automatico prossimi
-        next_recall = (pd.to_datetime(ult_recall) + pd.DateOffset(months=3)) if ult_recall else pd.NaT
-        next_visita = (pd.to_datetime(ult_visita) + pd.DateOffset(months=6)) if ult_visita else pd.NaT
+        # Calcola i prossimi automaticamente
+        next_recall = (pd.to_datetime(new_ult_recall) + pd.DateOffset(months=3)) if new_ult_recall else pd.NaT
+        next_visita = (pd.to_datetime(new_ult_visita) + pd.DateOffset(months=6)) if new_ult_visita else pd.NaT
 
         df_cli.loc[idx_row, "ProssimoRecall"] = next_recall
         df_cli.loc[idx_row, "ProssimaVisita"] = next_visita
 
         save_clienti(df_cli)
-        st.success("✅ Dati recall e visite aggiornati automaticamente.")
+        st.success("✅ Recall e visite aggiornati automaticamente.")
         st.rerun()
 
     st.divider()
 
-    # === Anagrafica completa (in espander) ===
+    # --- Anagrafica completa (modificabile) ---
     with st.expander("🏢 Anagrafica (modificabile)", expanded=False):
         with st.form("frm_anagrafica_estesa"):
             col1, col2, col3 = st.columns(3)
@@ -440,11 +441,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === Pulsante navigazione ai contratti ===
+    # --- Navigazione ai contratti ---
     if st.button("📄 Vai ai contratti di questo cliente"):
         st.session_state["nav_target"] = "Contratti"
         st.session_state["selected_client_id"] = sel_id
         st.rerun()
+
 
 # ==========================
 # CONTRATTI (versione estetica con AgGrid, stato e descrizione estesa)

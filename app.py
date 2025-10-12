@@ -256,7 +256,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         # prendo solo il contratto con la data più vicina per ogni cliente
         scad = scad.sort_values("DataFine").groupby("ClienteID").first().reset_index()
         scad = scad.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-        scad_show = scad[["RagioneSociale", "NumeroContratto", "DataFine", "Descrizione"]].copy()
+        # Usa il nome reale della colonna di descrizione
+desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in scad.columns else "Descrizione"
+scad_show = scad[["RagioneSociale", "NumeroContratto", "DataFine", desc_col]].copy()
+scad_show = scad_show.rename(columns={desc_col: "Descrizione"})
+
         scad_show["DataFine"] = scad_show["DataFine"].dt.strftime("%d/%m/%Y")
         scad_show["Descrizione"] = scad_show["Descrizione"].astype(str).str.slice(0, 50) + "..."
         st.dataframe(scad_show, use_container_width=True, hide_index=True)

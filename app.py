@@ -1,4 +1,4 @@
-# app.py — Gestionale Clienti SHT (dashboard buona + clienti + nuovo cliente + contratti con dblclick via components.html)
+# app.py — Gestionale Clienti SHT
 from __future__ import annotations
 
 import html as pyhtml
@@ -114,7 +114,7 @@ def save_contratti(df: pd.DataFrame):
     out.to_csv(CONTRATTI_CSV, index=False)
 
 # ==========================
-# HTML TABLE SAFE + INTERACTIVE (via components.html)
+# HTML TABLE SAFE + INTERACTIVE
 # ==========================
 TABLE_CSS = """
 <style>
@@ -178,11 +178,9 @@ def html_table_interactive_block(df: pd.DataFrame, *, closed_mask: pd.Series | N
   table.addEventListener('click', function(ev){
     const tr = ev.target.closest('tr');
     if(!tr) return;
-    const now = Date.now();
-    // seleziona riga
     table.querySelectorAll('tr').forEach(row => row.classList.remove('row-selected'));
     tr.classList.add('row-selected');
-    // doppio click
+    const now = Date.now();
     if (now - lastClick < 300){
       const desc = tr.getAttribute('data-desc') || '';
       const box = document.getElementById('descBox');
@@ -200,7 +198,7 @@ def html_table_interactive_block(df: pd.DataFrame, *, closed_mask: pd.Series | N
     show_html(html, height=height, scrolling=True)
 
 # ==========================
-# AUTH semplice
+# AUTH
 # ==========================
 def do_login() -> Tuple[str, str]:
     users = st.secrets.get("auth", {}).get("users", {})
@@ -223,7 +221,7 @@ def do_login() -> Tuple[str, str]:
     return ("", "")
 
 # ==========================
-# DASHBOARD (ripristino sezioni recall/visite)
+# DASHBOARD
 # ==========================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Dashboard")
@@ -315,7 +313,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown(html_table(tab), unsafe_allow_html=True)
 
 # ==========================
-# CLIENTI + NUOVO CLIENTE
+# CLIENTI (nuovo + modifica anagrafica)
 # ==========================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Clienti")
@@ -348,7 +346,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 if not ragsoc.strip():
                     st.error("Ragione sociale obbligatoria.")
                     st.stop()
-                # genera nuovo ID
                 if df_cli.empty:
                     new_id = 1
                 else:
@@ -412,6 +409,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     sel_id = str(df_cli.iloc[labels[labels==sel_label].index[0]]["ClienteID"])
     row = df_cli[df_cli["ClienteID"].astype(str)==sel_id].iloc[0]
 
+    # Riepilogo
     st.markdown("### Riepilogo")
     c1,c2,c3 = st.columns(3)
     with c1:
@@ -427,6 +425,53 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown(f"**P.IVA:** {row.get('PartitaIVA','')}")
         st.markdown(f"**SDI:** {row.get('SDI','')}")
     st.markdown(f"**Note:** {row.get('Note','')}")
+
+    # ----- modifica anagrafica (come prima)
+    with st.expander("Anagrafica (modificabile)", expanded=False):
+        with st.form("frm_edit_client"):
+            ragsoc = st.text_input("Ragione sociale", row.get("RagioneSociale",""))
+            ref    = st.text_input("Persona di riferimento", row.get("PersonaRiferimento",""))
+            indir  = st.text_input("Indirizzo", row.get("Indirizzo",""))
+            cap    = st.text_input("CAP", row.get("CAP",""))
+            citta  = st.text_input("Città", row.get("Citta",""))
+            tel    = st.text_input("Telefono", row.get("Telefono",""))
+            cell   = st.text_input("Cell", row.get("Cell",""))
+            mail   = st.text_input("Email", row.get("Email",""))
+            piva   = st.text_input("Partita IVA", str(row.get("PartitaIVA","")))
+            sdi    = st.text_input("SDI", row.get("SDI",""))
+            note   = st.text_area("Note", row.get("Note",""))
+
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                ult_recall   = st.date_input("Ultimo recall", value=as_date(row.get("UltimoRecall")))
+            with c2:
+                pross_recall = st.date_input("Prossimo recall", value=as_date(row.get("ProssimoRecall")))
+            with c3:
+                ult_visita   = st.date_input("Ultima visita", value=as_date(row.get("UltimaVisita")))
+            with c4:
+                pross_visita = st.date_input("Prossima visita", value=as_date(row.get("ProssimaVisita")))
+
+            if st.form_submit_button("Salva modifiche", use_container_width=True):
+                idx_row = df_cli.index[df_cli["ClienteID"].astype(str)==sel_id][0]
+                df_cli.loc[idx_row, "RagioneSociale"]    = ragsoc
+                df_cli.loc[idx_row, "PersonaRiferimento"]= ref
+                df_cli.loc[idx_row, "Indirizzo"]         = indir
+                df_cli.loc[idx_row, "CAP"]               = cap
+                df_cli.loc[idx_row, "Citta"]             = citta
+                df_cli.loc[idx_row, "Telefono"]          = tel
+                df_cli.loc[idx_row, "Cell"]              = cell
+                df_cli.loc[idx_row, "Email"]             = mail
+                df_cli.loc[idx_row, "PartitaIVA"]        = piva
+                df_cli.loc[idx_row, "SDI"]               = sdi
+                df_cli.loc[idx_row, "Note"]              = note
+                df_cli.loc[idx_row, "UltimoRecall"]      = pd.to_datetime(ult_recall) if ult_recall else ""
+                df_cli.loc[idx_row, "ProssimoRecall"]    = pd.to_datetime(pross_recall) if pross_recall else ""
+                df_cli.loc[idx_row, "UltimaVisita"]      = pd.to_datetime(ult_visita) if ult_visita else ""
+                df_cli.loc[idx_row, "ProssimaVisita"]    = pd.to_datetime(pross_visita) if pross_visita else ""
+                save_clienti(df_cli)
+                st.success("Dati cliente aggiornati.")
+                st.rerun()
+
     st.divider()
     if st.button("Vai ai contratti di questo cliente"):
         st.session_state["nav_target"] = "Contratti"
@@ -434,8 +479,86 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.rerun()
 
 # ==========================
-# CONTRATTI (dblclick via components.html, export)
+# PDF (FPDF) — opzionale
 # ==========================
+def generate_pdf_table(df: pd.DataFrame, title: str = "Contratti") -> bytes | None:
+    try:
+        from fpdf import FPDF
+    except Exception:
+        return None
+
+    class PDF(FPDF):
+        def header(self):
+            self.set_font("Arial", "B", 12)
+            self.cell(0, 8, title, ln=1, align="C")
+            self.ln(2)
+
+    pdf = PDF(orientation="L", unit="mm", format="A4")
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=10)
+    pdf.set_font("Arial", size=9)
+
+    columns = [
+        "NumeroContratto", "DataInizio", "DataFine", "Durata",
+        "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
+    ]
+    col_widths = [30, 25, 25, 20, 120, 20, 20, 25, 20]  # descrizione più larga
+
+    # Header
+    for i, col in enumerate(columns):
+        pdf.cell(col_widths[i], 8, col, border=1)
+    pdf.ln()
+
+    # Rows
+    for _, row in df.iterrows():
+        for i, col in enumerate(columns):
+            text = str(row.get(col, "") if not pd.isna(row.get(col, "")) else "")
+            if col == "DescrizioneProdotto":
+                # multi_cell in-place
+                x = pdf.get_x(); y = pdf.get_y()
+                pdf.multi_cell(col_widths[i], 6, txt=text, border=1)
+                h = pdf.get_y() - y
+                # riposiziona per le celle successive della stessa riga
+                pdf.set_xy(x + col_widths[i], y)
+                # le altre celle della riga devono allinearsi in altezza:
+                for j in range(i+1, len(columns)):
+                    t2 = str(row.get(columns[j], "") if not pd.isna(row.get(columns[j], "")) else "")
+                    pdf.cell(col_widths[j], h, t2, border=1)
+                pdf.ln()
+                break
+            else:
+                pdf.cell(col_widths[i], 6, text, border=1)
+        # se non è passata dalla descrizione (riga senza descrizione)
+        if "DescrizioneProdotto" not in columns:
+            pdf.ln()
+
+    return pdf.output(dest="S").encode("latin-1")
+
+# ==========================
+# EXCEL (xlsxwriter) — fallback CSV
+# ==========================
+def _xlsx_bytes_from_df(df_disp: pd.DataFrame):
+    try:
+        import xlsxwriter  # noqa
+    except Exception:
+        return None
+    bio = BytesIO()
+    with pd.ExcelWriter(bio, engine="xlsxwriter") as writer:
+        df_disp.to_excel(writer, sheet_name="Contratti", index=False)
+        wb = writer.book
+        ws = writer.sheets["Contratti"]
+        ws.set_landscape(); ws.set_paper(9); ws.set_margins(left=0.3, right=0.3, top=0.4, bottom=0.4)
+        wrap = wb.add_format({"text_wrap": True, "valign": "top"})
+        header = wb.add_format({"bold": True, "bg_color": "#EEF7FF", "border":1})
+        for c, name in enumerate(df_disp.columns):
+            ws.write(0, c, name, header)
+            if str(name).lower().startswith("descrizione"):
+                ws.set_column(c, c, 60, wrap)
+            else:
+                ws.set_column(c, c, 14)
+    bio.seek(0)
+    return bio.getvalue()
+
 def _make_printable_html(df_disp: pd.DataFrame, titolo: str = "Contratti") -> str:
     head = """
 <!doctype html><html><head><meta charset="utf-8">
@@ -464,28 +587,9 @@ th { background: #eef7ff; }
     tbody = "<tbody>" + "".join(rows) + "</tbody>"
     return head + "<h2>{}</h2><table>{}{}</table></body></html>".format(pyhtml.escape(titolo), thead, tbody)
 
-def _xlsx_bytes_from_df(df_disp: pd.DataFrame):
-    try:
-        import xlsxwriter  # noqa
-    except Exception:
-        return None
-    bio = BytesIO()
-    with pd.ExcelWriter(bio, engine="xlsxwriter") as writer:
-        df_disp.to_excel(writer, sheet_name="Contratti", index=False)
-        wb = writer.book
-        ws = writer.sheets["Contratti"]
-        ws.set_landscape(); ws.set_paper(9); ws.set_margins(left=0.3, right=0.3, top=0.4, bottom=0.4)
-        wrap = wb.add_format({"text_wrap": True, "valign": "top"})
-        header = wb.add_format({"bold": True, "bg_color": "#EEF7FF", "border":1})
-        for c, name in enumerate(df_disp.columns):
-            ws.write(0, c, name, header)
-            if str(name).lower().startswith("descrizione"):
-                ws.set_column(c, c, 60, wrap)
-            else:
-                ws.set_column(c, c, 14)
-    bio.seek(0)
-    return bio.getvalue()
-
+# ==========================
+# CONTRATTI
+# ==========================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("Contratti")
     if df_cli.empty:
@@ -557,7 +661,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if idx_to_label:
         i_sel = st.selectbox("Seleziona riga", list(idx_to_label.keys()), format_func=lambda k: idx_to_label[k])
         curr = (ct.loc[i_sel,"Stato"] or "aperto").lower()
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
             if curr == "chiuso":
                 if st.button("Riapri contratto"):
@@ -576,10 +680,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.download_button("Esporta CSV", data=csv,
                                    file_name=f"contratti_{rag_soc}.csv", mime="text/csv")
         with c3:
-            printable_html = _make_printable_html(disp, f"Contratti — {rag_soc}")
-            st.download_button("Scarica PDF (HTML A4)", data=printable_html.encode("utf-8"),
-                               file_name=f"contratti_{rag_soc}.html", mime="text/html")
-            st.caption("Apri il file e Stampa → Salva come PDF.")
+            # PDF con FPDF (se disponibile), altrimenti HTML da stampare
+            pdf_bytes = generate_pdf_table(disp, f"Contratti — {rag_soc}")
+            if pdf_bytes:
+                st.download_button("Scarica PDF (FPDF)", data=pdf_bytes,
+                                   file_name=f"contratti_{rag_soc}.pdf", mime="application/pdf")
+            else:
+                printable_html = _make_printable_html(disp, f"Contratti — {rag_soc}")
+                st.download_button("Scarica PDF (HTML A4)", data=printable_html.encode("utf-8"),
+                                   file_name=f"contratti_{rag_soc}.html", mime="text/html")
+        with c4:
+            st.caption("Suggerimento: usa il doppio-click sulla riga per leggere tutta la descrizione.")
 
 # ==========================
 # APP

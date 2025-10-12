@@ -218,11 +218,7 @@ def do_login() -> Tuple[str, str]:
         return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
     return ("", "")
 
-# ==========================
-# (il resto: dashboard, clienti, contratti, main)
-# ==========================
-# DASHBOARD
-# ==========================
+
 # ==========================
 # DASHBOARD
 # ==========================
@@ -238,47 +234,44 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col2:
         st.metric("Contratti attivi", len(df_ct[df_ct["Stato"].str.lower() != "chiuso"]))
     with col3:
-        scad = df_ct[
+        scad_tmp = df_ct[
             (df_ct["DataFine"].notna())
             & (df_ct["DataFine"] >= today)
             & (df_ct["DataFine"] <= today + pd.DateOffset(months=6))
             & (df_ct["Stato"].str.lower() != "chiuso")
         ]
-        st.metric("Contratti in scadenza (6 mesi)", len(scad))
+        st.metric("Contratti in scadenza (6 mesi)", len(scad_tmp))
 
     st.divider()
-# --- Prepara i contratti in scadenza ---
-df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
-df_ct["Stato"] = df_ct["Stato"].fillna("Attivo")
 
-today = pd.Timestamp.now().normalize()
+    # --- Prepara i contratti in scadenza ---
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+    df_ct["Stato"] = df_ct["Stato"].fillna("Attivo")
 
-scad = df_ct[
-    (df_ct["DataFine"].notna())
-    & (df_ct["DataFine"] >= today)
-    & (df_ct["DataFine"] <= today + pd.DateOffset(months=6))
-    & (df_ct["Stato"].str.lower() != "chiuso")
-]
+    scad = df_ct[
+        (df_ct["DataFine"].notna())
+        & (df_ct["DataFine"] >= today)
+        & (df_ct["DataFine"] <= today + pd.DateOffset(months=6))
+        & (df_ct["Stato"].str.lower() != "chiuso")
+    ]
 
     # --- BOX CONTRATTI IN SCADENZA ---
+    st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
+    if scad.empty:
+        st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
+    else:
+        # prendo solo il contratto con la data più vicina per ogni cliente
+        scad = scad.sort_values("DataFine").groupby("ClienteID").first().reset_index()
+        scad = scad.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
-st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
-if scad.empty:
-    st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
-else:
-    # prendo solo il contratto con la data più vicina per ogni cliente
-    scad = scad.sort_values("DataFine").groupby("ClienteID").first().reset_index()
-    scad = scad.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+        # usa la colonna giusta per la descrizione
+        desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in scad.columns else "Descrizione"
+        scad_show = scad[["RagioneSociale", "NumeroContratto", "DataFine", desc_col]].copy()
+        scad_show = scad_show.rename(columns={desc_col: "Descrizione"})
 
-    # usa la colonna giusta per la descrizione
-    desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in scad.columns else "Descrizione"
-    scad_show = scad[["RagioneSociale", "NumeroContratto", "DataFine", desc_col]].copy()
-    scad_show = scad_show.rename(columns={desc_col: "Descrizione"})
-
-    scad_show["DataFine"] = scad_show["DataFine"].dt.strftime("%d/%m/%Y")
-    scad_show["Descrizione"] = scad_show["Descrizione"].astype(str).str.slice(0, 50) + "..."
-    st.dataframe(scad_show, use_container_width=True, hide_index=True)
-
+        scad_show["DataFine"] = scad_show["DataFine"].dt.strftime("%d/%m/%Y")
+        scad_show["Descrizione"] = scad_show["Descrizione"].astype(str).str.slice(0, 50) + "..."
+        st.dataframe(scad_show, use_container_width=True, hide_index=True)
 
     # --- BOX PROMEMORIA CONTRATTI SENZA DATA FINE ---
     st.subheader("⏰ Promemoria: Contratti Senza Data Fine (da oggi in poi)")
@@ -292,7 +285,9 @@ else:
         st.info("✅ Nessun nuovo contratto senza data fine.")
     else:
         recenti = recenti.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-        recenti_show = recenti[["RagioneSociale", "NumeroContratto", "DataInizio", "Descrizione"]].copy()
+        desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in recenti.columns else "Descrizione"
+        recenti_show = recenti[["RagioneSociale", "NumeroContratto", "DataInizio", desc_col]].copy()
+        recenti_show = recenti_show.rename(columns={desc_col: "Descrizione"})
         recenti_show["DataInizio"] = recenti_show["DataInizio"].dt.strftime("%d/%m/%Y")
         st.dataframe(recenti_show, use_container_width=True, hide_index=True)
 
@@ -317,6 +312,7 @@ else:
         df_rv = df_rv.sort_values("Data", ascending=False).head(10)
         df_rv["Data"] = df_rv["Data"].dt.strftime("%d/%m/%Y")
         st.dataframe(df_rv, use_container_width=True, hide_index=True)
+
 
 
 # ==========================

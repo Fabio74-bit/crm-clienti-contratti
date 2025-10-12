@@ -73,6 +73,13 @@ def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
             df[c] = pd.NA
     return df[cols].copy()
 
+def s(x) -> str:
+    """Stringa sicura per i text_input (evita pd.NA / NaN)."""
+    try:
+        return "" if pd.isna(x) else str(x)
+    except Exception:
+        return "" if x is None else str(x)
+
 def show_html(html: str, height: int = 420, scrolling: bool = True):
     components.html(html, height=height, scrolling=scrolling)
 
@@ -413,35 +420,33 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("### Riepilogo")
     c1,c2,c3 = st.columns(3)
     with c1:
-        st.markdown(f"**ClienteID:** {row.get('ClienteID','')}")
-        st.markdown(f"**Ragione Sociale:** {row.get('RagioneSociale','')}")
-        st.markdown(f"**Riferimento:** {row.get('PersonaRiferimento','')}")
+        st.markdown(f"**ClienteID:** {s(row.get('ClienteID'))}")
+        st.markdown(f"**Ragione Sociale:** {s(row.get('RagioneSociale'))}")
+        st.markdown(f"**Riferimento:** {s(row.get('PersonaRiferimento'))}")
     with c2:
-        st.markdown(f"**Indirizzo:** {row.get('Indirizzo','')}")
-        st.markdown(f"**CAP/Città:** {row.get('CAP','')} {row.get('Citta','')}")
-        st.markdown(f"**Telefono/Cell:** {row.get('Telefono','')} / {row.get('Cell','')}")
+        st.markdown(f"**Indirizzo:** {s(row.get('Indirizzo'))}")
+        st.markdown(f"**CAP/Città:** {s(row.get('CAP'))} {s(row.get('Citta'))}")
+        st.markdown(f"**Telefono/Cell:** {s(row.get('Telefono'))} / {s(row.get('Cell'))}")
     with c3:
-        st.markdown(f"**Email:** {row.get('Email','')}")
-        st.markdown(f"**P.IVA:** {row.get('PartitaIVA','')}")
-        st.markdown(f"**SDI:** {row.get('SDI','')}")
-    st.markdown(f"**Note:** {row.get('Note','')}")
+        st.markdown(f"**Email:** {s(row.get('Email'))}")
+        st.markdown(f"**P.IVA:** {s(row.get('PartitaIVA'))}")
+        st.markdown(f"**SDI:** {s(row.get('SDI'))}")
+    st.markdown(f"**Note:** {s(row.get('Note'))}")
 
-    # ----- modifica anagrafica (come prima)
+    # ----- modifica anagrafica (usa s() su TUTTI i text_input)
     with st.expander("Anagrafica (modificabile)", expanded=False):
         with st.form("frm_edit_client"):
-            ragsoc = st.text_input("Ragione sociale", row.get("RagioneSociale",""))
-           ref_val = row.get("PersonaRiferimento", "")
-ref = st.text_input("Persona di riferimento", "" if pd.isna(ref_val) else str(ref_val))
-
-            indir  = st.text_input("Indirizzo", row.get("Indirizzo",""))
-            cap    = st.text_input("CAP", row.get("CAP",""))
-            citta  = st.text_input("Città", row.get("Citta",""))
-            tel    = st.text_input("Telefono", row.get("Telefono",""))
-            cell   = st.text_input("Cell", row.get("Cell",""))
-            mail   = st.text_input("Email", row.get("Email",""))
-            piva   = st.text_input("Partita IVA", str(row.get("PartitaIVA","")))
-            sdi    = st.text_input("SDI", row.get("SDI",""))
-            note   = st.text_area("Note", row.get("Note",""))
+            ragsoc = st.text_input("Ragione sociale", s(row.get("RagioneSociale")))
+            ref    = st.text_input("Persona di riferimento", s(row.get("PersonaRiferimento")))
+            indir  = st.text_input("Indirizzo", s(row.get("Indirizzo")))
+            cap    = st.text_input("CAP", s(row.get("CAP")))
+            citta  = st.text_input("Città", s(row.get("Citta")))
+            tel    = st.text_input("Telefono", s(row.get("Telefono")))
+            cell   = st.text_input("Cell", s(row.get("Cell")))
+            mail   = st.text_input("Email", s(row.get("Email")))
+            piva   = st.text_input("Partita IVA", s(row.get("PartitaIVA")))
+            sdi    = st.text_input("SDI", s(row.get("SDI")))
+            note   = st.text_area("Note", s(row.get("Note")))
 
             c1, c2, c3, c4 = st.columns(4)
             with c1:
@@ -504,35 +509,27 @@ def generate_pdf_table(df: pd.DataFrame, title: str = "Contratti") -> bytes | No
         "NumeroContratto", "DataInizio", "DataFine", "Durata",
         "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
     ]
-    col_widths = [30, 25, 25, 20, 120, 20, 20, 25, 20]  # descrizione più larga
+    col_widths = [30, 25, 25, 20, 120, 20, 20, 25, 20]
 
-    # Header
     for i, col in enumerate(columns):
         pdf.cell(col_widths[i], 8, col, border=1)
     pdf.ln()
 
-    # Rows
     for _, row in df.iterrows():
         for i, col in enumerate(columns):
-            text = str(row.get(col, "") if not pd.isna(row.get(col, "")) else "")
+            text = "" if pd.isna(row.get(col, "")) else str(row.get(col, ""))
             if col == "DescrizioneProdotto":
-                # multi_cell in-place
                 x = pdf.get_x(); y = pdf.get_y()
                 pdf.multi_cell(col_widths[i], 6, txt=text, border=1)
                 h = pdf.get_y() - y
-                # riposiziona per le celle successive della stessa riga
                 pdf.set_xy(x + col_widths[i], y)
-                # le altre celle della riga devono allinearsi in altezza:
                 for j in range(i+1, len(columns)):
-                    t2 = str(row.get(columns[j], "") if not pd.isna(row.get(columns[j], "")) else "")
+                    t2 = "" if pd.isna(row.get(columns[j], "")) else str(row.get(columns[j], ""))
                     pdf.cell(col_widths[j], h, t2, border=1)
                 pdf.ln()
                 break
             else:
                 pdf.cell(col_widths[i], 6, text, border=1)
-        # se non è passata dalla descrizione (riga senza descrizione)
-        if "DescrizioneProdotto" not in columns:
-            pdf.ln()
 
     return pdf.output(dest="S").encode("latin-1")
 
@@ -682,7 +679,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.download_button("Esporta CSV", data=csv,
                                    file_name=f"contratti_{rag_soc}.csv", mime="text/csv")
         with c3:
-            # PDF con FPDF (se disponibile), altrimenti HTML da stampare
             pdf_bytes = generate_pdf_table(disp, f"Contratti — {rag_soc}")
             if pdf_bytes:
                 st.download_button("Scarica PDF (FPDF)", data=pdf_bytes,

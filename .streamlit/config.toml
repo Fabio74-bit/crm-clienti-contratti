@@ -9,17 +9,6 @@ textColor = "#0d1117"               # quasi nero
 
 [server]
 headless = true
-# .streamlit/config.toml
-
-[theme]
-base = "light"
-primaryColor = "#2563eb"            # blu principale
-backgroundColor = "#f8fafc"         # grigio/azzurro molto chiaro
-secondaryBackgroundColor = "#ffffff"
-textColor = "#0d1117"               # quasi nero
-
-[server]
-headless = true
 
 [auth]
 
@@ -44,4 +33,3 @@ headless = true
     [auth.users.antonella]
     password = "SCEGLI-LA-TUA-PASS"
     role     = "contributor"
-

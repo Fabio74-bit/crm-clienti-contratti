@@ -333,25 +333,31 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
     TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
-    # === Ricerca cliente ===
-    if "search_query" not in st.session_state:
-        st.session_state["search_query"] = ""
-    search_query = st.text_input("🔍 Cerca cliente per nome:", st.session_state["search_query"])
-    filtered = df_cli[df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)] if search_query else df_cli
+ # === Ricerca cliente ===
+if "search_query" not in st.session_state:
+    st.session_state["search_query"] = ""
 
-    if filtered.empty:
-        st.info("Nessun cliente trovato.")
-        return
+def clear_search():
+    st.session_state["search_query"] = ""
 
-    options = filtered["RagioneSociale"].tolist()
-    sel_rag = st.selectbox("Seleziona Cliente", options, key="sel_cliente_box")
-    cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
-    sel_id = cliente["ClienteID"]
+search_query = st.text_input("🔍 Cerca cliente per nome:", st.session_state["search_query"], key="search_field")
 
-    # Reset campo ricerca dopo selezione
-    if st.session_state["search_query"]:
-        st.session_state["search_query"] = ""
-        st.experimental_rerun()
+filtered = df_cli[df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)] if search_query else df_cli
+
+if filtered.empty:
+    st.info("Nessun cliente trovato.")
+    return
+
+options = filtered["RagioneSociale"].tolist()
+sel_rag = st.selectbox("Seleziona Cliente", options, key="sel_cliente_box")
+cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
+sel_id = cliente["ClienteID"]
+
+# ✅ Svuota campo ricerca dopo selezione
+if search_query:
+    clear_search()
+    st.experimental_rerun()
+
 
     # === DATI CLIENTE BASE ===
     st.markdown(f"### 🏢 {cliente['RagioneSociale']}")
@@ -473,30 +479,39 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
                 df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
 
-                # === CREA IL FILE DOCX DAL TEMPLATE ===
-                template_path = (TEMPLATES_DIR / TEMPLATE_OPTIONS[template]).resolve()
-                output_path = (EXTERNAL_PROPOSALS_DIR / nome_file).resolve()
+               # === CREA IL FILE DOCX DAL TEMPLATE ===
+template_path = (TEMPLATES_DIR / TEMPLATE_OPTIONS[template]).resolve()
+output_path = (EXTERNAL_PROPOSALS_DIR / nome_file).resolve()
 
-                if not template_path.exists():
-                    st.error(f"❌ Template non trovato: {template_path}")
-                else:
-                    doc = Document(template_path)
-                    mapping = {
-                        "CLIENTE": cliente.get("RagioneSociale", ""),
-                        "INDIRIZZO": cliente.get("Indirizzo", ""),
-                        "CITTA": cliente.get("Citta", ""),
-                        "NUMERO_OFFERTA": num,
-                        "DATA": datetime.now().strftime("%d/%m/%Y")
-                    }
-                    for p in doc.paragraphs:
-                        for key, val in mapping.items():
-                            token = f"<<{key}>>"
-                            if token in p.text:
-                                for run in p.runs:
-                                    run.text = run.text.replace(token, str(val))
-                    doc.save(str(output_path))
-                    st.success(f"✅ Preventivo creato: {output_path.name}")
-                st.rerun()
+try:
+    EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not template_path.exists():
+        st.error(f"❌ Template non trovato: {template_path}")
+    else:
+        doc = Document(template_path)
+        mapping = {
+            "CLIENTE": cliente.get("RagioneSociale", ""),
+            "INDIRIZZO": cliente.get("Indirizzo", ""),
+            "CITTA": cliente.get("Citta", ""),
+            "NUMERO_OFFERTA": num,
+            "DATA": datetime.now().strftime("%d/%m/%Y")
+        }
+        for p in doc.paragraphs:
+            for key, val in mapping.items():
+                token = f"<<{key}>>"
+                if token in p.text:
+                    for run in p.runs:
+                        run.text = run.text.replace(token, str(val))
+
+        # ✅ Salva SEMPRE in locale
+        doc.save(str(output_path))
+        st.success(f"✅ Preventivo salvato in locale: {output_path}")
+        st.info(f"📂 Cartella: {EXTERNAL_PROPOSALS_DIR}")
+
+except Exception as e:
+    st.error(f"❌ Errore nel salvataggio del file: {e}")
+
 
     # === APRI CARTELLA PREVENTIVI ===
     if st.button("📂 Apri cartella Preventivi", key=f"open_dir_{sel_id}", use_container_width=True):

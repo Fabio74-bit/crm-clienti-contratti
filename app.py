@@ -447,6 +447,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
+   
     # === Creazione Preventivo ===
     st.markdown("### 🧾 Crea Nuovo Preventivo")
 
@@ -457,6 +458,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         "Varie": "Offerta_Varie.docx"
     }
 
+    TEMPLATES_DIR = Path("templates")   # ✅ nuova cartella fissa
+    EXTERNAL_PROPOSALS_DIR = Path("preventivi")
+    EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
+
     with st.form("frm_new_prev"):
         num = st.text_input("Numero Offerta (es. OFF-2025-001)")
         nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
@@ -465,10 +470,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     if submitted:
         try:
-            EXTERNAL_PROPOSALS_DIR = Path("preventivi")
-            TEMPLATES_DIR = Path(".")
-            EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
-
             template_path = (TEMPLATES_DIR / TEMPLATE_OPTIONS[template]).resolve()
             output_path = (EXTERNAL_PROPOSALS_DIR / nome_file).resolve()
 
@@ -494,6 +495,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.success(f"✅ Preventivo salvato in locale: {output_path}")
         except Exception as e:
             st.error(f"❌ Errore nel salvataggio del file: {e}")
+
 
 
 

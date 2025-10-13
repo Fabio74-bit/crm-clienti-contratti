@@ -356,21 +356,42 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.write(f"**Ultima Visita:** {cliente.get('UltimaVisita', '')}")
 
     # === MODIFICA ANAGRAFICA ===
+    # === MODIFICA ANAGRAFICA + GESTIONE RECALL/VISITE ===
     st.divider()
     with st.expander("📝 Modifica Anagrafica", expanded=False):
         with st.form("frm_anagrafica"):
             col1, col2, col3 = st.columns(3)
             with col1:
-                rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale",""))
-                ref = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento",""))
+                rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale", ""))
+                ref = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+                ult_recall = st.date_input(
+                    "Ultimo Recall",
+                    value=as_date(cliente.get("UltimoRecall")),
+                    format="DD/MM/YYYY"
+                )
             with col2:
-                indir = st.text_input("Indirizzo", cliente.get("Indirizzo",""))
-                citta = st.text_input("Città", cliente.get("Citta",""))
-                cap = st.text_input("CAP", cliente.get("CAP",""))
+                indir = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
+                citta = st.text_input("Città", cliente.get("Citta", ""))
+                cap = st.text_input("CAP", cliente.get("CAP", ""))
+                ult_visita = st.date_input(
+                    "Ultima Visita",
+                    value=as_date(cliente.get("UltimaVisita")),
+                    format="DD/MM/YYYY"
+                )
             with col3:
-                piva = st.text_input("Partita IVA", cliente.get("PartitaIVA",""))
-                sdi = st.text_input("SDI", cliente.get("SDI",""))
-                mail = st.text_input("Email", cliente.get("Email",""))
+                piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
+                sdi = st.text_input("SDI", cliente.get("SDI", ""))
+                mail = st.text_input("Email", cliente.get("Email", ""))
+
+            # Calcolo automatico delle prossime date
+            next_recall = pd.NaT if pd.isna(ult_recall) else pd.to_datetime(ult_recall) + pd.DateOffset(months=3)
+            next_visita = pd.NaT if pd.isna(ult_visita) else pd.to_datetime(ult_visita) + pd.DateOffset(months=6)
+
+            st.markdown("**Prossimo Recall (auto):** " +
+                        (next_recall.strftime("%d/%m/%Y") if not pd.isna(next_recall) else "—"))
+            st.markdown("**Prossima Visita (auto):** " +
+                        (next_visita.strftime("%d/%m/%Y") if not pd.isna(next_visita) else "—"))
+
             if st.form_submit_button("💾 Salva Anagrafica"):
                 err = False
                 if cap and (not cap.isdigit() or len(cap) != 5):
@@ -382,15 +403,24 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 if mail and "@" not in mail:
                     st.error("❌ Email non valida.")
                     err = True
+
                 if not err:
                     idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                    df_cli.loc[idx, ["RagioneSociale","PersonaRiferimento","Indirizzo",
-                                     "Citta","CAP","PartitaIVA","Email","SDI"]] = [
-                        rag, ref, indir, citta, cap, piva, mail, sdi
+                    df_cli.loc[idx, [
+                        "RagioneSociale", "PersonaRiferimento", "Indirizzo",
+                        "Citta", "CAP", "PartitaIVA", "Email", "SDI",
+                        "UltimoRecall", "UltimaVisita",
+                        "ProssimoRecall", "ProssimaVisita"
+                    ]] = [
+                        rag, ref, indir, citta, cap, piva, mail, sdi,
+                        pd.to_datetime(ult_recall) if not pd.isna(ult_recall) else "",
+                        pd.to_datetime(ult_visita) if not pd.isna(ult_visita) else "",
+                        next_recall, next_visita
                     ]
                     save_clienti(df_cli)
-                    st.success("✅ Anagrafica aggiornata.")
+                    st.success("✅ Anagrafica e date aggiornate correttamente.")
                     st.rerun()
+
 
     # === NOTE CLIENTE ===
     st.divider()
@@ -403,6 +433,41 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         save_clienti(df_cli)
         st.success("✅ Note aggiornate con successo.")
         st.rerun()
+
+    # === SEZIONE PREVENTIVI ===
+    st.divider()
+    st.markdown("### 📘 Preventivi Cliente")
+    prev_path = STORAGE_DIR / "preventivi.csv"
+    if prev_path.exists():
+        df_prev = pd.read_csv(prev_path, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+        prev_cliente = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
+        if prev_cliente.empty:
+            st.info("Nessun preventivo presente per questo cliente.")
+        else:
+            prev_cliente["DataCreazione"] = pd.to_datetime(prev_cliente["DataCreazione"], errors="coerce").dt.strftime("%d/%m/%Y")
+            st.dataframe(prev_cliente[["NumeroOfferta","Template","NomeFile","DataCreazione","Percorso"]],
+                         hide_index=True, use_container_width=True)
+    else:
+        st.info("⚠️ Nessun file preventivi.csv trovato.")
+
+    with st.expander("➕ Crea nuovo preventivo", expanded=False):
+        with st.form("frm_new_prev"):
+            num = st.text_input("Numero Offerta (es. OFF-2025-001)")
+            nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
+            template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
+            if st.form_submit_button("💾 Salva Preventivo"):
+                nuovo = {
+                    "ClienteID": sel_id,
+                    "NumeroOfferta": num,
+                    "Template": template,
+                    "NomeFile": nome_file,
+                    "Percorso": str(EXTERNAL_PROPOSALS_DIR / nome_file),
+                    "DataCreazione": datetime.now().strftime("%Y-%m-%d")
+                }
+                df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
+                df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
+                st.success("✅ Preventivo aggiunto con successo.")
+                st.rerun()
 
     # === LINK AI CONTRATTI ===
     st.divider()

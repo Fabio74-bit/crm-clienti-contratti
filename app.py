@@ -355,8 +355,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.write(f"**Ultimo Recall:** {cliente.get('UltimoRecall', '')}")
         st.write(f"**Ultima Visita:** {cliente.get('UltimaVisita', '')}")
 
-    # === MODIFICA ANAGRAFICA ===
-    # === MODIFICA ANAGRAFICA + GESTIONE RECALL/VISITE ===
+   
+        # === MODIFICA ANAGRAFICA + GESTIONE RECALL/VISITE ===
     st.divider()
     with st.expander("📝 Modifica Anagrafica", expanded=False):
         with st.form("frm_anagrafica"):
@@ -364,26 +364,28 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with col1:
                 rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale", ""))
                 ref = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-                ult_recall = st.date_input(
-                    "Ultimo Recall",
-                    value=as_date(cliente.get("UltimoRecall")),
-                    format="DD/MM/YYYY"
-                )
+
+                # Ultimo Recall (gestione NaT sicura)
+                curr_recall = as_date(cliente.get("UltimoRecall"))
+                recall_val = None if pd.isna(curr_recall) else curr_recall.to_pydatetime().date()
+                ult_recall = st.date_input("Ultimo Recall", value=recall_val, format="DD/MM/YYYY")
+
             with col2:
                 indir = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
                 citta = st.text_input("Città", cliente.get("Citta", ""))
                 cap = st.text_input("CAP", cliente.get("CAP", ""))
-                ult_visita = st.date_input(
-                    "Ultima Visita",
-                    value=as_date(cliente.get("UltimaVisita")),
-                    format="DD/MM/YYYY"
-                )
+
+                # Ultima Visita (gestione NaT sicura)
+                curr_visita = as_date(cliente.get("UltimaVisita"))
+                visita_val = None if pd.isna(curr_visita) else curr_visita.to_pydatetime().date()
+                ult_visita = st.date_input("Ultima Visita", value=visita_val, format="DD/MM/YYYY")
+
             with col3:
                 piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
                 sdi = st.text_input("SDI", cliente.get("SDI", ""))
                 mail = st.text_input("Email", cliente.get("Email", ""))
 
-            # Calcolo automatico delle prossime date
+            # === Calcolo automatico prossime date ===
             next_recall = pd.NaT if pd.isna(ult_recall) else pd.to_datetime(ult_recall) + pd.DateOffset(months=3)
             next_visita = pd.NaT if pd.isna(ult_visita) else pd.to_datetime(ult_visita) + pd.DateOffset(months=6)
 
@@ -392,6 +394,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.markdown("**Prossima Visita (auto):** " +
                         (next_visita.strftime("%d/%m/%Y") if not pd.isna(next_visita) else "—"))
 
+            # === Salvataggio anagrafica ===
             if st.form_submit_button("💾 Salva Anagrafica"):
                 err = False
                 if cap and (not cap.isdigit() or len(cap) != 5):
@@ -413,8 +416,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "ProssimoRecall", "ProssimaVisita"
                     ]] = [
                         rag, ref, indir, citta, cap, piva, mail, sdi,
-                        pd.to_datetime(ult_recall) if not pd.isna(ult_recall) else "",
-                        pd.to_datetime(ult_visita) if not pd.isna(ult_visita) else "",
+                        pd.to_datetime(ult_recall) if ult_recall else "",
+                        pd.to_datetime(ult_visita) if ult_visita else "",
                         next_recall, next_visita
                     ]
                     save_clienti(df_cli)

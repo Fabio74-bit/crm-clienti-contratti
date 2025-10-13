@@ -457,7 +457,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # 📂 Percorsi fissi
     BASE_DIR = Path(__file__).parent.resolve()
-    TEMPLATES_DIR = BASE_DIR / "templates"
+    TEMPLATES_DIR = BASE_DIR
     EXTERNAL_PROPOSALS_DIR = BASE_DIR / "preventivi"
     EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
 

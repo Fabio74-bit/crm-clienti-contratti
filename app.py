@@ -1,4 +1,4 @@
-# app.py — Gestionale Clienti SHT (versione stabile + integrazione OneDrive)
+# app_colorato.py — Gestionale Clienti SHT (versione aggiornata con colorazione contratti)
 from __future__ import annotations
 
 import os
@@ -112,7 +112,6 @@ def date_input_opt(label: str, current, *, key: str):
             return st.date_input(label, key=key)
         else:
             return st.date_input(label, value=d.to_pydatetime().date(), key=key)
-
 # ==========================
 # I/O DATI
 # ==========================
@@ -194,7 +193,6 @@ def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str, ragione_sociale:
     seq = len(subset) + 1
     numero = f"OFF-{year}-{safe_name}-{seq:03d}"
     return numero
-
 # ==========================
 # AUTH
 # ==========================
@@ -217,7 +215,6 @@ def do_login() -> Tuple[str, str]:
     if "auth_user" in st.session_state:
         return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
     return ("", "")
-
 
 # ==========================
 # DASHBOARD
@@ -293,7 +290,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # --- BOX ULTIMI RECALL E VISITE (SEPARATI) ---
+    # --- BOX ULTIMI RECALL E VISITE ---
     c1, c2 = st.columns(2)
 
     with c1:
@@ -323,11 +320,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                          hide_index=True, use_container_width=True)
         else:
             st.info("✅ Nessuna visita oltre 6 mesi.")
-
-
-
-
-
 # ==========================
 # CLIENTI
 # ==========================
@@ -354,7 +346,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"### 📋 {row.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
 
-    # NOTE cliente
     note_new = st.text_area("Note", row.get("Note", ""), height=100)
     if st.button("💾 Salva note"):
         idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
@@ -396,7 +387,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # Anagrafica
     with st.expander("🏢 Anagrafica (modificabile)", expanded=False):
         with st.form("frm_anagrafica"):
             col1, col2, col3 = st.columns(3)
@@ -426,86 +416,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
 
     st.divider()
-
-    # Preventivi
-    st.markdown("### 📄 Preventivi")
-    df_prev = load_preventivi()
-    tpl_label = st.radio("Seleziona template", list(TEMPLATE_OPTIONS.keys()), horizontal=True)
-    tpl_file = TEMPLATE_OPTIONS[tpl_label]
-    tpl_path = TEMPLATES_DIR / tpl_file
-    col_a, col_b = st.columns([0.5, 0.5], gap="large")
-    with col_a:
-        st.caption("Campi compilati automaticamente")
-        st.write(f"**Cliente:** {row.get('RagioneSociale','')}")
-        st.write(f"**Indirizzo:** {row.get('Indirizzo','')} — {row.get('CAP','')} {row.get('Citta','')}")
-        st.write("**Data documento:** oggi")
-        if st.button("Genera preventivo", type="primary"):
-            if not tpl_path.exists():
-                st.error(f"Template non trovato: {tpl_file}")
-            else:
-                client_folder = EXTERNAL_PROPOSALS_DIR / str(sel_id)
-                client_folder.mkdir(parents=True, exist_ok=True)
-                numero_offerta = _gen_offerta_number(df_prev, sel_id, row.get("RagioneSociale",""))
-                doc = Document(str(tpl_path))
-                mapping = {
-                    "CLIENTE": row.get("RagioneSociale",""),
-                    "INDIRIZZO": row.get("Indirizzo",""),
-                    "CITTA": f"{row.get('CAP','')} {row.get('Citta','')}".strip(),
-                    "DATA": datetime.today().strftime("%d/%m/%Y"),
-                    "NUMERO_OFFERTA": numero_offerta,
-                }
-                _replace_docx_placeholders(doc, mapping)
-                filename = f"{numero_offerta}.docx"
-                out_path = client_folder / filename
-                doc.save(str(out_path))
-                new_row = {
-                    "ClienteID": sel_id,
-                    "NumeroOfferta": numero_offerta,
-                    "Template": tpl_file,
-                    "NomeFile": filename,
-                    "Percorso": str(out_path),
-                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-                df_prev = pd.concat([df_prev, pd.DataFrame([new_row])], ignore_index=True)
-                save_preventivi(df_prev)
-                st.success(f"✅ Preventivo creato: {filename}")
-                st.rerun()
-
-    with col_b:
-        sub = df_prev[df_prev["ClienteID"].astype(str) == sel_id].copy().sort_values("DataCreazione", ascending=False)
-        if sub.empty:
-            st.info("Nessun preventivo per questo cliente.")
-        else:
-            for _, r in sub.iterrows():
-                with st.container(border=True):
-                    c1, c2 = st.columns([0.7, 0.3])
-                    with c1:
-                        st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}")
-                        st.caption(r.get("DataCreazione",""))
-                        link = f"{ONEDRIVE_BASE_URL}/{row.get('RagioneSociale','').replace(' ', '%20')}"
-                        st.markdown(f"[📂 Apri cartella OneDrive cliente]({link})")
-                    with c2:
-                        path = Path(r["Percorso"])
-                        if path.exists():
-                            with open(path, "rb") as fh:
-                                st.download_button(
-                                    "Apri/Scarica",
-                                    data=fh.read(),
-                                    file_name=path.name,
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    key=f"dl_prev_{r['NumeroOfferta']}"
-                                )
-                        else:
-                            st.error("File non trovato (controlla percorso OneDrive).")
-
-    st.divider()
     if st.button("📄 Vai ai contratti di questo cliente"):
         st.session_state["nav_target"] = "Contratti"
         st.session_state["selected_client_id"] = sel_id
         st.rerun()
 
 # ==========================
-# CONTRATTI + MAIN
+# CONTRATTI
 # ==========================
 def safe_text(txt):
     return str(txt).encode("latin-1", "replace").decode("latin-1")
@@ -559,11 +476,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.success("✅ Contratto creato.")
                 st.rerun()
 
-    # Tabella contratti
+    # ======== TABELLA CONTRATTI CON COLORI ========
     ct = df_ct[df_ct["ClienteID"].astype(str)==str(sel_id)].copy()
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
         return
+
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
@@ -575,22 +493,31 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
     js_code = JsCode("""
     function(params) {
-        if (params.data.Stato && params.data.Stato.toLowerCase() === 'chiuso') {
-            return { 'backgroundColor': '#ffe5e5', 'color': '#a10000' };
+        if (!params.data.Stato) return {};
+        const stato = params.data.Stato.toLowerCase();
+
+        if (stato === 'chiuso') {
+            return { 'backgroundColor': '#ffcccc', 'color': '#800000', 'fontWeight': 'bold' };
+        } else if (stato === 'attivo') {
+            return { 'backgroundColor': '#d7f7d7', 'color': '#006600' };
+        } else if (stato === 'nuovo') {
+            return { 'backgroundColor': '#fffacd', 'color': '#8a6d00' };
+        } else {
+            return {};
         }
-        return {};
-    }""")
+    }
+    """)
     gb.configure_grid_options(getRowStyle=js_code)
     grid_opts = gb.build()
     grid_resp = AgGrid(disp, gridOptions=grid_opts, theme="balham", height=350,
                        update_mode=GridUpdateMode.SELECTION_CHANGED, allow_unsafe_jscode=True)
+
     selected = grid_resp.get("selected_rows", [])
     if isinstance(selected, list) and len(selected)>0:
         sel = selected[0]
         st.markdown("### 📝 Descrizione completa")
         st.info(sel.get("DescrizioneProdotto", ""), icon="🪶")
-
-    # Chiudi / Riapri
+    # ======== GESTIONE STATO CONTRATTI ========
     st.divider()
     st.markdown("### ⚙️ Stato contratti")
     for i, r in ct.iterrows():
@@ -605,7 +532,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 if st.button("❌ Chiudi", key=f"close_{i}"):
                     df_ct.loc[i, "Stato"] = "chiuso"; save_contratti(df_ct); st.rerun()
 
-    # Esportazioni
+    # ======== ESPORTAZIONI ========
     st.divider()
     c1, c2 = st.columns(2)
     with c1:

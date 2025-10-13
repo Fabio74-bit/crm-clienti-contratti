@@ -341,7 +341,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         clear_search()
         st.rerun()
 
-
     # === Anagrafica principale ===
     st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
@@ -495,6 +494,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.success(f"✅ Preventivo salvato in locale: {output_path}")
         except Exception as e:
             st.error(f"❌ Errore nel salvataggio del file: {e}")
+
 
 
 # ==========================

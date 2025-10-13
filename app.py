@@ -339,7 +339,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # ✅ Svuota campo ricerca dopo selezione
     if search_query:
         clear_search()
-        st.experimental_rerun()
+        st.rerun()
+
 
     # === Anagrafica principale ===
     st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")

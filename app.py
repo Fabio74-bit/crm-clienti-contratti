@@ -309,9 +309,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                          hide_index=True, use_container_width=True)
         else:
             st.info("✅ Nessuna visita oltre 6 mesi.")
-# ==========================
-# CLIENTI
-# ==========================
+
 # ==========================
 # CLIENTI
 # ==========================
@@ -322,12 +320,26 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente. Esegui prima l'importazione da Excel.")
         return
 
-    # Selezione cliente
-    labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
-    sel_label = st.selectbox("Seleziona Cliente", labels.tolist())
-    sel_id = str(df_cli.iloc[labels[labels == sel_label].index[0]]["ClienteID"])
+    # === RICERCA CLIENTE ===
+    search = st.text_input("🔍 Cerca cliente per nome:", value="", placeholder="Digita il nome del cliente...")
+    filtered = df_cli[df_cli["RagioneSociale"].str.contains(search, case=False, na=False)] if search else df_cli
+    filtered = filtered.sort_values("RagioneSociale")
+
+    if filtered.empty:
+        st.warning("Nessun cliente trovato con questo nome.")
+        return
+
+    labels = filtered.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
+    sel_label = st.selectbox("Seleziona Cliente", labels.tolist(), key="sel_cliente")
+    sel_id = str(filtered.iloc[labels[labels == sel_label].index[0]]["ClienteID"])
     cliente = df_cli[df_cli["ClienteID"] == sel_id].iloc[0]
 
+    # Pulisce automaticamente la ricerca dopo selezione
+    if search:
+        st.session_state["last_search"] = ""
+        st.experimental_rerun()
+
+    # === DETTAGLI CLIENTE ===
     st.markdown(f"### 🏢 {cliente['RagioneSociale']}")
     st.caption(f"ClienteID: {sel_id}")
 
@@ -343,9 +355,45 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.write(f"**Ultimo Recall:** {cliente.get('UltimoRecall', '')}")
         st.write(f"**Ultima Visita:** {cliente.get('UltimaVisita', '')}")
 
+    # === MODIFICA ANAGRAFICA ===
     st.divider()
+    with st.expander("📝 Modifica Anagrafica", expanded=False):
+        with st.form("frm_anagrafica"):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale",""))
+                ref = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento",""))
+            with col2:
+                indir = st.text_input("Indirizzo", cliente.get("Indirizzo",""))
+                citta = st.text_input("Città", cliente.get("Citta",""))
+                cap = st.text_input("CAP", cliente.get("CAP",""))
+            with col3:
+                piva = st.text_input("Partita IVA", cliente.get("PartitaIVA",""))
+                sdi = st.text_input("SDI", cliente.get("SDI",""))
+                mail = st.text_input("Email", cliente.get("Email",""))
+            if st.form_submit_button("💾 Salva Anagrafica"):
+                err = False
+                if cap and (not cap.isdigit() or len(cap) != 5):
+                    st.error("❌ CAP non valido: deve contenere 5 cifre.")
+                    err = True
+                if piva and (not piva.isdigit() or len(piva) != 11):
+                    st.error("❌ Partita IVA non valida: deve contenere 11 cifre.")
+                    err = True
+                if mail and "@" not in mail:
+                    st.error("❌ Email non valida.")
+                    err = True
+                if not err:
+                    idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                    df_cli.loc[idx, ["RagioneSociale","PersonaRiferimento","Indirizzo",
+                                     "Citta","CAP","PartitaIVA","Email","SDI"]] = [
+                        rag, ref, indir, citta, cap, piva, mail, sdi
+                    ]
+                    save_clienti(df_cli)
+                    st.success("✅ Anagrafica aggiornata.")
+                    st.rerun()
 
-    # NOTE CLIENTE
+    # === NOTE CLIENTE ===
+    st.divider()
     st.markdown("### 🗒️ Note Cliente")
     note_attuali = cliente.get("NoteCliente", "")
     nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=200)
@@ -356,9 +404,15 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.success("✅ Note aggiornate con successo.")
         st.rerun()
 
+    # === LINK AI CONTRATTI ===
     st.divider()
+    if st.button("📄 Vai ai contratti di questo cliente"):
+        st.session_state["nav_target"] = "Contratti"
+        st.session_state["selected_client_id"] = sel_id
+        st.rerun()
 
-    # CONTRATTI ASSOCIATI
+    # === CONTRATTI ASSOCIATI ===
+    st.divider()
     st.markdown("### 📑 Contratti associati")
     contratti_cliente = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)]
     if contratti_cliente.empty:
@@ -383,6 +437,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         grid_opts = gb.build()
         AgGrid(disp, gridOptions=grid_opts, theme="balham", height=350,
                update_mode=GridUpdateMode.SELECTION_CHANGED, allow_unsafe_jscode=True)
+
 
 
 # ==========================

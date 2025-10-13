@@ -314,7 +314,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # CLIENTI
 # ==========================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    from docx import Document  # assicurati che python-docx sia installato
+    from docx import Document
+    import webbrowser
     st.subheader("📋 Clienti")
 
     # === Verifica file e cartelle ===
@@ -438,18 +439,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 else:
                     doc = Document(template_path)
                     mapping = {
-                        "RAGIONE_SOCIALE": cliente.get("RagioneSociale", ""),
+                        "CLIENTE": cliente.get("RagioneSociale", ""),
                         "INDIRIZZO": cliente.get("Indirizzo", ""),
                         "CITTA": cliente.get("Citta", ""),
-                        "CAP": cliente.get("CAP", ""),
-                        "PIVA": cliente.get("PartitaIVA", ""),
-                        "EMAIL": cliente.get("Email", ""),
-                        "TELEFONO": cliente.get("Telefono", ""),
-                        "REFERENTE": cliente.get("PersonaRiferimento", ""),
-                        "DATA_PREVENTIVO": datetime.now().strftime("%d/%m/%Y"),
                         "NUMERO_OFFERTA": num,
+                        "DATA": datetime.now().strftime("%d/%m/%Y")
                     }
-
                     for p in doc.paragraphs:
                         for key, val in mapping.items():
                             token = f"<<{key}>>"
@@ -459,9 +454,32 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                                     if token in inline[i].text:
                                         inline[i].text = inline[i].text.replace(token, str(val))
                     doc.save(output_path)
-                    st.success(f"✅ Preventivo creato e salvato: {output_path.name}")
+                    st.success(f"✅ Preventivo creato: {output_path.name}")
 
                 st.rerun()
+
+    # === APRI CARTELLA PREVENTIVI ===
+    if st.button("📂 Apri cartella Preventivi", use_container_width=True):
+        webbrowser.open(EXTERNAL_PROPOSALS_DIR.as_uri())
+
+    # === NOTE CLIENTE ===
+    st.divider()
+    st.markdown("### 🗒️ Note Cliente")
+    note_attuali = cliente.get("NoteCliente", "")
+    nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=180)
+    if st.button("💾 Salva Note", use_container_width=True):
+        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+        df_cli.loc[idx, "NoteCliente"] = nuove_note
+        save_clienti(df_cli)
+        st.success("✅ Note aggiornate con successo.")
+        st.rerun()
+
+    # === NAVIGA AI CONTRATTI ===
+    st.divider()
+    if st.button("📄 Vai ai contratti di questo cliente", use_container_width=True):
+        st.session_state["nav_target"] = "Contratti"
+        st.session_state["selected_client_id"] = sel_id
+        st.rerun()
 
     # === NOTE CLIENTE ===
     st.divider()

@@ -316,30 +316,24 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
 
-    # === Ricerca cliente ===
-    if "search_query" not in st.session_state:
-        st.session_state["search_query"] = ""
+       # === Ricerca Cliente ===
+    st.markdown("### 🔍 Cerca Cliente")
+    search_query = st.text_input("Cerca cliente per nome:")
 
-    def clear_search():
-        st.session_state["search_query"] = ""
-
-    search_query = st.text_input("🔍 Cerca cliente per nome:", st.session_state["search_query"], key="search_field")
-
-    filtered = df_cli[df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)] if search_query else df_cli
+    if search_query:
+        filtered = df_cli[df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)]
+    else:
+        filtered = df_cli
 
     if filtered.empty:
-        st.info("Nessun cliente trovato.")
-        return
+        st.warning("Nessun cliente trovato.")
+        st.stop()
 
     options = filtered["RagioneSociale"].tolist()
-    sel_rag = st.selectbox("Seleziona Cliente", options, key="sel_cliente_box")
+    sel_rag = st.selectbox("Seleziona Cliente", options)
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    # ✅ Svuota campo ricerca dopo selezione
-    if search_query:
-        clear_search()
-        st.rerun()
 
     # === Anagrafica principale ===
     st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")

@@ -427,8 +427,8 @@ st.divider()
     st.divider()
 
    # === 🧾 Modifica Anagrafica ===
-st.markdown("### 🧾 Modifica Anagrafica")
-with st.expander("Modifica i dati anagrafici del cliente", expanded=False):
+    st.markdown("### 🧾 Modifica Anagrafica")
+    with st.expander("Modifica i dati anagrafici del cliente", expanded=False):
     with st.form("frm_anagrafica"):
         col1, col2, col3 = st.columns(3)
         with col1:

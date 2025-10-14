@@ -316,6 +316,15 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
 
+    # 🔄 Apertura diretta da Dashboard
+    if "selected_cliente" in st.session_state:
+        cliente_da_aprire = st.session_state["selected_cliente"]
+        st.session_state["selected_cliente"] = None  # resetta la selezione
+        st.info(f"📂 Apertura cliente: **{cliente_da_aprire}**")
+        search_query = cliente_da_aprire  # imposta automaticamente la ricerca
+    else:
+        search_query = ""
+
     # === 🔍 Ricerca Cliente ===
     st.markdown("### 🔍 Cerca Cliente")
     search_query = st.text_input("Cerca cliente per nome:")

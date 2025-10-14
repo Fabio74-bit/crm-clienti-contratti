@@ -338,20 +338,32 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**Indirizzo:** {cliente.get('Indirizzo','')} — {cliente.get('Citta','')} {cliente.get('CAP','')}")
-        st.write(f"**Telefono:** {cliente.get('Telefono','')}")
-        st.write(f"**Email:** {cliente.get('Email','')}")
-        st.write(f"**Partita IVA:** {cliente.get('PartitaIVA','')}")
-        st.write(f"**IBAN:** {cliente.get('IBAN','')}")
-    with col2:
-        st.write(f"**Persona Riferimento:** {cliente.get('PersonaRiferimento','')}")
-        st.write(f"**SDI:** {cliente.get('SDI','')}")
-        st.write(f"**Ultimo Recall:** {cliente.get('UltimoRecall','')}")
-        st.write(f"**Ultima Visita:** {cliente.get('UltimaVisita','')}")
+# Formatta date recall e visita solo come DD/MM/YYYY
+def safe_date_str(val):
+    if not val or pd.isna(val):
+        return ""
+    try:
+        return pd.to_datetime(val, dayfirst=True).strftime("%d/%m/%Y")
+    except Exception:
+        return str(val)
 
-    st.divider()
+col1, col2 = st.columns(2)
+with col1:
+    st.write(f"**Indirizzo:** {cliente.get('Indirizzo','')} — {cliente.get('Citta','')} {cliente.get('CAP','')}")
+    st.write(f"**Telefono:** {cliente.get('Telefono','')}")
+    st.write(f"**Email:** {cliente.get('Email','')}")
+    st.write(f"**Partita IVA:** {cliente.get('PartitaIVA','')}")
+    st.write(f"**IBAN:** {cliente.get('IBAN','')}")
+with col2:
+    st.write(f"**Persona Riferimento 1:** {cliente.get('PersonaRiferimento','')}")
+    st.write(f"**Persona Riferimento 2:** {cliente.get('PersonaRiferimento2','')}")
+    st.write(f"**Cellulare:** {cliente.get('Cellulare','')}")
+    st.write(f"**SDI:** {cliente.get('SDI','')}")
+    st.write(f"**Ultimo Recall:** {safe_date_str(cliente.get('UltimoRecall',''))}")
+    st.write(f"**Ultima Visita:** {safe_date_str(cliente.get('UltimaVisita',''))}")
+
+st.divider()
+
 
     # === 📅 Gestione Recall e Visite ===
     st.markdown("### 📅 Gestione Recall e Visite")
@@ -414,48 +426,53 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === 🧾 Modifica Anagrafica ===
-    st.markdown("### 🧾 Modifica Anagrafica")
-    with st.expander("Modifica i dati anagrafici del cliente", expanded=False):
-        with st.form("frm_anagrafica"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale", ""))
-                ref = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-            with col2:
-                indir = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
-                citta = st.text_input("Città", cliente.get("Citta", ""))
-                cap = st.text_input("CAP", cliente.get("CAP", ""))
-            with col3:
-                piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
-                sdi = st.text_input("SDI", cliente.get("SDI", ""))
-                mail = st.text_input("Email", cliente.get("Email", ""))
-                iban = st.text_input("IBAN", cliente.get("IBAN", ""))
+   # === 🧾 Modifica Anagrafica ===
+st.markdown("### 🧾 Modifica Anagrafica")
+with st.expander("Modifica i dati anagrafici del cliente", expanded=False):
+    with st.form("frm_anagrafica"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale", ""))
+            ref1 = st.text_input("Persona Riferimento 1", cliente.get("PersonaRiferimento", ""))
+            ref2 = st.text_input("Persona Riferimento 2", cliente.get("PersonaRiferimento2", ""))
+        with col2:
+            indir = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
+            citta = st.text_input("Città", cliente.get("Citta", ""))
+            cap = st.text_input("CAP", cliente.get("CAP", ""))
+            tel = st.text_input("Telefono", cliente.get("Telefono", ""))
+        with col3:
+            cell = st.text_input("Cellulare", cliente.get("Cellulare", ""))
+            piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
+            sdi = st.text_input("SDI", cliente.get("SDI", ""))
+            mail = st.text_input("Email", cliente.get("Email", ""))
+            iban = st.text_input("IBAN", cliente.get("IBAN", ""))
 
-            salva_btn = st.form_submit_button("💾 Salva Anagrafica")
-            if salva_btn:
-                err = False
-                if cap and (not cap.isdigit() or len(cap) != 5):
-                    st.error("❌ CAP non valido: deve contenere 5 cifre.")
-                    err = True
-                if piva and (not piva.isdigit() or len(piva) != 11):
-                    st.error("❌ Partita IVA non valida: deve contenere 11 cifre.")
-                    err = True
-                if mail and "@" not in mail:
-                    st.error("❌ Email non valida.")
-                    err = True
+        salva_btn = st.form_submit_button("💾 Salva Anagrafica")
+        if salva_btn:
+            err = False
+            if cap and (not cap.isdigit() or len(cap) != 5):
+                st.error("❌ CAP non valido: deve contenere 5 cifre.")
+                err = True
+            if piva and (not piva.isdigit() or len(piva) != 11):
+                st.error("❌ Partita IVA non valida: deve contenere 11 cifre.")
+                err = True
+            if mail and "@" not in mail:
+                st.error("❌ Email non valida.")
+                err = True
 
-                if not err:
-                    idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                    df_cli.loc[idx_row, [
-                        "RagioneSociale", "PersonaRiferimento", "Indirizzo",
-                        "Citta", "CAP", "PartitaIVA", "Email", "SDI", "IBAN"
-                    ]] = [rag, ref, indir, citta, cap, piva, mail, sdi, iban]
-                    save_clienti(df_cli)
-                    st.success("✅ Anagrafica aggiornata con successo.")
-                    st.rerun()
+            if not err:
+                idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                df_cli.loc[idx_row, [
+                    "RagioneSociale", "PersonaRiferimento", "PersonaRiferimento2",
+                    "Indirizzo", "Citta", "CAP", "Telefono", "Cellulare",
+                    "PartitaIVA", "Email", "SDI", "IBAN"
+                ]] = [rag, ref1, ref2, indir, citta, cap, tel, cell, piva, mail, sdi, iban]
+                save_clienti(df_cli)
+                st.success("✅ Anagrafica aggiornata con successo.")
+                st.rerun()
 
-    st.divider()
+st.divider()
+
 
     # === 📝 Note Cliente ===
     st.markdown("### 📝 Note Cliente")

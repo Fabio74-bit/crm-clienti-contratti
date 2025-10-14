@@ -590,7 +590,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === 📂 Elenco Preventivi Cliente ===
+   
 # === 📂 Elenco Preventivi Cliente ===
 st.markdown("### 📂 Elenco Preventivi Cliente")
 

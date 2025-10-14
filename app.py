@@ -185,25 +185,44 @@ def _gen_offerta_number(df_prev: pd.DataFrame, cliente_id: str, ragione_sociale:
 # ==========================
 # AUTH
 # ==========================
-def do_login() -> Tuple[str, str]:
+def do_login_fullscreen():
+    """Schermata di login a pagina intera, con logo SHT e credenziali centralizzate."""
     users = st.secrets.get("auth", {}).get("users", {})
     if not users:
         return ("ospite", "viewer")
-    st.sidebar.subheader("Login")
-    usr = st.sidebar.selectbox("Utente", list(users.keys()))
-    pwd = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Entra", use_container_width=True):
-        true_pwd = users[usr].get("password", "")
-        role = users[usr].get("role", "viewer")
-        if pwd == true_pwd:
-            st.session_state["auth_user"] = usr
-            st.session_state["auth_role"] = role
+
+    st.markdown(
+        f"""
+        <div style='display:flex; flex-direction:column; align-items:center; justify-content:center;
+                    height:90vh; text-align:center;'>
+            <img src="{LOGO_URL}" width="220" style="margin-bottom:25px;">
+            <h2 style='margin-bottom:10px;'>🔐 Accesso al Gestionale SHT</h2>
+            <p style='color:grey; font-size:14px;'>Inserisci le tue credenziali per continuare</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    username = st.text_input("👤 Utente", key="login_user")
+    password = st.text_input("🔒 Password", type="password", key="login_pwd")
+
+    col1, col2, col3 = st.columns([0.4, 0.2, 0.4])
+    with col2:
+        login_btn = st.button("Entra", use_container_width=True)
+
+    if login_btn:
+        if username in users and password == users[username].get("password"):
+            st.session_state["auth_user"] = username
+            st.session_state["auth_role"] = users[username].get("role", "viewer")
+            st.success("✅ Accesso effettuato!")
             st.rerun()
         else:
-            st.sidebar.error("Password errata")
+            st.error("❌ Credenziali errate o utente inesistente.")
+
     if "auth_user" in st.session_state:
         return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
     return ("", "")
+
 
 # ==========================
 # DASHBOARD (layout aggiornato)
@@ -820,9 +839,10 @@ def main():
     st.markdown(f"<h3 style='margin-top:8px'>{APP_TITLE}</h3>", unsafe_allow_html=True)
 
     # === LOGIN PRIMA DI TUTTO ===
-    user, role = do_login()
+    user, role = do_login_fullscreen()
     if not user:
         st.stop()
+
 
     st.sidebar.success(f"Utente: {user} — Ruolo: {role}")
 

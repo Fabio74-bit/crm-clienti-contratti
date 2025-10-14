@@ -215,7 +215,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("<h2 style='text-align:center;'>📊 Dashboard CRM</h2>", unsafe_allow_html=True)
 
     # --- Normalizza colonne contratti ---
-    df_ct = (df_ct or pd.DataFrame()).copy()
+    if df_ct is None or df_ct.empty:
+    df_ct = pd.DataFrame()
+else:
+    df_ct = df_ct.copy()
+
     if df_ct.empty:
         # KPI vuoti ma UI coerente
         clienti_attivi = len(df_cli)

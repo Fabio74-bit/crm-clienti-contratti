@@ -212,93 +212,121 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import pandas as pd
     from datetime import datetime, timedelta
 
-    st.markdown("<h2 style='text-align:center;'>📊 Dashboard CRM</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center; color:#0A84FF;'>📊 Dashboard CRM</h2>", unsafe_allow_html=True)
 
-    # --- Normalizza colonne contratti ---
+    # --- Normalizza dataframe contratti ---
     if df_ct is None or df_ct.empty:
         df_ct = pd.DataFrame()
     else:
         df_ct = df_ct.copy()
 
+    # --- Colonne attese ---
+    required_cols = ["ClienteID", "RagioneSociale", "DataInizio", "DataFine", "Stato"]
+    for col in required_cols:
+        if col not in df_ct.columns:
+            df_ct[col] = None
 
-    if df_ct.empty:
-        # KPI vuoti ma UI coerente
-        clienti_attivi = len(df_cli)
-        st.info("Nessun contratto presente.")
-        st.metric("Clienti attivi", clienti_attivi)
-        return
+    # --- Conversione date ---
+    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
 
-    # Stato: può essere 'stato' o 'Stato'
-    stato_col = "stato" if "stato" in df_ct.columns else ("Stato" if "Stato" in df_ct.columns else None)
-    if stato_col is None:
-        # se manca, crea 'stato' di default = 'attivo'
-        stato_col = "stato"
-        df_ct[stato_col] = "attivo"
+    oggi = datetime.today()
+    anno_corrente = oggi.year
 
-    # Descrizione: preferisci DescrizioneProdotto, fallback Descrizione
-    desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in df_ct.columns else ("Descrizione" if "Descrizione" in df_ct.columns else None)
-    if desc_col is None:
-        df_ct["DescrizioneProdotto"] = ""
-        desc_col = "DescrizioneProdotto"
+    # --- Statistiche principali ---
+    clienti_attivi = df_cli.shape[0]
+    contratti_attivi = df_ct[df_ct["Stato"].str.lower() == "attivo"].shape[0]
+    contratti_chiusi = df_ct[df_ct["Stato"].str.lower() == "chiuso"].shape[0]
+    contratti_nuovi = df_ct[df_ct["DataInizio"].dt.year == anno_corrente].shape[0]
 
-    # Date
-    for c in ["DataInizio", "DataFine"]:
-        if c in df_ct.columns:
-            df_ct[c] = pd.to_datetime(df_ct[c], errors="coerce", dayfirst=True)
-        else:
-            df_ct[c] = pd.NaT
-
-    # Join per avere RagioneSociale
-    df_cli_min = df_cli[["ClienteID", "RagioneSociale"]].copy()
-    df_ct = df_ct.merge(df_cli_min, on="ClienteID", how="left")
-
-    today = datetime.today().date()
-    year_now = today.year
-
-    # --- KPI ---
-    clienti_attivi = len(df_cli)
-    contratti_chiusi = len(df_ct[df_ct[stato_col].astype(str).str.lower() == "chiuso"])
-    contratti_attivi = len(df_ct[df_ct[stato_col].astype(str).str.lower() != "chiuso"])
-    contratti_nuovi = len(df_ct[df_ct["DataInizio"].dt.year == year_now])
-
+    # --- CSS per i box colorati ---
     st.markdown("""
-        <style>
-        .kpi-wrap{display:flex;gap:12px;margin:18px 0}
-        .kpi{flex:1;padding:16px 18px;border-radius:14px;color:#fff;
-             box-shadow:0 4px 10px rgba(0,0,0,.08)}
-        .kpi h3{margin:0;font-size:2.0rem}
-        .kpi p{margin:2px 0 0;font-size:.95rem;opacity:.95}
-        .blue{background:linear-gradient(135deg,#1e3a8a,#2563eb)}
-        .green{background:linear-gradient(135deg,#065f46,#10b981)}
-        .red{background:linear-gradient(135deg,#7f1d1d,#dc2626)}
-        .orange{background:linear-gradient(135deg,#92400e,#f97316)}
-        </style>
-        <div class="kpi-wrap">
-          <div class="kpi blue"><h3>""" + f"{clienti_attivi}" + """</h3><p>Clienti attivi</p></div>
-          <div class="kpi green"><h3>""" + f"{contratti_attivi}" + """</h3><p>Contratti attivi</p></div>
-          <div class="kpi red"><h3>""" + f"{contratti_chiusi}" + """</h3><p>Contratti chiusi</p></div>
-          <div class="kpi orange"><h3>""" + f"{contratti_nuovi}" + f"""</h3><p>Contratti nuovi {year_now}</p></div>
-        </div>
+    <style>
+    .metric-card {
+        background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+        text-align: center;
+        transition: transform 0.2s ease-in-out;
+    }
+    .metric-card:hover {
+        transform: scale(1.05);
+    }
+    .metric-title {
+        font-size: 18px;
+        color: #555;
+        margin-bottom: 6px;
+    }
+    .metric-value {
+        font-size: 28px;
+        font-weight: bold;
+    }
+    .metric-icon {
+        font-size: 30px;
+        margin-bottom: 8px;
+    }
+    </style>
     """, unsafe_allow_html=True)
+
+    # --- Layout 4 riquadri ---
+    st.markdown("### 📈 Situazione Generale")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-icon'>👥</div>
+            <div class='metric-title'>Clienti Attivi</div>
+            <div class='metric-value' style='color:#007AFF'>{clienti_attivi}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-icon'>📜</div>
+            <div class='metric-title'>Contratti Attivi</div>
+            <div class='metric-value' style='color:#28A745'>{contratti_attivi}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-icon'>❌</div>
+            <div class='metric-title'>Contratti Chiusi</div>
+            <div class='metric-value' style='color:#DC3545'>{contratti_chiusi}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col4:
+        st.markdown(f"""
+        <div class='metric-card'>
+            <div class='metric-icon'>🆕</div>
+            <div class='metric-title'>Contratti Nuovi {anno_corrente}</div>
+            <div class='metric-value' style='color:#FFC107'>{contratti_nuovi}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.divider()
 
-    # --- Contratti in scadenza entro 60 giorni ---
-    st.markdown("### ⏰ Contratti in scadenza (entro 60 giorni)")
-
+    # ===============================
+    # 🔔 CONTRATTI IN SCADENZA
+    # ===============================
+    st.markdown("### ⏳ Contratti in Scadenza (prossimi 60 giorni)")
     in_scadenza = df_ct[
-        df_ct["DataFine"].notna()
-        & (df_ct["DataFine"].dt.date >= today)
-        & (df_ct["DataFine"].dt.date <= today + timedelta(days=60))
-        & (df_ct[stato_col].astype(str).str.lower() != "chiuso")
-    ].copy()
+        (pd.notna(df_ct["DataFine"])) &
+        (df_ct["DataFine"] >= oggi) &
+        (df_ct["DataFine"] <= oggi + timedelta(days=60))
+    ].sort_values("DataFine")
+
+    desc_col = "Descrizione" if "Descrizione" in df_ct.columns else "Dettagli"
 
     if in_scadenza.empty:
         st.info("✅ Nessun contratto in scadenza nei prossimi 60 giorni.")
     else:
-        # ordina per data e mostra
-        in_scadenza = in_scadenza.sort_values("DataFine")
-        for _, r in in_scadenza.iterrows():
+        for i, r in in_scadenza.iterrows():
             rag = r.get("RagioneSociale") or r.get("ClienteID")
             fine = r["DataFine"].strftime("%d/%m/%Y") if pd.notna(r["DataFine"]) else "-"
             c1, c2, c3 = st.columns([0.5, 0.3, 0.2])
@@ -307,33 +335,29 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with c2:
                 st.caption(str(r.get(desc_col, ""))[:60])
             with c3:
-                if st.button("🧭 Apri cliente", key=f"open_scad_{r['ClienteID']}_{str(r['DataFine'])}"):
+                if st.button("🧭 Apri cliente", key=f"open_scad_{r['ClienteID']}_{i}"):
                     st.session_state["selected_cliente"] = str(r["RagioneSociale"] or r["ClienteID"])
                     st.session_state["nav_target"] = "Clienti"
                     st.rerun()
 
     st.divider()
 
-    # --- Promemoria: contratti senza data fine ---
-    st.markdown("### 📌 Promemoria — Contratti senza *Data Fine*")
-    senza_fine = df_ct[df_ct["DataFine"].isna()].copy()
-
-    # rimuovi righe fittizie tipo 'NuovoContratto' in NumeroContratto (se presenti)
-    if "NumeroContratto" in senza_fine.columns:
-        senza_fine = senza_fine[
-            ~senza_fine["NumeroContratto"].astype(str).str.contains("NuovoContratto", case=False, na=False)
-        ]
+    # ===============================
+    # 📝 PROMEMORIA: Contratti senza Data Fine
+    # ===============================
+    st.markdown("### 🧾 Promemoria: Contratti senza Data Fine")
+    senza_fine = df_ct[df_ct["DataFine"].isna()].sort_values("DataInizio")
 
     if senza_fine.empty:
-        st.info("✅ Tutti i contratti hanno una data di fine.")
+        st.success("✅ Tutti i contratti hanno una data di fine.")
     else:
-        for _, r in senza_fine.iterrows():
+        for i, r in senza_fine.iterrows():
             rag = r.get("RagioneSociale") or r.get("ClienteID")
             c1, c2 = st.columns([0.75, 0.25])
             with c1:
                 st.write(f"**{rag}** — {str(r.get(desc_col, ''))[:80]}")
             with c2:
-                if st.button("🧭 Apri cliente", key=f"open_nofine_{r['ClienteID']}_{r.get('NumeroContratto','')}"):
+                if st.button("🧭 Apri cliente", key=f"open_nofine_{r['ClienteID']}_{i}"):
                     st.session_state["selected_cliente"] = str(r["RagioneSociale"] or r["ClienteID"])
                     st.session_state["nav_target"] = "Clienti"
                     st.rerun()

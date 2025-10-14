@@ -301,90 +301,56 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             </style>
             """, unsafe_allow_html=True)
 
-            st.markdown("<div class='scad-head'>Cliente | Contratto | Scadenza | Stato | </div>", unsafe_allow_html=True)
-            st.markdown("<div class='scroll-box'>", unsafe_allow_html=True)
-
-            for i, row in scadenza.iterrows():
-                col1, col2, col3, col4, col5 = st.columns([0.35, 0.25, 0.2, 0.15, 0.1])
-                col1.write(f"**{row['RagioneSociale']}**")
-                col2.write(row["NumeroContratto"])
-                col3.write(row["DataFine"])
-                col4.write(row["Stato"])
-                if col5.button("➡️", key=f"open_{i}_{row['ClienteID']}"):
-                    st.session_state["selected_client_id"] = row["ClienteID"]
-                    st.session_state["nav_target"] = "Contratti"
-                    st.rerun()
-
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    st.divider()
-
-
-
-    # Contratti senza data fine (da oggi in poi)
-    st.subheader("⏰ Promemoria: Contratti Senza Data Fine (da oggi in poi)")
-    senza_fine = df_ct[
-        (df_ct["DataInizio"].notna())
-        & (df_ct["DataInizio"] >= now)
-        & (df_ct["DataFine"].isna())
-        & (df_ct["Stato"].fillna("").str.lower() != "chiuso")
-    ]
-    if senza_fine.empty:
-        st.info("✅ Nessun nuovo contratto senza data fine.")
-    else:
-        senza_fine = senza_fine.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-        for _, row in senza_fine.iterrows():
-            create_contract_card(row)
-
-# Helpers Dashboard
-def kpi_card(label, value, icon, bg_color):
-    return f"""
-    <div style="
-        background-color: {bg_color};
-        padding: 18px;
-        border-radius: 12px;
-        text-align: center;
-        color: white;
-    ">
-        <div style="font-size: 26px; margin-bottom: 6px;">{icon}</div>
-        <div style="font-size: 22px; font-weight: 700;">{value}</div>
-        <div style="font-size: 14px;">{label}</div>
-    </div>
-    """
-
-def create_contract_card(row):
-    # Genera una chiave univoca anche se NumeroContratto o ClienteID sono vuoti o duplicati
-    unique_key = f"open_client_{str(row.get('ClienteID'))}_{str(row.get('NumeroContratto'))}_{hash(str(row))}"
-
+            # intestazione colonne chiara e ben proporzionata
+st.markdown("""
+<style>
+.scad-header {
+    display: grid;
+    grid-template-columns: 38% 22% 20% 12% 8%;
+    font-weight: 600;
+    background: #f0f0f0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    font-size: 15px;
+}
+.scad-row {
+    display: grid;
+    grid-template-columns: 38% 22% 20% 12% 8%;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+.scad-row:hover {
+    background-color: #f9f9f9;
+}
+</style>
+<div class='scad-header'>
+  <div>Cliente</div>
+  <div>Contratto</div>
+  <div>Scadenza</div>
+  <div>Stato</div>
+  <div style='text-align:center;'>Azione</div>
+</div>
+""", unsafe_allow_html=True)
+for i, row in scadenza.iterrows():
     st.markdown(
         f"""
-        <div style="
-            border: 1px solid #e4e4e4;
-            border-radius: 10px;
-            padding: 10px 14px;
-            margin-bottom: 8px;
-            background-color: #fafafa;
-        ">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
-            <div>
-              <div style="font-weight:600;">{row.get('RagioneSociale', '')}</div>
-              <div style="font-size:13px;">Contratto: {row.get('NumeroContratto', '')}</div>
-              <div style="font-size:13px;">Data Inizio: {fmt_date(row.get('DataInizio', ''))} — Data Fine: {fmt_date(row.get('DataFine', ''))}</div>
-            </div>
-            <div>
-              <span style="font-size:12px; color:#666;">Stato: {row.get('Stato','')}</span>
-            </div>
-          </div>
+        <div class='scad-row'>
+            <div><b>{row['RagioneSociale']}</b></div>
+            <div>{row['NumeroContratto'] or '-'}</div>
+            <div>{row['DataFine']}</div>
+            <div>{row['Stato']}</div>
+            <div style='text-align:center;'>{'➡️'}</div>
         </div>
         """,
         unsafe_allow_html=True
     )
-
-    if st.button("🔎 Apri Cliente", key=unique_key):
-        st.session_state["selected_client_id"] = row.get("ClienteID")
+    if st.button("Apri", key=f"open_{i}_{row['ClienteID']}"):
+        st.session_state["selected_client_id"] = row["ClienteID"]
         st.session_state["nav_target"] = "Contratti"
         st.rerun()
-
 
 # ==========================
 # CLIENTI (come tuo, invariato)

@@ -591,46 +591,96 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
 
     # === 📂 Elenco Preventivi Cliente ===
-    st.markdown("### 📂 Elenco Preventivi Cliente")
-    prev_cli = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
-    if prev_cli.empty:
-        st.info("Nessun preventivo per questo cliente.")
-    else:
-        for _, r in prev_cli.iterrows():
-            with st.container(border=True):
-                c1, c2 = st.columns([0.75, 0.25])
-                with c1:
-                    st.write(f"**{r['NumeroOfferta']}** — {r['Template']}")
-                    st.caption(f"Creato il {r['DataCreazione']}")
-                with c2:
-                    file_path = Path(r["Percorso"])
-                    if file_path.exists():
-                        with open(file_path, "rb") as f:
-                            st.download_button(
-                                "⬇️ Scarica",
-                                data=f.read(),
-                                file_name=file_path.name,
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                key=f"dl_{r['NumeroOfferta']}",
-                            )
-                    else:
-                        st.error("File non trovato in locale.")
+# === 📂 Elenco Preventivi Cliente ===
+st.markdown("### 📂 Elenco Preventivi Cliente")
 
-    st.divider()
+prev_cli = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
 
-    # === 📁 Apri Cartella Preventivi ===
-    if st.button("📂 Apri cartella Preventivi"):
+if prev_cli.empty:
+    st.info("Nessun preventivo per questo cliente.")
+else:
+    import datetime
+
+    def fmt_date(date_str):
         try:
-            folder_path = str(EXTERNAL_PROPOSALS_DIR.resolve())
-            system_name = platform.system()
-            if system_name == "Darwin":
-                os.system(f'open "{folder_path}"')
-            elif system_name == "Windows":
-                os.startfile(folder_path)
+            return pd.to_datetime(date_str, errors="coerce", dayfirst=True).strftime("%d/%m/%Y")
+        except Exception:
+            return date_str
+
+    # Ordina preventivi dal più recente
+    prev_cli = prev_cli.sort_values(by="DataCreazione", ascending=False)
+
+    # Tabella leggibile
+    st.markdown(
+        """
+        <style>
+        .stTable td, .stTable th {
+            text-align: center !important;
+            vertical-align: middle !important;
+            font-size: 0.9rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Mostra tabella
+    for i, r in prev_cli.iterrows():
+        file_path = Path(r["Percorso"])
+        col1, col2, col3, col4 = st.columns([0.25, 0.25, 0.25, 0.25])
+
+        with col1:
+            st.write(f"**{r['NumeroOfferta']}**")
+        with col2:
+            st.write(r["Template"])
+        with col3:
+            st.write(fmt_date(r["DataCreazione"]))
+        with col4:
+            if file_path.exists():
+                with open(file_path, "rb") as f:
+                    st.download_button(
+                        "⬇️ Scarica",
+                        data=f.read(),
+                        file_name=file_path.name,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"dl_{r['NumeroOfferta']}",
+                        use_container_width=True
+                    )
             else:
-                os.system(f'xdg-open "{folder_path}"')
-        except Exception as e:
-            st.error(f"❌ Impossibile aprire la cartella: {e}")
+                st.error("❌ Mancante")
+
+        # Pulsante Elimina (solo admin)
+        if role == "admin":
+            elimina_key = f"del_{r['NumeroOfferta']}_{i}"
+            if st.button("🗑 Elimina", key=elimina_key, type="secondary"):
+                try:
+                    # Rimuove file locale
+                    if file_path.exists():
+                        file_path.unlink()
+                    # Rimuove record dal CSV
+                    df_prev = df_prev.drop(i)
+                    df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
+                    st.success(f"🗑 Preventivo '{r['NumeroOfferta']}' eliminato con successo.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore durante eliminazione: {e}")
+
+        st.divider()
+
+# === Pulsante per aprire la cartella ===
+if st.button("📂 Apri cartella Preventivi"):
+    try:
+        folder_path = str(EXTERNAL_PROPOSALS_DIR.resolve())
+        system_name = platform.system()
+        if system_name == "Darwin":  # macOS
+            os.system(f'open "{folder_path}"')
+        elif system_name == "Windows":
+            os.startfile(folder_path)
+        else:
+            os.system(f'xdg-open "{folder_path}"')
+    except Exception as e:
+        st.error(f"❌ Impossibile aprire la cartella: {e}")
+
 
 
 

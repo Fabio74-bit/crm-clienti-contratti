@@ -264,23 +264,48 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # Contratti in scadenza (6 mesi)
-    st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
-    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
-    scadenza = df_ct[
-        (df_ct["DataFine"].notna())
-        & (df_ct["DataFine"] >= now)
-        & (df_ct["DataFine"] <= now + pd.DateOffset(months=6))
-        & (df_ct["Stato"].fillna("").str.lower() != "chiuso")
-    ]
-    if scadenza.empty:
-        st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
-    else:
-        scadenza = scadenza.sort_values("DataFine").merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-        for _, row in scadenza.iterrows():
-            create_contract_card(row)
+   # Contratti in scadenza (6 mesi) — versione compatta
+st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
 
-    st.divider()
+df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+scadenza = df_ct[
+    (df_ct["DataFine"].notna()) &
+    (df_ct["DataFine"] >= now) &
+    (df_ct["DataFine"] <= now + pd.DateOffset(months=6)) &
+    (df_ct["Stato"].fillna("").str.lower() != "chiuso")
+]
+
+if scadenza.empty:
+    st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
+else:
+    scadenza = scadenza.sort_values("DataFine").merge(
+        df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left"
+    )
+    scadenza["DataFine"] = scadenza["DataFine"].dt.strftime("%d/%m/%Y")
+
+    st.markdown("""
+    <style>
+    .scad-row {display:flex; justify-content:space-between; padding:6px 10px;
+               border-bottom:1px solid #eee; font-size:14px;}
+    .scad-head {font-weight:600; background:#f3f3f3; border-radius:6px; padding:6px 10px;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div class='scad-head'>Cliente | Contratto | Scadenza | Stato | </div>", unsafe_allow_html=True)
+
+    for i, row in scadenza.iterrows():
+        col1, col2, col3, col4, col5 = st.columns([0.35, 0.25, 0.2, 0.15, 0.1])
+        col1.write(f"**{row['RagioneSociale']}**")
+        col2.write(row["NumeroContratto"])
+        col3.write(row["DataFine"])
+        col4.write(row["Stato"])
+        if col5.button("➡️", key=f"open_{i}_{row['ClienteID']}"):
+            st.session_state["selected_client_id"] = row["ClienteID"]
+            st.session_state["nav_target"] = "Contratti"
+            st.rerun()
+
+st.divider()
+
 
     # Contratti senza data fine (da oggi in poi)
     st.subheader("⏰ Promemoria: Contratti Senza Data Fine (da oggi in poi)")

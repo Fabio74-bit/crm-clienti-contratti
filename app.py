@@ -407,162 +407,123 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.rerun()
 
     st.divider()
+    st.divider()
 
-    # === Modifica Anagrafica ===
-    with st.expander("🧾 Modifica Anagrafica", expanded=False):
-        with st.form("frm_anagrafica"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale", ""))
-                ref = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-            with col2:
-                indir = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
-                citta = st.text_input("Città", cliente.get("Citta", ""))
-                cap = st.text_input("CAP", cliente.get("CAP", ""))
-            with col3:
-                piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
-                sdi = st.text_input("SDI", cliente.get("SDI", ""))
-                mail = st.text_input("Email", cliente.get("Email", ""))
-                iban = st.text_input("IBAN", cliente.get("IBAN", ""))
-            if st.form_submit_button("💾 Salva Anagrafica"):
-                err = False
-                if cap and (not cap.isdigit() or len(cap) != 5):
-                    st.error("❌ CAP non valido: deve contenere 5 cifre.")
-                    err = True
-                if piva and (not piva.isdigit() or len(piva) != 11):
-                    st.error("❌ Partita IVA non valida: deve contenere 11 cifre.")
-                    err = True
-                if mail and "@" not in mail:
-                    st.error("❌ Email non valida.")
-                    err = True
-                if not err:
-                    idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                    df_cli.loc[idx_row, ["RagioneSociale","PersonaRiferimento","Indirizzo",
-                                        "Citta","CAP","PartitaIVA","Email","SDI","IBAN"]] = [
-                        rag, ref, indir, citta, cap, piva, mail, sdi, iban
-                    ]
-                    save_clienti(df_cli)
-                    st.success("✅ Anagrafica aggiornata.")
-                    st.rerun()
+    # === CREAZIONE E GESTIONE PREVENTIVI ===
+    st.markdown("### 🧾 Crea Nuovo Preventivo")
+
+    from docx import Document
+    import webbrowser
+    import platform
+
+    # 📂 Percorsi fissi
+    TEMPLATES_DIR = STORAGE_DIR / "templates"
+    EXTERNAL_PROPOSALS_DIR = STORAGE_DIR / "preventivi"
+    EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 🧩 Template disponibili
+    TEMPLATE_OPTIONS = {
+        "Offerta A4": "Offerte_A4.docx",
+        "Offerta A3": "Offerte_A3.docx",
+        "Centralino": "Offerta_Centralino.docx",
+        "Varie": "Offerta_Varie.docx",
+    }
+
+    # === Carica preventivi esistenti ===
+    prev_path = STORAGE_DIR / "preventivi.csv"
+    if prev_path.exists():
+        df_prev = pd.read_csv(prev_path, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+    else:
+        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
+
+    # === Genera automaticamente il numero offerta ===
+    def genera_numero_offerta(cliente_nome: str) -> str:
+        anno = datetime.now().year
+        nome_sicuro = "".join(c for c in cliente_nome if c.isalnum())[:6].upper()
+        subset = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
+        seq = len(subset) + 1
+        return f"OFF-{anno}-{nome_sicuro}-{seq:03d}"
+
+    next_num = genera_numero_offerta(cliente.get("RagioneSociale", ""))
+
+    # === Form di creazione nuovo preventivo ===
+    with st.form("frm_new_prev"):
+        num = st.text_input("Numero Offerta", next_num)
+        nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
+        template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
+        submitted = st.form_submit_button("💾 Genera Preventivo")
+
+    if submitted:
+        try:
+            template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
+            output_path = EXTERNAL_PROPOSALS_DIR / nome_file
+
+            if not template_path.exists():
+                st.error(f"❌ Template non trovato: {template_path}")
+            else:
+                # Crea documento da template
+                doc = Document(template_path)
+                mapping = {
+                    "CLIENTE": cliente.get("RagioneSociale", ""),
+                    "INDIRIZZO": cliente.get("Indirizzo", ""),
+                    "CITTA": cliente.get("Citta", ""),
+                    "NUMERO_OFFERTA": num,
+                    "DATA": datetime.now().strftime("%d/%m/%Y"),
+                }
+                for p in doc.paragraphs:
+                    for key, val in mapping.items():
+                        token = f"<<{key}>>"
+                        if token in p.text:
+                            for run in p.runs:
+                                run.text = run.text.replace(token, str(val))
+
+                doc.save(output_path)
+                st.success(f"✅ Preventivo salvato: {output_path.name}")
+
+                # 🔄 Aggiungi record nel CSV preventivi
+                nuovo = {
+                    "ClienteID": sel_id,
+                    "NumeroOfferta": num,
+                    "Template": TEMPLATE_OPTIONS[template],
+                    "NomeFile": nome_file,
+                    "Percorso": str(output_path),
+                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                }
+                df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
+                df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
+
+                st.toast("✅ Preventivo aggiunto al database", icon="📄")
+                st.rerun()
+        except Exception as e:
+            st.error(f"❌ Errore durante la creazione del preventivo: {e}")
 
     st.divider()
 
-   
-  # === CREAZIONE E GESTIONE PREVENTIVI ===
-st.markdown("### 🧾 Crea Nuovo Preventivo")
-
-from docx import Document
-import webbrowser
-import platform
-
-# 📂 Percorsi fissi
-TEMPLATES_DIR = STORAGE_DIR / "templates"
-EXTERNAL_PROPOSALS_DIR = STORAGE_DIR / "preventivi"
-EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
-
-# 🧩 Template disponibili
-TEMPLATE_OPTIONS = {
-    "Offerta A4": "Offerte_A4.docx",
-    "Offerta A3": "Offerte_A3.docx",
-    "Centralino": "Offerta_Centralino.docx",
-    "Varie": "Offerta_Varie.docx",
-}
-
-# === Carica preventivi esistenti ===
-prev_path = STORAGE_DIR / "preventivi.csv"
-if prev_path.exists():
-    df_prev = pd.read_csv(prev_path, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
-else:
-    df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
-
-# === Genera automaticamente il numero offerta ===
-def genera_numero_offerta(cliente_nome: str) -> str:
-    anno = datetime.now().year
-    nome_sicuro = "".join(c for c in cliente_nome if c.isalnum())[:6].upper()
-    subset = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
-    seq = len(subset) + 1
-    return f"OFF-{anno}-{nome_sicuro}-{seq:03d}"
-
-next_num = genera_numero_offerta(cliente.get("RagioneSociale", ""))
-
-# === Form di creazione nuovo preventivo ===
-with st.form("frm_new_prev"):
-    num = st.text_input("Numero Offerta", next_num)
-    nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
-    template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
-    submitted = st.form_submit_button("💾 Genera Preventivo")
-
-if submitted:
-    try:
-        template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
-        output_path = EXTERNAL_PROPOSALS_DIR / nome_file
-
-        if not template_path.exists():
-            st.error(f"❌ Template non trovato: {template_path}")
-        else:
-            # Crea documento da template
-            doc = Document(template_path)
-            mapping = {
-                "CLIENTE": cliente.get("RagioneSociale", ""),
-                "INDIRIZZO": cliente.get("Indirizzo", ""),
-                "CITTA": cliente.get("Citta", ""),
-                "NUMERO_OFFERTA": num,
-                "DATA": datetime.now().strftime("%d/%m/%Y"),
-            }
-            for p in doc.paragraphs:
-                for key, val in mapping.items():
-                    token = f"<<{key}>>"
-                    if token in p.text:
-                        for run in p.runs:
-                            run.text = run.text.replace(token, str(val))
-
-            doc.save(output_path)
-            st.success(f"✅ Preventivo salvato: {output_path.name}")
-
-            # 🔄 Aggiungi record nel CSV preventivi
-            nuovo = {
-                "ClienteID": sel_id,
-                "NumeroOfferta": num,
-                "Template": TEMPLATE_OPTIONS[template],
-                "NomeFile": nome_file,
-                "Percorso": str(output_path),
-                "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            }
-            df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
-            df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
-
-            st.toast("✅ Preventivo aggiunto al database", icon="📄")
-            st.rerun()
-    except Exception as e:
-        st.error(f"❌ Errore durante la creazione del preventivo: {e}")
-
-st.divider()
-
-# === Elenco preventivi esistenti ===
-st.markdown("### 📂 Elenco Preventivi Cliente")
-prev_cli = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
-if prev_cli.empty:
-    st.info("Nessun preventivo per questo cliente.")
-else:
-    for _, r in prev_cli.iterrows():
-        with st.container(border=True):
-            c1, c2 = st.columns([0.75, 0.25])
-            with c1:
-                st.write(f"**{r['NumeroOfferta']}** — {r['Template']}")
-                st.caption(f"Creato il {r['DataCreazione']}")
-            with c2:
-                file_path = Path(r["Percorso"])
-                if file_path.exists():
-                    with open(file_path, "rb") as f:
-                        st.download_button(
-                            "⬇️ Scarica",
-                            data=f.read(),
-                            file_name=file_path.name,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key=f"dl_{r['NumeroOfferta']}",
-                        )
-                else:
-                    st.error("File non trovato in locale.")
+    # === Elenco preventivi esistenti ===
+    st.markdown("### 📂 Elenco Preventivi Cliente")
+    prev_cli = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
+    if prev_cli.empty:
+        st.info("Nessun preventivo per questo cliente.")
+    else:
+        for _, r in prev_cli.iterrows():
+            with st.container(border=True):
+                c1, c2 = st.columns([0.75, 0.25])
+                with c1:
+                    st.write(f"**{r['NumeroOfferta']}** — {r['Template']}")
+                    st.caption(f"Creato il {r['DataCreazione']}")
+                with c2:
+                    file_path = Path(r["Percorso"])
+                    if file_path.exists():
+                        with open(file_path, "rb") as f:
+                            st.download_button(
+                                "⬇️ Scarica",
+                                data=f.read(),
+                                file_name=file_path.name,
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                key=f"dl_{r['NumeroOfferta']}",
+                            )
+                    else:
+                        st.error("File non trovato in locale.")
 
 
     # === Pulsante per aprire la cartella ===

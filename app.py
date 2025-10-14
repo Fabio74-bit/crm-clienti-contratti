@@ -1,5 +1,7 @@
 # app_colorato.py — Gestionale Clienti SHT (layout aggiornato: login prima, dashboard KPI, contratti stile coerente)
 from __future__ import annotations
+import streamlit as st
+st.set_page_config(page_title="Gestionale SHT", layout="wide")
 
 import os
 from io import BytesIO

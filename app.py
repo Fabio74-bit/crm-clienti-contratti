@@ -215,10 +215,12 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("<h2 style='text-align:center; color:#0A84FF;'>📊 Dashboard CRM</h2>", unsafe_allow_html=True)
 
     # --- Normalizza dataframe contratti ---
-    if df_ct is None or df_ct.empty:
-        df_ct = pd.DataFrame()
-    else:
-        df_ct = df_ct.copy()
+    if df_ct is None:
+    st.warning("⚠️ Nessun dato contratti caricato.")
+    return
+else:
+    df_ct = df_ct.copy()
+
 
     # --- Colonne attese ---
     required_cols = ["ClienteID", "RagioneSociale", "DataInizio", "DataFine", "Stato"]
@@ -366,35 +368,33 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # ==========================
 # CLIENTI
 # ==========================
+# === CLIENTI ===
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
 
     # 🔄 Apertura diretta da Dashboard
-    if "selected_cliente" in st.session_state:
+    if "selected_cliente" in st.session_state and st.session_state["selected_cliente"]:
         cliente_da_aprire = st.session_state["selected_cliente"]
         st.session_state["selected_cliente"] = None  # resetta la selezione
         st.info(f"📂 Apertura cliente: **{cliente_da_aprire}**")
-        search_query = cliente_da_aprire  # imposta automaticamente la ricerca
+        search_query = cliente_da_aprire
     else:
-        search_query = ""
+        search_query = st.text_input("Cerca cliente per nome:")
 
-    # === 🔍 Ricerca Cliente ===
-    st.markdown("### 🔍 Cerca Cliente")
-    search_query = st.text_input("Cerca cliente per nome:")
+    if not search_query:
+        st.stop()
 
-    if search_query:
-        filtered = df_cli[df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)]
-    else:
-        filtered = df_cli
-
+    # Filtraggio
+    filtered = df_cli[df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)]
     if filtered.empty:
         st.warning("Nessun cliente trovato.")
         st.stop()
 
     options = filtered["RagioneSociale"].tolist()
-    sel_rag = st.selectbox("Seleziona Cliente", options)
+    sel_rag = st.selectbox("Seleziona Cliente", options, index=0)
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
+
 
     # === 🏢 Anagrafica principale ===
     st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")

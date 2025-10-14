@@ -295,6 +295,9 @@ def kpi_card(label, value, icon, bg_color):
     """
 
 def create_contract_card(row):
+    # Genera una chiave univoca anche se NumeroContratto o ClienteID sono vuoti o duplicati
+    unique_key = f"open_client_{str(row.get('ClienteID'))}_{str(row.get('NumeroContratto'))}_{hash(str(row))}"
+
     st.markdown(
         f"""
         <div style="
@@ -318,10 +321,12 @@ def create_contract_card(row):
         """,
         unsafe_allow_html=True
     )
-    if st.button("🔎 Apri Cliente", key=f"open_client_{row.get('ClienteID')}_{row.get('NumeroContratto')}"):
+
+    if st.button("🔎 Apri Cliente", key=unique_key):
         st.session_state["selected_client_id"] = row.get("ClienteID")
         st.session_state["nav_target"] = "Contratti"
         st.rerun()
+
 
 # ==========================
 # CLIENTI (come tuo, invariato)

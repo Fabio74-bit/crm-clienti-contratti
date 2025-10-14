@@ -354,116 +354,129 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-       # === Gestione Recall e Visite ===
-    st.markdown("### 📅 Gestione Recall e Visite")
+     # === 📅 Gestione Recall e Visite ===
+st.markdown("### 📅 Gestione Recall e Visite")
 
-    from datetime import timedelta, datetime
+from datetime import datetime, timedelta
+import pandas as pd
 
-    # Prepara i valori attuali
-    curr_ult_recall = pd.to_datetime(cliente.get("UltimoRecall"), errors="coerce", dayfirst=True)
-    curr_ult_visita = pd.to_datetime(cliente.get("UltimaVisita"), errors="coerce", dayfirst=True)
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        new_ult_recall = st.date_input(
-            "Ultimo Recall",
-            curr_ult_recall.date() if not pd.isna(curr_ult_recall) else None,
-            format="DD/MM/YYYY",
-            key=f"ur_{sel_id}",
-        )
-    with c3:
-        new_ult_visita = st.date_input(
-            "Ultima Visita",
-            curr_ult_visita.date() if not pd.isna(curr_ult_visita) else None,
-            format="DD/MM/YYYY",
-            key=f"uv_{sel_id}",
-        )
-
-    # Calcolo automatico prossime date
-    next_recall = (pd.to_datetime(new_ult_recall) + timedelta(days=30)).date() if new_ult_recall else None
-    next_visita = (pd.to_datetime(new_ult_visita) + timedelta(days=180)).date() if new_ult_visita else None
-
-    with c2:
-        st.date_input(
-            "Prossimo Recall (auto)",
-            value=next_recall,
-            format="DD/MM/YYYY",
-            key=f"pr_{sel_id}",
-            disabled=True,
-        )
-    with c4:
-        st.date_input(
-            "Prossima Visita (auto)",
-            value=next_visita,
-            format="DD/MM/YYYY",
-            key=f"pv_{sel_id}",
-            disabled=True,
-        )
-
-    if st.button("💾 Aggiorna Recall/Visite"):
+# --- Funzione per formattare e leggere date coerentemente ---
+def parse_italian_date(value):
+    if pd.isna(value) or value == "":
+        return None
+    try:
+        return datetime.strptime(str(value), "%d/%m/%Y")
+    except Exception:
         try:
-            idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+            return pd.to_datetime(value, dayfirst=True)
+        except Exception:
+            return None
 
-            # Aggiornamento dati con formato coerente
-            df_cli.loc[idx_row, "UltimoRecall"] = new_ult_recall.strftime("%d/%m/%Y") if new_ult_recall else ""
-            df_cli.loc[idx_row, "UltimaVisita"] = new_ult_visita.strftime("%d/%m/%Y") if new_ult_visita else ""
-            df_cli.loc[idx_row, "ProssimoRecall"] = next_recall.strftime("%d/%m/%Y") if next_recall else ""
-            df_cli.loc[idx_row, "ProssimaVisita"] = next_visita.strftime("%d/%m/%Y") if next_visita else ""
+def format_italian_date(date_val):
+    return date_val.strftime("%d/%m/%Y") if pd.notna(date_val) and date_val else ""
 
-            save_clienti(df_cli)
-            st.success("✅ Recall e Visite aggiornati con successo.")
-            st.rerun()
+# --- Recupera valori correnti ---
+curr_ult_recall = parse_italian_date(cliente.get("UltimoRecall", ""))
+curr_ult_visita = parse_italian_date(cliente.get("UltimaVisita", ""))
 
-        except Exception as e:
-            st.error(f"❌ Errore durante aggiornamento Recall/Visite: {e}")
+# --- Interfaccia grafica ---
+c1, c2, c3, c4 = st.columns(4)
+with c1:
+    new_ult_recall = st.date_input(
+        "Ultimo Recall",
+        curr_ult_recall.date() if curr_ult_recall else None,
+        format="DD/MM/YYYY",
+        key=f"ur_{sel_id}"
+    )
+with c3:
+    new_ult_visita = st.date_input(
+        "Ultima Visita",
+        curr_ult_visita.date() if curr_ult_visita else None,
+        format="DD/MM/YYYY",
+        key=f"uv_{sel_id}"
+    )
 
-    st.divider()
+# --- Calcolo automatico prossime date ---
+next_recall = (pd.to_datetime(new_ult_recall) + timedelta(days=30)).date() if new_ult_recall else None
+next_visita = (pd.to_datetime(new_ult_visita) + timedelta(days=180)).date() if new_ult_visita else None
 
+with c2:
+    st.date_input(
+        "Prossimo Recall (auto)",
+        value=next_recall,
+        format="DD/MM/YYYY",
+        key=f"pr_{sel_id}",
+        disabled=True
+    )
+with c4:
+    st.date_input(
+        "Prossima Visita (auto)",
+        value=next_visita,
+        format="DD/MM/YYYY",
+        key=f"pv_{sel_id}",
+        disabled=True
+    )
 
-    # === Modifica Anagrafica ===
-    with st.expander("🧾 Modifica Anagrafica", expanded=False):
-        with st.form("frm_anagrafica"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale", ""))
-                ref = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-            with col2:
-                indir = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
-                citta = st.text_input("Città", cliente.get("Citta", ""))
-                cap = st.text_input("CAP", cliente.get("CAP", ""))
-            with col3:
-                piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
-                sdi = st.text_input("SDI", cliente.get("SDI", ""))
-                mail = st.text_input("Email", cliente.get("Email", ""))
-                iban = st.text_input("IBAN", cliente.get("IBAN", ""))
+# --- Salvataggio aggiornamenti ---
+if st.button("💾 Aggiorna Recall/Visite"):
+    try:
+        idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
 
-            salva_btn = st.form_submit_button("💾 Salva Anagrafica")
-            if salva_btn:
-                err = False
-                if cap and (not cap.isdigit() or len(cap) != 5):
-                    st.error("❌ CAP non valido: deve contenere 5 cifre.")
-                    err = True
-                if piva and (not piva.isdigit() or len(piva) != 11):
-                    st.error("❌ Partita IVA non valida: deve contenere 11 cifre.")
-                    err = True
-                if mail and "@" not in mail:
-                    st.error("❌ Email non valida.")
-                    err = True
+        df_cli.loc[idx_row, "UltimoRecall"] = format_italian_date(pd.to_datetime(new_ult_recall))
+        df_cli.loc[idx_row, "UltimaVisita"] = format_italian_date(pd.to_datetime(new_ult_visita))
+        df_cli.loc[idx_row, "ProssimoRecall"] = format_italian_date(pd.to_datetime(next_recall))
+        df_cli.loc[idx_row, "ProssimaVisita"] = format_italian_date(pd.to_datetime(next_visita))
 
-                if not err:
-                    idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                    df_cli.loc[idx_row, [
-                        "RagioneSociale", "PersonaRiferimento", "Indirizzo",
-                        "Citta", "CAP", "PartitaIVA", "Email", "SDI", "IBAN"
-                    ]] = [rag, ref, indir, citta, cap, piva, mail, sdi, iban]
+        save_clienti(df_cli)
+        st.success("✅ Recall e Visite aggiornati con successo.")
+        st.rerun()
+    except Exception as e:
+        st.error(f"❌ Errore durante aggiornamento Recall/Visite: {e}")
 
-                    save_clienti(df_cli)
-                    st.success("✅ Anagrafica aggiornata con successo.")
-                    st.rerun()
+st.divider()
 
-    st.divider()
+# === 🧾 Modifica Anagrafica ===
+st.markdown("### 🧾 Modifica Anagrafica")
+with st.expander("Modifica i dati anagrafici del cliente", expanded=False):
+    with st.form("frm_anagrafica"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            rag = st.text_input("Ragione Sociale", cliente.get("RagioneSociale", ""))
+            ref = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+        with col2:
+            indir = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
+            citta = st.text_input("Città", cliente.get("Citta", ""))
+            cap = st.text_input("CAP", cliente.get("CAP", ""))
+        with col3:
+            piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
+            sdi = st.text_input("SDI", cliente.get("SDI", ""))
+            mail = st.text_input("Email", cliente.get("Email", ""))
+            iban = st.text_input("IBAN", cliente.get("IBAN", ""))
 
+        salva_btn = st.form_submit_button("💾 Salva Anagrafica")
+        if salva_btn:
+            err = False
+            if cap and (not cap.isdigit() or len(cap) != 5):
+                st.error("❌ CAP non valido: deve contenere 5 cifre.")
+                err = True
+            if piva and (not piva.isdigit() or len(piva) != 11):
+                st.error("❌ Partita IVA non valida: deve contenere 11 cifre.")
+                err = True
+            if mail and "@" not in mail:
+                st.error("❌ Email non valida.")
+                err = True
 
+            if not err:
+                idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                df_cli.loc[idx_row, [
+                    "RagioneSociale", "PersonaRiferimento", "Indirizzo",
+                    "Citta", "CAP", "PartitaIVA", "Email", "SDI", "IBAN"
+                ]] = [rag, ref, indir, citta, cap, piva, mail, sdi, iban]
+                save_clienti(df_cli)
+                st.success("✅ Anagrafica aggiornata con successo.")
+                st.rerun()
+
+st.divider()
 
     # === Note Cliente ===
     st.markdown("### 📝 Note Cliente")

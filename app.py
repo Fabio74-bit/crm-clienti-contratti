@@ -208,14 +208,12 @@ def do_login() -> Tuple[str, str]:
 # ==========================
 # DASHBOARD
 # ==========================
-# ==========================
-# DASHBOARD
-# ==========================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import pandas as pd
     from datetime import datetime, timedelta
     import streamlit as st
 
+    # --- Titolo principale ---
     st.markdown(
         "<h1 style='text-align:center; color:#0A84FF;'>📊 Dashboard CRM</h1>",
         unsafe_allow_html=True
@@ -232,7 +230,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
 
-    # ✅ Correzione gestione colonna "stato"
+    # ✅ Gestione colonna 'stato'
     if "stato" not in df_ct.columns:
         df_ct["stato"] = "Attivo"
     else:
@@ -244,9 +242,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     contratti_chiusi = df_ct[df_ct["stato"].str.lower() == "chiuso"].shape[0]
 
     anno_corrente = datetime.now().year
-    contratti_nuovi = df_ct[
-        df_ct["DataInizio"].dt.year == anno_corrente
-    ].shape[0]
+    contratti_nuovi = df_ct[df_ct["DataInizio"].dt.year == anno_corrente].shape[0]
 
     # === BOX METRICHE ===
     c1, c2, c3, c4 = st.columns(4)
@@ -307,7 +303,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if df_scadenza.empty:
         st.info("✅ Nessun contratto in scadenza nei prossimi 60 giorni.")
     else:
-        for _, r in df_scadenza.iterrows():
+        for i, r in df_scadenza.iterrows():
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.write(
@@ -315,11 +311,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     f"{r['DataFine'].strftime('%d/%m/%Y') if pd.notna(r['DataFine']) else 'N/A'}"
                 )
             with c2:
-                if st.button(
-                    "🔍 Apri cliente",
-                    key=f"open_scad_{r.get('ClienteID','')}_{r.get('NumeroContratto','')}",
-                    use_container_width=True
-                ):
+                if st.button("🔍 Apri cliente", key=f"open_scad_{i}", use_container_width=True):
                     st.session_state["selected_cliente"] = r.get("RagioneSociale", "")
                     st.session_state["page"] = "Clienti"
                     st.rerun()
@@ -334,16 +326,12 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if df_nofine.empty:
         st.info("✅ Tutti i contratti hanno una data di fine.")
     else:
-        for _, r in df_nofine.iterrows():
+        for j, r in df_nofine.iterrows():
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.write(f"**{r.get('RagioneSociale', 'N/D')}** — {r.get('Descrizione','')[:60]}...")
             with c2:
-                if st.button(
-                    "📂 Apri cliente",
-                    key=f"open_nofine_{r.get('ClienteID','')}_{r.get('NumeroContratto','')}",
-                    use_container_width=True
-                ):
+                if st.button("📂 Apri cliente", key=f"open_nofine_{j}", use_container_width=True):
                     st.session_state["selected_cliente"] = r.get("RagioneSociale", "")
                     st.session_state["page"] = "Clienti"
                     st.rerun()

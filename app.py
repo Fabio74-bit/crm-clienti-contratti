@@ -264,7 +264,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-       # Contratti in scadenza (6 mesi) — versione compatta
+           # Contratti in scadenza (6 mesi) — versione con finestra scrollabile
     st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
 
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
@@ -283,28 +283,40 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         )
         scadenza["DataFine"] = scadenza["DataFine"].dt.strftime("%d/%m/%Y")
 
-        st.markdown("""
-        <style>
-        .scad-row {display:flex; justify-content:space-between; padding:6px 10px;
-                   border-bottom:1px solid #eee; font-size:14px;}
-        .scad-head {font-weight:600; background:#f3f3f3; border-radius:6px; padding:6px 10px;}
-        </style>
-        """, unsafe_allow_html=True)
+        # container scrollabile
+        with st.container():
+            st.markdown("""
+            <style>
+            .scroll-box {
+                max-height: 350px;
+                overflow-y: scroll;
+                border: 1px solid #ddd;
+                padding: 8px;
+                border-radius: 8px;
+                background-color: #fafafa;
+            }
+            .scad-head {font-weight:600; background:#f0f0f0; padding:6px 10px; border-radius:6px;}
+            </style>
+            """, unsafe_allow_html=True)
 
-        st.markdown("<div class='scad-head'>Cliente | Contratto | Scadenza | Stato | </div>", unsafe_allow_html=True)
+            st.markdown("<div class='scad-head'>Cliente | Contratto | Scadenza | Stato | </div>", unsafe_allow_html=True)
+            st.markdown("<div class='scroll-box'>", unsafe_allow_html=True)
 
-        for i, row in scadenza.iterrows():
-            col1, col2, col3, col4, col5 = st.columns([0.35, 0.25, 0.2, 0.15, 0.1])
-            col1.write(f"**{row['RagioneSociale']}**")
-            col2.write(row["NumeroContratto"])
-            col3.write(row["DataFine"])
-            col4.write(row["Stato"])
-            if col5.button("➡️", key=f"open_{i}_{row['ClienteID']}"):
-                st.session_state["selected_client_id"] = row["ClienteID"]
-                st.session_state["nav_target"] = "Contratti"
-                st.rerun()
+            for i, row in scadenza.iterrows():
+                col1, col2, col3, col4, col5 = st.columns([0.35, 0.25, 0.2, 0.15, 0.1])
+                col1.write(f"**{row['RagioneSociale']}**")
+                col2.write(row["NumeroContratto"])
+                col3.write(row["DataFine"])
+                col4.write(row["Stato"])
+                if col5.button("➡️", key=f"open_{i}_{row['ClienteID']}"):
+                    st.session_state["selected_client_id"] = row["ClienteID"]
+                    st.session_state["nav_target"] = "Contratti"
+                    st.rerun()
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
+
 
 
     # Contratti senza data fine (da oggi in poi)
@@ -855,33 +867,79 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.download_button("📘 Esporta PDF", pdf_bytes, f"contratti_{rag_soc}.pdf", "application/pdf")
         except Exception as e:
             st.error(f"Errore PDF: {e}")
+# ==========================
+# LISTA CLIENTI (nuova pagina con filtri)
+# ==========================
+def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    st.title("📋 Lista Completa Clienti e Contratti")
+
+    # --- Filtro rapido ---
+    st.markdown("### 🔍 Filtra Clienti")
+    col1, col2 = st.columns(2)
+    with col1:
+        filtro_nome = st.text_input("Cerca per nome cliente")
+    with col2:
+        filtro_citta = st.text_input("Cerca per città")
+
+    # --- Merge Clienti + Contratti ---
+    merged = df_ct.merge(df_cli[["ClienteID", "RagioneSociale", "Citta"]], on="ClienteID", how="left")
+
+    # Filtraggio dinamico
+    if filtro_nome:
+        merged = merged[merged["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
+    if filtro_citta:
+        merged = merged[merged["Citta"].str.contains(filtro_citta, case=False, na=False)]
+
+    merged["DataInizio"] = pd.to_datetime(merged["DataInizio"], errors="coerce").dt.strftime("%d/%m/%Y")
+    merged["DataFine"] = pd.to_datetime(merged["DataFine"], errors="coerce").dt.strftime("%d/%m/%Y")
+
+    merged = merged[["RagioneSociale", "Citta", "NumeroContratto", "DataInizio", "DataFine", "Stato"]].fillna("")
+
+    # --- Conteggio dinamico ---
+    st.caption(f"Totale clienti trovati: **{len(merged)}**")
+
+    # --- Visualizzazione tabella ---
+    st.dataframe(merged, use_container_width=True, hide_index=True)
+
+    # --- Esportazione CSV ---
+    csv = merged.to_csv(index=False, encoding="utf-8-sig")
+    st.download_button("⬇️ Esporta CSV", csv, "lista_clienti_contratti.csv", "text/csv")
+
 
 # ==========================
 # MAIN APP
 # ==========================
 def main():
-    st.set_page_config(page_title="SHT – Gestionale", layout="wide")
-    st.markdown(f"<h3 style='margin-top:8px'>{APP_TITLE}</h3>", unsafe_allow_html=True)
-
     # === LOGIN PRIMA DI TUTTO ===
     user, role = do_login_fullscreen()
     if not user:
         st.stop()
 
-
     st.sidebar.success(f"Utente: {user} — Ruolo: {role}")
 
-    PAGES = {"Dashboard": page_dashboard, "Clienti": page_clienti, "Contratti": page_contratti}
-    default_page = st.session_state.pop("nav_target", "Dashboard")
-    page = st.sidebar.radio("Menu", list(PAGES.keys()),
-                            index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0)
+    # Pagine principali + nuova pagina Lista Clienti
+    PAGES = {
+        "Dashboard": page_dashboard,
+        "Clienti": page_clienti,
+        "Contratti": page_contratti,
+        "📋 Lista Clienti": page_lista_clienti
+    }
 
-    # Caricamento dati (CSV come da tua logica)
+    # Imposta pagina predefinita e navigazione
+    default_page = st.session_state.pop("nav_target", "Dashboard")
+    page = st.sidebar.radio(
+        "Menu",
+        list(PAGES.keys()),
+        index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
+    )
+
+    # Caricamento dati
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    # Routing
+    # Routing verso la pagina selezionata
     PAGES[page](df_cli, df_ct, role)
+
 
 if __name__ == "__main__":
     main()

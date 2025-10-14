@@ -233,9 +233,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     df_ct["DataInizio"] = pd.to_datetime(df_ct.get("DataInizio", pd.NaT), errors="coerce", dayfirst=True)
     df_ct["DataFine"] = pd.to_datetime(df_ct.get("DataFine", pd.NaT), errors="coerce", dayfirst=True)
     if "stato" not in df_ct.columns:
-    df_ct["stato"] = "Attivo"
-else:
-    df_ct["stato"] = df_ct["stato"].fillna("Attivo")
+        df_ct["stato"] = "Attivo"
+    else:
+        df_ct["stato"] = df_ct["stato"].fillna("Attivo")
 
 
     # === Calcoli ===

@@ -559,14 +559,27 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "DATA": datetime.now().strftime("%d/%m/%Y"),
                     }
                     for p in doc.paragraphs:
+                        full_text = "".join(run.text for run in p.runs)
+                        modified = False
+
                         for key, val in mapping.items():
-                            token = f"<<{key}>>"
-                            if token in p.text:
-                                for run in p.runs:
-                                    if token in run.text:
-                                        run.text = run.text.replace(token, str(val))
-                                        run.font.size = Pt(10)
-                                        p.alignment = 0
+                        token = f"<<{key}>>"
+                        if token in full_text:
+                            full_text = full_text.replace(token, str(val))
+                            modified = True
+
+                    if modified:
+                        # Cancella tutte le run precedenti
+                        for run in p.runs:
+                            run.text = ""
+        # Scrive il testo completo aggiornato
+                        p.runs[0].text = full_text
+
+        # Applica stile uniforme
+                        for run in p.runs:
+                            run.font.size = Pt(9 if template == "Offerta A4" else 10)
+                        p.alignment = 0
+
 
                     doc.save(output_path)
                     st.success(f"✅ Preventivo salvato: {output_path.name}")

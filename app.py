@@ -301,7 +301,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             </style>
             """, unsafe_allow_html=True)
 
-         # intestazione colonne chiara e ben proporzionata
+         # intestazione colonne chiara e ben proporzionata + contenitore scrollabile
 st.markdown("""
 <style>
 .scad-box {
@@ -342,6 +342,7 @@ st.markdown("""
   <div>Stato</div>
   <div style='text-align:center;'>Azione</div>
 </div>
+
 <div class='scad-box'>
 """, unsafe_allow_html=True)
 
@@ -365,6 +366,7 @@ for i, row in scadenza.iterrows():
         st.rerun()
 
 st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 # ==========================

@@ -208,6 +208,9 @@ def do_login() -> Tuple[str, str]:
 # ==========================
 # DASHBOARD
 # ==========================
+# ==========================
+# DASHBOARD
+# ==========================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import pandas as pd
     from datetime import datetime, timedelta
@@ -232,13 +235,14 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # --- Normalizza date e stato ---
     df_ct["DataInizio"] = pd.to_datetime(df_ct.get("DataInizio", pd.NaT), errors="coerce", dayfirst=True)
     df_ct["DataFine"] = pd.to_datetime(df_ct.get("DataFine", pd.NaT), errors="coerce", dayfirst=True)
+
+    # ✅ Gestione colonna "stato" sicura
     if "stato" not in df_ct.columns:
         df_ct["stato"] = "Attivo"
     else:
         df_ct["stato"] = df_ct["stato"].fillna("Attivo")
 
-
-    # === Calcoli ===
+    # === Calcoli principali ===
     clienti_attivi = df_cli["ClienteID"].nunique()
     contratti_attivi = df_ct[df_ct["stato"].str.lower() == "attivo"].shape[0]
     contratti_chiusi = df_ct[df_ct["stato"].str.lower() == "chiuso"].shape[0]
@@ -295,6 +299,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.write(f"• **{r.get('RagioneSociale', 'N/D')}** — {str(r.get('Descrizione', '')).strip()[:60]}...")
 
     st.divider()
+
 
 
 # ==========================

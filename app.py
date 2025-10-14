@@ -206,126 +206,131 @@ def do_login() -> Tuple[str, str]:
     return ("", "")
 
 # ==========================
-# DASHBOARD
+# DASHBOARD (drop-in replacement)
 # ==========================
-def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
+def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    import pandas as pd
+    from datetime import datetime, timedelta
+
     st.markdown("<h2 style='text-align:center;'>📊 Dashboard CRM</h2>", unsafe_allow_html=True)
 
-    from datetime import datetime
-    import pandas as pd
+    # --- Normalizza colonne contratti ---
+    df_ct = (df_ct or pd.DataFrame()).copy()
+    if df_ct.empty:
+        # KPI vuoti ma UI coerente
+        clienti_attivi = len(df_cli)
+        st.info("Nessun contratto presente.")
+        st.metric("Clienti attivi", clienti_attivi)
+        return
 
-    # === PULIZIA E NORMALIZZAZIONE DATI ===
-    df_ct = df_ct.fillna("")
+    # Stato: può essere 'stato' o 'Stato'
+    stato_col = "stato" if "stato" in df_ct.columns else ("Stato" if "Stato" in df_ct.columns else None)
+    if stato_col is None:
+        # se manca, crea 'stato' di default = 'attivo'
+        stato_col = "stato"
+        df_ct[stato_col] = "attivo"
+
+    # Descrizione: preferisci DescrizioneProdotto, fallback Descrizione
+    desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in df_ct.columns else ("Descrizione" if "Descrizione" in df_ct.columns else None)
+    if desc_col is None:
+        df_ct["DescrizioneProdotto"] = ""
+        desc_col = "DescrizioneProdotto"
+
+    # Date
+    for c in ["DataInizio", "DataFine"]:
+        if c in df_ct.columns:
+            df_ct[c] = pd.to_datetime(df_ct[c], errors="coerce", dayfirst=True)
+        else:
+            df_ct[c] = pd.NaT
+
+    # Join per avere RagioneSociale
+    df_cli_min = df_cli[["ClienteID", "RagioneSociale"]].copy()
+    df_ct = df_ct.merge(df_cli_min, on="ClienteID", how="left")
+
     today = datetime.today().date()
     year_now = today.year
 
-    # Normalizza colonne per sicurezza
-    for col in ["DataInizio", "DataFine"]:
-        if col in df_ct.columns:
-            df_ct[col] = pd.to_datetime(df_ct[col], errors="coerce", dayfirst=True)
-
-    # === KPI ===
+    # --- KPI ---
     clienti_attivi = len(df_cli)
-    contratti_attivi = len(df_ct[df_ct["stato"].str.lower() == "attivo"])
-    contratti_chiusi = len(df_ct[df_ct["stato"].str.lower() == "chiuso"])
+    contratti_chiusi = len(df_ct[df_ct[stato_col].astype(str).str.lower() == "chiuso"])
+    contratti_attivi = len(df_ct[df_ct[stato_col].astype(str).str.lower() != "chiuso"])
     contratti_nuovi = len(df_ct[df_ct["DataInizio"].dt.year == year_now])
 
     st.markdown("""
         <style>
-        .kpi-container {
-            display: flex;
-            justify-content: space-between;
-            text-align: center;
-            margin-top: 25px;
-            margin-bottom: 25px;
-        }
-        .kpi {
-            flex: 1;
-            margin: 0 10px;
-            padding: 20px;
-            border-radius: 15px;
-            color: white;
-            font-weight: bold;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-        }
-        .kpi:hover { transform: translateY(-4px); }
-        .blue { background: linear-gradient(135deg, #1e3a8a, #2563eb); }
-        .green { background: linear-gradient(135deg, #065f46, #10b981); }
-        .red { background: linear-gradient(135deg, #7f1d1d, #dc2626); }
-        .orange { background: linear-gradient(135deg, #92400e, #f97316); }
-        .kpi h3 { font-size: 2.2em; margin: 0; }
-        .kpi p { font-size: 1em; margin: 0; }
+        .kpi-wrap{display:flex;gap:12px;margin:18px 0}
+        .kpi{flex:1;padding:16px 18px;border-radius:14px;color:#fff;
+             box-shadow:0 4px 10px rgba(0,0,0,.08)}
+        .kpi h3{margin:0;font-size:2.0rem}
+        .kpi p{margin:2px 0 0;font-size:.95rem;opacity:.95}
+        .blue{background:linear-gradient(135deg,#1e3a8a,#2563eb)}
+        .green{background:linear-gradient(135deg,#065f46,#10b981)}
+        .red{background:linear-gradient(135deg,#7f1d1d,#dc2626)}
+        .orange{background:linear-gradient(135deg,#92400e,#f97316)}
         </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-        <div class='kpi-container'>
-            <div class='kpi blue'>
-                <h3>{clienti_attivi}</h3><p>Clienti Attivi</p>
-            </div>
-            <div class='kpi green'>
-                <h3>{contratti_attivi}</h3><p>Contratti Attivi</p>
-            </div>
-            <div class='kpi red'>
-                <h3>{contratti_chiusi}</h3><p>Contratti Chiusi</p>
-            </div>
-            <div class='kpi orange'>
-                <h3>{contratti_nuovi}</h3><p>Contratti Nuovi {year_now}</p>
-            </div>
+        <div class="kpi-wrap">
+          <div class="kpi blue"><h3>""" + f"{clienti_attivi}" + """</h3><p>Clienti attivi</p></div>
+          <div class="kpi green"><h3>""" + f"{contratti_attivi}" + """</h3><p>Contratti attivi</p></div>
+          <div class="kpi red"><h3>""" + f"{contratti_chiusi}" + """</h3><p>Contratti chiusi</p></div>
+          <div class="kpi orange"><h3>""" + f"{contratti_nuovi}" + f"""</h3><p>Contratti nuovi {year_now}</p></div>
         </div>
     """, unsafe_allow_html=True)
 
     st.divider()
 
-    # === CONTRATTI IN SCADENZA ===
-    st.markdown("### ⏰ Contratti in Scadenza (entro 60 giorni)")
+    # --- Contratti in scadenza entro 60 giorni ---
+    st.markdown("### ⏰ Contratti in scadenza (entro 60 giorni)")
 
-    prossime_scadenze = df_ct[
-        (df_ct["DataFine"].notna()) &
-        (df_ct["DataFine"].dt.date >= today) &
-        (df_ct["DataFine"].dt.date <= today + pd.Timedelta(days=60))
-    ]
+    in_scadenza = df_ct[
+        df_ct["DataFine"].notna()
+        & (df_ct["DataFine"].dt.date >= today)
+        & (df_ct["DataFine"].dt.date <= today + timedelta(days=60))
+        & (df_ct[stato_col].astype(str).str.lower() != "chiuso")
+    ].copy()
 
-    if prossime_scadenze.empty:
+    if in_scadenza.empty:
         st.info("✅ Nessun contratto in scadenza nei prossimi 60 giorni.")
     else:
-        for _, row in prossime_scadenze.iterrows():
-            cliente_nome = row.get("Cliente", "Sconosciuto")
-            data_fine = row["DataFine"].strftime("%d/%m/%Y") if pd.notna(row["DataFine"]) else "-"
-            col1, col2, col3 = st.columns([0.5, 0.3, 0.2])
-            with col1:
-                st.write(f"**{cliente_nome}** — Scadenza: {data_fine}")
-            with col2:
-                st.write(row.get("Descrizione", ""))
-            with col3:
-                if st.button("🧾 Apri Cliente", key=f"btn_{cliente_nome}"):
-                    st.session_state["selected_cliente"] = cliente_nome
-                    st.session_state["page"] = "Clienti"
+        # ordina per data e mostra
+        in_scadenza = in_scadenza.sort_values("DataFine")
+        for _, r in in_scadenza.iterrows():
+            rag = r.get("RagioneSociale") or r.get("ClienteID")
+            fine = r["DataFine"].strftime("%d/%m/%Y") if pd.notna(r["DataFine"]) else "-"
+            c1, c2, c3 = st.columns([0.5, 0.3, 0.2])
+            with c1:
+                st.write(f"**{rag}** — Scadenza: {fine}")
+            with c2:
+                st.caption(str(r.get(desc_col, ""))[:60])
+            with c3:
+                if st.button("🧭 Apri cliente", key=f"open_scad_{r['ClienteID']}_{str(r['DataFine'])}"):
+                    st.session_state["selected_cliente"] = str(r["RagioneSociale"] or r["ClienteID"])
+                    st.session_state["nav_target"] = "Clienti"
                     st.rerun()
 
     st.divider()
 
-    # === PROMEMORIA: Contratti Senza Data Fine ===
-    st.markdown("### 📅 Promemoria: Contratti Senza Data Fine")
+    # --- Promemoria: contratti senza data fine ---
+    st.markdown("### 📌 Promemoria — Contratti senza *Data Fine*")
+    senza_fine = df_ct[df_ct["DataFine"].isna()].copy()
 
-    senza_datafine = df_ct[df_ct["DataFine"].isna()]
+    # rimuovi righe fittizie tipo 'NuovoContratto' in NumeroContratto (se presenti)
+    if "NumeroContratto" in senza_fine.columns:
+        senza_fine = senza_fine[
+            ~senza_fine["NumeroContratto"].astype(str).str.contains("NuovoContratto", case=False, na=False)
+        ]
 
-    # elimina eventuale riga errata "NuovoContratto"
-    senza_datafine = senza_datafine[~senza_datafine["Cliente"].str.contains("NuovoContratto", case=False, na=False)]
-
-    if senza_datafine.empty:
+    if senza_fine.empty:
         st.info("✅ Tutti i contratti hanno una data di fine.")
     else:
-        for _, row in senza_datafine.iterrows():
-            cliente_nome = row.get("Cliente", "Sconosciuto")
-            col1, col2 = st.columns([0.7, 0.3])
-            with col1:
-                st.write(f"**{cliente_nome}** — {row.get('Descrizione', '')}")
-            with col2:
-                if st.button("🧾 Apri Cliente", key=f"open_{cliente_nome}"):
-                    st.session_state["selected_cliente"] = cliente_nome
-                    st.session_state["page"] = "Clienti"
+        for _, r in senza_fine.iterrows():
+            rag = r.get("RagioneSociale") or r.get("ClienteID")
+            c1, c2 = st.columns([0.75, 0.25])
+            with c1:
+                st.write(f"**{rag}** — {str(r.get(desc_col, ''))[:80]}")
+            with c2:
+                if st.button("🧭 Apri cliente", key=f"open_nofine_{r['ClienteID']}_{r.get('NumeroContratto','')}"):
+                    st.session_state["selected_cliente"] = str(r["RagioneSociale"] or r["ClienteID"])
+                    st.session_state["nav_target"] = "Clienti"
                     st.rerun()
 
 

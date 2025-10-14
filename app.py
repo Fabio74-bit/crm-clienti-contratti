@@ -208,35 +208,42 @@ def do_login() -> Tuple[str, str]:
 # ==========================
 # DASHBOARD
 # ==========================
+# ==========================
+# DASHBOARD
+# ==========================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import pandas as pd
     from datetime import datetime, timedelta
     import streamlit as st
 
-    # --- Titolo principale ---
-    st.markdown(
-        "<h1 style='text-align:center; color:#0A84FF;'>📊 Dashboard CRM</h1>",
-        unsafe_allow_html=True
-    )
+    st.markdown("<h1 style='text-align:center; color:#0A84FF;'>📊 Dashboard CRM</h1>", unsafe_allow_html=True)
 
-    # --- Controllo dataframe contratti ---
+    # --- Controllo dataset contratti ---
     if df_ct is None or df_ct.empty:
         st.warning("⚠️ Nessun dato contratti caricato.")
         return
     else:
         df_ct = df_ct.copy()
 
-    # --- Pulizia campi e normalizzazione date ---
+    # 🔗 Aggiunge nome cliente ai contratti (merge con df_cli)
+    if "RagioneSociale" not in df_ct.columns and "ClienteID" in df_ct.columns:
+        df_ct = df_ct.merge(
+            df_cli[["ClienteID", "RagioneSociale"]],
+            on="ClienteID",
+            how="left"
+        )
+
+    # --- Pulizia e normalizzazione date ---
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
 
-    # ✅ Gestione colonna 'stato'
+    # --- Gestione stato ---
     if "stato" not in df_ct.columns:
         df_ct["stato"] = "Attivo"
     else:
         df_ct["stato"] = df_ct["stato"].fillna("Attivo")
 
-    # --- Calcoli per i box ---
+    # --- Calcoli metriche principali ---
     clienti_attivi = df_cli["ClienteID"].nunique()
     contratti_attivi = df_ct[df_ct["stato"].str.lower() == "attivo"].shape[0]
     contratti_chiusi = df_ct[df_ct["stato"].str.lower() == "chiuso"].shape[0]
@@ -247,45 +254,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === BOX METRICHE ===
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(
-            f"""
-            <div style='background-color:#007bff20; padding:20px; border-radius:12px; text-align:center;'>
-                <h3>👥 Clienti Attivi</h3>
-                <h2 style='color:#007bff;'>{clienti_attivi}</h2>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown(f"<div style='background-color:#007bff20;padding:20px;border-radius:12px;text-align:center;'><h3>👥 Clienti Attivi</h3><h2 style='color:#007bff;'>{clienti_attivi}</h2></div>", unsafe_allow_html=True)
     with c2:
-        st.markdown(
-            f"""
-            <div style='background-color:#28a74520; padding:20px; border-radius:12px; text-align:center;'>
-                <h3>📄 Contratti Attivi</h3>
-                <h2 style='color:#28a745;'>{contratti_attivi}</h2>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown(f"<div style='background-color:#28a74520;padding:20px;border-radius:12px;text-align:center;'><h3>📄 Contratti Attivi</h3><h2 style='color:#28a745;'>{contratti_attivi}</h2></div>", unsafe_allow_html=True)
     with c3:
-        st.markdown(
-            f"""
-            <div style='background-color:#dc354520; padding:20px; border-radius:12px; text-align:center;'>
-                <h3>🛑 Contratti Chiusi</h3>
-                <h2 style='color:#dc3545;'>{contratti_chiusi}</h2>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown(f"<div style='background-color:#dc354520;padding:20px;border-radius:12px;text-align:center;'><h3>🛑 Contratti Chiusi</h3><h2 style='color:#dc3545;'>{contratti_chiusi}</h2></div>", unsafe_allow_html=True)
     with c4:
-        st.markdown(
-            f"""
-            <div style='background-color:#ffc10720; padding:20px; border-radius:12px; text-align:center;'>
-                <h3>🆕 Contratti Nuovi {anno_corrente}</h3>
-                <h2 style='color:#ff9800;'>{contratti_nuovi}</h2>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown(f"<div style='background-color:#ffc10720;padding:20px;border-radius:12px;text-align:center;'><h3>🆕 Contratti Nuovi {anno_corrente}</h3><h2 style='color:#ff9800;'>{contratti_nuovi}</h2></div>", unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -306,10 +281,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         for i, r in df_scadenza.iterrows():
             c1, c2 = st.columns([3, 1])
             with c1:
-                st.write(
-                    f"**{r.get('RagioneSociale', 'N/D')}** — Scadenza: "
-                    f"{r['DataFine'].strftime('%d/%m/%Y') if pd.notna(r['DataFine']) else 'N/A'}"
-                )
+                st.write(f"**{r.get('RagioneSociale', 'N/D')}** — Scadenza: {r['DataFine'].strftime('%d/%m/%Y') if pd.notna(r['DataFine']) else 'N/A'}")
             with c2:
                 if st.button("🔍 Apri cliente", key=f"open_scad_{i}", use_container_width=True):
                     st.session_state["selected_cliente"] = r.get("RagioneSociale", "")

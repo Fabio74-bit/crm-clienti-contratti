@@ -448,27 +448,26 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
 
    
-       # === CREAZIONE E GESTIONE PREVENTIVI ===
-    st.markdown("### 🧾 Crea Nuovo Preventivo")
+   # === CREAZIONE E GESTIONE PREVENTIVI ===
+st.markdown("### 🧾 Crea Nuovo Preventivo")
 
-    from docx import Document
-    import webbrowser
-    import platform
+from docx import Document
+import webbrowser
+import platform
 
-    # 📂 Percorsi fissi
-    # 📂 Percorsi fissi
+# 📂 Percorsi fissi
 TEMPLATES_DIR = STORAGE_DIR / "templates"
 EXTERNAL_PROPOSALS_DIR = STORAGE_DIR / "preventivi"
 EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
 
+# 🧩 Template disponibili
+TEMPLATE_OPTIONS = {
+    "Offerta A4": "Offerte_A4.docx",
+    "Offerta A3": "Offerte_A3.docx",
+    "Centralino": "Offerta_Centralino.docx",
+    "Varie": "Offerta_Varie.docx",
+}
 
-    # 🧩 Template disponibili
-    TEMPLATE_OPTIONS = {
-        "Offerta A4": "Offerte_A4.docx",
-        "Offerta A3": "Offerte_A3.docx",
-        "Centralino": "Offerta_Centralino.docx",
-        "Varie": "Offerta_Varie.docx",
-    }
 
     # === Carica preventivi esistenti ===
     prev_path = STORAGE_DIR / "preventivi.csv"

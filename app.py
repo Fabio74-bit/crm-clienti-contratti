@@ -473,7 +473,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 mapping = {
                     "CLIENTE": cliente.get("RagioneSociale", ""),
                     "INDIRIZZO": cliente.get("Indirizzo", ""),
-                    "CITTA": cliente.get("Citta", ""),
+                    "CITTA": cliente.get("Citta", "") or cliente.get("Città", ""),
                     "NUMERO_OFFERTA": num,
                     "DATA": datetime.now().strftime("%d/%m/%Y"),
                 }

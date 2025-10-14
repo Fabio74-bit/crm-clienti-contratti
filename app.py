@@ -217,6 +217,33 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import streamlit as st
 
     st.markdown("<h1 style='text-align:center; color:#0A84FF;'>📊 Dashboard CRM</h1>", unsafe_allow_html=True)
+    # === 📅 PROMEMORIA RECALL E VISITE ===
+    if {"ProssimoRecall", "ProssimaVisita"}.issubset(df_cli.columns):
+        oggi = pd.Timestamp.now().normalize()
+
+        df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce", dayfirst=True)
+        df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce", dayfirst=True)
+
+        recall_pendenti = df_cli[df_cli["ProssimoRecall"].notna() & (df_cli["ProssimoRecall"] <= oggi)].shape[0]
+        visite_pendenti = df_cli[df_cli["ProssimaVisita"].notna() & (df_cli["ProssimaVisita"] <= oggi)].shape[0]
+
+        c0, c1 = st.columns(2)
+        with c0:
+            st.markdown(f"""
+            <div style='background:#ff980020;padding:20px;border-radius:12px;text-align:center;'>
+            <h3>🔔 Recall da Effettuare</h3>
+            <h2 style='color:#ff9800'>{recall_pendenti}</h2>
+            </div>
+            """, unsafe_allow_html=True)
+        with c1:
+            st.markdown(f"""
+            <div style='background:#8e44ad20;padding:20px;border-radius:12px;text-align:center;'>
+            <h3>👣 Visite da Effettuare</h3>
+            <h2 style='color:#8e44ad'>{visite_pendenti}</h2>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.divider()
 
     # === Sicurezza sui dati ===
     if df_ct is None or not isinstance(df_ct, pd.DataFrame) or df_ct.empty:

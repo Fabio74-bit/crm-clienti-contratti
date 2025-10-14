@@ -218,8 +218,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if df_ct is None:
         st.warning("⚠️ Nessun dato contratti caricato.")
         return
-else:
+    else:
         df_ct = df_ct.copy()
+
 
     # --- Colonne attese ---
     required_cols = ["ClienteID", "RagioneSociale", "DataInizio", "DataFine", "Stato"]

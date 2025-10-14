@@ -456,10 +456,11 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import platform
 
     # 📂 Percorsi fissi
-    BASE_DIR = Path(__file__).parent.resolve()
-    TEMPLATES_DIR = BASE_DIR
-    EXTERNAL_PROPOSALS_DIR = BASE_DIR / "preventivi"
-    EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
+    # 📂 Percorsi fissi
+TEMPLATES_DIR = STORAGE_DIR / "templates"
+EXTERNAL_PROPOSALS_DIR = STORAGE_DIR / "preventivi"
+EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
+
 
     # 🧩 Template disponibili
     TEMPLATE_OPTIONS = {

@@ -216,9 +216,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # --- Normalizza colonne contratti ---
     if df_ct is None or df_ct.empty:
-    df_ct = pd.DataFrame()
-else:
-    df_ct = df_ct.copy()
+        df_ct = pd.DataFrame()
+    else:
+        df_ct = df_ct.copy()
+
 
     if df_ct.empty:
         # KPI vuoti ma UI coerente

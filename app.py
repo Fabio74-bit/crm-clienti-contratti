@@ -266,7 +266,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-           # Contratti in scadenza (6 mesi) — versione con finestra scrollabile
+       # Contratti in scadenza (6 mesi) — header + finestra scrollabile
     st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
 
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
@@ -280,92 +280,76 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if scadenza.empty:
         st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
     else:
+        # prepara dati e intestazioni
         scadenza = scadenza.sort_values("DataFine").merge(
             df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left"
-        )
+        ).copy()
+        scadenza["NumeroContratto"] = scadenza["NumeroContratto"].fillna("")
         scadenza["DataFine"] = scadenza["DataFine"].dt.strftime("%d/%m/%Y")
 
-        # container scrollabile
-        with st.container():
-            st.markdown("""
-            <style>
-            .scroll-box {
-                max-height: 350px;
-                overflow-y: scroll;
-                border: 1px solid #ddd;
-                padding: 8px;
-                border-radius: 8px;
-                background-color: #fafafa;
-            }
-            .scad-head {font-weight:600; background:#f0f0f0; padding:6px 10px; border-radius:6px;}
-            </style>
-            """, unsafe_allow_html=True)
+        st.markdown("""
+        <style>
+        .scad-box {
+            max-height: 360px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+            padding: 6px 4px;
+        }
+        .scad-header {
+            display: grid;
+            grid-template-columns: 38% 22% 20% 12% 8%;
+            font-weight: 600;
+            background: #f0f0f0;
+            border-radius: 6px;
+            padding: 6px 10px;
+            margin-bottom: 4px;
+            font-size: 15px;
+        }
+        .scad-row {
+            display: grid;
+            grid-template-columns: 38% 22% 20% 12% 8%;
+            align-items: center;
+            padding: 6px 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        .scad-row:hover { background-color: #f9f9f9; }
+        </style>
 
-         # intestazione colonne chiara e ben proporzionata + contenitore scrollabile
-st.markdown("""
-<style>
-.scad-box {
-    max-height: 360px;
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background-color: #fafafa;
-    padding: 6px 4px;
-}
-.scad-header {
-    display: grid;
-    grid-template-columns: 38% 22% 20% 12% 8%;
-    font-weight: 600;
-    background: #f0f0f0;
-    border-radius: 6px;
-    padding: 6px 10px;
-    margin-bottom: 4px;
-    font-size: 15px;
-}
-.scad-row {
-    display: grid;
-    grid-template-columns: 38% 22% 20% 12% 8%;
-    align-items: center;
-    padding: 6px 10px;
-    border-bottom: 1px solid #eee;
-    font-size: 14px;
-}
-.scad-row:hover {
-    background-color: #f9f9f9;
-}
-</style>
-
-<div class='scad-header'>
-  <div>Cliente</div>
-  <div>Contratto</div>
-  <div>Scadenza</div>
-  <div>Stato</div>
-  <div style='text-align:center;'>Azione</div>
-</div>
-
-<div class='scad-box'>
-""", unsafe_allow_html=True)
-
-# righe dinamiche della tabella
-for i, row in scadenza.iterrows():
-    st.markdown(
-        f"""
-        <div class='scad-row'>
-            <div><b>{row['RagioneSociale']}</b></div>
-            <div>{row['NumeroContratto'] or '-'}</div>
-            <div>{row['DataFine']}</div>
-            <div>{row['Stato']}</div>
-            <div style='text-align:center;'>➡️</div>
+        <div class='scad-header'>
+          <div>Cliente</div>
+          <div>Contratto</div>
+          <div>Scadenza</div>
+          <div>Stato</div>
+          <div style='text-align:center;'>Azione</div>
         </div>
-        """,
-        unsafe_allow_html=True
-    )
-    if st.button("Apri", key=f"open_{i}_{row['ClienteID']}"):
-        st.session_state["selected_client_id"] = row["ClienteID"]
-        st.session_state["nav_target"] = "Contratti"
-        st.rerun()
+        <div class='scad-box'>
+        """, unsafe_allow_html=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
+        # righe
+        for i, row in scadenza.iterrows():
+            st.markdown(
+                f"""
+                <div class='scad-row'>
+                    <div><b>{row['RagioneSociale']}</b></div>
+                    <div>{row['NumeroContratto'] or '-'}</div>
+                    <div>{row['DataFine']}</div>
+                    <div>{row['Stato']}</div>
+                    <div style='text-align:center;'>➡️</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            if st.button("Apri", key=f"open_{i}_{row['ClienteID']}"):
+                st.session_state["selected_client_id"] = row["ClienteID"]
+                st.session_state["nav_target"] = "Contratti"
+                st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.divider()
 
 
 

@@ -498,7 +498,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === 🧾 CREAZIONE E GESTIONE PREVENTIVI ===
+        # === 🧾 CREAZIONE E GESTIONE PREVENTIVI ===
     st.markdown("### 🧾 Crea Nuovo Preventivo")
 
     from docx import Document
@@ -558,32 +558,35 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "NUMERO_OFFERTA": num,
                         "DATA": datetime.now().strftime("%d/%m/%Y"),
                     }
+
+                    # --- sostituzione robusta anche per segnaposti spezzati ---
                     for p in doc.paragraphs:
                         full_text = "".join(run.text for run in p.runs)
                         modified = False
 
                         for key, val in mapping.items():
-                        token = f"<<{key}>>"
-                        if token in full_text:
-                            full_text = full_text.replace(token, str(val))
-                            modified = True
+                            token = f"<<{key}>>"
+                            if token in full_text:
+                                full_text = full_text.replace(token, str(val))
+                                modified = True
 
-                    if modified:
-                        # Cancella tutte le run precedenti
-                        for run in p.runs:
-                            run.text = ""
-        # Scrive il testo completo aggiornato
-                        p.runs[0].text = full_text
+                        if modified:
+                            # Cancella tutte le run precedenti
+                            for run in p.runs:
+                                run.text = ""
+                            # Scrive il testo completo aggiornato
+                            p.runs[0].text = full_text
 
-        # Applica stile uniforme
-                        for run in p.runs:
-                            run.font.size = Pt(9 if template == "Offerta A4" else 10)
-                        p.alignment = 0
+                            # Applica stile uniforme
+                            for run in p.runs:
+                                run.font.size = Pt(9 if template == "Offerta A4" else 10)
+                            p.alignment = 0
 
-
+                    # --- Salvataggio ---
                     doc.save(output_path)
                     st.success(f"✅ Preventivo salvato: {output_path.name}")
 
+                    # --- Aggiunta nel CSV ---
                     nuovo = {
                         "ClienteID": sel_id,
                         "NumeroOfferta": num,
@@ -602,6 +605,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.error(f"❌ Errore durante la creazione del preventivo: {e}")
 
     st.divider()
+
 
    
     # === 📂 Elenco Preventivi Cliente ===

@@ -1,7 +1,5 @@
 ﻿ClienteID,RagioneSociale,PersonaRiferimento,Indirizzo,Citta,CAP,Telefono,Cell,Email,PartitaIVA,IBAN,SDI,UltimoRecall,ProssimoRecall,UltimaVisita,ProssimaVisita,NoteCliente
-Cliente,Cliente,,,,,,,,,,,,,,,Scrivi qui le tue note...
-CAP_Lista,CAP_Lista,,,Via,20017,,,,,,,,,,,
-NuovoContratto,NuovoContratto,,,,,,,,,,,,,,,
+
 1 A 1 S.r.l.,1 A 1 S.r.l.,andrea strigelli,Via C. del Fante. 4,Milano,20122,34844005,,amministrazione@1a1group.com,3750730966,,,,,*,,chiede di avere fattura proforma via mail
 2 ESSE,2 ESSE,STEFANIA(tu),VIA CRISTOFORO COLOMBO 9,CASARILE,20059,02/55014601,,2esseassicurazioni@gmail.com - scotti@2esse.info,,,,2025-07-28 00:00:00,,2024-11-22 00:00:00,,11/2018 contente della nuova macchina---14/5/19 tutto ok---23/7/19 preso app---21/11/19 tutto ok---31/1/20 tutto ok--16/7/20 tutto ok---20/10/20 tutto ok-4/2 chiamte x cons e inst.29/7 saluti--25/10/21 saluti---11/4/22 saluti e auguri---28/7/22 saluti ---20/12/22 auguri  5/12/23 app più auguri---15/7/24 in visita---16/12/24 B.N.28/7/25 B.V.
 A.C. DILETTANTISTICO BUSNAGO(stia),A.C. DILETTANTISTICO BUSNAGO(stia),SIG.STUCCHI,4/B Via Piave,Busnago,20874,039/6926753,,gianlucastia@gmail.com,,,,vedi stia,,*,,11/2018 tutto ok-- vedi stia

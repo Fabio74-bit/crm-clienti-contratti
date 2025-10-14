@@ -453,8 +453,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
         submitted = st.form_submit_button("💾 Genera Preventivo")
 
-    if submitted:
+     if submitted:
         try:
+            from docx.shared import Pt  # 👉 aggiungi questa importazione per gestire il testo
+
             template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
 
             # 🔒 Controllo nome file
@@ -468,22 +470,29 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             if not template_path.exists():
                 st.error(f"❌ Template non trovato: {template_path}")
             else:
-                # Crea documento da template
+                # 🧩 Crea documento da template Word
                 doc = Document(template_path)
                 mapping = {
                     "CLIENTE": cliente.get("RagioneSociale", ""),
                     "INDIRIZZO": cliente.get("Indirizzo", ""),
+                    # ✅ Gestione doppia chiave "Citta" / "Città"
                     "CITTA": cliente.get("Citta", "") or cliente.get("Città", ""),
                     "NUMERO_OFFERTA": num,
                     "DATA": datetime.now().strftime("%d/%m/%Y"),
                 }
+
+                # 🔄 Sostituzione segnaposto + adattamento testo
                 for p in doc.paragraphs:
                     for key, val in mapping.items():
                         token = f"<<{key}>>"
                         if token in p.text:
                             for run in p.runs:
-                                run.text = run.text.replace(token, str(val))
+                                if token in run.text:
+                                    run.text = run.text.replace(token, str(val))
+                                    run.font.size = Pt(10)  # 🔠 testo più piccolo per nomi lunghi
+                                    p.alignment = 0         # ↩️ allineamento sinistra
 
+                # 💾 Salvataggio in locale
                 doc.save(output_path)
                 st.success(f"✅ Preventivo salvato: {output_path.name}")
 
@@ -504,6 +513,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         except Exception as e:
             st.error(f"❌ Errore durante la creazione del preventivo: {e}")
+
 
 
     st.divider()

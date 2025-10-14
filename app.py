@@ -355,7 +355,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
 
      # === 📅 Gestione Recall e Visite ===
-st.markdown("### 📅 Gestione Recall e Visite")
+    st.markdown("### 📅 Gestione Recall e Visite")
 
 from datetime import datetime, timedelta
 import pandas as pd

@@ -446,75 +446,73 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     next_num = genera_numero_offerta(cliente.get("RagioneSociale", ""))
 
-      # === Form di creazione nuovo preventivo ===
+    # === Form di creazione nuovo preventivo ===
     with st.form("frm_new_prev"):
         num = st.text_input("Numero Offerta", next_num)
         nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
         template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
         submitted = st.form_submit_button("💾 Genera Preventivo")
 
-     if submitted:
-        try:
-            from docx.shared import Pt  # 👉 aggiungi questa importazione per gestire il testo
+        if submitted:
+            try:
+                from docx.shared import Pt  # 👉 per gestire il testo Word
 
-            template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
+                template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
 
-            # 🔒 Controllo nome file
-            if not nome_file.strip():
-                nome_file = f"{num}.docx"
-            if not nome_file.lower().endswith(".docx"):
-                nome_file += ".docx"
+                # 🔒 Controllo nome file
+                if not nome_file.strip():
+                    nome_file = f"{num}.docx"
+                if not nome_file.lower().endswith(".docx"):
+                    nome_file += ".docx"
 
-            output_path = EXTERNAL_PROPOSALS_DIR / nome_file
+                output_path = EXTERNAL_PROPOSALS_DIR / nome_file
 
-            if not template_path.exists():
-                st.error(f"❌ Template non trovato: {template_path}")
-            else:
-                # 🧩 Crea documento da template Word
-                doc = Document(template_path)
-                mapping = {
-                    "CLIENTE": cliente.get("RagioneSociale", ""),
-                    "INDIRIZZO": cliente.get("Indirizzo", ""),
-                    # ✅ Gestione doppia chiave "Citta" / "Città"
-                    "CITTA": cliente.get("Citta", "") or cliente.get("Città", ""),
-                    "NUMERO_OFFERTA": num,
-                    "DATA": datetime.now().strftime("%d/%m/%Y"),
-                }
+                if not template_path.exists():
+                    st.error(f"❌ Template non trovato: {template_path}")
+                else:
+                    # 🧩 Crea documento da template Word
+                    doc = Document(template_path)
+                    mapping = {
+                        "CLIENTE": cliente.get("RagioneSociale", ""),
+                        "INDIRIZZO": cliente.get("Indirizzo", ""),
+                        # ✅ Gestione doppia chiave "Citta" / "Città"
+                        "CITTA": cliente.get("Citta", "") or cliente.get("Città", ""),
+                        "NUMERO_OFFERTA": num,
+                        "DATA": datetime.now().strftime("%d/%m/%Y"),
+                    }
 
-                # 🔄 Sostituzione segnaposto + adattamento testo
-                for p in doc.paragraphs:
-                    for key, val in mapping.items():
-                        token = f"<<{key}>>"
-                        if token in p.text:
-                            for run in p.runs:
-                                if token in run.text:
-                                    run.text = run.text.replace(token, str(val))
-                                    run.font.size = Pt(10)  # 🔠 testo più piccolo per nomi lunghi
-                                    p.alignment = 0         # ↩️ allineamento sinistra
+                    # 🔄 Sostituzione segnaposto + adattamento testo
+                    for p in doc.paragraphs:
+                        for key, val in mapping.items():
+                            token = f"<<{key}>>"
+                            if token in p.text:
+                                for run in p.runs:
+                                    if token in run.text:
+                                        run.text = run.text.replace(token, str(val))
+                                        run.font.size = Pt(10)  # 🔠 testo più piccolo per nomi lunghi
+                                        p.alignment = 0         # ↩️ allineamento sinistra
 
-                # 💾 Salvataggio in locale
-                doc.save(output_path)
-                st.success(f"✅ Preventivo salvato: {output_path.name}")
+                    # 💾 Salvataggio in locale
+                    doc.save(output_path)
+                    st.success(f"✅ Preventivo salvato: {output_path.name}")
 
-                # 🔄 Aggiungi record nel CSV preventivi
-                nuovo = {
-                    "ClienteID": sel_id,
-                    "NumeroOfferta": num,
-                    "Template": TEMPLATE_OPTIONS[template],
-                    "NomeFile": nome_file,
-                    "Percorso": str(output_path),
-                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-                df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
-                df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
+                    # 🔄 Aggiungi record nel CSV preventivi
+                    nuovo = {
+                        "ClienteID": sel_id,
+                        "NumeroOfferta": num,
+                        "Template": TEMPLATE_OPTIONS[template],
+                        "NomeFile": nome_file,
+                        "Percorso": str(output_path),
+                        "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    }
+                    df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
+                    df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
 
-                st.toast("✅ Preventivo aggiunto al database", icon="📄")
-                st.rerun()
+                    st.toast("✅ Preventivo aggiunto al database", icon="📄")
+                    st.rerun()
 
-        except Exception as e:
-            st.error(f"❌ Errore durante la creazione del preventivo: {e}")
-
-
+            except Exception as e:
+                st.error(f"❌ Errore durante la creazione del preventivo: {e}")
 
     st.divider()
 
@@ -544,7 +542,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     else:
                         st.error("File non trovato in locale.")
 
-
     # === Pulsante per aprire la cartella ===
     st.divider()
     if st.button("📂 Apri cartella Preventivi"):
@@ -559,6 +556,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 os.system(f'xdg-open "{folder_path}"')
         except Exception as e:
             st.error(f"❌ Impossibile aprire la cartella: {e}")
+
 
 # ==========================
 # CONTRATTI

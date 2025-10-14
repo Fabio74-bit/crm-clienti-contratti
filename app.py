@@ -216,11 +216,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # --- Normalizza dataframe contratti ---
     if df_ct is None:
-    st.warning("⚠️ Nessun dato contratti caricato.")
-    return
+        st.warning("⚠️ Nessun dato contratti caricato.")
+        return
 else:
-    df_ct = df_ct.copy()
-
+        df_ct = df_ct.copy()
 
     # --- Colonne attese ---
     required_cols = ["ClienteID", "RagioneSociale", "DataInizio", "DataFine", "Stato"]

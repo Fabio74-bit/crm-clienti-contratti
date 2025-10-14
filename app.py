@@ -208,6 +208,9 @@ def do_login() -> Tuple[str, str]:
 # ==========================
 # DASHBOARD
 # ==========================
+# ==========================
+# DASHBOARD
+# ==========================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import pandas as pd
     from datetime import datetime, timedelta
@@ -229,12 +232,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
 
-if "stato" not in df_ct.columns:
-    df_ct["stato"] = "Attivo"
-else:
-    df_ct["stato"] = df_ct["stato"].fillna("Attivo")
-
-
+    # ✅ Correzione gestione colonna "stato"
+    if "stato" not in df_ct.columns:
+        df_ct["stato"] = "Attivo"
+    else:
+        df_ct["stato"] = df_ct["stato"].fillna("Attivo")
 
     # --- Calcoli per i box ---
     clienti_attivi = df_cli["ClienteID"].nunique()
@@ -345,6 +347,7 @@ else:
                     st.session_state["selected_cliente"] = r.get("RagioneSociale", "")
                     st.session_state["page"] = "Clienti"
                     st.rerun()
+
 
 # ==========================
 # CLIENTI

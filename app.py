@@ -362,38 +362,38 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === Gestione Recall e Visite ===
     st.markdown("### 📅 Gestione Recall e Visite")
-    c1, c2, c3, c4 = st.columns(4)
-    curr_ult_recall = pd.to_datetime(cliente.get("UltimoRecall"), errors="coerce")
-    curr_ult_visita = pd.to_datetime(cliente.get("UltimaVisita"), errors="coerce")
 
-    with c1:
-        new_ult_recall = st.date_input("Ultimo Recall", curr_ult_recall if not pd.isna(curr_ult_recall) else None, key=f"ur_{sel_id}")
-    with c3:
-        new_ult_visita = st.date_input("Ultima Visita", curr_ult_visita if not pd.isna(curr_ult_visita) else None, key=f"uv_{sel_id}")
+    from datetime import timedelta
 
-    live_next_recall = pd.to_datetime(new_ult_recall) + pd.DateOffset(months=3) if new_ult_recall else pd.NaT
-    live_next_visita = pd.to_datetime(new_ult_visita) + pd.DateOffset(months=6) if new_ult_visita else pd.NaT
-
-    with c2:
-        st.date_input("Prossimo Recall (auto)",
-                      value=None if pd.isna(live_next_recall) else live_next_recall.date(),
-                      key=f"pr_{sel_id}", disabled=True)
-    with c4:
-        st.date_input("Prossima Visita (auto)",
-                      value=None if pd.isna(live_next_visita) else live_next_visita.date(),
-                      key=f"pv_{sel_id}", disabled=True)
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        ult_recall = st.date_input("Ultimo Recall", format="DD/MM/YYYY")
+    with col2:
+        pross_recall = st.date_input("Prossimo Recall (auto)", format="DD/MM/YYYY", disabled=True)
+    with col3:
+        ult_visita = st.date_input("Ultima Visita", format="DD/MM/YYYY")
+    with col4:
+        pross_visita = st.date_input("Prossima Visita (auto)", format="DD/MM/YYYY", disabled=True)
 
     if st.button("💾 Aggiorna Recall/Visite"):
-        idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-        df_cli.loc[idx_row, "UltimoRecall"] = pd.to_datetime(new_ult_recall) if new_ult_recall else ""
-        df_cli.loc[idx_row, "UltimaVisita"] = pd.to_datetime(new_ult_visita) if new_ult_visita else ""
-        df_cli.loc[idx_row, "ProssimoRecall"] = live_next_recall
-        df_cli.loc[idx_row, "ProssimaVisita"] = live_next_visita
-        save_clienti(df_cli)
-        st.success("✅ Recall e Visite aggiornati automaticamente.")
-        st.rerun()
+        try:
+            idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
 
-    st.divider()
+            # Salva Ultimo Recall e Ultima Visita
+            df_cli.loc[idx, "UltimoRecall"] = ult_recall.strftime("%d/%m/%Y")
+            df_cli.loc[idx, "UltimaVisita"] = ult_visita.strftime("%d/%m/%Y")
+
+            # Calcola automaticamente Prossimi
+            df_cli.loc[idx, "ProssimoRecall"] = (ult_recall + timedelta(days=30)).strftime("%d/%m/%Y")
+            df_cli.loc[idx, "ProssimaVisita"] = (ult_visita + timedelta(days=180)).strftime("%d/%m/%Y")
+
+            save_clienti(df_cli)
+            st.success("✅ Date di Recall/Visita aggiornate.")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Errore durante aggiornamento: {e}")
+
 
     # === Note Cliente ===
     st.markdown("### 📝 Note Cliente")

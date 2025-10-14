@@ -301,9 +301,17 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             </style>
             """, unsafe_allow_html=True)
 
-            # intestazione colonne chiara e ben proporzionata
+         # intestazione colonne chiara e ben proporzionata
 st.markdown("""
 <style>
+.scad-box {
+    max-height: 360px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #fafafa;
+    padding: 6px 4px;
+}
 .scad-header {
     display: grid;
     grid-template-columns: 38% 22% 20% 12% 8%;
@@ -326,6 +334,7 @@ st.markdown("""
     background-color: #f9f9f9;
 }
 </style>
+
 <div class='scad-header'>
   <div>Cliente</div>
   <div>Contratto</div>
@@ -333,7 +342,10 @@ st.markdown("""
   <div>Stato</div>
   <div style='text-align:center;'>Azione</div>
 </div>
+<div class='scad-box'>
 """, unsafe_allow_html=True)
+
+# righe dinamiche della tabella
 for i, row in scadenza.iterrows():
     st.markdown(
         f"""
@@ -342,7 +354,7 @@ for i, row in scadenza.iterrows():
             <div>{row['NumeroContratto'] or '-'}</div>
             <div>{row['DataFine']}</div>
             <div>{row['Stato']}</div>
-            <div style='text-align:center;'>{'➡️'}</div>
+            <div style='text-align:center;'>➡️</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -351,6 +363,9 @@ for i, row in scadenza.iterrows():
         st.session_state["selected_client_id"] = row["ClienteID"]
         st.session_state["nav_target"] = "Contratti"
         st.rerun()
+
+st.markdown("</div>", unsafe_allow_html=True)
+
 
 # ==========================
 # CLIENTI (come tuo, invariato)

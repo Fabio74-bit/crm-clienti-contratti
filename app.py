@@ -2,11 +2,19 @@
 # app.py — Gestionale Clienti SHT (2025)
 # Layout aggiornato: login a pagina intera, dashboard KPI, contratti coerenti
 # =====================================
+from __future__ import annotations
 import streamlit as st
 st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
-
-from __future__ import annotations
-
+# stile globale per allargare la pagina
+st.markdown("""
+<style>
+.block-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+    max-width: 100% !important;
+}
+</style>
+""", unsafe_allow_html=True)
 import os
 from io import BytesIO
 from pathlib import Path

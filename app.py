@@ -232,7 +232,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # --- Normalizza date e stato ---
     df_ct["DataInizio"] = pd.to_datetime(df_ct.get("DataInizio", pd.NaT), errors="coerce", dayfirst=True)
     df_ct["DataFine"] = pd.to_datetime(df_ct.get("DataFine", pd.NaT), errors="coerce", dayfirst=True)
-    df_ct["stato"] = df_ct.get("stato", "Attivo").fillna("Attivo")
+    if "stato" not in df_ct.columns:
+    df_ct["stato"] = "Attivo"
+else:
+    df_ct["stato"] = df_ct["stato"].fillna("Attivo")
+
 
     # === Calcoli ===
     clienti_attivi = df_cli["ClienteID"].nunique()

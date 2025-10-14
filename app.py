@@ -664,9 +664,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         st.error(f"❌ Errore durante eliminazione: {e}")
 
             st.divider()
-
     # === Pulsante per aprire la cartella ===
-    if st.button("📂 Apri cartella Preventivi"):
+    st.divider()
+    if st.button("📂 Apri cartella Preventivi", key="open_preventivi_folder"):
         try:
             folder_path = str(EXTERNAL_PROPOSALS_DIR.resolve())
             system_name = platform.system()
@@ -678,26 +678,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 os.system(f'xdg-open "{folder_path}"')
         except Exception as e:
             st.error(f"❌ Impossibile aprire la cartella: {e}")
-
-
-        st.divider()
-
-# === Pulsante per aprire la cartella ===
-if st.button("📂 Apri cartella Preventivi"):
-    try:
-        folder_path = str(EXTERNAL_PROPOSALS_DIR.resolve())
-        system_name = platform.system()
-        if system_name == "Darwin":  # macOS
-            os.system(f'open "{folder_path}"')
-        elif system_name == "Windows":
-            os.startfile(folder_path)
-        else:
-            os.system(f'xdg-open "{folder_path}"')
-    except Exception as e:
-        st.error(f"❌ Impossibile aprire la cartella: {e}")
-
-
-
 
 # ==========================
 # CONTRATTI

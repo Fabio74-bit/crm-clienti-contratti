@@ -446,7 +446,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     next_num = genera_numero_offerta(cliente.get("RagioneSociale", ""))
 
-    # === Form di creazione nuovo preventivo ===
+      # === Form di creazione nuovo preventivo ===
     with st.form("frm_new_prev"):
         num = st.text_input("Numero Offerta", next_num)
         nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
@@ -454,17 +454,16 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         submitted = st.form_submit_button("💾 Genera Preventivo")
 
     if submitted:
-    try:
-        template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
+        try:
+            template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
 
-        # 🔒 Controllo nome file
-        if not nome_file.strip():
-            nome_file = f"{num}.docx"
-        if not nome_file.lower().endswith(".docx"):
-            nome_file += ".docx"
+            # 🔒 Controllo nome file
+            if not nome_file.strip():
+                nome_file = f"{num}.docx"
+            if not nome_file.lower().endswith(".docx"):
+                nome_file += ".docx"
 
-        output_path = EXTERNAL_PROPOSALS_DIR / nome_file
-
+            output_path = EXTERNAL_PROPOSALS_DIR / nome_file
 
             if not template_path.exists():
                 st.error(f"❌ Template non trovato: {template_path}")
@@ -502,8 +501,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 st.toast("✅ Preventivo aggiunto al database", icon="📄")
                 st.rerun()
+
         except Exception as e:
             st.error(f"❌ Errore durante la creazione del preventivo: {e}")
+
 
     st.divider()
 

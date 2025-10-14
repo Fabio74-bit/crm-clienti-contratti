@@ -208,175 +208,131 @@ def do_login() -> Tuple[str, str]:
 # ==========================
 # DASHBOARD
 # ==========================
-# ==========================
-# DASHBOARD MODERNA E COMPATTA
-# ==========================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    import pandas as pd
-    from datetime import datetime, timedelta
-    import streamlit as st
+    st.title("📊 Dashboard CRM")
 
-    st.markdown("<h1 style='text-align:center; color:#0A84FF;'>📊 Dashboard CRM</h1>", unsafe_allow_html=True)
+    today = pd.Timestamp.now().normalize()
 
-    # === Controllo dati ===
-    if df_ct is None or not isinstance(df_ct, pd.DataFrame) or df_ct.empty:
-        st.warning("⚠️ Nessun dato contratti caricato.")
-        return
-    df_ct = df_ct.copy()
+    # --- BOX KPI sintetici ---
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Clienti attivi", len(df_cli))
+    with col2:
+        st.metric("Contratti attivi", len(df_ct[df_ct["Stato"].str.lower() != "chiuso"]))
+    with col3:
+        scad = df_ct[
+            (df_ct["DataFine"].notna())
+            & (df_ct["DataFine"] >= today)
+            & (df_ct["DataFine"] <= today + pd.DateOffset(months=6))
+            & (df_ct["Stato"].str.lower() != "chiuso")
+        ]
+        st.metric("Contratti in scadenza (6 mesi)", len(scad))
 
-    # --- Normalizza dati ---
-    if "RagioneSociale" not in df_ct.columns and "ClienteID" in df_ct.columns:
-        df_ct = df_ct.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-
-    df_ct["DataInizio"] = pd.to_datetime(df_ct.get("DataInizio", pd.NaT), errors="coerce", dayfirst=True)
-    df_ct["DataFine"] = pd.to_datetime(df_ct.get("DataFine", pd.NaT), errors="coerce", dayfirst=True)
-    if "stato" not in df_ct.columns:
-        df_ct["stato"] = "Attivo"
-    else:
-        df_ct["stato"] = df_ct["stato"].fillna("Attivo")
-
-    # ===============================
-    # 📅 RECALL E VISITE
-    # ===============================
-    if {"ProssimoRecall", "ProssimaVisita"}.issubset(df_cli.columns):
-        oggi = pd.Timestamp.now().normalize()
-        df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce", dayfirst=True)
-        df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce", dayfirst=True)
-
-        recall_pendenti = df_cli[df_cli["ProssimoRecall"].notna() & (df_cli["ProssimoRecall"] <= oggi)]
-        visite_pendenti = df_cli[df_cli["ProssimaVisita"].notna() & (df_cli["ProssimaVisita"] <= oggi)]
-
-        c0, c1 = st.columns(2)
-        with c0:
-            st.markdown(f"""
-            <div style='background:#ff980020;padding:20px;border-radius:12px;text-align:center;'>
-            <h3>🔔 Recall da Effettuare</h3>
-            <h2 style='color:#ff9800'>{len(recall_pendenti)}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        with c1:
-            st.markdown(f"""
-            <div style='background:#8e44ad20;padding:20px;border-radius:12px;text-align:center;'>
-            <h3>👣 Visite da Effettuare</h3>
-            <h2 style='color:#8e44ad'>{len(visite_pendenti)}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # === Tabelle compatte ===
-        if not recall_pendenti.empty or not visite_pendenti.empty:
-            st.divider()
-            st.markdown("### 📋 Elenco Clienti da Contattare / Visitare")
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.markdown("#### 🔔 Recall")
-                for i, r in recall_pendenti.iterrows():
-                    c1a, c2a = st.columns([3, 1])
-                    with c1a:
-                        st.write(f"**{r.get('RagioneSociale', 'N/D')}** — {r.get('ProssimoRecall', ''):%d/%m/%Y}")
-                    with c2a:
-                        if st.button("📂 Apri", key=f"open_recall_{i}"):
-                            st.session_state["selected_cliente"] = r.get("RagioneSociale", "")
-                            st.session_state["page"] = "Clienti"
-                            st.rerun()
-
-            with col2:
-                st.markdown("#### 👣 Visite")
-                for i, r in visite_pendenti.iterrows():
-                    c1b, c2b = st.columns([3, 1])
-                    with c1b:
-                        st.write(f"**{r.get('RagioneSociale', 'N/D')}** — {r.get('ProssimaVisita', ''):%d/%m/%Y}")
-                    with c2b:
-                        if st.button("📂 Apri", key=f"open_visita_{i}"):
-                            st.session_state["selected_cliente"] = r.get("RagioneSociale", "")
-                            st.session_state["page"] = "Clienti"
-                            st.rerun()
     st.divider()
 
-    # ===============================
-    # 📦 BOX PRINCIPALI
-    # ===============================
-    clienti_attivi = df_cli["ClienteID"].nunique()
-    contratti_attivi = df_ct[df_ct["stato"].str.lower() == "attivo"].shape[0]
-    contratti_chiusi = df_ct[df_ct["stato"].str.lower() == "chiuso"].shape[0]
-    anno_corrente = datetime.now().year
-    contratti_nuovi = df_ct[df_ct["DataInizio"].dt.year == anno_corrente].shape[0]
+    # --- Prepara i contratti in scadenza ---
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+    df_ct["Stato"] = df_ct["Stato"].fillna("Attivo")
 
-    c1, c2, c3, c4 = st.columns(4)
+    scad = df_ct[
+        (df_ct["DataFine"].notna())
+        & (df_ct["DataFine"] >= today)
+        & (df_ct["DataFine"] <= today + pd.DateOffset(months=6))
+        & (df_ct["Stato"].str.lower() != "chiuso")
+    ]
+
+    # --- BOX CONTRATTI IN SCADENZA ---
+    st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
+    if scad.empty:
+        st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
+    else:
+        scad = scad.sort_values("DataFine").groupby("ClienteID").first().reset_index()
+        scad = scad.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+
+        desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in scad.columns else "Descrizione"
+        scad_show = scad[["RagioneSociale", "NumeroContratto", "DataFine", desc_col]].copy()
+        scad_show = scad_show.rename(columns={desc_col: "Descrizione"})
+
+        scad_show["DataFine"] = scad_show["DataFine"].dt.strftime("%d/%m/%Y")
+        scad_show["Descrizione"] = scad_show["Descrizione"].astype(str).str.slice(0, 50) + "..."
+        st.dataframe(scad_show, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # --- BOX PROMEMORIA CONTRATTI SENZA DATA FINE ---
+    st.subheader("⏰ Promemoria: Contratti Senza Data Fine (da oggi in poi)")
+    recenti = df_ct[
+        (df_ct["DataInizio"].notna())
+        & (df_ct["DataInizio"] >= today)
+        & (df_ct["DataFine"].isna())
+        & (df_ct["Stato"].str.lower() != "chiuso")
+    ]
+    if recenti.empty:
+        st.info("✅ Nessun nuovo contratto senza data fine.")
+    else:
+        recenti = recenti.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+        desc_col = "DescrizioneProdotto" if "DescrizioneProdotto" in recenti.columns else "Descrizione"
+        recenti_show = recenti[["RagioneSociale", "NumeroContratto", "DataInizio", desc_col]].copy()
+        recenti_show = recenti_show.rename(columns={desc_col: "Descrizione"})
+        recenti_show["DataInizio"] = pd.to_datetime(recenti_show["DataInizio"], errors="coerce").dt.strftime("%d/%m/%Y")
+        st.dataframe(recenti_show, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # --- BOX ULTIMI RECALL E VISITE ---
+    c1, c2 = st.columns(2)
+
     with c1:
-        st.markdown(f"<div style='background:#007bff20;padding:20px;border-radius:12px;text-align:center;'><h3>👥 Clienti Attivi</h3><h2 style='color:#007bff'>{clienti_attivi}</h2></div>", unsafe_allow_html=True)
+        st.markdown("### 📞 Ultimi Recall (> 3 mesi)")
+        cli = df_cli.copy()
+        cli["UltimoRecall"] = pd.to_datetime(cli["UltimoRecall"], errors="coerce", dayfirst=True)
+        soglia = pd.Timestamp.today().normalize() - pd.DateOffset(months=3)
+        r = cli[cli["UltimoRecall"].notna() & (cli["UltimoRecall"] <= soglia)]
+        if not r.empty:
+            r["UltimoRecall"] = r["UltimoRecall"].dt.strftime("%d/%m/%Y")
+            r["ProssimoRecall"] = pd.to_datetime(r["ProssimoRecall"], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
+            st.dataframe(r[["ClienteID", "RagioneSociale", "UltimoRecall", "ProssimoRecall"]],
+                         hide_index=True, use_container_width=True)
+        else:
+            st.info("✅ Nessun recall oltre 3 mesi.")
+
     with c2:
-        st.markdown(f"<div style='background:#28a74520;padding:20px;border-radius:12px;text-align:center;'><h3>📄 Contratti Attivi</h3><h2 style='color:#28a745'>{contratti_attivi}</h2></div>", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"<div style='background:#dc354520;padding:20px;border-radius:12px;text-align:center;'><h3>🛑 Contratti Chiusi</h3><h2 style='color:#dc3545'>{contratti_chiusi}</h2></div>", unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"<div style='background:#ffc10720;padding:20px;border-radius:12px;text-align:center;'><h3>🆕 Contratti Nuovi {anno_corrente}</h3><h2 style='color:#ff9800'>{contratti_nuovi}</h2></div>", unsafe_allow_html=True)
-
-    st.divider()
-
-    # ===============================
-    # ⏳ CONTRATTI IN SCADENZA (60 GIORNI)
-    # ===============================
-    oggi = datetime.now()
-    prossimi_60 = oggi + timedelta(days=60)
-    df_scadenza = df_ct[(df_ct["DataFine"].notna()) & (df_ct["DataFine"] >= oggi) & (df_ct["DataFine"] <= prossimi_60)].sort_values("DataFine")
-
-    st.markdown("### ⏳ Contratti in Scadenza (prossimi 60 giorni)")
-    if df_scadenza.empty:
-        st.info("✅ Nessun contratto in scadenza nei prossimi 60 giorni.")
-    else:
-        for i, r in df_scadenza.iterrows():
-            c1, c2 = st.columns([3, 1])
-            with c1:
-                st.write(f"**{r.get('RagioneSociale', 'N/D')}** — Scadenza: {r['DataFine'].strftime('%d/%m/%Y')}")
-            with c2:
-                if st.button("📂 Apri Cliente", key=f"open_scad_{i}"):
-                    st.session_state["selected_cliente"] = r.get("RagioneSociale", "")
-                    st.session_state["page"] = "Clienti"
-                    st.rerun()
-
-    st.divider()
-
-    # ===============================
-    # 🚫 CONTRATTI SENZA DATA FINE
-    # ===============================
-    df_nofine = df_ct[df_ct["DataFine"].isna()]
-    if not df_nofine.empty:
-        st.markdown(f"### ⚠️ Promemoria: {len(df_nofine)} contratti senza data fine")
-
-
-
+        st.markdown("### 🧳 Ultime Visite (> 6 mesi)")
+        cli = df_cli.copy()
+        cli["UltimaVisita"] = pd.to_datetime(cli["UltimaVisita"], errors="coerce", dayfirst=True)
+        soglia_v = pd.Timestamp.today().normalize() - pd.DateOffset(months=6)
+        v = cli[cli["UltimaVisita"].notna() & (cli["UltimaVisita"] <= soglia_v)]
+        if not v.empty:
+            v["UltimaVisita"] = v["UltimaVisita"].dt.strftime("%d/%m/%Y")
+            v["ProssimaVisita"] = pd.to_datetime(v["ProssimaVisita"], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
+            st.dataframe(v[["ClienteID", "RagioneSociale", "UltimaVisita", "ProssimaVisita"]],
+                         hide_index=True, use_container_width=True)
+        else:
+            st.info("✅ Nessuna visita oltre 6 mesi.")
 
 # ==========================
 # CLIENTI
 # ==========================
-# === CLIENTI ===
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
 
-    # 🔄 Apertura diretta da Dashboard
-    if "selected_cliente" in st.session_state and st.session_state["selected_cliente"]:
-        cliente_da_aprire = st.session_state["selected_cliente"]
-        st.session_state["selected_cliente"] = None  # resetta la selezione
-        st.info(f"📂 Apertura cliente: **{cliente_da_aprire}**")
-        search_query = cliente_da_aprire
+    # === 🔍 Ricerca Cliente ===
+    st.markdown("### 🔍 Cerca Cliente")
+    search_query = st.text_input("Cerca cliente per nome:")
+
+    if search_query:
+        filtered = df_cli[df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)]
     else:
-        search_query = st.text_input("Cerca cliente per nome:")
+        filtered = df_cli
 
-    if not search_query:
-        st.stop()
-
-    # Filtraggio
-    filtered = df_cli[df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)]
     if filtered.empty:
         st.warning("Nessun cliente trovato.")
         st.stop()
 
     options = filtered["RagioneSociale"].tolist()
-    sel_rag = st.selectbox("Seleziona Cliente", options, index=0)
+    sel_rag = st.selectbox("Seleziona Cliente", options)
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
-
 
     # === 🏢 Anagrafica principale ===
     st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")

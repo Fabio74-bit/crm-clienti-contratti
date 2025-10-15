@@ -396,8 +396,7 @@ def page_clienti(df_cli, df_ct, role):
                     "DATA": datetime.now().strftime("%d/%m/%Y"),
                     "NUMERO_OFFERTA": num,
                 }
-                for
-
+                
 
 
 # =========================================================

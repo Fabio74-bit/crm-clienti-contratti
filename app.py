@@ -151,16 +151,20 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN (pagina intera)
 # =====================================
 def do_login_fullscreen():
-    """Schermata di login a pagina intera, con logo SHT e credenziali centralizzate."""
+    """Login a schermo intero — scompare dopo l'accesso."""
     users = st.secrets.get("auth", {}).get("users", {})
     if not users:
         return ("ospite", "viewer")
 
-    # Layout centrato
+    # ✅ Se l'utente è già loggato, NON mostrare il form
+    if "auth_user" in st.session_state and st.session_state["auth_user"]:
+        return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
+
+    # --- Mostra solo se non loggato ---
     st.markdown(
         f"""
         <div style='display:flex; flex-direction:column; align-items:center; justify-content:center;
-                    height:90vh; text-align:center;'>
+                    height:100vh; text-align:center;'>
             <img src="{LOGO_URL}" width="220" style="margin-bottom:25px;">
             <h2 style='margin-bottom:10px;'>🔐 Accesso al Gestionale SHT</h2>
             <p style='color:grey; font-size:14px;'>Inserisci le tue credenziali per continuare</p>
@@ -171,7 +175,6 @@ def do_login_fullscreen():
 
     username = st.text_input("👤 Utente", key="login_user")
     password = st.text_input("🔒 Password", type="password", key="login_pwd")
-
     col1, col2, col3 = st.columns([0.4, 0.2, 0.4])
     with col2:
         login_btn = st.button("Entra", use_container_width=True)
@@ -185,10 +188,8 @@ def do_login_fullscreen():
         else:
             st.error("❌ Credenziali errate o utente inesistente.")
 
-    if "auth_user" in st.session_state:
-        return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
-    return ("", "")
-
+    # Se non autenticato, blocca tutto qui
+    st.stop()
 
 # =====================================
 # DASHBOARD

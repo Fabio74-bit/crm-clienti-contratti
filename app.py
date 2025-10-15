@@ -115,6 +115,9 @@ def do_login():
 # =========================================================
 # DASHBOARD
 # =========================================================
+# =========================================================
+# DASHBOARD – aggiornata
+# =========================================================
 def page_dashboard(df_cli, df_ct, role):
     now = pd.Timestamp.now().normalize()
     st.markdown(
@@ -146,20 +149,40 @@ def page_dashboard(df_cli, df_ct, role):
         </div>""", unsafe_allow_html=True)
 
     st.markdown("### 📅 Contratti in Scadenza (entro 6 mesi)")
-    prossimi = df_ct[(df_ct["DataFine"].notna()) & (df_ct["DataFine"] >= now) & (df_ct["DataFine"] <= now + pd.DateOffset(months=6))]
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce")
+
+    prossimi = df_ct[
+        (df_ct["DataFine"].notna()) &
+        (df_ct["DataFine"] >= now) &
+        (df_ct["DataFine"] <= now + pd.DateOffset(months=6)) &
+        (df_ct["Stato"].fillna("").str.lower() != "chiuso")  # ✅ esclude contratti chiusi
+    ]
+
     if prossimi.empty:
-        st.info("✅ Nessun contratto in scadenza.")
+        st.info("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
     else:
         m = prossimi.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-        st.dataframe(m[["RagioneSociale", "NumeroContratto", "DataFine", "Stato"]].sort_values("DataFine").head(10), use_container_width=True)
+        m["DataFine"] = m["DataFine"].dt.strftime("%d/%m/%Y")
+        st.dataframe(
+            m[["RagioneSociale", "NumeroContratto", "DataFine", "Stato"]]
+            .sort_values("DataFine")
+            .reset_index(drop=True),
+            use_container_width=True
+        )
 
-    st.markdown("### ⏰ Contratti senza Data Fine (attivi da oggi)")
-    senza = df_ct[df_ct["DataFine"].isna() & (df_ct["DataInizio"] >= now)]
+    st.markdown("### ⏰ Contratti senza Data Fine (attivi da oggi in poi)")
+    senza = df_ct[df_ct["DataFine"].isna() & (df_ct["DataInizio"] >= now) & (df_ct["Stato"].fillna("").str.lower() != "chiuso")]
     if senza.empty:
         st.info("✅ Nessun contratto senza data fine.")
     else:
         m2 = senza.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-        st.dataframe(m2[["RagioneSociale", "NumeroContratto", "DataInizio", "Stato"]].sort_values("DataInizio").head(10), use_container_width=True)
+        m2["DataInizio"] = pd.to_datetime(m2["DataInizio"], errors="coerce").dt.strftime("%d/%m/%Y")
+        st.dataframe(
+            m2[["RagioneSociale", "NumeroContratto", "DataInizio", "Stato"]]
+            .sort_values("DataInizio")
+            .reset_index(drop=True),
+            use_container_width=True
+        )
 
 
 # =========================================================
@@ -216,7 +239,7 @@ def page_anagrafica(df_cli, df_ct, role):
 # PAGINA CLIENTE DETTAGLIO
 # =========================================================
 # =========================================================
-# CLIENTI COMPLETI – anagrafica + note + contratti + preventivi
+# CLIENTI COMPLETI – aggiornata con tutti i campi anagrafici + badge stato
 # =========================================================
 def page_clienti(df_cli, df_ct, role):
     st.title("🏢 Gestione Clienti Completa")
@@ -238,12 +261,14 @@ def page_clienti(df_cli, df_ct, role):
     with col1:
         rag = st.text_input("Ragione Sociale", cli.get("RagioneSociale", ""))
         citta = st.text_input("Città", cli.get("Citta", ""))
-    with col2:
         tel = st.text_input("Telefono", cli.get("Telefono", ""))
+    with col2:
         email = st.text_input("Email", cli.get("Email", ""))
-    with col3:
         ult_rec = st.date_input("Ultimo Recall", cli.get("UltimoRecall") if not pd.isna(cli.get("UltimoRecall")) else datetime.now())
         pro_rec = st.date_input("Prossimo Recall", cli.get("ProssimoRecall") if not pd.isna(cli.get("ProssimoRecall")) else datetime.now() + timedelta(days=30))
+    with col3:
+        ult_vis = st.date_input("Ultima Visita", cli.get("UltimaVisita") if not pd.isna(cli.get("UltimaVisita")) else datetime.now())
+        pro_vis = st.date_input("Prossima Visita", cli.get("ProssimaVisita") if not pd.isna(cli.get("ProssimaVisita")) else datetime.now() + timedelta(days=30))
 
     if st.button("💾 Salva Dati Anagrafici"):
         idx = df_cli.index[df_cli["ClienteID"] == cli_id][0]
@@ -253,6 +278,8 @@ def page_clienti(df_cli, df_ct, role):
         df_cli.loc[idx, "Email"] = email
         df_cli.loc[idx, "UltimoRecall"] = ult_rec
         df_cli.loc[idx, "ProssimoRecall"] = pro_rec
+        df_cli.loc[idx, "UltimaVisita"] = ult_vis
+        df_cli.loc[idx, "ProssimaVisita"] = pro_vis
         save_clienti(df_cli)
         st.success("✅ Dati anagrafici aggiornati.")
         st.rerun()
@@ -279,19 +306,23 @@ def page_clienti(df_cli, df_ct, role):
     else:
         from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
+        def stato_badge(s):
+            s = str(s).lower()
+            if s == "chiuso":
+                return "🔴 chiuso"
+            elif s == "aperto":
+                return "🟢 aperto"
+            return s
+
+        contratti["Stato"] = contratti["Stato"].apply(stato_badge)
         contratti["DataInizio"] = contratti["DataInizio"].apply(fmt_date)
         contratti["DataFine"] = contratti["DataFine"].apply(fmt_date)
         contratti["TotRata"] = contratti["TotRata"].apply(money)
 
         gb = GridOptionsBuilder.from_dataframe(contratti)
         gb.configure_default_column(editable=True, resizable=True, filter=True, sortable=True, wrapText=True, autoHeight=True)
-        js = JsCode("""
-        function(p){
-            if(p.data.Stato == 'chiuso'){return {'backgroundColor':'#ffecec','color':'#a00'};}
-            if(p.data.Stato == 'aperto'){return {'backgroundColor':'#e8f5e9','color':'#006400'};}
-            return {};
-        }""")
-        gb.configure_grid_options(getRowStyle=js)
+        gb.configure_grid_options(domLayout='autoHeight')
+
         grid = AgGrid(
             contratti,
             gridOptions=gb.build(),
@@ -302,7 +333,7 @@ def page_clienti(df_cli, df_ct, role):
             fit_columns_on_grid_load=True,
         )
 
-        # Pulsanti di chiusura / riapertura
+        # Pulsanti chiudi / riapri
         st.divider()
         st.markdown("### ⚙️ Gestione Stato Contratti")
         for i, r in contratti.iterrows():
@@ -310,7 +341,8 @@ def page_clienti(df_cli, df_ct, role):
             with c2:
                 st.caption(f"{r['NumeroContratto']} — {r.get('DescrizioneProdotto','')[:60]}")
             with c3:
-                if r["Stato"].lower() == "chiuso":
+                stato_clean = str(r["Stato"]).replace("🔴","").replace("🟢","").strip().lower()
+                if stato_clean == "chiuso":
                     if st.button("🔓 Riapri", key=f"open_{i}"):
                         df_ct.loc[df_ct.index == r.name, "Stato"] = "aperto"
                         save_contratti(df_ct)

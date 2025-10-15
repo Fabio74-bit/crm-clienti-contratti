@@ -228,6 +228,8 @@ def page_clienti(df_cli, df_ct, role):
     # ---------------------------------------------------------
     cliente = st.selectbox("Seleziona Cliente", df_cli["RagioneSociale"])
     cli = df_cli[df_cli["RagioneSociale"] == cliente].iloc[0]
+    cli = cli.fillna("")  # converte eventuali pd.NA in stringhe vuote
+
     cli_id = cli["ClienteID"]
 
     st.markdown("---")
@@ -238,10 +240,12 @@ def page_clienti(df_cli, df_ct, role):
     # ---------------------------------------------------------
     col1, col2, col3 = st.columns(3)
     with col1:
-        rag = st.text_input("Ragione Sociale", cli.get("RagioneSociale", ""))
-        citta = st.text_input("Città", cli.get("Citta", ""))
-        tel = st.text_input("Telefono", cli.get("Telefono", ""))
-        cell = st.text_input("Cellulare", cli.get("Cellulare", ""))
+    rag = st.text_input("Ragione Sociale", str(cli.get("RagioneSociale") or ""))
+    citta = st.text_input("Città", str(cli.get("Citta") or ""))
+    tel = st.text_input("Telefono", str(cli.get("Telefono") or ""))
+    cell = st.text_input("Cellulare", str(cli.get("Cellulare") or ""))
+
+
     with col2:
         ref2 = st.text_input("Persona di Riferimento 2", cli.get("PersonaRiferimento2", ""))
         email = st.text_input("Email", cli.get("Email", ""))

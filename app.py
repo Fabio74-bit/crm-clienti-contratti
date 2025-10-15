@@ -152,21 +152,23 @@ def create_contract_card(row):
 
 def page_dashboard(df_cli, df_ct, role):
     now = pd.Timestamp.now().normalize()
+
+    # === HEADER ===
     col1, col2 = st.columns([0.15, 0.85])
     with col1:
         st.image(LOGO_URL, width=120)
     with col2:
         st.markdown("<h1>SHT – CRM Dashboard</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='color:gray;'>Panoramica KPI e stato contratti</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color:gray;'>Panoramica contratti e attività</p>", unsafe_allow_html=True)
     st.divider()
 
-    # === KPI cards ===
+    # === KPI ===
     stato = df_ct["Stato"].fillna("").astype(str).str.lower()
     kpi = [
         ("Clienti attivi", len(df_cli), "👥", "#2196F3"),
         ("Contratti attivi", (stato != "chiuso").sum(), "📄", "#009688"),
         ("Contratti chiusi", (stato == "chiuso").sum(), "❌", "#F44336"),
-        ("Nuovi contratti", len(df_ct[df_ct["DataInizio"].dt.year == now.year]), "⭐", "#FFC107"),
+        ("Nuovi contratti", len(df_ct[df_ct["DataInizio"].dt.year == now.year]), "⭐", "#FFC107")
     ]
     c1, c2, c3, c4 = st.columns(4)
     for c, d in zip([c1, c2, c3, c4], kpi):
@@ -178,35 +180,74 @@ def page_dashboard(df_cli, df_ct, role):
     st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
     scadenza = df_ct[
         (df_ct["DataFine"].notna()) &
+        (df_ct["DataFine"] >= now) &
         (df_ct["DataFine"] <= now + pd.DateOffset(months=6)) &
-        (df_ct["Stato"].str.lower() != "chiuso")
+        (df_ct["Stato"].fillna("").str.lower() != "chiuso")
     ]
+
     if scadenza.empty:
         st.info("✅ Nessun contratto in scadenza.")
     else:
         scadenza = scadenza.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-        scadenza = scadenza.sort_values("DataFine").head(10)  # Mostra solo i primi 10
-        with st.container():
-            st.markdown(
-                """
-                <style>
-                .scroll-box {
-                    max-height: 250px;
-                    overflow-y: auto;
-                    border: 1px solid #ddd;
-                    border-radius: 8px;
-                    padding: 6px 10px;
-                    background-color: #fafafa;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-            st.markdown("<div class='scroll-box'>", unsafe_allow_html=True)
-            for _, row in scadenza.iterrows():
-                create_contract_card(row)
-            st.markdown("</div>", unsafe_allow_html=True)
+        scadenza = scadenza.sort_values("DataFine").head(8)
+
+        st.markdown("""
+        <style>
+        .scroll-box { max-height: 220px; overflow-y: auto; border: 1px solid #ddd;
+                      padding: 6px 10px; border-radius: 8px; background-color: #fafafa; }
+        </style>
+        """, unsafe_allow_html=True)
+        st.markdown("<div class='scroll-box'>", unsafe_allow_html=True)
+        for _, row in scadenza.iterrows():
+            create_contract_card(row)
+        st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
+
+    # === CONTRATTI SENZA DATA FINE (solo da oggi in poi) ===
+    st.subheader("⏰ Contratti Senza Data Fine (da oggi in poi)")
+    senza = df_ct[
+        (df_ct["DataFine"].isna()) &
+        (df_ct["DataInizio"].notna()) &
+        (df_ct["DataInizio"] >= now) &
+        (df_ct["Stato"].fillna("").str.lower() != "chiuso")
+    ]
+    if senza.empty:
+        st.info("✅ Nessun nuovo contratto senza data fine (da oggi).")
+    else:
+        senza = senza.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+        senza = senza.sort_values("DataInizio").head(6)
+        st.markdown("<div class='scroll-box'>", unsafe_allow_html=True)
+        for _, row in senza.iterrows():
+            create_contract_card(row)
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
+
+    # === RECALL E VISITE ===
+    st.subheader("📞 Ultimi Recall e Visite")
+    df_cli["UltimoRecall"] = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce", dayfirst=True)
+    df_cli["UltimaVisita"] = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce", dayfirst=True)
+    col_r, col_v = st.columns(2)
+
+    with col_r:
+        st.markdown("#### 🔁 Ultimi Recall")
+        st.dataframe(
+            df_cli[["RagioneSociale", "UltimoRecall", "ProssimoRecall"]]
+            .sort_values("UltimoRecall", ascending=False)
+            .head(5),
+            hide_index=True,
+            use_container_width=True
+        )
+
+    with col_v:
+        st.markdown("#### 🚗 Ultime Visite")
+        st.dataframe(
+            df_cli[["RagioneSociale", "UltimaVisita", "ProssimaVisita"]]
+            .sort_values("UltimaVisita", ascending=False)
+            .head(5),
+            hide_index=True,
+            use_container_width=True
+        )
+
 
     # === CONTRATTI SENZA DATA FINE ===
     st.subheader("⏰ Contratti Senza Data Fine")

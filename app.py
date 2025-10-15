@@ -161,13 +161,17 @@ def page_dashboard(df_cli, df_ct, role):
         m2 = senza.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
         st.dataframe(m2[["RagioneSociale", "NumeroContratto", "DataInizio", "Stato"]].sort_values("DataInizio").head(10), use_container_width=True)
 
+
 # =========================================================
-# ANAGRAFICA CLIENTI
+# ANAGRAFICA CLIENTI – versione aggiornata
 # =========================================================
 def page_anagrafica(df_cli, df_ct, role):
     st.title("📇 Anagrafica Clienti")
-    st.markdown("Gestisci qui l’elenco completo dei clienti.")
+    st.markdown("Gestisci qui l’elenco completo dei clienti. Puoi modificare direttamente i dati nella tabella.")
 
+    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
+    # Crea nuovo cliente
     if st.button("➕ Nuovo Cliente"):
         nuovo = {
             "ClienteID": str(int(datetime.now().timestamp())),
@@ -183,12 +187,30 @@ def page_anagrafica(df_cli, df_ct, role):
         }
         df_cli = pd.concat([df_cli, pd.DataFrame([nuovo])], ignore_index=True)
         save_clienti(df_cli)
+        st.success("✅ Nuovo cliente aggiunto.")
         st.rerun()
 
-    edited = st.data_editor(df_cli, num_rows="dynamic", use_container_width=True, key="edit_cli")
-    if st.button("💾 Salva Modifiche"):
-        save_clienti(edited)
-        st.success("✅ Dati clienti salvati.")
+    # Impostazioni AgGrid
+    gb = GridOptionsBuilder.from_dataframe(df_cli)
+    gb.configure_default_column(editable=True, resizable=True, filter=True, sortable=True, wrapText=True, autoHeight=True)
+    gb.configure_grid_options(domLayout='autoHeight')
+    grid = AgGrid(
+        df_cli,
+        gridOptions=gb.build(),
+        theme="balham",
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        allow_unsafe_jscode=True,
+        height=450,
+        fit_columns_on_grid_load=True,
+    )
+
+    # Salvataggio
+    if st.button("💾 Salva modifiche"):
+        new_df = pd.DataFrame(grid["data"])
+        save_clienti(new_df)
+        st.success("✅ Dati clienti aggiornati.")
+        st.rerun()
+
 
 # =========================================================
 # PAGINA CLIENTE DETTAGLIO
@@ -290,19 +312,24 @@ def page_clienti(df_cli, df_ct, role):
                 st.success(f"✅ Preventivo creato: {out.name}")
                 st.rerun()
 
+
 # =========================================================
-# CONTRATTI
+# CONTRATTI – versione aggiornata
 # =========================================================
 def page_contratti(df_cli, df_ct, role):
     st.title("📜 Gestione Contratti")
+    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+
     if df_cli.empty:
         st.warning("Nessun cliente registrato.")
         return
 
+    # Selezione cliente
     cliente = st.selectbox("Cliente", df_cli["RagioneSociale"])
     cli = df_cli[df_cli["RagioneSociale"] == cliente].iloc[0]
     cli_id = cli["ClienteID"]
 
+    # --- Creazione nuovo contratto
     with st.expander("➕ Nuovo Contratto"):
         with st.form("new_ct"):
             n = st.text_input("Numero Contratto")
@@ -312,38 +339,87 @@ def page_contratti(df_cli, df_ct, role):
             tot = st.text_input("Tot Rata (€)")
             s = st.form_submit_button("💾 Crea Contratto")
             if s:
-                df_ct = pd.concat([df_ct,pd.DataFrame([{
+                df_ct = pd.concat([df_ct, pd.DataFrame([{
                     "ClienteID": cli_id,
                     "NumeroContratto": n,
                     "DataInizio": pd.to_datetime(d_in),
-                    "DataFine": pd.to_datetime(d_in)+pd.DateOffset(months=int(dur)),
+                    "DataFine": pd.to_datetime(d_in) + pd.DateOffset(months=int(dur)),
                     "Durata": dur,
                     "DescrizioneProdotto": desc,
                     "TotRata": tot,
                     "Stato": "aperto"
                 }])], ignore_index=True)
                 save_contratti(df_ct)
-                st.success("Contratto creato.")
+                st.success("✅ Contratto creato.")
                 st.rerun()
 
-    contratti = df_ct[df_ct["ClienteID"] == cli_id]
+    contratti = df_ct[df_ct["ClienteID"] == cli_id].copy()
     if contratti.empty:
         st.info("Nessun contratto per questo cliente.")
         return
-    disp = contratti.copy()
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-    disp["TotRata"] = disp["TotRata"].apply(money)
-    gb = GridOptionsBuilder.from_dataframe(disp)
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
+
+    # Formattazione date e importi
+    contratti["DataInizio"] = contratti["DataInizio"].apply(fmt_date)
+    contratti["DataFine"] = contratti["DataFine"].apply(fmt_date)
+    contratti["TotRata"] = contratti["TotRata"].apply(money)
+
+    # --- AGGRID EDITABILE
+    gb = GridOptionsBuilder.from_dataframe(contratti)
+    gb.configure_default_column(editable=True, resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
+
+    # Colorazione righe per stato
     js = JsCode("""
     function(p){
-      if(p.data.Stato=='chiuso') return {'backgroundColor':'#ffecec','color':'#a00'};
-      if(p.data.Stato=='aperto') return {'backgroundColor':'#e8f5e9','color':'#006400'};
+      if(p.data.Stato == 'chiuso'){return {'backgroundColor':'#ffecec','color':'#a00'};}
+      if(p.data.Stato == 'aperto'){return {'backgroundColor':'#e8f5e9','color':'#006400'};}
       return {};
-    }""")
+    }
+    """)
     gb.configure_grid_options(getRowStyle=js)
-    AgGrid(disp, gridOptions=gb.build(), height=380, allow_unsafe_jscode=True)
+    gb.configure_grid_options(domLayout='autoHeight')
+
+    grid = AgGrid(
+        contratti,
+        gridOptions=gb.build(),
+        theme="balham",
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        allow_unsafe_jscode=True,
+        height=420,
+        fit_columns_on_grid_load=True,
+    )
+
+    st.divider()
+
+    # --- Pulsanti di chiusura / riapertura
+    st.markdown("### ⚙️ Gestione Stato Contratti")
+    for i, r in contratti.iterrows():
+        c1, c2, c3 = st.columns([0.05, 0.7, 0.25])
+        with c2:
+            st.caption(f"{r['NumeroContratto']} — {r.get('DescrizioneProdotto','')[:60]}")
+        with c3:
+            if r["Stato"].lower() == "chiuso":
+                if st.button("🔓 Riapri", key=f"open_{i}"):
+                    df_ct.loc[df_ct.index == r.name, "Stato"] = "aperto"
+                    save_contratti(df_ct)
+                    st.rerun()
+            else:
+                if st.button("❌ Chiudi", key=f"close_{i}"):
+                    df_ct.loc[df_ct.index == r.name, "Stato"] = "chiuso"
+                    save_contratti(df_ct)
+                    st.rerun()
+
+    st.divider()
+
+    # --- Salvataggio modifiche AgGrid
+    if st.button("💾 Salva modifiche ai contratti"):
+        new_df = pd.DataFrame(grid["data"])
+        # Re-converti le date per sicurezza
+        for c in ["DataInizio", "DataFine"]:
+            new_df[c] = pd.to_datetime(new_df[c], errors="coerce", dayfirst=True)
+        save_contratti(new_df)
+        st.success("✅ Modifiche ai contratti salvate.")
+        st.rerun()
+
 
 # =========================================================
 # LISTA COMPLETA

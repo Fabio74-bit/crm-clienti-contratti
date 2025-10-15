@@ -47,6 +47,14 @@ def ensure_columns(df, cols):
             df[c] = pd.NA
     return df[cols]
 
+def safe_date(val, fallback_days=0):
+    if pd.isna(val) or val == "":
+        return (datetime.now() + timedelta(days=fallback_days)).date()
+    try:
+        return pd.to_datetime(val).date()
+    except Exception:
+        return (datetime.now() + timedelta(days=fallback_days)).date()
+
 # ==========================
 # I/O DATI
 # ==========================
@@ -117,6 +125,18 @@ def do_login():
     st.stop()
 
 # ==========================
+# KPI CARD
+# ==========================
+def kpi_card(label, value, icon, bg):
+    return f"""
+    <div style="background-color:{bg};padding:18px;border-radius:12px;text-align:center;color:white;">
+        <div style="font-size:26px;margin-bottom:6px;">{icon}</div>
+        <div style="font-size:22px;font-weight:700;">{value}</div>
+        <div style="font-size:14px;">{label}</div>
+    </div>
+    """
+
+# ==========================
 # DASHBOARD
 # ==========================
 def page_dashboard(df_cli, df_ct, role):
@@ -128,9 +148,7 @@ def page_dashboard(df_cli, df_ct, role):
         st.markdown("<h1>SHT – CRM Dashboard</h1>", unsafe_allow_html=True)
     st.divider()
 
-    # ==========================
     # KPI
-    # ==========================
     stato = df_ct["Stato"].fillna("").astype(str).str.lower()
     kpi_data = [
         ("Clienti attivi", len(df_cli), "👥", "#2196F3"),
@@ -144,9 +162,7 @@ def page_dashboard(df_cli, df_ct, role):
             st.markdown(kpi_card(*data), unsafe_allow_html=True)
     st.divider()
 
-    # ==========================
-    # CONTRATTI IN SCADENZA (entro 6 mesi)
-    # ==========================
+    # Contratti in scadenza entro 6 mesi
     st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce")
     scadenza = df_ct[
@@ -159,14 +175,9 @@ def page_dashboard(df_cli, df_ct, role):
     if scadenza.empty:
         st.info("✅ Nessun contratto in scadenza.")
     else:
-        scadenza = scadenza.merge(
-            df_cli[["ClienteID", "RagioneSociale"]],
-            on="ClienteID",
-            how="left"
-        ).drop_duplicates(subset=["ClienteID", "NumeroContratto"])
-
+        scadenza = scadenza.merge(df_cli[["ClienteID","RagioneSociale"]], on="ClienteID", how="left").drop_duplicates(subset=["ClienteID","NumeroContratto"])
         for i, row in scadenza.iterrows():
-            btn_key = f"open_{row['ClienteID']}_{i}"  # ✅ chiave univoca
+            btn_key = f"open_{row['ClienteID']}_{i}"
             label = f"🔎 {row['RagioneSociale']} — scade il {fmt_date(row['DataFine'])}"
             if st.button(label, key=btn_key):
                 st.session_state["selected_client_id"] = row["ClienteID"]
@@ -175,9 +186,7 @@ def page_dashboard(df_cli, df_ct, role):
 
     st.divider()
 
-    # ==========================
-    # CONTRATTI SENZA DATA FINE
-    # ==========================
+    # Contratti senza data fine
     st.subheader("⏰ Contratti Senza Data Fine (attivi da oggi)")
     senza = df_ct[
         (df_ct["DataFine"].isna()) &
@@ -187,9 +196,9 @@ def page_dashboard(df_cli, df_ct, role):
     if senza.empty:
         st.info("✅ Nessun nuovo contratto senza data fine.")
     else:
-        senza = senza.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+        senza = senza.merge(df_cli[["ClienteID","RagioneSociale"]], on="ClienteID", how="left")
         st.dataframe(
-            senza[["RagioneSociale", "NumeroContratto", "DataInizio", "Stato"]]
+            senza[["RagioneSociale","NumeroContratto","DataInizio","Stato"]]
             .sort_values("DataInizio")
             .head(10),
             use_container_width=True,
@@ -198,15 +207,13 @@ def page_dashboard(df_cli, df_ct, role):
 
     st.divider()
 
-    # ==========================
-    # ULTIMI RECALL E VISITE
-    # ==========================
+    # Ultimi Recall e Visite
     st.subheader("📞 Ultimi Recall e Visite")
     col_r, col_v = st.columns(2)
     with col_r:
         st.markdown("#### 🔁 Ultimi Recall")
         st.dataframe(
-            df_cli[["RagioneSociale", "UltimoRecall", "ProssimoRecall"]]
+            df_cli[["RagioneSociale","UltimoRecall","ProssimoRecall"]]
             .dropna()
             .sort_values("UltimoRecall", ascending=False)
             .head(5),
@@ -216,14 +223,13 @@ def page_dashboard(df_cli, df_ct, role):
     with col_v:
         st.markdown("#### 🚗 Ultime Visite")
         st.dataframe(
-            df_cli[["RagioneSociale", "UltimaVisita", "ProssimaVisita"]]
+            df_cli[["RagioneSociale","UltimaVisita","ProssimaVisita"]]
             .dropna()
             .sort_values("UltimaVisita", ascending=False)
             .head(5),
             use_container_width=True,
             hide_index=True
         )
-
 # =========================================================
 # CLIENTI COMPLETI – anagrafica + note + contratti + preventivi
 # =========================================================
@@ -266,13 +272,6 @@ def page_clienti(df_cli, df_ct, role):
         iban = st.text_input("IBAN", str(cli.get("IBAN") or ""))
         sdi = st.text_input("SDI", str(cli.get("SDI") or ""))
     with col3:
-        def safe_date(val, fallback_days=0):
-            if pd.isna(val) or val == "":
-                return (datetime.now() + timedelta(days=fallback_days)).date()
-            try:
-                return pd.to_datetime(val).date()
-            except Exception:
-                return (datetime.now() + timedelta(days=fallback_days)).date()
         ult_rec = st.date_input("Ultimo Recall", safe_date(cli.get("UltimoRecall")))
         pro_rec = st.date_input("Prossimo Recall", safe_date(cli.get("ProssimoRecall"), 30))
         ult_vis = st.date_input("Ultima Visita", safe_date(cli.get("UltimaVisita")))
@@ -303,19 +302,15 @@ def page_clienti(df_cli, df_ct, role):
         idx = df_cli.index[df_cli["ClienteID"] == cli_id][0]
         df_cli.loc[idx, "Note"] = nuova_nota
         save_clienti(df_cli)
-        st.session_state["note_saved"] = True
         st.success("✅ Note salvate con successo.")
         st.rerun()
-
-    if st.session_state.get("note_saved"):
-        st.info("Le note sono state aggiornate correttamente.")
-        del st.session_state["note_saved"]
 
     # ---------------------------------------------------------
     # CONTRATTI CLIENTE
     # ---------------------------------------------------------
     st.markdown("---")
     st.subheader("📜 Contratti del Cliente")
+
     contratti = df_ct[df_ct["ClienteID"] == cli_id].copy()
     if contratti.empty:
         st.info("Nessun contratto per questo cliente.")
@@ -326,23 +321,8 @@ def page_clienti(df_cli, df_ct, role):
         contratti["Stato"] = contratti["Stato"].fillna("aperto")
 
         gb = GridOptionsBuilder.from_dataframe(contratti)
-        gb.configure_default_column(editable=True, resizable=True, filter=True, sortable=True, wrapText=True, autoHeight=True)
+        gb.configure_default_column(editable=True, resizable=True, filter=True, sortable=True)
         gb.configure_grid_options(domLayout="autoHeight")
-
-        js_style = JsCode("""
-        function(params) {
-            if (!params.data.Stato) return {};
-            const stato = params.data.Stato.toLowerCase();
-            if (stato.includes('chiuso')) {
-                return { 'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold' };
-            } else if (stato.includes('aperto')) {
-                return { 'backgroundColor': '#e8f5e9', 'color': '#1b5e20' };
-            }
-            return {};
-        }
-        """)
-
-        gb.configure_grid_options(getRowStyle=js_style)
 
         try:
             grid = AgGrid(
@@ -355,7 +335,7 @@ def page_clienti(df_cli, df_ct, role):
                 fit_columns_on_grid_load=True,
             )
         except AttributeError:
-            st.warning("⚠️ Problema con st_aggrid — aggiorna la libreria con: `pip install -U streamlit-aggrid`")
+            st.warning("⚠️ Problema con st_aggrid — aggiorna con: `pip install -U streamlit-aggrid`")
             st.dataframe(contratti, use_container_width=True)
             grid = {"data": contratti.to_dict("records")}
 
@@ -372,7 +352,8 @@ def page_clienti(df_cli, df_ct, role):
         st.markdown("### ⚙️ Stato contratti")
         for i, r in contratti.iterrows():
             c1, c2, c3 = st.columns([0.05, 0.7, 0.25])
-            with c2: st.caption(f"{r['NumeroContratto']} — {str(r.get('DescrizioneProdotto',''))[:60]}")
+            with c2:
+                st.caption(f"{r['NumeroContratto']} — {str(r.get('DescrizioneProdotto',''))[:60]}")
             with c3:
                 stato = (r["Stato"] or "aperto").lower()
                 if stato == "chiuso":
@@ -466,6 +447,7 @@ def page_clienti(df_cli, df_ct, role):
                     st.rerun()
             except Exception as e:
                 st.error(f"Errore durante la creazione del preventivo: {e}")
+
 
 # =========================================================
 # CONTRATTI – gestione separata

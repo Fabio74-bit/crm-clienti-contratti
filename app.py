@@ -208,7 +208,8 @@ def do_login_fullscreen():
             st.session_state["auth_user"] = username
             st.session_state["auth_role"] = users[username].get("role", "viewer")
             st.success("✅ Accesso effettuato!")
-            st.experimental_rerun()
+            st.rerun()
+
         else:
             st.error("❌ Credenziali errate o utente inesistente.")
 

@@ -119,15 +119,6 @@ def do_login():
 # ==========================
 # DASHBOARD
 # ==========================
-def kpi_card(label, value, icon, bg):
-    return f"""
-    <div style="background-color:{bg};padding:18px;border-radius:12px;text-align:center;color:white;">
-        <div style="font-size:26px;margin-bottom:6px;">{icon}</div>
-        <div style="font-size:22px;font-weight:700;">{value}</div>
-        <div style="font-size:14px;">{label}</div>
-    </div>
-    """
-
 def page_dashboard(df_cli, df_ct, role):
     now = pd.Timestamp.now().normalize()
     col1, col2 = st.columns([0.15, 0.85])
@@ -137,6 +128,9 @@ def page_dashboard(df_cli, df_ct, role):
         st.markdown("<h1>SHT – CRM Dashboard</h1>", unsafe_allow_html=True)
     st.divider()
 
+    # ==========================
+    # KPI
+    # ==========================
     stato = df_ct["Stato"].fillna("").astype(str).str.lower()
     kpi_data = [
         ("Clienti attivi", len(df_cli), "👥", "#2196F3"),
@@ -150,7 +144,9 @@ def page_dashboard(df_cli, df_ct, role):
             st.markdown(kpi_card(*data), unsafe_allow_html=True)
     st.divider()
 
-    # Contratti in scadenza (entro 6 mesi)
+    # ==========================
+    # CONTRATTI IN SCADENZA (entro 6 mesi)
+    # ==========================
     st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce")
     scadenza = df_ct[
@@ -159,20 +155,29 @@ def page_dashboard(df_cli, df_ct, role):
         (df_ct["DataFine"] <= now + pd.DateOffset(months=6)) &
         (df_ct["Stato"].fillna("").str.lower() != "chiuso")
     ]
+
     if scadenza.empty:
         st.info("✅ Nessun contratto in scadenza.")
     else:
-        scadenza = scadenza.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left").drop_duplicates()
-        for _, row in scadenza.iterrows():
-            if st.button(f"🔎 {row['RagioneSociale']} — scade il {fmt_date(row['DataFine'])}",
-                         key=f"open_{row['ClienteID']}"):
+        scadenza = scadenza.merge(
+            df_cli[["ClienteID", "RagioneSociale"]],
+            on="ClienteID",
+            how="left"
+        ).drop_duplicates(subset=["ClienteID", "NumeroContratto"])
+
+        for i, row in scadenza.iterrows():
+            btn_key = f"open_{row['ClienteID']}_{i}"  # ✅ chiave univoca
+            label = f"🔎 {row['RagioneSociale']} — scade il {fmt_date(row['DataFine'])}"
+            if st.button(label, key=btn_key):
                 st.session_state["selected_client_id"] = row["ClienteID"]
                 st.session_state["nav_target"] = "Clienti"
                 st.rerun()
 
     st.divider()
 
-    # Contratti senza data fine
+    # ==========================
+    # CONTRATTI SENZA DATA FINE
+    # ==========================
     st.subheader("⏰ Contratti Senza Data Fine (attivi da oggi)")
     senza = df_ct[
         (df_ct["DataFine"].isna()) &
@@ -192,20 +197,33 @@ def page_dashboard(df_cli, df_ct, role):
         )
 
     st.divider()
+
+    # ==========================
+    # ULTIMI RECALL E VISITE
+    # ==========================
     st.subheader("📞 Ultimi Recall e Visite")
     col_r, col_v = st.columns(2)
     with col_r:
         st.markdown("#### 🔁 Ultimi Recall")
         st.dataframe(
-            df_cli[["RagioneSociale","UltimoRecall","ProssimoRecall"]]
-            .dropna().sort_values("UltimoRecall",ascending=False).head(5),
-            use_container_width=True, hide_index=True)
+            df_cli[["RagioneSociale", "UltimoRecall", "ProssimoRecall"]]
+            .dropna()
+            .sort_values("UltimoRecall", ascending=False)
+            .head(5),
+            use_container_width=True,
+            hide_index=True
+        )
     with col_v:
         st.markdown("#### 🚗 Ultime Visite")
         st.dataframe(
-            df_cli[["RagioneSociale","UltimaVisita","ProssimaVisita"]]
-            .dropna().sort_values("UltimaVisita",ascending=False).head(5),
-            use_container_width=True, hide_index=True)
+            df_cli[["RagioneSociale", "UltimaVisita", "ProssimaVisita"]]
+            .dropna()
+            .sort_values("UltimaVisita", ascending=False)
+            .head(5),
+            use_container_width=True,
+            hide_index=True
+        )
+
 # =========================================================
 # CLIENTI COMPLETI – anagrafica + note + contratti + preventivi
 # =========================================================

@@ -215,47 +215,127 @@ def page_anagrafica(df_cli, df_ct, role):
 # =========================================================
 # PAGINA CLIENTE DETTAGLIO
 # =========================================================
+# =========================================================
+# CLIENTI COMPLETI – anagrafica + note + contratti + preventivi
+# =========================================================
 def page_clienti(df_cli, df_ct, role):
-    st.title("🏢 Gestione Clienti e Preventivi")
+    st.title("🏢 Gestione Clienti Completa")
+
     if df_cli.empty:
         st.warning("Nessun cliente registrato.")
         return
 
+    # Selezione cliente
     cliente = st.selectbox("Seleziona Cliente", df_cli["RagioneSociale"])
     cli = df_cli[df_cli["RagioneSociale"] == cliente].iloc[0]
     cli_id = cli["ClienteID"]
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**Città:** {cli.get('Citta','')}")
-        st.write(f"**Telefono:** {cli.get('Telefono','')}")
-        st.write(f"**Email:** {cli.get('Email','')}")
-    with col2:
-        st.write(f"**Ultimo Recall:** {fmt_date(cli.get('UltimoRecall'))}")
-        st.write(f"**Prossimo Recall:** {fmt_date(cli.get('ProssimoRecall'))}")
-        st.write(f"**Ultima Visita:** {fmt_date(cli.get('UltimaVisita'))}")
+    st.markdown("---")
+    st.subheader("📇 Dati Anagrafici")
 
-    st.divider()
+    # Sezione anagrafica modificabile
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        rag = st.text_input("Ragione Sociale", cli.get("RagioneSociale", ""))
+        citta = st.text_input("Città", cli.get("Citta", ""))
+    with col2:
+        tel = st.text_input("Telefono", cli.get("Telefono", ""))
+        email = st.text_input("Email", cli.get("Email", ""))
+    with col3:
+        ult_rec = st.date_input("Ultimo Recall", cli.get("UltimoRecall") if not pd.isna(cli.get("UltimoRecall")) else datetime.now())
+        pro_rec = st.date_input("Prossimo Recall", cli.get("ProssimoRecall") if not pd.isna(cli.get("ProssimoRecall")) else datetime.now() + timedelta(days=30))
+
+    if st.button("💾 Salva Dati Anagrafici"):
+        idx = df_cli.index[df_cli["ClienteID"] == cli_id][0]
+        df_cli.loc[idx, "RagioneSociale"] = rag
+        df_cli.loc[idx, "Citta"] = citta
+        df_cli.loc[idx, "Telefono"] = tel
+        df_cli.loc[idx, "Email"] = email
+        df_cli.loc[idx, "UltimoRecall"] = ult_rec
+        df_cli.loc[idx, "ProssimoRecall"] = pro_rec
+        save_clienti(df_cli)
+        st.success("✅ Dati anagrafici aggiornati.")
+        st.rerun()
+
+    st.markdown("---")
     st.subheader("🗒️ Note Cliente")
-    note = st.text_area("Note", cli.get("Note",""), height=100)
-    if st.button("💾 Salva Note"):
+    note = st.text_area("Note", cli.get("Note", ""), height=120)
+    if st.button("💾 Salva Note Cliente"):
         idx = df_cli.index[df_cli["ClienteID"] == cli_id][0]
         df_cli.loc[idx, "Note"] = note
         save_clienti(df_cli)
-        st.success("Note salvate.")
+        st.success("✅ Note salvate.")
         st.rerun()
 
-    st.divider()
-    st.subheader("📄 Contratti Cliente")
-    contratti = df_ct[df_ct["ClienteID"] == cli_id]
+    # =========================
+    # CONTRATTI CLIENTE
+    # =========================
+    st.markdown("---")
+    st.subheader("📜 Contratti del Cliente")
+
+    contratti = df_ct[df_ct["ClienteID"] == cli_id].copy()
     if contratti.empty:
         st.info("Nessun contratto per questo cliente.")
     else:
-        st.dataframe(contratti[["NumeroContratto","DataInizio","DataFine","Stato"]], use_container_width=True)
+        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
-    # Preventivi
-    st.divider()
+        contratti["DataInizio"] = contratti["DataInizio"].apply(fmt_date)
+        contratti["DataFine"] = contratti["DataFine"].apply(fmt_date)
+        contratti["TotRata"] = contratti["TotRata"].apply(money)
+
+        gb = GridOptionsBuilder.from_dataframe(contratti)
+        gb.configure_default_column(editable=True, resizable=True, filter=True, sortable=True, wrapText=True, autoHeight=True)
+        js = JsCode("""
+        function(p){
+            if(p.data.Stato == 'chiuso'){return {'backgroundColor':'#ffecec','color':'#a00'};}
+            if(p.data.Stato == 'aperto'){return {'backgroundColor':'#e8f5e9','color':'#006400'};}
+            return {};
+        }""")
+        gb.configure_grid_options(getRowStyle=js)
+        grid = AgGrid(
+            contratti,
+            gridOptions=gb.build(),
+            theme="balham",
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            allow_unsafe_jscode=True,
+            height=420,
+            fit_columns_on_grid_load=True,
+        )
+
+        # Pulsanti di chiusura / riapertura
+        st.divider()
+        st.markdown("### ⚙️ Gestione Stato Contratti")
+        for i, r in contratti.iterrows():
+            c1, c2, c3 = st.columns([0.05, 0.7, 0.25])
+            with c2:
+                st.caption(f"{r['NumeroContratto']} — {r.get('DescrizioneProdotto','')[:60]}")
+            with c3:
+                if r["Stato"].lower() == "chiuso":
+                    if st.button("🔓 Riapri", key=f"open_{i}"):
+                        df_ct.loc[df_ct.index == r.name, "Stato"] = "aperto"
+                        save_contratti(df_ct)
+                        st.rerun()
+                else:
+                    if st.button("❌ Chiudi", key=f"close_{i}"):
+                        df_ct.loc[df_ct.index == r.name, "Stato"] = "chiuso"
+                        save_contratti(df_ct)
+                        st.rerun()
+
+        # Salvataggio modifiche inline
+        if st.button("💾 Salva modifiche ai contratti"):
+            new_df = pd.DataFrame(grid["data"])
+            for c in ["DataInizio", "DataFine"]:
+                new_df[c] = pd.to_datetime(new_df[c], errors="coerce", dayfirst=True)
+            save_contratti(new_df)
+            st.success("✅ Contratti aggiornati.")
+            st.rerun()
+
+    # =========================
+    # PREVENTIVI CLIENTE
+    # =========================
+    st.markdown("---")
     st.subheader("🧾 Preventivi Cliente")
+
     if PREVENTIVI_CSV.exists():
         df_prev = pd.read_csv(PREVENTIVI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
     else:
@@ -274,6 +354,7 @@ def page_clienti(df_cli, df_ct, role):
         "Offerta – A3": "Offerte_A3.docx",
         "Offerta – A4": "Offerte_A4.docx",
     }
+
     with st.form("new_prev"):
         nome = st.text_input("Nome File (es. Offerta_SHT.docx)")
         template = st.selectbox("Template", list(templates.keys()))
@@ -433,7 +514,7 @@ def page_lista(df_cli, df_ct, role):
     st.download_button("⬇️ Esporta CSV", merged.to_csv(index=False,encoding="utf-8-sig"), "lista_clienti_contratti.csv")
 
 # =========================================================
-# MAIN APP
+# MAIN APP – aggiornato (senza pagina Anagrafica)
 # =========================================================
 def main():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
@@ -442,14 +523,14 @@ def main():
     st.sidebar.image(LOGO_URL, width=150)
     st.sidebar.markdown(f"**Utente:** {user}")
     if st.sidebar.button("🚪 Logout"):
-        for k in ["auth_user","auth_role"]:
+        for k in ["auth_user", "auth_role"]:
             st.session_state.pop(k, None)
         st.rerun()
 
+    # Pagine disponibili (senza "Anagrafica")
     pages = {
         "Dashboard": page_dashboard,
-        "Anagrafica": page_anagrafica,
-        "Clienti": page_clienti,
+        "Clienti": page_clienti,          # ✅ scheda completa
         "Contratti": page_contratti,
         "Lista Completa": page_lista,
     }
@@ -463,6 +544,7 @@ def main():
 
     # Esecuzione pagina
     pages[page](df_cli, df_ct, role)
+
 
 if __name__ == "__main__":
     main()

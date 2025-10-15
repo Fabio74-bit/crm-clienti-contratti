@@ -235,7 +235,7 @@ def page_clienti(df_cli, df_ct, role):
     st.markdown("---")
     st.subheader("📇 Dati Anagrafici")
 
-      # ---------------------------------------------------------
+         # ---------------------------------------------------------
     # SEZIONE ANAGRAFICA MODIFICABILE
     # ---------------------------------------------------------
     col1, col2, col3 = st.columns(3)
@@ -253,22 +253,19 @@ def page_clienti(df_cli, df_ct, role):
         sdi = st.text_input("SDI", str(cli.get("SDI") or ""))
 
     with col3:
-        ult_rec = st.date_input(
-            "Ultimo Recall",
-            cli.get("UltimoRecall") if not pd.isna(cli.get("UltimoRecall")) else datetime.now()
-        )
-        pro_rec = st.date_input(
-            "Prossimo Recall",
-            cli.get("ProssimoRecall") if not pd.isna(cli.get("ProssimoRecall")) else datetime.now() + timedelta(days=30)
-        )
-        ult_vis = st.date_input(
-            "Ultima Visita",
-            cli.get("UltimaVisita") if not pd.isna(cli.get("UltimaVisita")) else datetime.now()
-        )
-        pro_vis = st.date_input(
-            "Prossima Visita",
-            cli.get("ProssimaVisita") if not pd.isna(cli.get("ProssimaVisita")) else datetime.now() + timedelta(days=30)
-        )
+        # Conversione sicura da qualsiasi tipo → datetime.date
+        def safe_date(val, fallback_days=0):
+            if pd.isna(val) or val == "":
+                return (datetime.now() + timedelta(days=fallback_days)).date()
+            try:
+                return pd.to_datetime(val).date()
+            except Exception:
+                return (datetime.now() + timedelta(days=fallback_days)).date()
+
+        ult_rec = st.date_input("Ultimo Recall", safe_date(cli.get("UltimoRecall")))
+        pro_rec = st.date_input("Prossimo Recall", safe_date(cli.get("ProssimoRecall"), 30))
+        ult_vis = st.date_input("Ultima Visita", safe_date(cli.get("UltimaVisita")))
+        pro_vis = st.date_input("Prossima Visita", safe_date(cli.get("ProssimaVisita"), 30))
 
     if st.button("💾 Salva Dati Anagrafici"):
         idx = df_cli.index[df_cli["ClienteID"] == cli_id][0]
@@ -276,22 +273,20 @@ def page_clienti(df_cli, df_ct, role):
             rag, citta, tel, cell, ref2, email, iban, sdi
         ]
         df_cli.loc[idx, ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]] = [
-            ult_rec, pro_rec, ult_vis, pro_vis
+            pd.to_datetime(ult_rec), pd.to_datetime(pro_rec),
+            pd.to_datetime(ult_vis), pd.to_datetime(pro_vis)
         ]
         save_clienti(df_cli)
         st.success("✅ Dati anagrafici aggiornati.")
         st.rerun()
 
-
-      # ---------------------------------------------------------
+    # ---------------------------------------------------------
     # NOTE CLIENTE
     # ---------------------------------------------------------
     st.markdown("---")
     st.subheader("🗒️ Note Cliente")
 
-    # valore sicuro (evita errore con pd.NA)
     note_corrente = str(cli.get("Note") or "")
-
     note = st.text_area("Note", note_corrente, height=140)
 
     if st.button("💾 Salva Note Cliente"):

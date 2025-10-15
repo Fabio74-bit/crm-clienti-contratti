@@ -126,8 +126,15 @@ def kpi_card(label, value, icon, bg_color):
     </div>
     """
 
+import uuid
+
 def create_contract_card(row):
-    key = f"open_{row.get('ClienteID')}_{row.get('NumeroContratto')}"
+    """
+    Card contratto con chiave univoca a prova di duplicati.
+    """
+    # Chiave sempre unica (UUID)
+    unique_key = f"open_{row.get('ClienteID','')}_{row.get('NumeroContratto','')}_{uuid.uuid4().hex}"
+
     st.markdown(f"""
     <div style="border:1px solid #ddd;border-radius:10px;padding:10px 14px;margin-bottom:8px;background-color:#fafafa;">
       <b>{row.get('RagioneSociale','')}</b> – Contratto: {row.get('NumeroContratto','')}<br>
@@ -135,10 +142,13 @@ def create_contract_card(row):
       <small>Stato: {row.get('Stato','')}</small>
     </div>
     """, unsafe_allow_html=True)
-    if st.button("🔎 Apri Cliente", key=key):
+
+    # Pulsante univoco
+    if st.button("🔎 Apri Cliente", key=unique_key):
         st.session_state["selected_client_id"] = row["ClienteID"]
         st.session_state["nav_target"] = "Contratti"
         st.rerun()
+
 
 def page_dashboard(df_cli, df_ct, role):
     now = pd.Timestamp.now().normalize()

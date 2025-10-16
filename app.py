@@ -1,4 +1,4 @@
-# app.py — Gestionale Clienti SHT (versione completa e corretta)
+app.py — Gestionale Clienti SHT (versione completa e corretta)
 from __future__ import annotations
 
 import os

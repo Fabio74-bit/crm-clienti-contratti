@@ -90,18 +90,23 @@ def save_contratti(df):
     out.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
 # =========================================================
-# LOGIN BASE
+# LOGIN FULLSCREEN CON LOGO SHT
 # =========================================================
 def do_login_fullscreen():
-    """Login semplice a schermo intero con logo SHT"""
+    """Schermata di login a pagina intera con logo SHT"""
     users = st.secrets.get("auth", {}).get("users", {})
     if not users:
         return ("ospite", "viewer")
 
+    # Se già loggato → ritorna direttamente
+    if "auth_user" in st.session_state and "auth_role" in st.session_state:
+        return st.session_state["auth_user"], st.session_state["auth_role"]
+
+    # Layout fullscreen
     st.markdown(
         f"""
-        <div style='display:flex;flex-direction:column;align-items:center;
-                    justify-content:center;height:90vh;text-align:center;'>
+        <div style='display:flex;flex-direction:column;align-items:center;justify-content:center;
+                    height:90vh;text-align:center;'>
             <img src="{LOGO_URL}" width="220" style="margin-bottom:25px;">
             <h2>🔐 Accesso al Gestionale SHT</h2>
             <p style='color:grey;'>Inserisci le tue credenziali per accedere</p>
@@ -122,9 +127,8 @@ def do_login_fullscreen():
         else:
             st.error("❌ Credenziali errate o utente inesistente.")
 
-    if "auth_user" in st.session_state:
-        return st.session_state["auth_user"], st.session_state.get("auth_role", "viewer")
     return "", ""
+
 # =========================================================
 # DASHBOARD COMPLETA E COMPATTA
 # =========================================================
@@ -507,21 +511,25 @@ def page_lista(df_cli, df_ct, role):
 # =========================================================
 # MAIN APP
 # =========================================================
+# =========================================================
+# MAIN APP – con layout originale e login fullscreen
+# =========================================================
 def main():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
 
     user, role = do_login_fullscreen()
     if not user:
-        return
+        st.stop()
 
-    st.sidebar.image(LOGO_URL, width=150)
+    # === SIDEBAR (solo dopo login) ===
+    st.sidebar.image(LOGO_URL, width=140)
     st.sidebar.markdown(f"**Utente:** {user}")
-
     if st.sidebar.button("🚪 Logout"):
         for k in ["auth_user", "auth_role"]:
             st.session_state.pop(k, None)
         st.rerun()
 
+    # === Routing delle pagine ===
     pages = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -532,13 +540,15 @@ def main():
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    # memorizza pagina attuale
     current_page = st.session_state.get("page", "Dashboard")
-    page = st.sidebar.radio("📂 Seleziona sezione", list(pages.keys()), index=list(pages.keys()).index(current_page) if current_page in pages else 0)
+    page = st.sidebar.radio(
+        "📂 Seleziona sezione",
+        list(pages.keys()),
+        index=list(pages.keys()).index(current_page) if current_page in pages else 0
+    )
     st.session_state["page"] = page
 
+    # === Caricamento pagina ===
     pages[page](df_cli, df_ct, role)
 
-if __name__ == "__main__":
-    main()
 

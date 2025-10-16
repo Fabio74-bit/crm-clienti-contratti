@@ -83,20 +83,18 @@ def to_date_series(s: pd.Series) -> pd.Series:
     return s.map(as_date)
 
 def fmt_date(d) -> str:
-    """Formatta una data in DD/MM/YYYY da qualsiasi formato."""
     if d is None or (isinstance(d, float) and pd.isna(d)):
         return ""
     try:
-        # Se è già una data o datetime
         if isinstance(d, (datetime, pd.Timestamp)):
             return d.strftime("%d/%m/%Y")
-        # Se è stringa (qualsiasi formato)
         parsed = pd.to_datetime(str(d), errors="coerce", dayfirst=True)
         if pd.isna(parsed):
             return ""
         return parsed.strftime("%d/%m/%Y")
     except Exception:
         return ""
+
 
 
 

@@ -186,6 +186,32 @@ def save_contratti(df: pd.DataFrame):
     for c in ["DataInizio", "DataFine"]:
         out[c] = out[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
     out.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+    def read_raw_client_date(cliente_id: str, column: str) -> str:
+    """Legge la data dal file clienti.csv e la restituisce in formato DD/MM/YYYY (senza orario)."""
+    try:
+        df_raw = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+        df_raw.columns = [c.strip() for c in df_raw.columns]
+        alias = {
+            "UltimoRecall": ["UltimoRecall", "Ultimo Recall"],
+            "UltimaVisita": ["UltimaVisita", "Ultima Visita"]
+        }
+        target_cols = alias.get(column, [column])
+        row = df_raw[df_raw["ClienteID"].astype(str) == str(cliente_id)]
+        if row.empty:
+            return ""
+        for colname in target_cols:
+            if colname in row.columns:
+                val = str(row.iloc[0][colname]).strip()
+                if not val:
+                    return ""
+                # 🔧 conversione a formato italiano gg/mm/aaaa
+                d = pd.to_datetime(val, errors="coerce", dayfirst=True)
+                if pd.isna(d):
+                    return val  # se non riconosciuta, ritorna testo grezzo
+                return d.strftime("%d/%m/%Y")
+        return ""
+    except Exception:
+        return ""
 # =====================================
 # LOGIN (pagina intera)
 # =====================================
@@ -490,14 +516,20 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 "</div>",
                 unsafe_allow_html=True)
 
-    # Riga 3: date recall e visita
-    st.markdown("<div class='info-inline'>"
-                f"<div>⏰ <span class='info-label'>Ultimo Recall:</span> {fmt_date(cliente.get('UltimoRecall',''))}</div>"
-                f"<div>👣 <span class='info-label'>Ultima Visita:</span> {fmt_date(cliente.get('UltimaVisita',''))}</div>"
-                "</div>",
-                unsafe_allow_html=True)
+   # Riga 3: date recall e visita (lette dal CSV e formattate DD/MM/YYYY)
+raw_ult_rec = read_raw_client_date(sel_id, "UltimoRecall")
+raw_ult_vis = read_raw_client_date(sel_id, "UltimaVisita")
 
-    st.divider()
+st.markdown(
+    "<div class='info-inline'>"
+    f"<div>⏰ <span class='info-label'>Ultimo Recall:</span> {raw_ult_rec}</div>"
+    f"<div>👣 <span class='info-label'>Ultima Visita:</span> {raw_ult_vis}</div>"
+    "</div>",
+    unsafe_allow_html=True
+)
+
+st.divider()
+
 
 
 

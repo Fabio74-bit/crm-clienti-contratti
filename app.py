@@ -519,20 +519,83 @@ def page_lista(df_cli, df_ct, role):
     csv = merged.to_csv(index=False, encoding="utf-8-sig")
     st.download_button("⬇️ Esporta CSV", csv, "lista_clienti_contratti.csv", "text/csv")
 
+
 # =========================================================
-# MAIN APP
+# LOGIN FULLSCREEN – compatibile con auth.users.<nome>
 # =========================================================
+def do_login_fullscreen():
+    """Schermata di login a pagina intera con logo SHT"""
+    # 🔧 Lettura compatibile con il formato [auth.users.<nome>]
+    users = {}
+    for k, v in st.secrets.items():
+        if k.startswith("auth.users."):
+            nome = k.split(".")[-1]
+            users[nome] = {"password": v.get("password"), "role": v.get("role", "viewer")}
+
+    if not users:
+        st.warning("⚠️ Nessun utente configurato nei secrets.toml")
+        return "", ""
+
+    # Se già loggato
+    if "auth_user" in st.session_state and "auth_role" in st.session_state:
+        return st.session_state["auth_user"], st.session_state["auth_role"]
+
+    # Layout centrato
+    st.markdown(
+        f"""
+        <style>
+        .login-container {{
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            height:90vh;
+            background: linear-gradient(180deg, #ffffff 0%, #e9f2ff 100%);
+        }}
+        .login-box {{
+            background-color:white;
+            padding:40px;
+            border-radius:20px;
+            box-shadow:0 4px 10px rgba(0,0,0,0.1);
+            text-align:center;
+        }}
+        </style>
+        <div class="login-container">
+            <div class="login-box">
+                <img src="{LOGO_URL}" width="200" style="margin-bottom:20px;">
+                <h3>🔐 Accesso al Gestionale SHT</h3>
+        """,
+        unsafe_allow_html=True
+    )
+
+    username = st.text_input("👤 Utente", key="login_user")
+    password = st.text_input("🔒 Password", type="password", key="login_pwd")
+
+    if st.button("Entra", use_container_width=True):
+        if username in users and password == users[username]["password"]:
+            st.session_state["auth_user"] = username
+            st.session_state["auth_role"] = users[username]["role"]
+            st.success("✅ Accesso effettuato!")
+            st.rerun()
+        else:
+            st.error("❌ Credenziali errate.")
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
+    return "", ""
+
+
 # =========================================================
-# MAIN APP – con layout originale e login fullscreen
+# MAIN APP – garantisce caricamento e login
 # =========================================================
 def main():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
 
+    # 🔹 LOGIN: gestisce utente e ruolo
     user, role = do_login_fullscreen()
     if not user:
         st.stop()
 
-    # === SIDEBAR (solo dopo login) ===
+    # 🔹 SIDEBAR visibile solo dopo login
     st.sidebar.image(LOGO_URL, width=140)
     st.sidebar.markdown(f"**Utente:** {user}")
     if st.sidebar.button("🚪 Logout"):
@@ -540,7 +603,7 @@ def main():
             st.session_state.pop(k, None)
         st.rerun()
 
-    # === Routing delle pagine ===
+    # 🔹 Routing pagine
     pages = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -559,7 +622,5 @@ def main():
     )
     st.session_state["page"] = page
 
-    # === Caricamento pagina ===
+    # 🔹 Mostra la pagina
     pages[page](df_cli, df_ct, role)
-
-

@@ -1,8 +1,8 @@
 diff --git a/app.py b/app.py
-index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..28619e0980501af49c34a581ace6e47c18b16c71 100644
+index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..411c7a88e6180c6abf7efb3193f3e7b0b7391861 100644
 --- a/app.py
 +++ b/app.py
-@@ -1,277 +1,416 @@
+@@ -1,277 +1,428 @@
  from __future__ import annotations
 -import os
  from pathlib import Path
@@ -10,6 +10,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..28619e0980501af49c34a581ace6e47c
 -from typing import Dict
  import pandas as pd
  import streamlit as st
++from streamlit.errors import StreamlitSecretNotFoundError
  from docx import Document
  from fpdf import FPDF
  from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
@@ -196,8 +197,20 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..28619e0980501af49c34a581ace6e47c
  # LOGIN
  # ==========================
  def do_login_fullscreen():
-     users = st.secrets.get("auth", {}).get("users", {})
+-    users = st.secrets.get("auth", {}).get("users", {})
++    try:
++        auth_conf = st.secrets["auth"]
++    except (KeyError, AttributeError, StreamlitSecretNotFoundError):
++        st.info(
++            "🔓 Configurazione di login mancante: accesso come ospite con privilegi di sola lettura."
++        )
++        return ("ospite", "viewer")
++
++    users = auth_conf.get("users", {})
      if not users:
++        st.info(
++            "🔓 Nessun utente configurato nelle credenziali: accesso come ospite con privilegi di sola lettura."
++        )
          return ("ospite", "viewer")
  
      if "auth_user" in st.session_state:
@@ -495,7 +508,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..28619e0980501af49c34a581ace6e47c
      st.caption(f"ClienteID: {sel_id}")
      st.divider()
  
-@@ -342,97 +481,96 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+@@ -342,97 +493,96 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                  idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
                  df_cli.loc[idx, ["RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
                                   "PartitaIVA", "Email", "Telefono"]] = [
@@ -599,7 +612,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..28619e0980501af49c34a581ace6e47c
  # ==========================
  # HELPER FUNZIONI DATE ITALIANE
  # ==========================
-@@ -441,61 +579,71 @@ def _parse_italian_date(value):
+@@ -441,61 +591,71 @@ def _parse_italian_date(value):
          return None
      try:
          return datetime.strptime(str(value), "%d/%m/%Y")
@@ -682,7 +695,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..28619e0980501af49c34a581ace6e47c
                      "ClienteID": str(sel_id),
                      "NumeroContratto": num,
                      "DataInizio": pd.to_datetime(din),
-@@ -605,52 +753,50 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+@@ -605,52 +765,50 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                  pdf.cell(20, 6, safe_text(row["Stato"]), 1)
                  pdf.ln()
              pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")

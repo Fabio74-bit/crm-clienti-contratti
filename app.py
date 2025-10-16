@@ -83,7 +83,17 @@ def to_date_series(s: pd.Series) -> pd.Series:
     return s.map(as_date)
 
 def fmt_date(d) -> str:
-    return "" if (d is None or pd.isna(d)) else pd.to_datetime(d).strftime("%d/%m/%Y")
+    """Formatta una data in DD/MM/YYYY anche se arriva come stringa o NaN."""
+    if d is None or (isinstance(d, float) and pd.isna(d)):
+        return ""
+    try:
+        d_parsed = pd.to_datetime(str(d), errors="coerce", dayfirst=True)
+        if pd.isna(d_parsed):
+            return ""
+        return d_parsed.strftime("%d/%m/%Y")
+    except Exception:
+        return ""
+
 
 def money(x):
     try:

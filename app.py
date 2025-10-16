@@ -531,6 +531,7 @@ with c4:
 st.divider()
 
 
+
     # === BLOCCO INFO RAPIDE ===
     st.markdown(
         f"""

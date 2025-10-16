@@ -55,8 +55,8 @@ CLIENTI_COLS = [
 "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita", "NoteCliente"
 ]
 CONTRATTI_COLS = [
-    "ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
-    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
+"ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+"DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
 ]
 
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]

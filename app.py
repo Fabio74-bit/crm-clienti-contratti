@@ -238,88 +238,137 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # CLIENTI
 # =====================================
+# =====================================
+# CLIENTI — gestione completa
+# =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
-    search = st.text_input("🔍 Cerca cliente per nome:")
-    if search:
-        df_cli = df_cli[df_cli["RagioneSociale"].str.contains(search, case=False, na=False)]
-    if df_cli.empty:
+
+    # 🔍 Ricerca
+    st.markdown("### 🔍 Cerca Cliente")
+    search_query = st.text_input("Cerca cliente per nome o ID:")
+    if search_query:
+        filtered = df_cli[
+            df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)
+            | df_cli["ClienteID"].astype(str).str.contains(search_query, na=False)
+        ]
+    else:
+        filtered = df_cli
+
+    if filtered.empty:
         st.warning("Nessun cliente trovato.")
         return
 
-    sel = st.selectbox("Seleziona Cliente", df_cli["RagioneSociale"])
-    cliente = df_cli[df_cli["RagioneSociale"] == sel].iloc[0]
+    # Selezione cliente
+    options = filtered["RagioneSociale"].tolist()
+    sel_rag = st.selectbox("Seleziona Cliente", options)
+    cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
+    st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
 
+    # === BLOCCO INFO RAPIDE ===
     indirizzo = cliente.get("Indirizzo", "")
     citta = cliente.get("Citta", "")
     cap = cliente.get("CAP", "")
     persona = cliente.get("PersonaRiferimento", "")
     telefono = cliente.get("Telefono", "")
     cell = cliente.get("Cell", "")
-    ult_rec = fmt_date(cliente.get("UltimoRecall", ""))
-    pross_rec = fmt_date(cliente.get("ProssimoRecall", ""))
-    ult_vis = fmt_date(cliente.get("UltimaVisita", ""))
-    pross_vis = fmt_date(cliente.get("ProssimaVisita", ""))
 
-    st.markdown(f"""
-    <div style='font-size:15px; line-height:1.6;'>
-        📍 <b>Indirizzo:</b> {indirizzo} – {citta} {cap}<br>
-        👤 <b>Referente:</b> {persona}<br>
-        📞 <b>Telefono:</b> {telefono} — 📱 <b>Cell:</b> {cell}<br>
-        ⏰ <b>Ultimo Recall:</b> {ult_rec or '—'} — 🗓️ <b>Prossimo Recall:</b> {pross_rec or '—'}<br>
-        👣 <b>Ultima Visita:</b> {ult_vis or '—'} — 🗓️ <b>Prossima Visita:</b> {pross_vis or '—'}
-    </div>
-    """, unsafe_allow_html=True)
+    ult_rec = fmt_date(as_date(cliente.get("UltimoRecall", "")))
+    pross_rec = fmt_date(as_date(cliente.get("ProssimoRecall", "")))
+    ult_vis = fmt_date(as_date(cliente.get("UltimaVisita", "")))
+    pross_vis = fmt_date(as_date(cliente.get("ProssimaVisita", "")))
+
+    st.markdown(
+        f"""
+        <div style='font-size:15px; line-height:1.7;'>
+            <b>📍 Indirizzo:</b> {indirizzo} – {citta} {cap}<br>
+            <b>🧑‍💼 Referente:</b> {persona}<br>
+            <b>📞 Telefono:</b> {telefono} — <b>📱 Cell:</b> {cell}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(f"**⏰ Ultimo Recall:** {ult_rec or '—'}")
+    with col2:
+        st.markdown(f"**📅 Prossimo Recall:** {pross_rec or '—'}")
+    with col3:
+        st.markdown(f"**👣 Ultima Visita:** {ult_vis or '—'}")
+    with col4:
+        st.markdown(f"**🗓️ Prossima Visita:** {pross_vis or '—'}")
 
     st.divider()
 
-    # === MODIFICA ANAGRAFICA ===
+    # === FUNZIONE SICURA PER DATE INPUT ===
+    def safe_date_input(label, value, key=None):
+        try:
+            d = as_date(value)
+            if pd.isna(d):
+                return st.date_input(label, value=datetime.now().date(), key=key, format="DD/MM/YYYY")
+            return st.date_input(label, value=d.date(), key=key, format="DD/MM/YYYY")
+        except Exception:
+            return st.date_input(label, value=datetime.now().date(), key=key, format="DD/MM/YYYY")
+
+    # ===== EXPANDER ANAGRAFICA EDITABILE =====
     with st.expander("✏️ Modifica anagrafica completa"):
-        with st.form(f"frm_{sel_id}"):
+        with st.form(key=f"frm_anagrafica_{sel_id}_{hash(sel_rag)}"):
             col1, col2 = st.columns(2)
             with col1:
-                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo",""))
-                citta = st.text_input("🏙️ Città", cliente.get("Citta",""))
-                cap = st.text_input("📮 CAP", cliente.get("CAP",""))
-                telefono = st.text_input("📞 Telefono", cliente.get("Telefono",""))
-                cell = st.text_input("📱 Cellulare", cliente.get("Cell",""))
-                persona = st.text_input("👤 Referente", cliente.get("PersonaRiferimento",""))
-                email = st.text_input("✉️ Email", cliente.get("Email",""))
+                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
+                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+                email = st.text_input("✉️ Email", cliente.get("Email", ""))
+                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
             with col2:
-                piva = st.text_input("💼 P.IVA", cliente.get("PartitaIVA",""))
-                iban = st.text_input("🏦 IBAN", cliente.get("IBAN",""))
-                sdi = st.text_input("📡 SDI", cliente.get("SDI",""))
-                def safe_date_input(label, value, key=None):
-    try:
-        d = as_date(value)
-        if pd.isna(d):
-            return st.date_input(label, value=datetime.now().date(), key=key)
-        return st.date_input(label, value=d.date(), key=key)
-    except Exception:
-        return st.date_input(label, value=datetime.now().date(), key=key)
+                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
+                ur = safe_date_input("⏰ Ultimo Recall", cliente.get("UltimoRecall"), key=f"ur_{sel_id}")
+                pr = safe_date_input("📅 Prossimo Recall", cliente.get("ProssimoRecall"), key=f"pr_{sel_id}")
+                uv = safe_date_input("👣 Ultima Visita", cliente.get("UltimaVisita"), key=f"uv_{sel_id}")
+                pv = safe_date_input("🗓️ Prossima Visita", cliente.get("ProssimaVisita"), key=f"pv_{sel_id}")
 
-ur = safe_date_input("Ultimo Recall", cliente.get("UltimoRecall"), key=f"ur_{sel_id}")
-pr = safe_date_input("Prossimo Recall", cliente.get("ProssimoRecall"), key=f"pr_{sel_id}")
-uv = safe_date_input("Ultima Visita", cliente.get("UltimaVisita"), key=f"uv_{sel_id}")
-pv = safe_date_input("Prossima Visita", cliente.get("ProssimaVisita"), key=f"pv_{sel_id}")
-
-            if st.form_submit_button("💾 Salva"):
+            salva_btn = st.form_submit_button("💾 Salva modifiche")
+            if salva_btn:
                 idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                df_cli.loc[idx, [
-                    "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "PersonaRiferimento",
-                    "Email", "PartitaIVA", "IBAN", "SDI",
-                    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"
-                ]] = [
-                    indirizzo, citta, cap, telefono, cell, persona, email, piva, iban, sdi,
-                    ur, pr, uv, pv
-                ]
+                df_cli.loc[idx, "Indirizzo"] = indirizzo
+                df_cli.loc[idx, "Citta"] = citta
+                df_cli.loc[idx, "CAP"] = cap
+                df_cli.loc[idx, "Telefono"] = telefono
+                df_cli.loc[idx, "Cell"] = cell
+                df_cli.loc[idx, "Email"] = email
+                df_cli.loc[idx, "PersonaRiferimento"] = persona
+                df_cli.loc[idx, "PartitaIVA"] = piva
+                df_cli.loc[idx, "IBAN"] = iban
+                df_cli.loc[idx, "SDI"] = sdi
+                df_cli.loc[idx, "UltimoRecall"] = fmt_date(ur)
+                df_cli.loc[idx, "ProssimoRecall"] = fmt_date(pr)
+                df_cli.loc[idx, "UltimaVisita"] = fmt_date(uv)
+                df_cli.loc[idx, "ProssimaVisita"] = fmt_date(pv)
                 save_clienti(df_cli)
                 st.success("✅ Anagrafica aggiornata.")
                 st.rerun()
+
+    st.divider()
+
+    # ===== NOTE CLIENTE =====
+    st.markdown("### 📝 Note Cliente")
+    note_attuali = cliente.get("NoteCliente", "")
+    nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=180, key=f"note_{sel_id}")
+    if st.button("💾 Salva Note"):
+        idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+        df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+        save_clienti(df_cli)
+        st.success("✅ Note aggiornate.")
+        st.rerun()
+
 
 # =====================================
 # CONTRATTI

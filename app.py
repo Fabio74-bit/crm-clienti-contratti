@@ -1,13 +1,5 @@
-import streamlit as st
-try:
-    st.write("✅ Avvio app.py riuscito. Chiavi trovate:", list(st.secrets.keys()))
-except Exception as e:
-    st.error(f"❌ Errore nei secrets: {e}")
-    st.stop()
-
-
-
 from __future__ import annotations
+
 import os
 from pathlib import Path
 from datetime import datetime, timedelta

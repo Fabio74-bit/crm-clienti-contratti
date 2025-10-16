@@ -432,7 +432,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    # ===== INTESTAZIONE CLIENTE =====
+       # ===== INTESTAZIONE CLIENTE =====
     st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
 
@@ -441,28 +441,46 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             .info-box {
                 background: #f9fafb;
                 border-radius: 10px;
-                padding: 12px 16px;
+                padding: 10px 16px;
                 margin-bottom: 6px;
                 font-size: 15px;
             }
             .info-label {
-                color: #555;
+                color: #333;
                 font-weight: 500;
+            }
+            .info-inline {
+                display: flex;
+                gap: 30px;
+                flex-wrap: wrap;
+                align-items: center;
             }
         </style>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"<div class='info-box'>📞 <span class='info-label'>Telefono:</span> {cliente.get('Telefono','')}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='info-box'>👤 <span class='info-label'>Riferimento:</span> {cliente.get('PersonaRiferimento','')}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='info-box'>📍 <span class='info-label'>Indirizzo:</span> {cliente.get('Indirizzo','')} — {cliente.get('Citta','')}</div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"<div class='info-box'>📱 <span class='info-label'>Cellulare:</span> {cliente.get('Cell','')}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='info-box'>⏰ <span class='info-label'>Ultimo Recall:</span> {fmt_date(cliente.get('UltimoRecall',''))}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='info-box'>👣 <span class='info-label'>Ultima Visita:</span> {fmt_date(cliente.get('UltimaVisita',''))}</div>", unsafe_allow_html=True)
+    # Riga 1: telefono, riferimento, cellulare
+    st.markdown("<div class='info-inline'>"
+                f"<div>📞 <span class='info-label'>Telefono:</span> {cliente.get('Telefono','')}</div>"
+                f"<div>👤 <span class='info-label'>Riferimento:</span> {cliente.get('PersonaRiferimento','')}</div>"
+                f"<div>📱 <span class='info-label'>Cellulare:</span> {cliente.get('Cell','')}</div>"
+                "</div>",
+                unsafe_allow_html=True)
+
+    # Riga 2: indirizzo
+    st.markdown("<div class='info-inline'>"
+                f"<div>📍 <span class='info-label'>Indirizzo:</span> {cliente.get('Indirizzo','')} — {cliente.get('Citta','')}</div>"
+                "</div>",
+                unsafe_allow_html=True)
+
+    # Riga 3: date recall e visita
+    st.markdown("<div class='info-inline'>"
+                f"<div>⏰ <span class='info-label'>Ultimo Recall:</span> {fmt_date(cliente.get('UltimoRecall',''))}</div>"
+                f"<div>👣 <span class='info-label'>Ultima Visita:</span> {fmt_date(cliente.get('UltimaVisita',''))}</div>"
+                "</div>",
+                unsafe_allow_html=True)
 
     st.divider()
+
 
     # ===== EXPANDER ANAGRAFICA EDITABILE =====
     with st.expander("✏️ Modifica anagrafica completa"):

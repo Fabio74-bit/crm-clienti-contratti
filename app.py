@@ -403,20 +403,6 @@ def create_contract_card(row):
 # =====================================
 # CLIENTI
 # =====================================
-def _parse_italian_date(value):
-    if pd.isna(value) or value == "":
-        return None
-    try:
-        return datetime.strptime(str(value), "%d/%m/%Y")
-    except Exception:
-        try:
-            return pd.to_datetime(value, dayfirst=True)
-        except Exception:
-            return None
-
-def _format_italian_date(date_val):
-    return date_val.strftime("%d/%m/%Y") if pd.notna(date_val) and date_val else ""
-
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
 
@@ -436,61 +422,90 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")
+    # ===== INTESTAZIONE CLIENTE =====
+    st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
 
-    # === ANAGRAFICA EDITABILE ===
-    st.markdown("### 🧾 Anagrafica Cliente")
+    st.markdown("""
+        <style>
+            .info-box {
+                background: #f9fafb;
+                border-radius: 10px;
+                padding: 12px 16px;
+                margin-bottom: 6px;
+                font-size: 15px;
+            }
+            .info-label {
+                color: #555;
+                font-weight: 500;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
-    with st.form(f"frm_anagrafica_{sel_id}"):
-        col1, col2 = st.columns(2)
-        with col1:
-            indirizzo = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
-            citta = st.text_input("Città", cliente.get("Citta", ""))
-            cap = st.text_input("CAP", cliente.get("CAP", ""))
-            telefono = st.text_input("Telefono", cliente.get("Telefono", ""))
-            cell = st.text_input("Cellulare", cliente.get("Cell", ""))
-            email = st.text_input("Email", cliente.get("Email", ""))
-        with col2:
-            persona = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-            piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
-            iban = st.text_input("IBAN", cliente.get("IBAN", ""))
-            sdi = st.text_input("SDI", cliente.get("SDI", ""))
-            ultimo_recall = st.date_input(
-                "Ultimo Recall",
-                value=as_date(cliente.get("UltimoRecall")),
-                key=f"ultrec_{sel_id}",
-                format="DD/MM/YYYY"
-            )
-            ultima_visita = st.date_input(
-                "Ultima Visita",
-                value=as_date(cliente.get("UltimaVisita")),
-                key=f"ultvis_{sel_id}",
-                format="DD/MM/YYYY"
-            )
-
-        salva_btn = st.form_submit_button("💾 Salva Anagrafica")
-        if salva_btn:
-            idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-            df_cli.loc[idx, "Indirizzo"] = indirizzo
-            df_cli.loc[idx, "Citta"] = citta
-            df_cli.loc[idx, "CAP"] = cap
-            df_cli.loc[idx, "Telefono"] = telefono
-            df_cli.loc[idx, "Cell"] = cell
-            df_cli.loc[idx, "Email"] = email
-            df_cli.loc[idx, "PersonaRiferimento"] = persona
-            df_cli.loc[idx, "PartitaIVA"] = piva
-            df_cli.loc[idx, "IBAN"] = iban
-            df_cli.loc[idx, "SDI"] = sdi
-            df_cli.loc[idx, "UltimoRecall"] = fmt_date(ultimo_recall)
-            df_cli.loc[idx, "UltimaVisita"] = fmt_date(ultima_visita)
-            save_clienti(df_cli)
-            st.success("✅ Anagrafica aggiornata.")
-            st.rerun()
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"<div class='info-box'>📞 <span class='info-label'>Telefono:</span> {cliente.get('Telefono','')}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='info-box'>👤 <span class='info-label'>Riferimento:</span> {cliente.get('PersonaRiferimento','')}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='info-box'>📍 <span class='info-label'>Indirizzo:</span> {cliente.get('Indirizzo','')} — {cliente.get('Citta','')}</div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div class='info-box'>📱 <span class='info-label'>Cellulare:</span> {cliente.get('Cell','')}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='info-box'>⏰ <span class='info-label'>Ultimo Recall:</span> {fmt_date(cliente.get('UltimoRecall',''))}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='info-box'>👣 <span class='info-label'>Ultima Visita:</span> {fmt_date(cliente.get('UltimaVisita',''))}</div>", unsafe_allow_html=True)
 
     st.divider()
 
-    # === NOTE CLIENTE ===
+    # ===== EXPANDER ANAGRAFICA EDITABILE =====
+    with st.expander("✏️ Modifica anagrafica completa"):
+        with st.form(f"frm_anagrafica_{sel_id}"):
+
+            def safe_date(val):
+                d = as_date(val)
+                if pd.isna(d):
+                    return datetime.now().date()
+                return d.date()
+
+            col1, col2 = st.columns(2)
+            with col1:
+                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
+                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+                email = st.text_input("✉️ Email", cliente.get("Email", ""))
+                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+            with col2:
+                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
+                ultimo_recall = st.date_input("⏰ Ultimo Recall", value=safe_date(cliente.get("UltimoRecall")), format="DD/MM/YYYY")
+                prossimo_recall = st.date_input("📅 Prossimo Recall", value=safe_date(cliente.get("ProssimoRecall")), format="DD/MM/YYYY")
+                ultima_visita = st.date_input("👣 Ultima Visita", value=safe_date(cliente.get("UltimaVisita")), format="DD/MM/YYYY")
+                prossima_visita = st.date_input("🗓️ Prossima Visita", value=safe_date(cliente.get("ProssimaVisita")), format="DD/MM/YYYY")
+
+            salva_btn = st.form_submit_button("💾 Salva modifiche")
+            if salva_btn:
+                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                df_cli.loc[idx, "Indirizzo"] = indirizzo
+                df_cli.loc[idx, "Citta"] = citta
+                df_cli.loc[idx, "CAP"] = cap
+                df_cli.loc[idx, "Telefono"] = telefono
+                df_cli.loc[idx, "Cell"] = cell
+                df_cli.loc[idx, "Email"] = email
+                df_cli.loc[idx, "PersonaRiferimento"] = persona
+                df_cli.loc[idx, "PartitaIVA"] = piva
+                df_cli.loc[idx, "IBAN"] = iban
+                df_cli.loc[idx, "SDI"] = sdi
+                df_cli.loc[idx, "UltimoRecall"] = fmt_date(ultimo_recall)
+                df_cli.loc[idx, "ProssimoRecall"] = fmt_date(prossimo_recall)
+                df_cli.loc[idx, "UltimaVisita"] = fmt_date(ultima_visita)
+                df_cli.loc[idx, "ProssimaVisita"] = fmt_date(prossima_visita)
+                save_clienti(df_cli)
+                st.success("✅ Anagrafica aggiornata.")
+                st.rerun()
+
+    st.divider()
+
+    # ===== NOTE CLIENTE =====
     st.markdown("### 📝 Note Cliente")
     note_attuali = cliente.get("NoteCliente", "")
     nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=180, key=f"note_{sel_id}")
@@ -500,6 +515,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         save_clienti(df_cli)
         st.success("✅ Note aggiornate.")
         st.rerun()
+
 
     # =======================================================
     # SEZIONE PREVENTIVI DOCX

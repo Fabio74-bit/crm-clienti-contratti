@@ -33,7 +33,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 APP_TITLE = "GESTIONALE CLIENTI – SHT"
 
 STORAGE_DIR = Path(
-st.secrets.get("LOCAL_STORAGE_DIR", st.secrets.get("storage", {}).get("dir", "storage"))
+    st.secrets.get("LOCAL_STORAGE_DIR", st.secrets.get("storage", {}).get("dir", "storage"))
 )
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -50,13 +50,13 @@ EXTERNAL_PROPOSALS_DIR = STORAGE_DIR / "preventivi"
 EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
 
 CLIENTI_COLS = [
-"ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
-"Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
-"UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita", "NoteCliente"
+    "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
+    "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
+    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita", "NoteCliente"
 ]
 CONTRATTI_COLS = [
-"ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
-"DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
+    "ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
 ]
 
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]

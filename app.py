@@ -342,7 +342,9 @@ def page_clienti(df_cli, df_ct, role):
                 allow_unsafe_jscode=True,
                 height=420,
                 fit_columns_on_grid_load=True,
-            )
+                key=f"grid_contratti_{cli_id}",  # 👈 chiave unica per ogni cliente
+)
+
         except AttributeError:
             st.warning("⚠️ Problema con st_aggrid — aggiorna con: `pip install -U streamlit-aggrid`")
             st.dataframe(contratti, use_container_width=True)

@@ -140,8 +140,17 @@ def load_clienti() -> pd.DataFrame:
     if not path.exists():
         st.warning("⚠️ File clienti.csv non trovato.")
         return pd.DataFrame(columns=CLIENTI_COLS)
+
     df = pd.read_csv(path, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
-    return ensure_columns(df, CLIENTI_COLS)
+    df = ensure_columns(df, CLIENTI_COLS)
+
+    # 🔧 Conversione automatica delle colonne data
+    for col in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
+
+    return df
+
 
 def save_clienti(df: pd.DataFrame):
     df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")

@@ -367,6 +367,156 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         save_clienti(df_cli)
         st.success("✅ Note aggiornate.")
         st.rerun()
+            # =======================================================
+    # SEZIONE PREVENTIVI DOCX
+    # =======================================================
+    st.divider()
+    st.markdown("### 🧾 Gestione Preventivi")
+
+    from docx.shared import Pt
+    TEMPLATES_DIR = STORAGE_DIR / "templates"
+    EXTERNAL_PROPOSALS_DIR = STORAGE_DIR / "preventivi"
+    EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
+
+    TEMPLATE_OPTIONS = {
+        "Offerta A4": "Offerte_A4.docx",
+        "Offerta A3": "Offerte_A3.docx",
+        "Centralino": "Offerta_Centralino.docx",
+        "Varie": "Offerta_Varie.docx",
+    }
+
+    prev_path = STORAGE_DIR / "preventivi.csv"
+    if prev_path.exists():
+        df_prev = pd.read_csv(prev_path, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+    else:
+        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
+
+    def genera_numero_offerta(cliente_nome: str, cliente_id: str) -> str:
+        anno = datetime.now().year
+        nome_sicuro = "".join(c for c in cliente_nome if c.isalnum())[:6].upper()
+        subset = df_prev[df_prev["ClienteID"].astype(str) == str(cliente_id)]
+        seq = len(subset) + 1
+        return f"OFF-{anno}-{nome_sicuro}-{seq:03d}"
+
+    next_num = genera_numero_offerta(cliente.get("RagioneSociale", ""), sel_id)
+
+    with st.form("frm_new_prev"):
+        num = st.text_input("Numero Offerta", next_num)
+        nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
+        template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
+        submitted = st.form_submit_button("💾 Genera Preventivo")
+
+        if submitted:
+            try:
+                template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
+                if not nome_file.strip():
+                    nome_file = f"{num}.docx"
+                if not nome_file.lower().endswith(".docx"):
+                    nome_file += ".docx"
+
+                output_path = EXTERNAL_PROPOSALS_DIR / nome_file
+
+                if not template_path.exists():
+                    st.error(f"❌ Template non trovato: {template_path}")
+                else:
+                    doc = Document(template_path)
+                    mapping = {
+                        "CLIENTE": cliente.get("RagioneSociale", ""),
+                        "INDIRIZZO": cliente.get("Indirizzo", ""),
+                        "CITTA": cliente.get("Citta", "") or cliente.get("Città", ""),
+                        "NUMERO_OFFERTA": num,
+                        "DATA": datetime.now().strftime("%d/%m/%Y"),
+                    }
+
+                    # Sostituzione segnaposto <<CHIAVE>>
+                    for p in doc.paragraphs:
+                        full_text = "".join(run.text for run in p.runs)
+                        modified = False
+                        for key, val in mapping.items():
+                            token = f"<<{key}>>"
+                            if token in full_text:
+                                full_text = full_text.replace(token, str(val))
+                                modified = True
+                        if modified:
+                            for run in p.runs:
+                                run.text = ""
+                            p.runs[0].text = full_text
+                            for run in p.runs:
+                                run.font.size = Pt(10)
+                            p.alignment = 0
+
+                    doc.save(output_path)
+                    st.success(f"✅ Preventivo salvato: {output_path.name}")
+
+                    nuovo = {
+                        "ClienteID": sel_id,
+                        "NumeroOfferta": num,
+                        "Template": TEMPLATE_OPTIONS[template],
+                        "NomeFile": nome_file,
+                        "Percorso": str(output_path),
+                        "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    }
+                    df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
+                    df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
+
+                    st.toast("✅ Preventivo aggiunto al database", icon="📄")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"❌ Errore durante la creazione del preventivo: {e}")
+
+    # === ELENCO PREVENTIVI CLIENTE ===
+    st.divider()
+    st.markdown("### 📂 Elenco Preventivi Cliente")
+
+    prev_cli = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
+    if prev_cli.empty:
+        st.info("Nessun preventivo per questo cliente.")
+    else:
+        prev_cli = prev_cli.sort_values(by="DataCreazione", ascending=False)
+
+        st.markdown("""
+        <style>
+         .preventivo-card {border:1px solid #ddd; border-radius:10px; padding:8px 14px; margin-bottom:8px; background:#f9f9f9;}
+         .preventivo-header {font-weight:600; color:#222;}
+         .preventivo-info {font-size:0.9rem; color:#444;}
+        </style>""", unsafe_allow_html=True)
+
+        for i, r in prev_cli.iterrows():
+            file_path = Path(r["Percorso"])
+            col1, col2, col3 = st.columns([0.5, 0.3, 0.2])
+            with col1:
+                st.markdown(
+                    f"<div class='preventivo-card'>"
+                    f"<div class='preventivo-header'>{r['NumeroOfferta']}</div>"
+                    f"<div class='preventivo-info'>{r['Template']}</div>"
+                    f"<div class='preventivo-info'>Creato il {r['DataCreazione']}</div>"
+                    f"</div>", unsafe_allow_html=True
+                )
+            with col2:
+                if file_path.exists():
+                    with open(file_path, "rb") as f:
+                        st.download_button(
+                            "⬇️ Scarica",
+                            data=f.read(),
+                            file_name=file_path.name,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"dl_{r['NumeroOfferta']}",
+                            use_container_width=True
+                        )
+                else:
+                    st.error("❌ File mancante")
+            with col3:
+                if role == "admin":
+                    if st.button("🗑 Elimina", key=f"del_{r['NumeroOfferta']}_{i}"):
+                        try:
+                            if file_path.exists():
+                                file_path.unlink()
+                            df_prev = df_prev.drop(i)
+                            df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
+                            st.success(f"🗑 Preventivo '{r['NumeroOfferta']}' eliminato.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Errore eliminazione: {e}")
 # =====================================
 # CONTRATTI (AgGrid + gestione stato)
 # =====================================

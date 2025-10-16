@@ -247,11 +247,25 @@ def page_clienti(df_cli, df_ct, role):
     else:
         idx_default = 0
 
-    cliente = st.selectbox(
-        "Seleziona Cliente",
-        df_cli["RagioneSociale"],
-        index=idx_default if len(df_cli) > 0 else 0
-    )
+   # Selezione cliente sicura
+    if df_cli.empty:
+    st.warning("⚠️ Nessun cliente disponibile.")
+    return
+
+nomi_clienti = df_cli["RagioneSociale"].tolist()
+
+# Calcolo indice di default sicuro
+if preselected_id and preselected_id in df_cli["ClienteID"].values:
+    idx_default = int(df_cli.index[df_cli["ClienteID"] == preselected_id][0])
+else:
+    idx_default = 0
+
+# Controllo limite (evita IndexError / StreamlitAPIException)
+if idx_default >= len(nomi_clienti):
+    idx_default = 0
+
+cliente = st.selectbox("Seleziona Cliente", nomi_clienti, index=idx_default)
+
 
     cli = df_cli[df_cli["RagioneSociale"] == cliente].iloc[0]
     cli_id = cli["ClienteID"]

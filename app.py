@@ -496,7 +496,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # ===== EXPANDER ANAGRAFICA EDITABILE =====
     with st.expander("✏️ Modifica anagrafica completa"):
-        with st.form(f"frm_anagrafica_{sel_id}"):
+        with st.form(key=f"frm_anagrafica_{sel_id}_{hash(sel_rag)}"):
+
 
             def safe_date(val):
                 d = as_date(val)

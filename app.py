@@ -491,47 +491,59 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-       # ===== INTESTAZIONE CLIENTE =====
-    st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
+    st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
 
-    st.markdown("""
-        <style>
-            .info-section {margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #e6e6e6;}
-            .info-inline {display:flex; gap:32px; flex-wrap:wrap; align-items:center; font-size:15px;}
-            .info-label {color:#333; font-weight:500;}
-        </style>
-    """, unsafe_allow_html=True)
+    # ===== EXPANDER ANAGRAFICA EDITABILE =====
+    with st.expander("✏️ Modifica anagrafica completa"):
+        with st.form(f"frm_anagrafica_{sel_id}"):
 
-    # Riga 1: telefono, riferimento, cellulare
-    st.markdown("<div class='info-section info-inline'>"
-                f"<div>📞 <span class='info-label'>Telefono:</span> {cliente.get('Telefono','')}</div>"
-                f"<div>👤 <span class='info-label'>Riferimento:</span> {cliente.get('PersonaRiferimento','')}</div>"
-                f"<div>📱 <span class='info-label'>Cellulare:</span> {cliente.get('Cell','')}</div>"
-                "</div>",
-                unsafe_allow_html=True)
+            def safe_date(val):
+                d = as_date(val)
+                if pd.isna(d):
+                    return datetime.now().date()
+                return d.date()
 
-    # Riga 2: indirizzo
-    st.markdown("<div class='info-section info-inline'>"
-                f"<div>📍 <span class='info-label'>Indirizzo:</span> {cliente.get('Indirizzo','')} — {cliente.get('Citta','')}</div>"
-                "</div>",
-                unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
+                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+                email = st.text_input("✉️ Email", cliente.get("Email", ""))
+                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+            with col2:
+                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
+                ultimo_recall = st.date_input("⏰ Ultimo Recall", value=safe_date(cliente.get("UltimoRecall")), format="DD/MM/YYYY")
+                prossimo_recall = st.date_input("📅 Prossimo Recall", value=safe_date(cliente.get("ProssimoRecall")), format="DD/MM/YYYY")
+                ultima_visita = st.date_input("👣 Ultima Visita", value=safe_date(cliente.get("UltimaVisita")), format="DD/MM/YYYY")
+                prossima_visita = st.date_input("🗓️ Prossima Visita", value=safe_date(cliente.get("ProssimaVisita")), format="DD/MM/YYYY")
 
-   # Riga 3: date recall e visita (lette dal CSV e formattate DD/MM/YYYY)
-raw_ult_rec = read_raw_client_date(sel_id, "UltimoRecall")
-raw_ult_vis = read_raw_client_date(sel_id, "UltimaVisita")
+            salva_btn = st.form_submit_button("💾 Salva modifiche")
+            if salva_btn:
+                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                df_cli.loc[idx, "Indirizzo"] = indirizzo
+                df_cli.loc[idx, "Citta"] = citta
+                df_cli.loc[idx, "CAP"] = cap
+                df_cli.loc[idx, "Telefono"] = telefono
+                df_cli.loc[idx, "Cell"] = cell
+                df_cli.loc[idx, "Email"] = email
+                df_cli.loc[idx, "PersonaRiferimento"] = persona
+                df_cli.loc[idx, "PartitaIVA"] = piva
+                df_cli.loc[idx, "IBAN"] = iban
+                df_cli.loc[idx, "SDI"] = sdi
+                df_cli.loc[idx, "UltimoRecall"] = fmt_date(ultimo_recall)
+                df_cli.loc[idx, "ProssimoRecall"] = fmt_date(prossimo_recall)
+                df_cli.loc[idx, "UltimaVisita"] = fmt_date(ultima_visita)
+                df_cli.loc[idx, "ProssimaVisita"] = fmt_date(prossima_visita)
+                save_clienti(df_cli)
+                st.success("✅ Anagrafica aggiornata.")
+                st.rerun()
 
-st.markdown(
-    "<div class='info-inline'>"
-    f"<div>⏰ <span class='info-label'>Ultimo Recall:</span> {raw_ult_rec}</div>"
-    f"<div>👣 <span class='info-label'>Ultima Visita:</span> {raw_ult_vis}</div>"
-    "</div>",
-    unsafe_allow_html=True
-)
-
-st.divider()
-
-
+    st.divider()
 
 
        # ===== EXPANDER ANAGRAFICA EDITABILE =====

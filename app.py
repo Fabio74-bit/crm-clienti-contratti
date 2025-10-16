@@ -1,11 +1,11 @@
 # =====================================
-# app.py — Gestionale Clienti SHT (versione completa 2025 con preventivi)
+# app.py — Gestionale Clienti SHT (versione completa 2025)
 # =====================================
 from __future__ import annotations
 import streamlit as st
 st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
 
-# --- stile globale per allargare la pagina ---
+# --- stile generale pagina ---
 st.markdown("""
 <style>
 .block-container {
@@ -21,6 +21,8 @@ from datetime import datetime
 import pandas as pd
 from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+from docx import Document
+from docx.shared import Pt
 
 # =====================================
 # CONFIG / COSTANTI
@@ -172,7 +174,6 @@ def do_login_fullscreen():
         else:
             st.error("❌ Credenziali errate o utente inesistente.")
     st.stop()
-
 # =====================================
 # DASHBOARD
 # =====================================
@@ -235,11 +236,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         else:
             for _, r in prossime_visite.iterrows():
                 st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['ProssimaVisita'])}")
+
 # =====================================
-# CLIENTI
-# =====================================
-# =====================================
-# CLIENTI — gestione completa
+# CLIENTI (versione aggiornata con date sicure)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
@@ -368,10 +367,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         save_clienti(df_cli)
         st.success("✅ Note aggiornate.")
         st.rerun()
-
-
 # =====================================
-# CONTRATTI
+# CONTRATTI (AgGrid + gestione stato)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
@@ -380,12 +377,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
-    sel_label = st.selectbox(
-        "Seleziona cliente",
-        df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
-    )
-    sel_id = sel_label.split(" — ")[0]
-    rag_soc = df_cli[df_cli["ClienteID"] == sel_id].iloc[0]["RagioneSociale"]
+    pre = st.session_state.get("selected_client_id")
+    labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
+    idx = 0
+    if pre:
+        try:
+            idx = int(df_cli.index[df_cli["ClienteID"].astype(str) == str(pre)][0])
+        except:
+            idx = 0
+
+    sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
+    sel_id = df_cli.iloc[labels[labels == sel_label].index[0]]["ClienteID"]
+    rag_soc = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]["RagioneSociale"]
 
     with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
         with st.form("frm_new_contract"):
@@ -420,7 +423,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 }
                 df_ct = pd.concat([df_ct, pd.DataFrame([row])], ignore_index=True)
                 save_contratti(df_ct)
-                st.success("✅ Contratto creato.")
+                st.success("✅ Contratto creato con successo.")
                 st.rerun()
 
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
@@ -441,95 +444,96 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     function(params) {
         if (!params.data.Stato) return {};
         const stato = params.data.Stato.toLowerCase();
-        if (stato === "chiuso") {
-            return { 'color': 'white', 'backgroundColor': '#757575' };
+        if (stato === 'chiuso') {
+            return { 'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold' };
+        } else if (stato === 'aperto' || stato === 'attivo') {
+            return { 'backgroundColor': '#e8f5e9', 'color': '#1b5e20' };
+        } else {
+            return {};
         }
-        return {};
     }
     """)
-    gb.configure_columns(["Stato"], cellStyle=js_code)
-    grid = AgGrid(disp, gridOptions=gb.build(), update_mode=GridUpdateMode.NO_UPDATE, height=320)
-# =====================================
-# PREVENTIVI
-# =====================================
-from docx import Document
-from docx.shared import Pt
-from pathlib import Path
+    gb.configure_grid_options(getRowStyle=js_code)
+    grid_opts = gb.build()
 
-def page_preventivi(df_cli: pd.DataFrame, role: str):
-    st.markdown("<h2>🧾 Preventivi</h2>", unsafe_allow_html=True)
-
-    if df_cli.empty:
-        st.info("Nessun cliente disponibile.")
-        return
-
-    cliente_sel = st.selectbox("Seleziona Cliente", df_cli["RagioneSociale"])
-    cliente = df_cli[df_cli["RagioneSociale"] == cliente_sel].iloc[0]
-    sel_id = cliente["ClienteID"]
-
-    TEMPLATES_DIR = STORAGE_DIR / "templates"
-    TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-
-    TEMPLATE_OPTIONS = {
-        "Offerta – Centralino": "Offerta_Centralino.docx",
-        "Offerta – Varie": "Offerta_Varie.docx",
-        "Offerta – A3": "Offerte_A3.docx",
-        "Offerta – A4": "Offerte_A4.docx",
-    }
-
-    st.markdown("### 📄 Crea nuovo preventivo")
-    with st.form("frm_new_prev"):
-        tpl_choice = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
-        num_offerta = st.text_input("Numero Offerta (es. OFF-2025-001)")
-        nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
-        submitted = st.form_submit_button("💾 Genera Preventivo")
-
-        if submitted:
-            tpl_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[tpl_choice]
-            if not tpl_path.exists():
-                st.error(f"Template non trovato: {tpl_path.name}")
-            else:
-                nome_file = nome_file or f"{num_offerta}.docx"
-                if not nome_file.endswith(".docx"):
-                    nome_file += ".docx"
-                out_path = PREVENTIVI_DIR / nome_file
-                doc = Document(tpl_path)
-
-                mapping = {
-                    "CLIENTE": cliente.get("RagioneSociale", ""),
-                    "INDIRIZZO": cliente.get("Indirizzo", ""),
-                    "CITTA": cliente.get("Citta", ""),
-                    "NUMERO_OFFERTA": num_offerta,
-                    "DATA": datetime.now().strftime("%d/%m/%Y"),
-                }
-
-                for p in doc.paragraphs:
-                    for key, val in mapping.items():
-                        token = f"<<{key}>>"
-                        if token in p.text:
-                            p.text = p.text.replace(token, str(val))
-                            for run in p.runs:
-                                run.font.size = Pt(10)
-
-                doc.save(out_path)
-                st.success(f"✅ Preventivo creato: {out_path.name}")
-                st.download_button("⬇️ Scarica subito", out_path.read_bytes(), file_name=out_path.name)
+    st.markdown("### 📑 Lista contratti")
+    AgGrid(disp, gridOptions=grid_opts, theme="balham", height=380,
+           update_mode=GridUpdateMode.SELECTION_CHANGED, allow_unsafe_jscode=True)
 
     st.divider()
+    st.markdown("### ⚙️ Gestione stato contratti")
+    for i, r in ct.iterrows():
+        c1, c2, c3 = st.columns([0.05, 0.65, 0.3])
+        with c1:
+            st.write("")
+        with c2:
+            st.caption(f"{r['NumeroContratto']} — {r['DescrizioneProdotto'][:60]}")
+        with c3:
+            curr = (r["Stato"] or "aperto").lower()
+            if curr == "chiuso":
+                if st.button("🔓 Riapri", key=f"open_{i}"):
+                    df_ct.loc[i, "Stato"] = "aperto"
+                    save_contratti(df_ct)
+                    st.success(f"Contratto {r['NumeroContratto']} riaperto.")
+                    st.rerun()
+            else:
+                if st.button("❌ Chiudi", key=f"close_{i}"):
+                    df_ct.loc[i, "Stato"] = "chiuso"
+                    save_contratti(df_ct)
+                    st.success(f"Contratto {r['NumeroContratto']} chiuso.")
+                    st.rerun()
 
-    st.markdown("### 📂 Elenco Preventivi Cliente")
-    files = list(PREVENTIVI_DIR.glob("*.docx"))
-    if not files:
-        st.info("Nessun preventivo presente.")
-    else:
-        for f in sorted(files, reverse=True):
-            col1, col2 = st.columns([0.8, 0.2])
-            with col1:
-                st.markdown(f"📄 **{f.name}**  _(creato il {datetime.fromtimestamp(f.stat().st_mtime).strftime('%d/%m/%Y %H:%M')})_")
-            with col2:
-                with open(f, "rb") as data:
-                    st.download_button("⬇️", data=data.read(), file_name=f.name, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key=f.name)
+    st.divider()
+    c1, c2 = st.columns(2)
+    with c1:
+        csv = disp.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("📄 Esporta CSV", csv, f"contratti_{rag_soc}.csv", "text/csv")
+    with c2:
+        try:
+            pdf = FPDF(orientation="L", unit="mm", format="A4")
+            pdf.add_page()
+            pdf.set_font("Arial", size=9)
+            pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+            for _, row in disp.iterrows():
+                pdf.cell(35, 6, safe_text(row["NumeroContratto"]), 1)
+                pdf.cell(25, 6, safe_text(row["DataInizio"]), 1)
+                pdf.cell(25, 6, safe_text(row["DataFine"]), 1)
+                pdf.cell(20, 6, safe_text(row["Durata"]), 1)
+                pdf.cell(80, 6, safe_text(row["DescrizioneProdotto"])[:60], 1)
+                pdf.cell(20, 6, safe_text(row["TotRata"]), 1)
+                pdf.cell(20, 6, safe_text(row["Stato"]), 1)
+                pdf.ln()
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
+            st.download_button("📘 Esporta PDF", pdf_bytes, f"contratti_{rag_soc}.pdf", "application/pdf")
+        except Exception as e:
+            st.error(f"Errore PDF: {e}")
 
+# =====================================
+# LISTA COMPLETA CLIENTI E CONTRATTI
+# =====================================
+def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    st.title("📋 Lista Completa Clienti e Contratti")
+
+    st.markdown("### 🔍 Filtra Clienti")
+    col1, col2 = st.columns(2)
+    with col1:
+        filtro_nome = st.text_input("Cerca per nome cliente")
+    with col2:
+        filtro_citta = st.text_input("Cerca per città")
+
+    merged = df_ct.merge(df_cli[["ClienteID", "RagioneSociale", "Citta"]], on="ClienteID", how="left")
+    if filtro_nome:
+        merged = merged[merged["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
+    if filtro_citta:
+        merged = merged[merged["Citta"].str.contains(filtro_citta, case=False, na=False)]
+
+    merged["DataInizio"] = pd.to_datetime(merged["DataInizio"], errors="coerce").dt.strftime("%d/%m/%Y")
+    merged["DataFine"] = pd.to_datetime(merged["DataFine"], errors="coerce").dt.strftime("%d/%m/%Y")
+    merged = merged[["RagioneSociale", "Citta", "NumeroContratto", "DataInizio", "DataFine", "Stato"]].fillna("")
+
+    st.dataframe(merged, use_container_width=True, hide_index=True)
+    csv = merged.to_csv(index=False, encoding="utf-8-sig")
+    st.download_button("⬇️ Esporta CSV", csv, "lista_clienti_contratti.csv", "text/csv")
 
 # =====================================
 # MAIN APP
@@ -541,24 +545,24 @@ def main():
 
     st.sidebar.success(f"Utente: {user} — Ruolo: {role}")
 
-    # Pagine del gestionale
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
         "Contratti": page_contratti,
-        "Preventivi": page_preventivi
+        "📋 Lista Clienti": page_lista_clienti
     }
 
-    # Navigazione
     default_page = st.session_state.pop("nav_target", "Dashboard")
-    page = st.sidebar.radio("📁 Menu", list(PAGES.keys()),
-                            index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0)
+    page = st.sidebar.radio(
+        "Menu",
+        list(PAGES.keys()),
+        index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
+    )
 
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    PAGES[page](df_cli, df_ct if "Contratti" in page or "Dashboard" in page else None, role)
-
+    PAGES[page](df_cli, df_ct, role)
 
 if __name__ == "__main__":
     main()

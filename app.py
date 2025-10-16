@@ -583,12 +583,29 @@ def do_login_fullscreen():
     st.markdown("</div></div>", unsafe_allow_html=True)
     return "", ""
 
+def debug_secrets():
+    st.title("🔍 Debug Secrets")
+    try:
+        st.write("✅ Secrets caricati correttamente.")
+        st.write("Chiavi trovate:", list(st.secrets.keys()))
+
+        if "auth.users.fabio" in st.secrets:
+            st.success("✅ Trovato utente Fabio (auth.users.fabio)")
+        elif "auth" in st.secrets:
+            st.info("ℹ️ Trovata chiave auth, struttura diversa.")
+        else:
+            st.error("❌ Nessuna chiave auth trovata.")
+    except Exception as e:
+        st.error(f"Errore durante la lettura dei secrets: {e}")
+
 
 # =========================================================
 # MAIN APP – garantisce caricamento e login
 # =========================================================
 def main():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
+    debug_secrets()
+
 
     # 🔹 LOGIN: gestisce utente e ruolo
     user, role = do_login_fullscreen()

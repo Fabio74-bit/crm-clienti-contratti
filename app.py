@@ -412,22 +412,26 @@ def page_clienti(df_cli, df_ct, role):
                     st.session_state["last_prev_name"] = out_file.name
                     st.success(f"✅ Preventivo creato correttamente: {out_file.name}")
 
-            except Exception as e:
+                        except Exception as e:
                 st.error(f"Errore durante la creazione del preventivo: {e}")
 
-    # --- PULSANTE DOWNLOAD FUORI DAL FORM ---
-    if "last_prev_path" in st.session_state:
-        path = Path(st.session_state["last_prev_path"])
-        if path.exists():
-            with open(path, "rb") as f:
-                file_bytes = f.read()
-            st.download_button(
-                "⬇️ Scarica Ultimo Preventivo",
-                data=file_bytes,
-                file_name=st.session_state["last_prev_name"],
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                key=f"dl_prev_{cli_id}"
-            )
+# ✅ Blocca definitivamente il contesto del form
+st.markdown("")
+
+# --- PULSANTE DOWNLOAD FUORI DAL FORM ---
+if "last_prev_path" in st.session_state:
+    path = Path(st.session_state["last_prev_path"])
+    if path.exists():
+        with open(path, "rb") as f:
+            file_bytes = f.read()
+        st.download_button(
+            "⬇️ Scarica Ultimo Preventivo",
+            data=file_bytes,
+            file_name=st.session_state["last_prev_name"],
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            key=f"dl_prev_{cli_id}"
+        )
+
 
     # ---------------------------------------------------------
     # ELENCO PREVENTIVI

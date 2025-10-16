@@ -186,7 +186,7 @@ def save_contratti(df: pd.DataFrame):
     for c in ["DataInizio", "DataFine"]:
         out[c] = out[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
     out.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-    def read_raw_client_date(cliente_id: str, column: str) -> str:
+def read_raw_client_date(cliente_id: str, column: str) -> str:
     """Legge la data dal file clienti.csv e la restituisce in formato DD/MM/YYYY (senza orario)."""
     try:
         df_raw = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
@@ -204,14 +204,15 @@ def save_contratti(df: pd.DataFrame):
                 val = str(row.iloc[0][colname]).strip()
                 if not val:
                     return ""
-                # 🔧 conversione a formato italiano gg/mm/aaaa
                 d = pd.to_datetime(val, errors="coerce", dayfirst=True)
                 if pd.isna(d):
-                    return val  # se non riconosciuta, ritorna testo grezzo
+                    return val
                 return d.strftime("%d/%m/%Y")
         return ""
     except Exception:
         return ""
+
+
 # =====================================
 # LOGIN (pagina intera)
 # =====================================

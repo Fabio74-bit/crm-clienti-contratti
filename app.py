@@ -275,13 +275,15 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === TMK: Recall e Visite ===
+  
+       # === TMK: Recall e Visite ===
     st.subheader("📞 Attività TMK (Recall e Visite)")
 
-  df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce", dayfirst=True)
-  df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce", dayfirst=True)
-  df_cli["UltimoRecall"]   = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce", dayfirst=True)
-  df_cli["UltimaVisita"]   = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce", dayfirst=True)
+    # ✅ Conversione date (formato italiano)
+    df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce", dayfirst=True)
+    df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce", dayfirst=True)
+    df_cli["UltimoRecall"]   = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce", dayfirst=True)
+    df_cli["UltimaVisita"]   = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce", dayfirst=True)
 
 
 

@@ -242,21 +242,12 @@ def page_clienti(df_cli, df_ct, role):
 
     # ✅ Se è stato selezionato un cliente dalla dashboard, pre-selezionalo
     preselected_id = st.session_state.pop("selected_client_id", None)
-
-    # Selezione cliente sicura
-    if df_cli.empty:
-        st.warning("⚠️ Nessun cliente disponibile.")
-        return
-
     nomi_clienti = df_cli["RagioneSociale"].tolist()
 
-    # Calcolo indice di default sicuro
     if preselected_id and preselected_id in df_cli["ClienteID"].values:
         idx_default = int(df_cli.index[df_cli["ClienteID"] == preselected_id][0])
     else:
         idx_default = 0
-
-    # Controllo limite (evita IndexError / StreamlitAPIException)
     if idx_default >= len(nomi_clienti):
         idx_default = 0
 
@@ -266,32 +257,32 @@ def page_clienti(df_cli, df_ct, role):
     cli = cli.fillna("")
 
     # ---------------------------------------------------------
-    # SEZIONE ANAGRAFICA MODIFICABILE
+    # ANAGRAFICA MODIFICABILE
     # ---------------------------------------------------------
     col1, col2, col3 = st.columns(3)
     with col1:
-        rag = st.text_input("Ragione Sociale", str(cli.get("RagioneSociale") or ""))
-        citta = st.text_input("Città", str(cli.get("Citta") or ""))
-        tel = st.text_input("Telefono", str(cli.get("Telefono") or ""))
-        cell = st.text_input("Cellulare", str(cli.get("Cellulare") or ""))
+        rag = st.text_input("Ragione Sociale", str(cli.get("RagioneSociale") or ""), key=f"rag_{cli_id}")
+        citta = st.text_input("Città", str(cli.get("Citta") or ""), key=f"citta_{cli_id}")
+        tel = st.text_input("Telefono", str(cli.get("Telefono") or ""), key=f"tel_{cli_id}")
+        cell = st.text_input("Cellulare", str(cli.get("Cellulare") or ""), key=f"cell_{cli_id}")
     with col2:
-        ref2 = st.text_input("Persona di Riferimento 2", str(cli.get("PersonaRiferimento2") or ""))
-        email = st.text_input("Email", str(cli.get("Email") or ""))
-        iban = st.text_input("IBAN", str(cli.get("IBAN") or ""))
-        sdi = st.text_input("SDI", str(cli.get("SDI") or ""))
+        ref2 = st.text_input("Persona di Riferimento 2", str(cli.get("PersonaRiferimento2") or ""), key=f"ref2_{cli_id}")
+        email = st.text_input("Email", str(cli.get("Email") or ""), key=f"email_{cli_id}")
+        iban = st.text_input("IBAN", str(cli.get("IBAN") or ""), key=f"iban_{cli_id}")
+        sdi = st.text_input("SDI", str(cli.get("SDI") or ""), key=f"sdi_{cli_id}")
     with col3:
-        ult_rec = st.date_input("Ultimo Recall", safe_date(cli.get("UltimoRecall")))
-        pro_rec = st.date_input("Prossimo Recall", safe_date(cli.get("ProssimoRecall"), 30))
-        ult_vis = st.date_input("Ultima Visita", safe_date(cli.get("UltimaVisita")))
-        pro_vis = st.date_input("Prossima Visita", safe_date(cli.get("ProssimaVisita"), 30))
+        ult_rec = st.date_input("Ultimo Recall", safe_date(cli.get("UltimoRecall")), key=f"ultrec_{cli_id}")
+        pro_rec = st.date_input("Prossimo Recall", safe_date(cli.get("ProssimoRecall"), 30), key=f"prorec_{cli_id}")
+        ult_vis = st.date_input("Ultima Visita", safe_date(cli.get("UltimaVisita")), key=f"ultvis_{cli_id}")
+        pro_vis = st.date_input("Prossima Visita", safe_date(cli.get("ProssimaVisita"), 30), key=f"provis_{cli_id}")
 
     if st.button("💾 Salva Dati Anagrafici", key=f"save_anag_{cli_id}"):
-
         idx = df_cli.index[df_cli["ClienteID"] == cli_id][0]
-        df_cli.loc[idx, ["RagioneSociale","Citta","Telefono","Cellulare","PersonaRiferimento2","Email","IBAN","SDI"]] = [
+        df_cli.loc[idx, ["RagioneSociale", "Citta", "Telefono", "Cellulare",
+                         "PersonaRiferimento2", "Email", "IBAN", "SDI"]] = [
             rag, citta, tel, cell, ref2, email, iban, sdi
         ]
-        df_cli.loc[idx, ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]] = [
+        df_cli.loc[idx, ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]] = [
             pd.to_datetime(ult_rec), pd.to_datetime(pro_rec),
             pd.to_datetime(ult_vis), pd.to_datetime(pro_vis)
         ]
@@ -305,180 +296,150 @@ def page_clienti(df_cli, df_ct, role):
     st.markdown("---")
     st.subheader("🗒️ Note Cliente")
     note_corrente = str(cli.get("Note") or "")
-    nuova_nota = st.text_area("Note", note_corrente, height=150)
+    nuova_nota = st.text_area("Note", note_corrente, height=150, key=f"note_{cli_id}")
 
-    if st.button("💾 Salva Note Cliente"):
+    if st.button("💾 Salva Note Cliente", key=f"save_note_{cli_id}"):
         idx = df_cli.index[df_cli["ClienteID"] == cli_id][0]
         df_cli.loc[idx, "Note"] = nuova_nota
         save_clienti(df_cli)
-        st.success("✅ Note salvate con successo.")
+        st.success("✅ Note salvate correttamente.")
         st.rerun()
 
     # ---------------------------------------------------------
     # CONTRATTI CLIENTE
     # ---------------------------------------------------------
     st.markdown("---")
-    st.subheader("📜 Contratti del Cliente")
+    st.subheader("📄 Contratti Cliente")
 
     contratti = df_ct[df_ct["ClienteID"] == cli_id].copy()
     if contratti.empty:
-        st.info("Nessun contratto per questo cliente.")
+        st.info("Nessun contratto presente per questo cliente.")
     else:
-        contratti["DataInizio"] = pd.to_datetime(contratti["DataInizio"], errors="coerce")
-        contratti["DataFine"] = pd.to_datetime(contratti["DataFine"], errors="coerce")
-        contratti["TotRata"] = contratti["TotRata"].apply(money)
-        contratti["Stato"] = contratti["Stato"].fillna("aperto")
+        contratti["DataInizio"] = contratti["DataInizio"].apply(fmt_date)
+        contratti["DataFine"] = contratti["DataFine"].apply(fmt_date)
 
         gb = GridOptionsBuilder.from_dataframe(contratti)
-        gb.configure_default_column(editable=True, resizable=True, filter=True, sortable=True)
+        gb.configure_default_column(editable=True, resizable=True, wrapText=True, autoHeight=True)
+        gb.configure_selection(selection_mode="single", use_checkbox=False)
         gb.configure_grid_options(domLayout="autoHeight")
-
-        try:
-            grid = AgGrid(
-                contratti,
-                gridOptions=gb.build(),
-                theme="balham",
-                update_mode=GridUpdateMode.VALUE_CHANGED,
-                allow_unsafe_jscode=True,
-                height=420,
-                fit_columns_on_grid_load=True,
-                key=f"grid_contratti_{cli_id}",  # 👈 chiave unica per ogni cliente
-)
-
-        except AttributeError:
-            st.warning("⚠️ Problema con st_aggrid — aggiorna con: `pip install -U streamlit-aggrid`")
-            st.dataframe(contratti, use_container_width=True)
-            grid = {"data": contratti.to_dict("records")}
+        grid = AgGrid(
+            contratti,
+            gridOptions=gb.build(),
+            theme="balham",
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            allow_unsafe_jscode=True,
+            height=420,
+            fit_columns_on_grid_load=True,
+            key=f"grid_contratti_{cli_id}"
+        )
 
         if st.button("💾 Salva modifiche ai contratti", key=f"save_contracts_{cli_id}"):
-
-            nuovi = pd.DataFrame(grid["data"])
-            for c in ["DataInizio","DataFine"]:
-                nuovi[c] = pd.to_datetime(nuovi[c], errors="coerce", dayfirst=True)
-            df_ct.update(nuovi)
+            new_df = pd.DataFrame(grid["data"])
+            df_ct.update(new_df)
             save_contratti(df_ct)
             st.success("✅ Contratti aggiornati.")
             st.rerun()
 
-        st.divider()
-        st.markdown("### ⚙️ Stato contratti")
-        for i, r in contratti.iterrows():
-            c1, c2, c3 = st.columns([0.05, 0.7, 0.25])
-            with c2:
-                st.caption(f"{r['NumeroContratto']} — {str(r.get('DescrizioneProdotto',''))[:60]}")
-            with c3:
-                stato = (r["Stato"] or "aperto").lower()
-                if stato == "chiuso":
-                    if st.button("🔓 Riapri", key=f"open_{cli_id}_{i}"):
-                        df_ct.loc[df_ct.index == r.name, "Stato"] = "aperto"
-                        save_contratti(df_ct)
-                        st.rerun()
-                else:
-                    if st.button("❌ Chiudi", key=f"close_{cli_id}_{i}"):
-                        df_ct.loc[df_ct.index == r.name, "Stato"] = "chiuso"
-                        save_contratti(df_ct)
-                        st.rerun()
-
     # ---------------------------------------------------------
-    # PREVENTIVI CLIENTE
+    # CREAZIONE PREVENTIVO
     # ---------------------------------------------------------
     st.markdown("---")
-    st.subheader("🧾 Preventivi Cliente")
+    st.subheader("🧾 Gestione Preventivi DOCX")
 
     if PREVENTIVI_CSV.exists():
         df_prev = pd.read_csv(PREVENTIVI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
     else:
-        df_prev = pd.DataFrame(columns=["ClienteID","NumeroOfferta","Template","NomeFile","Percorso","DataCreazione"])
+        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
 
+    st.markdown("### ➕ Crea nuovo preventivo")
+
+    templates = {
+        "Offerta – Centralino": "Offerta_Centralino.docx",
+        "Offerta – Varie": "Offerta_Varie.docx",
+        "Offerta – A3": "Offerte_A3.docx",
+        "Offerta – A4": "Offerte_A4.docx",
+    }
+
+    def next_global_number(df_prev):
+        if df_prev.empty:
+            return 1
+        nums = df_prev["NumeroOfferta"].str.extract(r"(\d+)$")[0].dropna().astype(int)
+        return nums.max() + 1 if not nums.empty else 1
+
+    with st.form(f"new_prev_form_{cli_id}"):
+        nome_file = st.text_input("Nome File (es. Offerta_SHT.docx)")
+        template = st.selectbox("Template", list(templates.keys()))
+        submitted = st.form_submit_button("💾 Genera Preventivo")
+
+        if submitted:
+            try:
+                seq = next_global_number(df_prev)
+                nome_sicuro = "".join(c for c in cli["RagioneSociale"].upper() if c.isalnum())
+                num = f"SHT-{nome_sicuro}-{seq:03d}"
+                tpl_path = STORAGE_DIR / "templates" / templates[template]
+                if not tpl_path.exists():
+                    st.error(f"❌ Template mancante: {tpl_path}")
+                else:
+                    out_dir = STORAGE_DIR / "preventivi"
+                    out_dir.mkdir(exist_ok=True)
+                    out_file = out_dir / (nome_file or f"{num}.docx")
+
+                    doc = Document(tpl_path)
+                    mapping = {
+                        "CLIENTE": cli["RagioneSociale"],
+                        "CITTA": cli.get("Citta", ""),
+                        "DATA": datetime.now().strftime("%d/%m/%Y"),
+                        "NUMERO_OFFERTA": num,
+                    }
+                    for p in doc.paragraphs:
+                        for k, v in mapping.items():
+                            if f"<<{k}>>" in p.text:
+                                p.text = p.text.replace(f"<<{k}>>", v)
+                    doc.save(out_file)
+
+                    nuovo = {
+                        "ClienteID": cli_id,
+                        "NumeroOfferta": num,
+                        "Template": template,
+                        "NomeFile": out_file.name,
+                        "Percorso": str(out_file),
+                        "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    }
+                    df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
+                    df_prev.to_csv(PREVENTIVI_CSV, index=False, encoding="utf-8-sig")
+
+                    st.session_state["last_prev_path"] = str(out_file)
+                    st.session_state["last_prev_name"] = out_file.name
+                    st.success(f"✅ Preventivo creato correttamente: {out_file.name}")
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"Errore durante la creazione del preventivo: {e}")
+
+    if "last_prev_path" in st.session_state:
+        path = Path(st.session_state["last_prev_path"])
+        if path.exists():
+            with open(path, "rb") as f:
+                file_bytes = f.read()
+            st.download_button(
+                "⬇️ Scarica Ultimo Preventivo",
+                data=file_bytes,
+                file_name=st.session_state["last_prev_name"],
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key=f"dl_prev_{cli_id}"
+            )
+
+    # ---------------------------------------------------------
+    # ELENCO PREVENTIVI
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.subheader("📂 Elenco Preventivi Cliente")
     prev_cli = df_prev[df_prev["ClienteID"] == cli_id]
-
-    if not prev_cli.empty:
-        st.dataframe(prev_cli[["NumeroOfferta","Template","DataCreazione","NomeFile"]],
-                     use_container_width=True, hide_index=True)
+    if prev_cli.empty:
+        st.info("Nessun preventivo presente per questo cliente.")
     else:
-        st.info("Nessun preventivo per questo cliente.")
-
-st.markdown("### ➕ Crea nuovo preventivo")
-
-templates = {
-    "Offerta – Centralino": "Offerta_Centralino.docx",
-    "Offerta – Varie": "Offerta_Varie.docx",
-    "Offerta – A3": "Offerte_A3.docx",
-    "Offerta – A4": "Offerte_A4.docx",
-}
-
-def next_global_number(df_prev):
-    if df_prev.empty:
-        return 1
-    nums = df_prev["NumeroOfferta"].str.extract(r"(\d+)$")[0].dropna().astype(int)
-    return nums.max() + 1 if not nums.empty else 1
-
-# --- FORM CREAZIONE ---
-with st.form(f"new_prev_form_{cli_id}"):
-    nome_file = st.text_input("Nome File (es. Offerta_SHT.docx)")
-    template = st.selectbox("Template", list(templates.keys()))
-    submitted = st.form_submit_button("💾 Genera Preventivo")
-
-    if submitted:
-        try:
-            seq = next_global_number(df_prev)
-            nome_sicuro = "".join(c for c in cli["RagioneSociale"].upper() if c.isalnum())
-            num = f"SHT-{nome_sicuro}-{seq:03d}"
-            tpl_path = STORAGE_DIR / "templates" / templates[template]
-            if not tpl_path.exists():
-                st.error(f"❌ Template mancante: {tpl_path}")
-            else:
-                out_dir = STORAGE_DIR / "preventivi"
-                out_dir.mkdir(exist_ok=True)
-                out_file = out_dir / (nome_file or f"{num}.docx")
-
-                doc = Document(tpl_path)
-                mapping = {
-                    "CLIENTE": cli["RagioneSociale"],
-                    "CITTA": cli.get("Citta",""),
-                    "DATA": datetime.now().strftime("%d/%m/%Y"),
-                    "NUMERO_OFFERTA": num,
-                }
-                for p in doc.paragraphs:
-                    for k,v in mapping.items():
-                        if f"<<{k}>>" in p.text:
-                            p.text = p.text.replace(f"<<{k}>>", v)
-                doc.save(out_file)
-
-                # salva nel CSV
-                nuovo = {
-                    "ClienteID": cli_id,
-                    "NumeroOfferta": num,
-                    "Template": template,
-                    "NomeFile": out_file.name,
-                    "Percorso": str(out_file),
-                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-                df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
-                df_prev.to_csv(PREVENTIVI_CSV, index=False, encoding="utf-8-sig")
-
-                # salva percorso per il download
-                st.session_state["last_preventivo_path"] = str(out_file)
-                st.session_state["last_preventivo_name"] = out_file.name
-                st.success(f"✅ Preventivo creato correttamente: {out_file.name}")
-                st.rerun()
-
-        except Exception as e:
-            st.error(f"Errore durante la creazione del preventivo: {e}")
-
-# --- PULSANTE DOWNLOAD FUORI DAL FORM ---
-if "last_preventivo_path" in st.session_state:
-    path = Path(st.session_state["last_preventivo_path"])
-    if path.exists():
-        with open(path, "rb") as f:
-            file_bytes = f.read()
-        st.download_button(
-            "⬇️ Scarica Ultimo Preventivo",
-            data=file_bytes,
-            file_name=st.session_state["last_preventivo_name"],
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-
+        st.dataframe(prev_cli[["NumeroOfferta", "Template", "DataCreazione", "NomeFile"]],
+                     use_container_width=True, hide_index=True)
 
     # ---------------------------------------------------------
     # CONTRATTI CLIENTE

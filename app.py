@@ -285,7 +285,8 @@ def page_clienti(df_cli, df_ct, role):
         ult_vis = st.date_input("Ultima Visita", safe_date(cli.get("UltimaVisita")))
         pro_vis = st.date_input("Prossima Visita", safe_date(cli.get("ProssimaVisita"), 30))
 
-    if st.button("💾 Salva Dati Anagrafici"):
+    if st.button("💾 Salva Dati Anagrafici", key=f"save_anag_{cli_id}"):
+
         idx = df_cli.index[df_cli["ClienteID"] == cli_id][0]
         df_cli.loc[idx, ["RagioneSociale","Citta","Telefono","Cellulare","PersonaRiferimento2","Email","IBAN","SDI"]] = [
             rag, citta, tel, cell, ref2, email, iban, sdi
@@ -347,7 +348,8 @@ def page_clienti(df_cli, df_ct, role):
             st.dataframe(contratti, use_container_width=True)
             grid = {"data": contratti.to_dict("records")}
 
-        if st.button("💾 Salva modifiche ai contratti"):
+        if st.button("💾 Salva modifiche ai contratti", key=f"save_contracts_{cli_id}"):
+
             nuovi = pd.DataFrame(grid["data"])
             for c in ["DataInizio","DataFine"]:
                 nuovi[c] = pd.to_datetime(nuovi[c], errors="coerce", dayfirst=True)

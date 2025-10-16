@@ -204,7 +204,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.image(LOGO_URL, width=120)
     with cols_header[1]:
         st.markdown("<h1 style='margin-top:0;'>SHT – CRM Dashboard</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='color:grey; margin-top:-10px;'>Panoramica KPI, Recall e Visite</p>", unsafe_allow_html=True)
+       
 
     st.divider()
 

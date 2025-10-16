@@ -340,112 +340,109 @@ def page_clienti(df_cli, df_ct, role):
             st.success("✅ Contratti aggiornati.")
             st.rerun()
 
-  # ---------------------------------------------------------
-# CREAZIONE PREVENTIVO
-# ---------------------------------------------------------
-st.markdown("---")
-st.subheader("🧾 Gestione Preventivi DOCX")
+    # ---------------------------------------------------------
+    # CREAZIONE PREVENTIVO
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.subheader("🧾 Gestione Preventivi DOCX")
 
-if PREVENTIVI_CSV.exists():
-    df_prev = pd.read_csv(PREVENTIVI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
-else:
-    df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
+    if PREVENTIVI_CSV.exists():
+        df_prev = pd.read_csv(PREVENTIVI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+    else:
+        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
 
-st.markdown("### ➕ Crea nuovo preventivo")
+    st.markdown("### ➕ Crea nuovo preventivo")
 
-templates = {
-    "Offerta – Centralino": "Offerta_Centralino.docx",
-    "Offerta – Varie": "Offerta_Varie.docx",
-    "Offerta – A3": "Offerte_A3.docx",
-    "Offerta – A4": "Offerte_A4.docx",
-}
+    templates = {
+        "Offerta – Centralino": "Offerta_Centralino.docx",
+        "Offerta – Varie": "Offerta_Varie.docx",
+        "Offerta – A3": "Offerte_A3.docx",
+        "Offerta – A4": "Offerte_A4.docx",
+    }
 
-def next_global_number(df_prev):
-    if df_prev.empty:
-        return 1
-    nums = df_prev["NumeroOfferta"].str.extract(r"(\d+)$")[0].dropna().astype(int)
-    return nums.max() + 1 if not nums.empty else 1
+    def next_global_number(df_prev):
+        if df_prev.empty:
+            return 1
+        nums = df_prev["NumeroOfferta"].str.extract(r"(\d+)$")[0].dropna().astype(int)
+        return nums.max() + 1 if not nums.empty else 1
 
-cli = df_cli[df_cli["RagioneSociale"] == cliente].iloc[0]
-cli_id = cli["ClienteID"]
+    with st.form(f"new_prev_form_{cli_id}"):
+        nome_file = st.text_input("Nome File (es. Offerta_SHT.docx)")
+        template = st.selectbox("Template", list(templates.keys()))
+        submitted = st.form_submit_button("💾 Genera Preventivo")
 
-    nome_file = st.text_input("Nome File (es. Offerta_SHT.docx)")
-    template = st.selectbox("Template", list(templates.keys()))
-    submitted = st.form_submit_button("💾 Genera Preventivo")
+        if submitted:
+            try:
+                seq = next_global_number(df_prev)
+                nome_sicuro = "".join(c for c in cli["RagioneSociale"].upper() if c.isalnum())
+                num = f"SHT-{nome_sicuro}-{seq:03d}"
+                tpl_path = STORAGE_DIR / "templates" / templates[template]
+                if not tpl_path.exists():
+                    st.error(f"❌ Template mancante: {tpl_path}")
+                else:
+                    out_dir = STORAGE_DIR / "preventivi"
+                    out_dir.mkdir(exist_ok=True)
+                    out_file = out_dir / (nome_file or f"{num}.docx")
 
-    if submitted:
-        try:
-            seq = next_global_number(df_prev)
-            nome_sicuro = "".join(c for c in cli["RagioneSociale"].upper() if c.isalnum())
-            num = f"SHT-{nome_sicuro}-{seq:03d}"
-            tpl_path = STORAGE_DIR / "templates" / templates[template]
-            if not tpl_path.exists():
-                st.error(f"❌ Template mancante: {tpl_path}")
-            else:
-                out_dir = STORAGE_DIR / "preventivi"
-                out_dir.mkdir(exist_ok=True)
-                out_file = out_dir / (nome_file or f"{num}.docx")
+                    doc = Document(tpl_path)
+                    mapping = {
+                        "CLIENTE": cli["RagioneSociale"],
+                        "CITTA": cli.get("Citta", ""),
+                        "DATA": datetime.now().strftime("%d/%m/%Y"),
+                        "NUMERO_OFFERTA": num,
+                    }
+                    for p in doc.paragraphs:
+                        for k, v in mapping.items():
+                            if f"<<{k}>>" in p.text:
+                                p.text = p.text.replace(f"<<{k}>>", v)
+                    doc.save(out_file)
 
-                doc = Document(tpl_path)
-                mapping = {
-                    "CLIENTE": cli["RagioneSociale"],
-                    "CITTA": cli.get("Citta", ""),
-                    "DATA": datetime.now().strftime("%d/%m/%Y"),
-                    "NUMERO_OFFERTA": num,
-                }
-                for p in doc.paragraphs:
-                    for k, v in mapping.items():
-                        if f"<<{k}>>" in p.text:
-                            p.text = p.text.replace(f"<<{k}>>", v)
-                doc.save(out_file)
+                    nuovo = {
+                        "ClienteID": cli_id,
+                        "NumeroOfferta": num,
+                        "Template": template,
+                        "NomeFile": out_file.name,
+                        "Percorso": str(out_file),
+                        "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    }
+                    df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
+                    df_prev.to_csv(PREVENTIVI_CSV, index=False, encoding="utf-8-sig")
 
-                nuovo = {
-                    "ClienteID": cli_id,
-                    "NumeroOfferta": num,
-                    "Template": template,
-                    "NomeFile": out_file.name,
-                    "Percorso": str(out_file),
-                    "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-                df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
-                df_prev.to_csv(PREVENTIVI_CSV, index=False, encoding="utf-8-sig")
+                    st.session_state["last_prev_path"] = str(out_file)
+                    st.session_state["last_prev_name"] = out_file.name
+                    st.success(f"✅ Preventivo creato correttamente: {out_file.name}")
 
-                # ✅ Niente st.rerun qui
-                st.session_state["last_prev_path"] = str(out_file)
-                st.session_state["last_prev_name"] = out_file.name
-                st.success(f"✅ Preventivo creato correttamente: {out_file.name}")
+            except Exception as e:
+                st.error(f"Errore durante la creazione del preventivo: {e}")
 
-        except Exception as e:
-            st.error(f"Errore durante la creazione del preventivo: {e}")
+    # --- PULSANTE DOWNLOAD FUORI DAL FORM ---
+    if "last_prev_path" in st.session_state:
+        path = Path(st.session_state["last_prev_path"])
+        if path.exists():
+            with open(path, "rb") as f:
+                file_bytes = f.read()
+            st.download_button(
+                "⬇️ Scarica Ultimo Preventivo",
+                data=file_bytes,
+                file_name=st.session_state["last_prev_name"],
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key=f"dl_prev_{cli_id}"
+            )
 
-# --- PULSANTE DOWNLOAD FUORI DAL FORM ---
-if "last_prev_path" in st.session_state:
-    path = Path(st.session_state["last_prev_path"])
-    if path.exists():
-        with open(path, "rb") as f:
-            file_bytes = f.read()
-        st.download_button(
-            "⬇️ Scarica Ultimo Preventivo",
-            data=file_bytes,
-            file_name=st.session_state["last_prev_name"],
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            key=f"dl_prev_{cli_id}"
+    # ---------------------------------------------------------
+    # ELENCO PREVENTIVI
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.subheader("📂 Elenco Preventivi Cliente")
+    prev_cli = df_prev[df_prev["ClienteID"] == cli_id]
+    if prev_cli.empty:
+        st.info("Nessun preventivo presente per questo cliente.")
+    else:
+        st.dataframe(
+            prev_cli[["NumeroOfferta", "Template", "DataCreazione", "NomeFile"]],
+            use_container_width=True,
+            hide_index=True
         )
-
-# ---------------------------------------------------------
-# ELENCO PREVENTIVI
-# ---------------------------------------------------------
-st.markdown("---")
-st.subheader("📂 Elenco Preventivi Cliente")
-prev_cli = df_prev[df_prev["ClienteID"] == cli_id]
-if prev_cli.empty:
-    st.info("Nessun preventivo presente per questo cliente.")
-else:
-    st.dataframe(
-        prev_cli[["NumeroOfferta", "Template", "DataCreazione", "NomeFile"]],
-        use_container_width=True,
-        hide_index=True
-    )
 
 
     # ---------------------------------------------------------

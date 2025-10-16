@@ -501,11 +501,14 @@ cap = cliente.get("CAP", "")
 persona = cliente.get("PersonaRiferimento", "")
 telefono = cliente.get("Telefono", "")
 cell = cliente.get("Cell", "")
+
+# Date correttamente formattate
 ult_rec = fmt_date(as_date(cliente.get("UltimoRecall", "")))
-ult_vis = fmt_date(as_date(cliente.get("UltimaVisita", "")))
 pross_rec = fmt_date(as_date(cliente.get("ProssimoRecall", "")))
+ult_vis = fmt_date(as_date(cliente.get("UltimaVisita", "")))
 pross_vis = fmt_date(as_date(cliente.get("ProssimaVisita", "")))
 
+# --- Info anagrafiche principali ---
 st.markdown(
     f"""
     <div style='font-size:15px; line-height:1.7;'>
@@ -518,14 +521,14 @@ st.markdown(
 )
 
 # --- RIGA DATE: Ultimo / Prossimo Recall e Visita ---
-c1, c2, c3, c4 = st.columns(4)
-with c1:
+col1, col2, col3, col4 = st.columns(4)
+with col1:
     st.markdown(f"**⏰ Ultimo Recall:** {ult_rec or '—'}")
-with c2:
+with col2:
     st.markdown(f"**📅 Prossimo Recall:** {pross_rec or '—'}")
-with c3:
+with col3:
     st.markdown(f"**👣 Ultima Visita:** {ult_vis or '—'}")
-with c4:
+with col4:
     st.markdown(f"**🗓️ Prossima Visita:** {pross_vis or '—'}")
 
 st.divider()

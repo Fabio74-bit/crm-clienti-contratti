@@ -439,21 +439,58 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"### 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**Indirizzo:** {cliente.get('Indirizzo','')} — {cliente.get('Citta','')} {cliente.get('CAP','')}")
-        st.write(f"**Telefono:** {cliente.get('Telefono','')}")
-        st.write(f"**Email:** {cliente.get('Email','')}")
-        st.write(f"**Partita IVA:** {cliente.get('PartitaIVA','')}")
-        st.write(f"**IBAN:** {cliente.get('IBAN','')}")
-    with col2:
-        st.write(f"**Persona Riferimento:** {cliente.get('PersonaRiferimento','')}")
-        st.write(f"**Cellulare:** {cliente.get('Cell','')}")
-        st.write(f"**SDI:** {cliente.get('SDI','')}")
+    # === ANAGRAFICA EDITABILE ===
+    st.markdown("### 🧾 Anagrafica Cliente")
+
+    with st.form(f"frm_anagrafica_{sel_id}"):
+        col1, col2 = st.columns(2)
+        with col1:
+            indirizzo = st.text_input("Indirizzo", cliente.get("Indirizzo", ""))
+            citta = st.text_input("Città", cliente.get("Citta", ""))
+            cap = st.text_input("CAP", cliente.get("CAP", ""))
+            telefono = st.text_input("Telefono", cliente.get("Telefono", ""))
+            cell = st.text_input("Cellulare", cliente.get("Cell", ""))
+            email = st.text_input("Email", cliente.get("Email", ""))
+        with col2:
+            persona = st.text_input("Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+            piva = st.text_input("Partita IVA", cliente.get("PartitaIVA", ""))
+            iban = st.text_input("IBAN", cliente.get("IBAN", ""))
+            sdi = st.text_input("SDI", cliente.get("SDI", ""))
+            ultimo_recall = st.date_input(
+                "Ultimo Recall",
+                value=as_date(cliente.get("UltimoRecall")),
+                key=f"ultrec_{sel_id}",
+                format="DD/MM/YYYY"
+            )
+            ultima_visita = st.date_input(
+                "Ultima Visita",
+                value=as_date(cliente.get("UltimaVisita")),
+                key=f"ultvis_{sel_id}",
+                format="DD/MM/YYYY"
+            )
+
+        salva_btn = st.form_submit_button("💾 Salva Anagrafica")
+        if salva_btn:
+            idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+            df_cli.loc[idx, "Indirizzo"] = indirizzo
+            df_cli.loc[idx, "Citta"] = citta
+            df_cli.loc[idx, "CAP"] = cap
+            df_cli.loc[idx, "Telefono"] = telefono
+            df_cli.loc[idx, "Cell"] = cell
+            df_cli.loc[idx, "Email"] = email
+            df_cli.loc[idx, "PersonaRiferimento"] = persona
+            df_cli.loc[idx, "PartitaIVA"] = piva
+            df_cli.loc[idx, "IBAN"] = iban
+            df_cli.loc[idx, "SDI"] = sdi
+            df_cli.loc[idx, "UltimoRecall"] = fmt_date(ultimo_recall)
+            df_cli.loc[idx, "UltimaVisita"] = fmt_date(ultima_visita)
+            save_clienti(df_cli)
+            st.success("✅ Anagrafica aggiornata.")
+            st.rerun()
 
     st.divider()
 
-    # Note cliente
+    # === NOTE CLIENTE ===
     st.markdown("### 📝 Note Cliente")
     note_attuali = cliente.get("NoteCliente", "")
     nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=180, key=f"note_{sel_id}")
@@ -463,6 +500,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         save_clienti(df_cli)
         st.success("✅ Note aggiornate.")
         st.rerun()
+
     # =======================================================
     # SEZIONE PREVENTIVI DOCX
     # =======================================================

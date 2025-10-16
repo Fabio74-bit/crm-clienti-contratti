@@ -411,7 +411,7 @@ def page_clienti(df_cli, df_ct, role):
                     st.session_state["last_prev_path"] = str(out_file)
                     st.session_state["last_prev_name"] = out_file.name
                     st.success(f"✅ Preventivo creato correttamente: {out_file.name}")
-                    st.rerun()
+                    
 
             except Exception as e:
                 st.error(f"Errore durante la creazione del preventivo: {e}")

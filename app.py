@@ -534,7 +534,7 @@ st.divider()
 
 
 
-    # ===== EXPANDER ANAGRAFICA EDITABILE =====
+       # ===== EXPANDER ANAGRAFICA EDITABILE =====
     with st.expander("✏️ Modifica anagrafica completa"):
         with st.form(f"frm_anagrafica_{sel_id}"):
 
@@ -595,7 +595,6 @@ st.divider()
         save_clienti(df_cli)
         st.success("✅ Note aggiornate.")
         st.rerun()
-
 
     # =======================================================
     # SEZIONE PREVENTIVI DOCX

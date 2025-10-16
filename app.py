@@ -33,7 +33,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 APP_TITLE = "GESTIONALE CLIENTI – SHT"
 
 STORAGE_DIR = Path(
-    st.secrets.get("LOCAL_STORAGE_DIR", st.secrets.get("storage", {}).get("dir", "storage"))
+ st.secrets.get("LOCAL_STORAGE_DIR", st.secrets.get("storage", {}).get("dir", "storage"))
 )
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 

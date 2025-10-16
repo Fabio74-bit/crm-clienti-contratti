@@ -1,5 +1,3 @@
-# .streamlit/config.toml
-
 [theme]
 base = "light"
 primaryColor = "#2563eb"            # blu principale
@@ -9,27 +7,12 @@ textColor = "#0d1117"               # quasi nero
 
 [server]
 headless = true
-
+fileWatcherType = "none"            # <-- risolve l’errore “inotify watch limit reached”
 [auth]
-
-  [auth.users]
-
-    [auth.users.fabio]
-    password = "matrix"
-    role     = "admin"
-
-    [auth.users.emanuela]
-    password = "SCEGLI-LA-TUA-PASS"
-    role     = "editor"
-
-    [auth.users.claudia]
-    password = "SCEGLI-LA-TUA-PASS"
-    role     = "editor"
-
-    [auth.users.giulia]
-    password = "SCEGLI-LA-TUA-PASS"
-    role     = "contributor"
-
-    [auth.users.antonella]
-    password = "SCEGLI-LA-TUA-PASS"
-    role     = "contributor"
+users = {
+  fabio     = { password = "matrix",             role = "admin" },
+  emanuela  = { password = "SCEGLI-LA-TUA-PASS", role = "editor" },
+  claudia   = { password = "SCEGLI-LA-TUA-PASS", role = "editor" },
+  giulia    = { password = "SCEGLI-LA-TUA-PASS", role = "contributor" },
+  antonella = { password = "SCEGLI-LA-TUA-PASS", role = "contributor" }
+}

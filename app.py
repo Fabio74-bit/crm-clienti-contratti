@@ -1,8 +1,8 @@
 diff --git a/app.py b/app.py
-index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..4beaf07ead456d0b11d01603e30bf9597eb0ee29 100644
+index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..28619e0980501af49c34a581ace6e47c18b16c71 100644
 --- a/app.py
 +++ b/app.py
-@@ -1,277 +1,414 @@
+@@ -1,277 +1,416 @@
  from __future__ import annotations
 -import os
  from pathlib import Path
@@ -107,8 +107,12 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..4beaf07ead456d0b11d01603e30bf959
  
  def money(x):
      try:
-         v = float(pd.to_numeric(x, errors="coerce"))
-         return f"{v:,.2f} €"
+-        v = float(pd.to_numeric(x, errors="coerce"))
+-        return f"{v:,.2f} €"
++        numeric = pd.to_numeric(x, errors="coerce")
++        if pd.isna(numeric):
++            return ""
++        return f"{float(numeric):,.2f} €"
      except Exception:
          return ""
  
@@ -491,7 +495,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..4beaf07ead456d0b11d01603e30bf959
      st.caption(f"ClienteID: {sel_id}")
      st.divider()
  
-@@ -342,97 +479,96 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+@@ -342,97 +481,96 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                  idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
                  df_cli.loc[idx, ["RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
                                   "PartitaIVA", "Email", "Telefono"]] = [
@@ -595,7 +599,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..4beaf07ead456d0b11d01603e30bf959
  # ==========================
  # HELPER FUNZIONI DATE ITALIANE
  # ==========================
-@@ -441,61 +577,71 @@ def _parse_italian_date(value):
+@@ -441,61 +579,71 @@ def _parse_italian_date(value):
          return None
      try:
          return datetime.strptime(str(value), "%d/%m/%Y")
@@ -678,7 +682,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..4beaf07ead456d0b11d01603e30bf959
                      "ClienteID": str(sel_id),
                      "NumeroContratto": num,
                      "DataInizio": pd.to_datetime(din),
-@@ -605,52 +751,50 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+@@ -605,52 +753,50 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                  pdf.cell(20, 6, safe_text(row["Stato"]), 1)
                  pdf.ln()
              pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")

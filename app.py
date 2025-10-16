@@ -293,10 +293,19 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 piva = st.text_input("💼 P.IVA", cliente.get("PartitaIVA",""))
                 iban = st.text_input("🏦 IBAN", cliente.get("IBAN",""))
                 sdi = st.text_input("📡 SDI", cliente.get("SDI",""))
-                ur = st.date_input("Ultimo Recall", value=as_date(cliente.get("UltimoRecall")))
-                pr = st.date_input("Prossimo Recall", value=as_date(cliente.get("ProssimoRecall")))
-                uv = st.date_input("Ultima Visita", value=as_date(cliente.get("UltimaVisita")))
-                pv = st.date_input("Prossima Visita", value=as_date(cliente.get("ProssimaVisita")))
+                def safe_date_input(label, value, key=None):
+    try:
+        d = as_date(value)
+        if pd.isna(d):
+            return st.date_input(label, value=datetime.now().date(), key=key)
+        return st.date_input(label, value=d.date(), key=key)
+    except Exception:
+        return st.date_input(label, value=datetime.now().date(), key=key)
+
+ur = safe_date_input("Ultimo Recall", cliente.get("UltimoRecall"), key=f"ur_{sel_id}")
+pr = safe_date_input("Prossimo Recall", cliente.get("ProssimoRecall"), key=f"pr_{sel_id}")
+uv = safe_date_input("Ultima Visita", cliente.get("UltimaVisita"), key=f"uv_{sel_id}")
+pv = safe_date_input("Prossima Visita", cliente.get("ProssimaVisita"), key=f"pv_{sel_id}")
 
             if st.form_submit_button("💾 Salva"):
                 idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]

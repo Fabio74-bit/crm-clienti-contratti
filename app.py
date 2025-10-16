@@ -413,7 +413,7 @@ def page_clienti(df_cli, df_ct, role):
         nums = df_prev["NumeroOfferta"].str.extract(r"(\d+)$")[0].dropna().astype(int)
         return nums.max() + 1 if not nums.empty else 1
 
-    with st.form("new_prev_form"):
+    with st.form(f"new_prev_form_{cli_id}"):
         nome_file = st.text_input("Nome File (es. Offerta_SHT.docx)")
         template = st.selectbox("Template", list(templates.keys()))
         submitted = st.form_submit_button("💾 Genera Preventivo")

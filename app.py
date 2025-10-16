@@ -150,7 +150,6 @@ def save_contratti(df: pd.DataFrame):
 # =====================================
 # LOGIN (pagina intera)
 # =====================================
-st.write("DEBUG secrets:", st.secrets)
 def do_login_fullscreen():
     """Login a schermo intero — scompare dopo l'accesso."""
     users = st.secrets.get("auth", {}).get("users", {})

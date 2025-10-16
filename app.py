@@ -493,24 +493,25 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
-   # === BLOCCO INFO RAPIDE (visibile sempre) ===
-    indirizzo = cliente.get("Indirizzo", "")
-    citta = cliente.get("Citta", "")
-    cap = cliente.get("CAP", "")
-    persona = cliente.get("PersonaRiferimento", "")
-    telefono = cliente.get("Telefono", "")
-    cell = cliente.get("Cell", "")
-    ult_rec = fmt_date(as_date(cliente.get("UltimoRecall", "")))
-    ult_vis = fmt_date(as_date(cliente.get("UltimaVisita", "")))
-    pross_rec = fmt_date(as_date(cliente.get("ProssimoRecall", "")))
-    pross_vis = fmt_date(as_date(cliente.get("ProssimaVisita", "")))
 
-    st.markdown(
-        f"""
-        <div style='font-size:15px; line-height:1.7;'>
-            <b>📍 Indirizzo:</b> {indirizzo} – {citta} {cap}<br>
-            <b>🧑‍💼 Referente:</b> {persona}<br>
-            <b>📞 Telefono:</b> {telefono} — <b>📱 Cell:</b> {cell}
+# === BLOCCO INFO RAPIDE (visibile sempre) ===
+indirizzo = cliente.get("Indirizzo", "")
+citta = cliente.get("Citta", "")
+cap = cliente.get("CAP", "")
+persona = cliente.get("PersonaRiferimento", "")
+telefono = cliente.get("Telefono", "")
+cell = cliente.get("Cell", "")
+ult_rec = fmt_date(as_date(cliente.get("UltimoRecall", "")))
+ult_vis = fmt_date(as_date(cliente.get("UltimaVisita", "")))
+pross_rec = fmt_date(as_date(cliente.get("ProssimoRecall", "")))
+pross_vis = fmt_date(as_date(cliente.get("ProssimaVisita", "")))
+
+st.markdown(
+    f"""
+    <div style='font-size:15px; line-height:1.7;'>
+        <b>📍 Indirizzo:</b> {indirizzo} – {citta} {cap}<br>
+        <b>🧑‍💼 Referente:</b> {persona}<br>
+        <b>📞 Telefono:</b> {telefono} — <b>📱 Cell:</b> {cell}
     </div>
     """,
     unsafe_allow_html=True
@@ -528,6 +529,7 @@ with c4:
     st.markdown(f"**🗓️ Prossima Visita:** {pross_vis or '—'}")
 
 st.divider()
+
 
     # === BLOCCO INFO RAPIDE ===
     st.markdown(

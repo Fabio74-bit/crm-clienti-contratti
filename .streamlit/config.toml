@@ -1,11 +1,25 @@
-
 [theme]
+# Tema base
 base = "light"
-primaryColor = "#2563eb"            # blu principale
-backgroundColor = "#f8fafc"         # grigio/azzurro molto chiaro
-secondaryBackgroundColor = "#ffffff"
-textColor = "#0d1117"               # quasi nero
+
+# Colori principali
+primaryColor = "#2563eb"              # blu principale (bottoni, link)
+backgroundColor = "#f8fafc"           # grigio/azzurro molto chiaro
+secondaryBackgroundColor = "#ffffff"  # bianco puro per card e box
+textColor = "#0d1117"                 # quasi nero per il testo
+
+# Accenti aggiuntivi (opzionali)
+font = "sans serif"                   # più pulito e leggibile
+successColor = "#22c55e"              # verde per successi
+errorColor = "#dc2626"                # rosso per errori
+warningColor = "#f59e0b"              # arancione per avvisi
 
 [server]
 headless = true
 fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"

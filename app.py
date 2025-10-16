@@ -92,13 +92,23 @@ def save_contratti(df):
 # =========================================================
 # LOGIN FULLSCREEN CON LOGO SHT
 # =========================================================
+# =========================================================
+# LOGIN FULLSCREEN CON SUPPORTO SECRETS ANNIDATI
+# =========================================================
 def do_login_fullscreen():
     """Schermata di login a pagina intera con logo SHT"""
-    users = st.secrets.get("auth", {}).get("users", st.secrets.get("auth.users", {}))
-    if not users:
-        return ("ospite", "viewer")
+    # 🔧 Compatibilità con vecchio formato [auth.users.nomeutente]
+    if "auth.users" in st.secrets:
+        raw_users = st.secrets["auth.users"]
+        users = {k: {"password": v["password"], "role": v.get("role", "viewer")} for k, v in raw_users.items()}
+    else:
+        users = st.secrets.get("auth", {}).get("users", {})
 
-    # Se già loggato → ritorna direttamente
+    if not users:
+        st.error("⚠️ Nessun utente configurato nei secrets.toml")
+        return "", ""
+
+    # 🔐 Se già loggato → ritorna direttamente
     if "auth_user" in st.session_state and "auth_role" in st.session_state:
         return st.session_state["auth_user"], st.session_state["auth_role"]
 
@@ -128,6 +138,7 @@ def do_login_fullscreen():
             st.error("❌ Credenziali errate o utente inesistente.")
 
     return "", ""
+
 
 # =========================================================
 # DASHBOARD COMPLETA E COMPATTA

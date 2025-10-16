@@ -201,9 +201,7 @@ def do_login_fullscreen():
     # Se non autenticato, blocca tutto qui
     st.stop()
 
-# =====================================
-# DASHBOARD
-# =====================================
+
 # =====================================
 # DASHBOARD (con KPI + Recall/Visite TMK)
 # =====================================
@@ -438,28 +436,14 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.markdown("""
         <style>
-            .info-box {
-                background: #f9fafb;
-                border-radius: 10px;
-                padding: 10px 16px;
-                margin-bottom: 6px;
-                font-size: 15px;
-            }
-            .info-label {
-                color: #333;
-                font-weight: 500;
-            }
-            .info-inline {
-                display: flex;
-                gap: 30px;
-                flex-wrap: wrap;
-                align-items: center;
-            }
+            .info-section {margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #e6e6e6;}
+            .info-inline {display:flex; gap:32px; flex-wrap:wrap; align-items:center; font-size:15px;}
+            .info-label {color:#333; font-weight:500;}
         </style>
     """, unsafe_allow_html=True)
 
     # Riga 1: telefono, riferimento, cellulare
-    st.markdown("<div class='info-inline'>"
+    st.markdown("<div class='info-section info-inline'>"
                 f"<div>📞 <span class='info-label'>Telefono:</span> {cliente.get('Telefono','')}</div>"
                 f"<div>👤 <span class='info-label'>Riferimento:</span> {cliente.get('PersonaRiferimento','')}</div>"
                 f"<div>📱 <span class='info-label'>Cellulare:</span> {cliente.get('Cell','')}</div>"
@@ -467,7 +451,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 unsafe_allow_html=True)
 
     # Riga 2: indirizzo
-    st.markdown("<div class='info-inline'>"
+    st.markdown("<div class='info-section info-inline'>"
                 f"<div>📍 <span class='info-label'>Indirizzo:</span> {cliente.get('Indirizzo','')} — {cliente.get('Citta','')}</div>"
                 "</div>",
                 unsafe_allow_html=True)
@@ -480,6 +464,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 unsafe_allow_html=True)
 
     st.divider()
+
 
 
     # ===== EXPANDER ANAGRAFICA EDITABILE =====

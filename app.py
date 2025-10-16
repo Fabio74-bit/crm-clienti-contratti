@@ -494,60 +494,42 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
 
-# === BLOCCO INFO RAPIDE (visibile sempre) ===
-indirizzo = cliente.get("Indirizzo", "")
-citta = cliente.get("Citta", "")
-cap = cliente.get("CAP", "")
-persona = cliente.get("PersonaRiferimento", "")
-telefono = cliente.get("Telefono", "")
-cell = cliente.get("Cell", "")
+    # === BLOCCO INFO RAPIDE (visibile sempre) ===
+    indirizzo = cliente.get("Indirizzo", "")
+    citta = cliente.get("Citta", "")
+    cap = cliente.get("CAP", "")
+    persona = cliente.get("PersonaRiferimento", "")
+    telefono = cliente.get("Telefono", "")
+    cell = cliente.get("Cell", "")
 
-# Date correttamente formattate
-ult_rec = fmt_date(as_date(cliente.get("UltimoRecall", "")))
-pross_rec = fmt_date(as_date(cliente.get("ProssimoRecall", "")))
-ult_vis = fmt_date(as_date(cliente.get("UltimaVisita", "")))
-pross_vis = fmt_date(as_date(cliente.get("ProssimaVisita", "")))
+    # Date correttamente formattate
+    ult_rec = fmt_date(as_date(cliente.get("UltimoRecall", "")))
+    pross_rec = fmt_date(as_date(cliente.get("ProssimoRecall", "")))
+    ult_vis = fmt_date(as_date(cliente.get("UltimaVisita", "")))
+    pross_vis = fmt_date(as_date(cliente.get("ProssimaVisita", "")))
 
-# --- Info anagrafiche principali ---
-st.markdown(
-    f"""
-    <div style='font-size:15px; line-height:1.7;'>
-        <b>📍 Indirizzo:</b> {indirizzo} – {citta} {cap}<br>
-        <b>🧑‍💼 Referente:</b> {persona}<br>
-        <b>📞 Telefono:</b> {telefono} — <b>📱 Cell:</b> {cell}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# --- RIGA DATE: Ultimo / Prossimo Recall e Visita ---
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.markdown(f"**⏰ Ultimo Recall:** {ult_rec or '—'}")
-with col2:
-    st.markdown(f"**📅 Prossimo Recall:** {pross_rec or '—'}")
-with col3:
-    st.markdown(f"**👣 Ultima Visita:** {ult_vis or '—'}")
-with col4:
-    st.markdown(f"**🗓️ Prossima Visita:** {pross_vis or '—'}")
-
-st.divider()
-
-
-
-    # === BLOCCO INFO RAPIDE ===
+    # --- Info anagrafiche principali ---
     st.markdown(
         f"""
-        <div style='font-size:15px; line-height:1.6; margin-top:-10px;'>
-            <b>📍 Indirizzo:</b> {cliente.get('Indirizzo','')} – {cliente.get('Citta','')} {cliente.get('CAP','')}<br>
-            <b>👤 Referente:</b> {cliente.get('PersonaRiferimento','')}<br>
-            <b>📞 Telefono:</b> {cliente.get('Telefono','')} — <b>📱 Cell:</b> {cliente.get('Cell','')}<br>
-            <b>⏰ Ultimo Recall:</b> {fmt_date(cliente.get('UltimoRecall',''))} — 
-            <b>👣 Ultima Visita:</b> {fmt_date(cliente.get('UltimaVisita',''))}
+        <div style='font-size:15px; line-height:1.7;'>
+            <b>📍 Indirizzo:</b> {indirizzo} – {citta} {cap}<br>
+            <b>🧑‍💼 Referente:</b> {persona}<br>
+            <b>📞 Telefono:</b> {telefono} — <b>📱 Cell:</b> {cell}
         </div>
         """,
         unsafe_allow_html=True
     )
+
+    # --- RIGA DATE: Ultimo / Prossimo Recall e Visita ---
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(f"**⏰ Ultimo Recall:** {ult_rec or '—'}")
+    with col2:
+        st.markdown(f"**📅 Prossimo Recall:** {pross_rec or '—'}")
+    with col3:
+        st.markdown(f"**👣 Ultima Visita:** {ult_vis or '—'}")
+    with col4:
+        st.markdown(f"**🗓️ Prossima Visita:** {pross_vis or '—'}")
 
     st.divider()
 
@@ -612,6 +594,7 @@ st.divider()
         save_clienti(df_cli)
         st.success("✅ Note aggiornate.")
         st.rerun()
+
 
 
     # =======================================================

@@ -440,8 +440,14 @@ def page_clienti(df_cli, df_ct, role):
                     df_prev.to_csv(PREVENTIVI_CSV, index=False, encoding="utf-8-sig")
 
                     with open(out_file, "rb") as f:
-                        st.download_button("⬇️ Scarica Preventivo", f, file_name=out_file.name,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    file_bytes = f.read()
+st.download_button(
+    "⬇️ Scarica Preventivo",
+    data=file_bytes,
+    file_name=out_file.name,
+    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
+
 
                     st.success(f"✅ Preventivo creato correttamente: {out_file.name}")
                     st.rerun()

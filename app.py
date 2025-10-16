@@ -83,19 +83,19 @@ def to_date_series(s: pd.Series) -> pd.Series:
     return s.map(as_date)
 
 def fmt_date(d) -> str:
-    if d is None or (isinstance(d, float) and pd.isna(d)):
+    """Restituisce una data in formato DD/MM/YYYY, qualunque sia il tipo di input."""
+    import datetime as dt
+    if d is None or d == "" or (isinstance(d, float) and pd.isna(d)):
         return ""
     try:
-        if isinstance(d, (datetime, pd.Timestamp)):
-            return d.strftime("%d/%m/%Y")
+        if isinstance(d, (dt.date, dt.datetime, pd.Timestamp)):
+            return pd.to_datetime(d).strftime("%d/%m/%Y")
         parsed = pd.to_datetime(str(d), errors="coerce", dayfirst=True)
         if pd.isna(parsed):
             return ""
         return parsed.strftime("%d/%m/%Y")
     except Exception:
         return ""
-
-
 
 
 def money(x):
@@ -278,8 +278,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === TMK: Recall e Visite ===
     st.subheader("📞 Attività TMK (Recall e Visite)")
 
-    df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
-    df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce")
+  df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce", dayfirst=True)
+  df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce", dayfirst=True)
+  df_cli["UltimoRecall"]   = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce", dayfirst=True)
+  df_cli["UltimaVisita"]   = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce", dayfirst=True)
+
 
 
     recall_prossimi = df_cli[

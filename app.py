@@ -493,7 +493,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
     st.caption(f"ClienteID: {sel_id}")
-    # === BLOCCO INFO RAPIDE (visibile sempre) ===
+   # === BLOCCO INFO RAPIDE (visibile sempre) ===
 indirizzo = cliente.get("Indirizzo", "")
 citta = cliente.get("Citta", "")
 cap = cliente.get("CAP", "")
@@ -528,7 +528,6 @@ with c4:
     st.markdown(f"**🗓️ Prossima Visita:** {pross_vis or '—'}")
 
 st.divider()
-
 
     # === BLOCCO INFO RAPIDE ===
     st.markdown(

@@ -139,9 +139,11 @@ def load_clienti() -> pd.DataFrame:
         st.warning("⚠️ File clienti.csv non trovato.")
         return pd.DataFrame(columns=CLIENTI_COLS)
 
-    # Legge il CSV come testo e uniforma le colonne
+    # Legge il CSV come testo
     df = pd.read_csv(path, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
     df.columns = [c.strip() for c in df.columns]
+
+    # Normalizza i nomi delle colonne
     rename_map = {
         "Città": "Citta",
         "Ultimo Recall": "UltimoRecall",
@@ -152,18 +154,27 @@ def load_clienti() -> pd.DataFrame:
     df = df.rename(columns=rename_map)
     df = ensure_columns(df, CLIENTI_COLS)
 
-    # 🔧 Conversione automatica delle colonne data
+    # 🔧 Conversione pulita e tollerante per le colonne data
+    def parse_date_safe(val):
+        if not isinstance(val, str) or val.strip() == "":
+            return pd.NaT
+        val = val.strip()
+        # ignora simboli o testo non interpretabile
+        if any(x in val for x in ["*", "?", "vedi", "stia", "null", "none", "NaN", "nat"]):
+            return pd.NaT
+        try:
+            return pd.to_datetime(val, errors="coerce", dayfirst=True)
+        except Exception:
+            return pd.NaT
+
     for col in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         if col in df.columns:
-            df[col] = (
-                df[col]
-                .astype(str)
-                .str.strip()
-                .replace({"": pd.NA, "nan": pd.NA, "None": pd.NA})
-            )
-            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
+            df[col] = df[col].map(parse_date_safe)
+            # Rimuove l'orario, mantiene solo la data
+            df[col] = df[col].dt.date
 
     return df
+
 
 
 

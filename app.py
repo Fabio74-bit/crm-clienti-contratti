@@ -368,12 +368,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.success("✅ Note aggiornate.")
         st.rerun()
             # =======================================================
-    # SEZIONE PREVENTIVI DOCX
+    # SEZIONE PREVENTIVI DOCX (con gestione date integrata)
     # =======================================================
     st.divider()
     st.markdown("### 🧾 Gestione Preventivi")
 
     from docx.shared import Pt
+
     TEMPLATES_DIR = STORAGE_DIR / "templates"
     EXTERNAL_PROPOSALS_DIR = STORAGE_DIR / "preventivi"
     EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
@@ -391,6 +392,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
 
+    # === Funzione per numero preventivo ===
     def genera_numero_offerta(cliente_nome: str, cliente_id: str) -> str:
         anno = datetime.now().year
         nome_sicuro = "".join(c for c in cliente_nome if c.isalnum())[:6].upper()
@@ -400,6 +402,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     next_num = genera_numero_offerta(cliente.get("RagioneSociale", ""), sel_id)
 
+    # === CREAZIONE NUOVO PREVENTIVO ===
     with st.form("frm_new_prev"):
         num = st.text_input("Numero Offerta", next_num)
         nome_file = st.text_input("Nome File (es. Offerta_ACME.docx)")
@@ -420,22 +423,28 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.error(f"❌ Template non trovato: {template_path}")
                 else:
                     doc = Document(template_path)
-                    mapping = {
+
+                    # === Mappatura campi cliente e date ===
+                    mappa = {
                         "CLIENTE": cliente.get("RagioneSociale", ""),
                         "INDIRIZZO": cliente.get("Indirizzo", ""),
                         "CITTA": cliente.get("Citta", "") or cliente.get("Città", ""),
                         "NUMERO_OFFERTA": num,
                         "DATA": datetime.now().strftime("%d/%m/%Y"),
+                        "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
+                        "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
+                        "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
+                        "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
                     }
 
-                    # Sostituzione segnaposto <<CHIAVE>>
+                    # 🔄 Sostituzione segnaposto <<CHIAVE>>
                     for p in doc.paragraphs:
                         full_text = "".join(run.text for run in p.runs)
                         modified = False
-                        for key, val in mapping.items():
-                            token = f"<<{key}>>"
+                        for chiave, valore in mappa.items():
+                            token = f"<<{chiave}>>"
                             if token in full_text:
-                                full_text = full_text.replace(token, str(val))
+                                full_text = full_text.replace(token, str(valore))
                                 modified = True
                         if modified:
                             for run in p.runs:
@@ -448,7 +457,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     doc.save(output_path)
                     st.success(f"✅ Preventivo salvato: {output_path.name}")
 
-                    nuovo = {
+                    # === Registro CSV preventivi ===
+                    nuova_riga = {
                         "ClienteID": sel_id,
                         "NumeroOfferta": num,
                         "Template": TEMPLATE_OPTIONS[template],
@@ -456,7 +466,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "Percorso": str(output_path),
                         "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     }
-                    df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
+                    df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
                     df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
 
                     st.toast("✅ Preventivo aggiunto al database", icon="📄")
@@ -464,7 +474,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             except Exception as e:
                 st.error(f"❌ Errore durante la creazione del preventivo: {e}")
 
-    # === ELENCO PREVENTIVI CLIENTE ===
+    # === ELENCO PREVENTIVI ===
     st.divider()
     st.markdown("### 📂 Elenco Preventivi Cliente")
 
@@ -476,10 +486,17 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown("""
         <style>
-         .preventivo-card {border:1px solid #ddd; border-radius:10px; padding:8px 14px; margin-bottom:8px; background:#f9f9f9;}
+         .preventivo-card {
+             border:1px solid #ddd;
+             border-radius:10px;
+             padding:8px 14px;
+             margin-bottom:8px;
+             background:#f9f9f9;
+         }
          .preventivo-header {font-weight:600; color:#222;}
          .preventivo-info {font-size:0.9rem; color:#444;}
-        </style>""", unsafe_allow_html=True)
+        </style>
+        """, unsafe_allow_html=True)
 
         for i, r in prev_cli.iterrows():
             file_path = Path(r["Percorso"])
@@ -517,6 +534,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
+
 # =====================================
 # CONTRATTI (AgGrid + gestione stato)
 # =====================================

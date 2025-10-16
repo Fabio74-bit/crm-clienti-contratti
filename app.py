@@ -1,13 +1,24 @@
 from __future__ import annotations
-import os
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict
 import pandas as pd
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 from docx import Document
 from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+
+
+def _ensure_directory(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _slugify(value: object) -> str:
+    cleaned = "".join(ch if str(ch).isalnum() else "_" for ch in str(value or ""))
+    cleaned = cleaned.strip("_")
+    return cleaned or "item"
+
 
 # Impostazioni pagina
 st.set_page_config(layout="wide", page_title="GESTIONALE CLIENTI – SHT")
@@ -16,15 +27,13 @@ st.set_page_config(layout="wide", page_title="GESTIONALE CLIENTI – SHT")
 # CONFIG
 # ==========================
 APP_TITLE = "GESTIONALE CLIENTI – SHT"
-STORAGE_DIR = Path("storage")
-STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+STORAGE_DIR = _ensure_directory(Path("storage"))
 
 CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
 CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
 PREVENTIVI_CSV = STORAGE_DIR / "preventivi.csv"
-TEMPLATES_DIR = STORAGE_DIR / "templates"
-EXTERNAL_PROPOSALS_DIR = STORAGE_DIR / "preventivi"
-EXTERNAL_PROPOSALS_DIR.mkdir(parents=True, exist_ok=True)
+TEMPLATES_DIR = _ensure_directory(STORAGE_DIR / "templates")
+EXTERNAL_PROPOSALS_DIR = _ensure_directory(STORAGE_DIR / "preventivi")
 
 LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
@@ -36,6 +45,47 @@ TEMPLATE_OPTIONS = {
     "Offerta – A4": "Offerte_A4.docx",
 }
 
+CLIENTI_COLUMNS = [
+    "ClienteID",
+    "RagioneSociale",
+    "PersonaRiferimento",
+    "Indirizzo",
+    "Citta",
+    "CAP",
+    "Telefono",
+    "Email",
+    "PartitaIVA",
+    "IBAN",
+    "SDI",
+    "UltimoRecall",
+    "ProssimoRecall",
+    "UltimaVisita",
+    "ProssimaVisita",
+    "NoteCliente",
+]
+
+CONTRATTI_COLUMNS = [
+    "ClienteID",
+    "NumeroContratto",
+    "DataInizio",
+    "DataFine",
+    "Durata",
+    "DescrizioneProdotto",
+    "NOL_FIN",
+    "NOL_INT",
+    "TotRata",
+    "Stato",
+]
+
+PREVENTIVI_COLUMNS = [
+    "ClienteID",
+    "NumeroOfferta",
+    "Template",
+    "NomeFile",
+    "Percorso",
+    "DataCreazione",
+]
+
 # ==========================
 # UTILS
 # ==========================
@@ -46,45 +96,80 @@ def fmt_date(d):
 
 def money(x):
     try:
-        v = float(pd.to_numeric(x, errors="coerce"))
-        return f"{v:,.2f} €"
+        numeric = pd.to_numeric(x, errors="coerce")
+        if pd.isna(numeric):
+            return ""
+        return f"{float(numeric):,.2f} €"
     except Exception:
         return ""
 
-def load_clienti():
+@st.cache_data(show_spinner=False)
+def load_clienti() -> pd.DataFrame:
     if not CLIENTI_CSV.exists():
-        return pd.DataFrame(columns=[
-            "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta",
-            "CAP", "Telefono", "Email", "PartitaIVA", "IBAN", "SDI",
-            "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita", "NoteCliente"
-        ])
-    return pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+        return pd.DataFrame(columns=CLIENTI_COLUMNS)
+    df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+    return df.reindex(columns=CLIENTI_COLUMNS, fill_value="")
 
-def save_clienti(df): df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
 
-def load_contratti():
-    if not CONTRATTI_CSV.exists():
-        return pd.DataFrame(columns=[
-            "ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
-            "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
-        ])
-    df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
-    for c in ["DataInizio", "DataFine"]:
-        df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
-    return df
+def save_clienti(df: pd.DataFrame) -> None:
+    export = df.copy()
+    export = export.reindex(columns=CLIENTI_COLUMNS, fill_value="")
+    export.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+    load_clienti.clear()
 
-def save_contratti(df):
-    df2 = df.copy()
-    for c in ["DataInizio", "DataFine"]:
-        df2[c] = df2[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
-    df2.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+
+@st.cache_data(show_spinner=False)
+def load_contratti() -> pd.DataFrame:
+    if CONTRATTI_CSV.exists():
+        df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+    else:
+        df = pd.DataFrame(columns=CONTRATTI_COLUMNS)
+    for column in ("DataInizio", "DataFine"):
+        df[column] = pd.to_datetime(df.get(column), errors="coerce", dayfirst=True)
+    return df.reindex(columns=CONTRATTI_COLUMNS)
+
+
+def save_contratti(df: pd.DataFrame) -> None:
+    export = df.copy()
+    for column in ("DataInizio", "DataFine"):
+        export[column] = export[column].apply(
+            lambda value: "" if pd.isna(value) else pd.to_datetime(value).strftime("%Y-%m-%d")
+        )
+    export = export.reindex(columns=CONTRATTI_COLUMNS)
+    export.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+    load_contratti.clear()
+
+
+@st.cache_data(show_spinner=False)
+def load_preventivi() -> pd.DataFrame:
+    if not PREVENTIVI_CSV.exists():
+        return pd.DataFrame(columns=PREVENTIVI_COLUMNS)
+    df = pd.read_csv(PREVENTIVI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+    return df.reindex(columns=PREVENTIVI_COLUMNS, fill_value="")
+
+
+def save_preventivi(df: pd.DataFrame) -> None:
+    export = df.copy().reindex(columns=PREVENTIVI_COLUMNS, fill_value="")
+    export.to_csv(PREVENTIVI_CSV, index=False, encoding="utf-8-sig")
+    load_preventivi.clear()
 
 # ==========================
 # LOGIN
 # ==========================
 def do_login_fullscreen():
-    users = st.secrets.get("auth", {}).get("users", {})
+    try:
+        auth_conf = st.secrets["auth"]
+    except (KeyError, AttributeError, StreamlitSecretNotFoundError):
+        st.info(
+            "🔓 Configurazione di login mancante: accesso come ospite con privilegi di sola lettura."
+        )
+        return ("ospite", "viewer")
+
+    users = auth_conf.get("users", {})
     if not users:
+        st.info(
+            "🔓 Nessun utente configurato nelle credenziali: accesso come ospite con privilegi di sola lettura."
+        )
         return ("ospite", "viewer")
 
     if "auth_user" in st.session_state:
@@ -126,14 +211,16 @@ def kpi_card(label, value, icon, bg_color):
     </div>
     """
 
-import uuid
-
-def create_contract_card(row):
+def create_contract_card(row, *, key_suffix: str = ""):
     """
     Card contratto con chiave univoca a prova di duplicati.
     """
-    # Chiave sempre unica (UUID)
-    unique_key = f"open_{row.get('ClienteID','')}_{row.get('NumeroContratto','')}_{uuid.uuid4().hex}"
+    # Chiave deterministica basata sui dati del contratto
+    unique_key = "open_{cliente}_{contratto}_{suffix}".format(
+        cliente=_slugify(row.get("ClienteID", "")),
+        contratto=_slugify(row.get("NumeroContratto", "")),
+        suffix=_slugify(key_suffix) or "0",
+    )
 
     st.markdown(f"""
     <div style="border:1px solid #ddd;border-radius:10px;padding:10px 14px;margin-bottom:8px;background-color:#fafafa;">
@@ -152,6 +239,7 @@ def create_contract_card(row):
 
 def page_dashboard(df_cli, df_ct, role):
     now = pd.Timestamp.now().normalize()
+    upcoming_window = now + pd.Timedelta(days=7)
     col1, col2 = st.columns([0.15, 0.85])
     with col1:
         st.image(LOGO_URL, width=120)
@@ -162,24 +250,38 @@ def page_dashboard(df_cli, df_ct, role):
 
     # === KPI cards ===
     stato = df_ct["Stato"].fillna("").astype(str).str.lower()
+    recall_dates = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce", dayfirst=True)
+    visita_dates = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce", dayfirst=True)
     kpi = [
         ("Clienti attivi", len(df_cli), "👥", "#2196F3"),
         ("Contratti attivi", (stato != "chiuso").sum(), "📄", "#009688"),
         ("Contratti chiusi", (stato == "chiuso").sum(), "❌", "#F44336"),
         ("Nuovi contratti", len(df_ct[df_ct["DataInizio"].dt.year == now.year]), "⭐", "#FFC107"),
+        (
+            "Recall imminenti",
+            int(recall_dates.between(now, upcoming_window, inclusive="both").sum()),
+            "📆",
+            "#673AB7",
+        ),
+        (
+            "Visite imminenti",
+            int(visita_dates.between(now, upcoming_window, inclusive="both").sum()),
+            "🚗",
+            "#3F51B5",
+        ),
     ]
-    c1, c2, c3, c4 = st.columns(4)
-    for c, d in zip([c1, c2, c3, c4], kpi):
-        with c:
-            st.markdown(kpi_card(*d), unsafe_allow_html=True)
+    for col, data in zip(st.columns(len(kpi)), kpi):
+        with col:
+            st.markdown(kpi_card(*data), unsafe_allow_html=True)
     st.divider()
 
     # === CONTRATTI IN SCADENZA (entro 6 mesi) ===
     st.subheader("📅 Contratti in Scadenza (entro 6 mesi)")
     scadenza = df_ct[
-        (df_ct["DataFine"].notna()) &
-        (df_ct["DataFine"] <= now + pd.DateOffset(months=6)) &
-        (df_ct["Stato"].str.lower() != "chiuso")
+        (df_ct["DataFine"].notna())
+        & (df_ct["DataFine"] >= now)
+        & (df_ct["DataFine"] <= now + pd.DateOffset(months=6))
+        & (df_ct["Stato"].str.lower() != "chiuso")
     ]
     if scadenza.empty:
         st.info("✅ Nessun contratto in scadenza.")
@@ -203,9 +305,29 @@ def page_dashboard(df_cli, df_ct, role):
                 unsafe_allow_html=True
             )
             st.markdown("<div class='scroll-box'>", unsafe_allow_html=True)
-            for _, row in scadenza.iterrows():
-                create_contract_card(row)
+            for idx, row in scadenza.iterrows():
+                create_contract_card(row, key_suffix=f"due_{idx}")
             st.markdown("</div>", unsafe_allow_html=True)
+    st.divider()
+
+    # === CONTRATTI SCADUTI ===
+    st.subheader("⚠️ Contratti Scaduti")
+    scaduti = df_ct[
+        (df_ct["DataFine"].notna())
+        & (df_ct["DataFine"] < now)
+        & (df_ct["Stato"].str.lower() != "chiuso")
+    ]
+    if scaduti.empty:
+        st.info("✅ Nessun contratto scaduto non chiuso.")
+    else:
+        scaduti = scaduti.merge(
+            df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left"
+        ).sort_values("DataFine")
+        limit = 10
+        for idx, row in scaduti.head(limit).iterrows():
+            create_contract_card(row, key_suffix=f"expired_{idx}")
+        if len(scaduti) > limit:
+            st.caption(f"Mostrati i primi {limit} contratti scaduti su {len(scaduti)} totali.")
     st.divider()
 
     # === CONTRATTI SENZA DATA FINE ===
@@ -216,40 +338,69 @@ def page_dashboard(df_cli, df_ct, role):
     else:
         senza = senza.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
         limit = 5
-        for i, (_, row) in enumerate(senza.iterrows()):
+        for i, (idx, row) in enumerate(senza.iterrows()):
             if i < limit:
-                create_contract_card(row)
+                create_contract_card(row, key_suffix=f"nodate_{idx}")
             else:
                 break
         if len(senza) > limit:
             if st.button(f"🔽 Mostra tutti ({len(senza) - limit} altri)", key="show_all_nodate"):
-                for _, row in senza.iloc[limit:].iterrows():
-                    create_contract_card(row)
+                for idx, row in senza.iloc[limit:].iterrows():
+                    create_contract_card(row, key_suffix=f"nodate_extra_{idx}")
     st.divider()
 
-    # === ULTIMI RECALL / VISITE ===
-    st.subheader("📞 Ultimi Recall e Visite")
-    df_cli["UltimoRecall"] = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce", dayfirst=True)
-    df_cli["UltimaVisita"] = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce", dayfirst=True)
-    col_r, col_v = st.columns(2)
-    with col_r:
-        st.markdown("#### 🔁 Ultimi Recall")
-        st.dataframe(
-            df_cli[["RagioneSociale", "UltimoRecall", "ProssimoRecall"]]
-            .sort_values("UltimoRecall", ascending=False)
-            .head(5),
-            hide_index=True,
-            use_container_width=True,
-        )
-    with col_v:
-        st.markdown("#### 🚗 Ultime Visite")
-        st.dataframe(
-            df_cli[["RagioneSociale", "UltimaVisita", "ProssimaVisita"]]
-            .sort_values("UltimaVisita", ascending=False)
-            .head(5),
-            hide_index=True,
-            use_container_width=True,
-        )
+    # === RECALL / VISITE ===
+    st.subheader("📞 Recall e Visite")
+    df_cli["UltimoRecall"] = pd.to_datetime(
+        df_cli["UltimoRecall"], errors="coerce", dayfirst=True
+    )
+    df_cli["UltimaVisita"] = pd.to_datetime(
+        df_cli["UltimaVisita"], errors="coerce", dayfirst=True
+    )
+    tab_recenti, tab_imminenti = st.tabs(["Recenti", "Imminenti"])
+    with tab_recenti:
+        col_r, col_v = st.columns(2)
+        with col_r:
+            st.markdown("#### 🔁 Ultimi Recall")
+            st.dataframe(
+                df_cli[["RagioneSociale", "UltimoRecall", "ProssimoRecall"]]
+                .sort_values("UltimoRecall", ascending=False)
+                .head(5),
+                hide_index=True,
+                use_container_width=True,
+            )
+        with col_v:
+            st.markdown("#### 🚗 Ultime Visite")
+            st.dataframe(
+                df_cli[["RagioneSociale", "UltimaVisita", "ProssimaVisita"]]
+                .sort_values("UltimaVisita", ascending=False)
+                .head(5),
+                hide_index=True,
+                use_container_width=True,
+            )
+    with tab_imminenti:
+        imminenti = df_cli.copy()
+        imminenti["ProssimoRecall"] = recall_dates
+        imminenti["ProssimaVisita"] = visita_dates
+        col_r_next, col_v_next = st.columns(2)
+        with col_r_next:
+            st.markdown("#### 🔜 Recall (prossimi 7 giorni)")
+            imminenti_recall = imminenti[
+                imminenti["ProssimoRecall"].between(now, upcoming_window, inclusive="both")
+            ][["RagioneSociale", "ProssimoRecall"]].sort_values("ProssimoRecall")
+            if imminenti_recall.empty:
+                st.info("Nessun recall in programma nella prossima settimana.")
+            else:
+                st.dataframe(imminenti_recall, hide_index=True, use_container_width=True)
+        with col_v_next:
+            st.markdown("#### 🔜 Visite (prossimi 7 giorni)")
+            imminenti_visite = imminenti[
+                imminenti["ProssimaVisita"].between(now, upcoming_window, inclusive="both")
+            ][["RagioneSociale", "ProssimaVisita"]].sort_values("ProssimaVisita")
+            if imminenti_visite.empty:
+                st.info("Nessuna visita in programma nella prossima settimana.")
+            else:
+                st.dataframe(imminenti_visite, hide_index=True, use_container_width=True)
 
 # ==========================
 # CLIENTI
@@ -364,11 +515,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # Preventivi
     st.markdown("### 🧾 Crea Nuovo Preventivo DOCX")
-    prev_path = PREVENTIVI_CSV
-    if prev_path.exists():
-        df_prev = pd.read_csv(prev_path, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
-    else:
-        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
+    df_prev = load_preventivi()
 
     def genera_numero_offerta(cliente_nome):
         anno = datetime.now().year
@@ -384,6 +531,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         submitted = st.form_submit_button("💾 Genera Preventivo")
         if submitted:
             template_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
+            if not template_path.exists():
+                st.error("❌ Template non trovato. Verifica la cartella templates.")
+                st.stop()
             if not nome_file.strip():
                 nome_file = f"{num}.docx"
             if not nome_file.lower().endswith(".docx"):
@@ -402,7 +552,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     p.text = p.text.replace(f"<<{key}>>", str(val))
             doc.save(output_path)
             nuovo = {
-                "ClienteID": sel_id,
+                "ClienteID": str(sel_id),
                 "NumeroOfferta": num,
                 "Template": TEMPLATE_OPTIONS[template],
                 "NomeFile": nome_file,
@@ -410,7 +560,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 "DataCreazione": datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
             df_prev = pd.concat([df_prev, pd.DataFrame([nuovo])], ignore_index=True)
-            df_prev.to_csv(prev_path, index=False, encoding="utf-8-sig")
+            save_preventivi(df_prev)
             st.success(f"✅ Preventivo creato: {nome_file}")
             st.rerun()
 
@@ -463,17 +613,27 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         return
 
     pre = st.session_state.get("selected_client_id")
-    labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
-    idx = 0
-    if pre:
-        try:
-            idx = int(df_cli.index[df_cli["ClienteID"].astype(str) == str(pre)][0])
-        except:
-            idx = 0
-
-    sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
-    sel_id = df_cli.iloc[labels[labels == sel_label].index[0]]["ClienteID"]
-    rag_soc = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]["RagioneSociale"]
+    client_options = [
+        (row["ClienteID"], f"{row['ClienteID']} — {row['RagioneSociale']}")
+        for _, row in df_cli.iterrows()
+    ]
+    default_index = next(
+        (i for i, (cid, _) in enumerate(client_options) if str(cid) == str(pre)),
+        0,
+    )
+    selected_option = st.selectbox(
+        "Cliente",
+        client_options,
+        index=default_index if default_index < len(client_options) else 0,
+        format_func=lambda item: item[1] if isinstance(item, tuple) else str(item),
+    )
+    sel_id, _ = selected_option
+    cliente_row = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)]
+    if cliente_row.empty:
+        st.error("Cliente selezionato non trovato nei dati disponibili.")
+        return
+    cliente_row = cliente_row.iloc[0]
+    rag_soc = cliente_row.get("RagioneSociale", "")
 
     # Creazione nuovo contratto
     with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
@@ -627,8 +787,6 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # MAIN APP
 # ==========================
 def main():
-    st.set_page_config(page_title="Gestionale Clienti SHT", layout="wide")
-
     # Login
     user, role = do_login_fullscreen()
     if not user:

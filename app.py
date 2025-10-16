@@ -94,7 +94,7 @@ def save_contratti(df):
 # =========================================================
 def do_login_fullscreen():
     """Schermata di login a pagina intera con logo SHT"""
-    users = st.secrets.get("auth", {}).get("users", {})
+    users = st.secrets.get("auth", {}).get("users", st.secrets.get("auth.users", {}))
     if not users:
         return ("ospite", "viewer")
 

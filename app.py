@@ -1,8 +1,8 @@
 diff --git a/app.py b/app.py
-index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..7c3aea8ae21edf7c3e0f9ba6875437e57b50dc65 100644
+index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..4beaf07ead456d0b11d01603e30bf9597eb0ee29 100644
 --- a/app.py
 +++ b/app.py
-@@ -1,277 +1,413 @@
+@@ -1,277 +1,414 @@
  from __future__ import annotations
 -import os
  from pathlib import Path
@@ -122,6 +122,25 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..7c3aea8ae21edf7c3e0f9ba6875437e5
 -            "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita", "NoteCliente"
 -        ])
 -    return pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+-
+-def save_clienti(df): df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+-
+-def load_contratti():
+-    if not CONTRATTI_CSV.exists():
+-        return pd.DataFrame(columns=[
+-            "ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+-            "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
+-        ])
+-    df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+-    for c in ["DataInizio", "DataFine"]:
+-        df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
+-    return df
+-
+-def save_contratti(df):
+-    df2 = df.copy()
+-    for c in ["DataInizio", "DataFine"]:
+-        df2[c] = df2[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
+-    df2.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 +        return pd.DataFrame(columns=CLIENTI_COLUMNS)
 +    df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
 +    return df.reindex(columns=CLIENTI_COLUMNS, fill_value="")
@@ -132,31 +151,18 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..7c3aea8ae21edf7c3e0f9ba6875437e5
 +    export = export.reindex(columns=CLIENTI_COLUMNS, fill_value="")
 +    export.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
 +    load_clienti.clear()
- 
--def save_clienti(df): df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
- 
--def load_contratti():
++
++
 +@st.cache_data(show_spinner=False)
 +def load_contratti() -> pd.DataFrame:
-     if not CONTRATTI_CSV.exists():
--        return pd.DataFrame(columns=[
--            "ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
--            "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"
--        ])
-+        return pd.DataFrame(columns=CONTRATTI_COLUMNS)
-     df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
--    for c in ["DataInizio", "DataFine"]:
--        df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
--    return df
++    if CONTRATTI_CSV.exists():
++        df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
++    else:
++        df = pd.DataFrame(columns=CONTRATTI_COLUMNS)
 +    for column in ("DataInizio", "DataFine"):
-+        df[column] = pd.to_datetime(df[column], errors="coerce", dayfirst=True)
++        df[column] = pd.to_datetime(df.get(column), errors="coerce", dayfirst=True)
 +    return df.reindex(columns=CONTRATTI_COLUMNS)
- 
--def save_contratti(df):
--    df2 = df.copy()
--    for c in ["DataInizio", "DataFine"]:
--        df2[c] = df2[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
--    df2.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
++
 +
 +def save_contratti(df: pd.DataFrame) -> None:
 +    export = df.copy()
@@ -485,7 +491,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..7c3aea8ae21edf7c3e0f9ba6875437e5
      st.caption(f"ClienteID: {sel_id}")
      st.divider()
  
-@@ -342,97 +478,96 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+@@ -342,97 +479,96 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                  idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
                  df_cli.loc[idx, ["RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
                                   "PartitaIVA", "Email", "Telefono"]] = [
@@ -589,7 +595,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..7c3aea8ae21edf7c3e0f9ba6875437e5
  # ==========================
  # HELPER FUNZIONI DATE ITALIANE
  # ==========================
-@@ -441,61 +576,71 @@ def _parse_italian_date(value):
+@@ -441,61 +577,71 @@ def _parse_italian_date(value):
          return None
      try:
          return datetime.strptime(str(value), "%d/%m/%Y")
@@ -672,7 +678,7 @@ index 3495ac3ab538ddc5d26e4f36eb6d72e5e20f9765..7c3aea8ae21edf7c3e0f9ba6875437e5
                      "ClienteID": str(sel_id),
                      "NumeroContratto": num,
                      "DataInizio": pd.to_datetime(din),
-@@ -605,52 +750,50 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+@@ -605,52 +751,50 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                  pdf.cell(20, 6, safe_text(row["Stato"]), 1)
                  pdf.ln()
              pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")

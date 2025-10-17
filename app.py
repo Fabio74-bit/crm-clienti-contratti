@@ -810,10 +810,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     gb.configure_column(
         "Azioni",
         cellRenderer=action_renderer,
+        cellRendererParams={"innerRenderer": "html"},
         width=160,
         pinned="right",
-        suppressMovable=True
-    )
+        suppressMovable=True,
+        wrapText=False,
+)
+gb.configure_grid_options(domLayout="normal", ensureDomOrder=True)
+
 
     # Colori riga in base allo stato
     js_style = JsCode("""

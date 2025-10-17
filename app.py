@@ -672,9 +672,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # 🔙 Se arrivi da un link diretto, mostra pulsante per tornare
     if selected_cliente_id:
         st.info(f"📌 Mostrati solo i contratti del cliente **{rag_soc}** (ID: {sel_id})")
-        if st.button("⬅️ Torna al Cliente", use_container_width=True):
-            st.session_state["selected_cliente"] = sel_id
-            st.session_state["nav_target"] = "Clienti"
+        if st.button("🏠 Torna alla Home", use_container_width=True):
+            st.session_state["nav_target"] = "Dashboard"
             st.rerun()
 
     # 🔍 Filtra i contratti del cliente selezionato

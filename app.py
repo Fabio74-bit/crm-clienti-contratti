@@ -865,235 +865,148 @@ if selected is not None and len(selected) > 0:
         with colA3:
             st.write("")  # spazio per allineamento
 
-# === ESPORTAZIONI (sempre visibili) ===
+# === ESPORTAZIONI ===
 st.markdown("---")
 st.markdown("### 📤 Esporta contratti")
 col_exp1, col_exp2 = st.columns(2)
 
+# --- Esporta Excel ---
 with col_exp1:
-    if st.button("📊 Esporta in Excel (.xlsx)", key=f"xlsx_{sel_id}"):
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Contratti"
-        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                   "Descrizione", "TotRata", "Stato"]
-        ws.append(headers)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contratti"
+    headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+               "Descrizione", "TotRata", "Stato"]
+    ws.append(headers)
 
-        header_fill = PatternFill("solid", fgColor="BDD7EE")
-        border = Border(
-            left=Side(style="thin"), right=Side(style="thin"),
-            top=Side(style="thin"), bottom=Side(style="thin")
-        )
-        for cell in ws[1]:
-            cell.fill = header_fill
-            cell.font = Font(bold=True)
+    header_fill = PatternFill("solid", fgColor="BDD7EE")
+    border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                    top=Side(style="thin"), bottom=Side(style="thin"))
+
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = Font(bold=True)
+        cell.border = border
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for _, row in ct.iterrows():
+        ws.append([
+            row["NumeroContratto"], fmt_date(row["DataInizio"]),
+            fmt_date(row["DataFine"]), row["Durata"],
+            row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
+        ])
+    for col in ws.columns:
+        max_len = max(len(str(c.value)) for c in col)
+        ws.column_dimensions[col[0].column_letter].width = max_len + 2
+        for cell in col:
             cell.border = border
-            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
 
-        for _, row in ct.iterrows():
-            ws.append([
-                row["NumeroContratto"], fmt_date(row["DataInizio"]),
-                fmt_date(row["DataFine"]), row["Durata"],
-                row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
-            ])
-        for col in ws.columns:
-            max_len = max(len(str(c.value)) for c in col)
-            ws.column_dimensions[col[0].column_letter].width = max_len + 2
-            for cell in col:
-                cell.border = border
-                cell.alignment = Alignment(wrap_text=True, vertical="top")
+    buf = io.BytesIO()
+    wb.save(buf)
+    st.download_button(
+        "📊 Scarica Excel (.xlsx)",
+        data=buf.getvalue(),
+        file_name=f"contratti_{rag_soc}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key=f"xlsx_download_{sel_id}",
+        use_container_width=True
+    )
 
-        buf = io.BytesIO()
-        wb.save(buf)
-        st.download_button(
-            "⬇️ Scarica Excel",
-            data=buf.getvalue(),
-            file_name=f"contratti_{rag_soc}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"xlsx_download_{sel_id}",
-            use_container_width=True
-        )
-
+# --- Esporta PDF ---
 with col_exp2:
-    if st.button("📘 Esporta in PDF", key=f"pdf_{sel_id}"):
-        pdf = FPDF(orientation="L", unit="mm", format="A4")
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-        pdf.set_font("Arial", "", 9)
-        pdf.ln(4)
-        headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-        widths = [35, 25, 25, 20, 110, 25, 20]
-        for h, w in zip(headers, widths):
-            pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-        pdf.ln()
-        for _, row in ct.iterrows():
-            cells = [
-                safe_text(row["NumeroContratto"]),
-                fmt_date(row["DataInizio"]),
-                fmt_date(row["DataFine"]),
-                safe_text(row["Durata"]),
-                safe_text(row["DescrizioneProdotto"]),
-                safe_text(row["TotRata"]),
-                safe_text(row["Stato"]),
-            ]
-            for t, w in zip(cells, widths):
-                pdf.multi_cell(w, 6, t, 1, "L", False)
-            pdf.ln(0)
-        pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-        st.download_button(
-            "⬇️ Scarica PDF",
-            data=pdf_buffer,
-            file_name=f"contratti_{rag_soc}.pdf",
-            mime="application/pdf",
-            key=f"pdf_download_{sel_id}",
-            use_container_width=True
-        )
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+    pdf.set_font("Arial", "", 9)
+    pdf.ln(4)
+    headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
+    widths = [35, 25, 25, 20, 110, 25, 20]
+    for h, w in zip(headers, widths):
+        pdf.cell(w, 8, safe_text(h), 1, 0, "C")
+    pdf.ln()
+    for _, row in ct.iterrows():
+        cells = [
+            safe_text(row["NumeroContratto"]),
+            fmt_date(row["DataInizio"]),
+            fmt_date(row["DataFine"]),
+            safe_text(row["Durata"]),
+            safe_text(row["DescrizioneProdotto"]),
+            safe_text(row["TotRata"]),
+            safe_text(row["Stato"]),
+        ]
+        for t, w in zip(cells, widths):
+            pdf.multi_cell(w, 6, t, 1, "L", False)
+        pdf.ln(0)
+    pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
+    st.download_button(
+        "📘 Scarica PDF",
+        data=pdf_buffer,
+        file_name=f"contratti_{rag_soc}.pdf",
+        mime="application/pdf",
+        key=f"pdf_download_{sel_id}",
+        use_container_width=True
+    )
 
+# === MODIFICA CONTRATTO SELEZIONATO ===
+if "selected_contract_index" in st.session_state:
+    idx = st.session_state["selected_contract_index"]
+    if idx < len(df_ct):
+        r = df_ct.iloc[idx]
+        with st.expander("✏️ Modifica contratto selezionato", expanded=True):
+            with st.form(f"frm_edit_{idx}"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    num = st.text_input("Numero Contratto", r["NumeroContratto"])
+                with c2:
+                    datain = st.date_input("Data Inizio", pd.to_datetime(r["DataInizio"], errors="coerce"))
+                with c3:
+                    datafin = st.date_input("Data Fine", pd.to_datetime(r["DataFine"], errors="coerce"))
+                durata = st.text_input("Durata (mesi)", r["Durata"])
+                desc = st.text_area("Descrizione prodotto", r["DescrizioneProdotto"], height=80)
+                col_nf, col_ni, col_tot = st.columns(3)
+                with col_nf:
+                    nf = st.text_input("NOL_FIN", r["NOL_FIN"])
+                with col_ni:
+                    ni = st.text_input("NOL_INT", r["NOL_INT"])
+                with col_tot:
+                    tot = st.text_input("TotRata", r["TotRata"])
+                stato_new = st.selectbox("Stato", ["aperto", "chiuso"],
+                                         index=0 if (r["Stato"] or "").lower() == "aperto" else 1)
 
+                if st.form_submit_button("💾 Salva modifiche"):
+                    df_ct.loc[idx, ["NumeroContratto", "DataInizio", "DataFine", "Durata",
+                                    "DescrizioneProdotto", "NOL_FIN", "NOL_INT",
+                                    "TotRata", "Stato"]] = [
+                        num, datain, datafin, durata, desc, nf, ni, tot, stato_new
+                    ]
+                    save_contratti(df_ct)
+                    st.success("✅ Modifiche salvate.")
+                    del st.session_state["selected_contract_index"]
+                    st.rerun()
 
-    # === ESPORTAZIONI (sempre visibili) ===
-    st.markdown("---")
-    st.markdown("### 📤 Esporta contratti")
-    col_exp1, col_exp2 = st.columns(2)
+# === NUOVO CONTRATTO ===
+with st.expander("➕ Nuovo contratto"):
+    with st.form(f"frm_new_contract_{sel_id}"):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            num = st.text_input("Numero Contratto")
+        with c2:
+            data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
+        with c3:
+            durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+        desc = st.text_area("Descrizione prodotto", height=80)
+        col_nf, col_ni, col_tot = st.columns(3)
+        with col_nf:
+            nf = st.text_input("NOL_FIN")
+        with col_ni:
+            ni = st.text_input("NOL_INT")
+        with col_tot:
+            tot = st.text_input("TotRata")
 
-    with col_exp1:
-        if st.button("📊 Esporta in Excel (.xlsx)", key=f"xlsx_{sel_id}"):
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "Contratti"
-            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                       "Descrizione", "TotRata", "Stato"]
-            ws.append(headers)
-
-            header_fill = PatternFill("solid", fgColor="BDD7EE")
-            border = Border(
-                left=Side(style="thin"), right=Side(style="thin"),
-                top=Side(style="thin"), bottom=Side(style="thin")
-            )
-            for cell in ws[1]:
-                cell.fill = header_fill
-                cell.font = Font(bold=True)
-                cell.border = border
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-
-            for _, row in ct.iterrows():
-                ws.append([
-                    row["NumeroContratto"], fmt_date(row["DataInizio"]),
-                    fmt_date(row["DataFine"]), row["Durata"],
-                    row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
-                ])
-            for col in ws.columns:
-                max_len = max(len(str(c.value)) for c in col)
-                ws.column_dimensions[col[0].column_letter].width = max_len + 2
-                for cell in col:
-                    cell.border = border
-                    cell.alignment = Alignment(wrap_text=True, vertical="top")
-
-            buf = io.BytesIO()
-            wb.save(buf)
-            st.download_button(
-                "⬇️ Scarica Excel",
-                data=buf.getvalue(),
-                file_name=f"contratti_{rag_soc}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"xlsx_download_{sel_id}",
-                use_container_width=True
-            )
-
-    with col_exp2:
-        if st.button("📘 Esporta in PDF", key=f"pdf_{sel_id}"):
-            pdf = FPDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-            pdf.set_font("Arial", "", 9)
-            pdf.ln(4)
-            headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-            widths = [35, 25, 25, 20, 110, 25, 20]
-            for h, w in zip(headers, widths):
-                pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-            pdf.ln()
-            for _, row in ct.iterrows():
-                cells = [
-                    safe_text(row["NumeroContratto"]),
-                    fmt_date(row["DataInizio"]),
-                    fmt_date(row["DataFine"]),
-                    safe_text(row["Durata"]),
-                    safe_text(row["DescrizioneProdotto"]),
-                    safe_text(row["TotRata"]),
-                    safe_text(row["Stato"]),
-                ]
-                for t, w in zip(cells, widths):
-                    pdf.multi_cell(w, 6, t, 1, "L", False)
-                pdf.ln(0)
-            pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-            st.download_button(
-                "⬇️ Scarica PDF",
-                data=pdf_buffer,
-                file_name=f"contratti_{rag_soc}.pdf",
-                mime="application/pdf",
-                key=f"pdf_download_{sel_id}",
-                use_container_width=True
-            )
-
-    # === MODIFICA CONTRATTO SELEZIONATO ===
-    if "selected_contract_index" in st.session_state:
-        idx = st.session_state["selected_contract_index"]
-        if idx < len(df_ct):
-            r = df_ct.iloc[idx]
-            with st.expander("✏️ Modifica contratto selezionato", expanded=True):
-                with st.form(f"frm_edit_{idx}"):
-                    c1, c2, c3 = st.columns(3)
-                    with c1:
-                        num = st.text_input("Numero Contratto", r["NumeroContratto"])
-                    with c2:
-                        datain = st.date_input("Data Inizio", pd.to_datetime(r["DataInizio"], errors="coerce"))
-                    with c3:
-                        datafin = st.date_input("Data Fine", pd.to_datetime(r["DataFine"], errors="coerce"))
-                    durata = st.text_input("Durata (mesi)", r["Durata"])
-                    desc = st.text_area("Descrizione prodotto", r["DescrizioneProdotto"], height=80)
-                    col_nf, col_ni, col_tot = st.columns(3)
-                    with col_nf:
-                        nf = st.text_input("NOL_FIN", r["NOL_FIN"])
-                    with col_ni:
-                        ni = st.text_input("NOL_INT", r["NOL_INT"])
-                    with col_tot:
-                        tot = st.text_input("TotRata", r["TotRata"])
-                    stato_new = st.selectbox("Stato", ["aperto", "chiuso"],
-                                             index=0 if (r["Stato"] or "").lower() == "aperto" else 1)
-
-                    if st.form_submit_button("💾 Salva modifiche"):
-                        df_ct.loc[idx, ["NumeroContratto", "DataInizio", "DataFine", "Durata",
-                                        "DescrizioneProdotto", "NOL_FIN", "NOL_INT",
-                                        "TotRata", "Stato"]] = [
-                            num, datain, datafin, durata, desc, nf, ni, tot, stato_new
-                        ]
-                        save_contratti(df_ct)
-                        st.success("✅ Modifiche salvate.")
-                        del st.session_state["selected_contract_index"]
-                        st.rerun()
-
-    # === NUOVO CONTRATTO ===
-    with st.expander("➕ Nuovo contratto"):
-        with st.form(f"frm_new_contract_{sel_id}"):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                num = st.text_input("Numero Contratto")
-            with c2:
-                data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
-            with c3:
-                durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-            desc = st.text_area("Descrizione prodotto", height=80)
-            col_nf, col_ni, col_tot = st.columns(3)
-            with col_nf:
-                nf = st.text_input("NOL_FIN")
-            with col_ni:
-                ni = st.text_input("NOL_INT")
-            with col_tot:
-                tot = st.text_input("TotRata")
-
-            if st.form_submit_button("💾 Crea contratto"):
+        if st.form_submit_button("💾 Crea contratto"):
+            try:
                 new_row = {
                     "ClienteID": str(sel_id),
                     "NumeroContratto": num,
@@ -1110,226 +1023,8 @@ with col_exp2:
                 save_contratti(df_ct)
                 st.success("✅ Contratto creato con successo.")
                 st.rerun()
-
-
-    # === ESPORTAZIONI ===
-    if "export_cliente" in st.session_state and st.session_state["export_cliente"] == sel_id:
-        st.markdown("---")
-        st.markdown("### 📤 Esporta contratti")
-
-        # Excel
-        if st.button("📊 Esporta in Excel (.xlsx)", key=f"xlsx_{sel_id}"):
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "Contratti"
-            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                       "Descrizione", "TotRata", "Stato"]
-            ws.append(headers)
-
-            # Stile intestazione
-            header_fill = PatternFill("solid", fgColor="BDD7EE")
-            border = Border(
-                left=Side(style="thin"),
-                right=Side(style="thin"),
-                top=Side(style="thin"),
-                bottom=Side(style="thin")
-            )
-            for cell in ws[1]:
-                cell.fill = header_fill
-                cell.font = Font(bold=True)
-                cell.border = border
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-
-            for _, row in ct.iterrows():
-                ws.append([
-                    row["NumeroContratto"], fmt_date(row["DataInizio"]),
-                    fmt_date(row["DataFine"]), row["Durata"],
-                    row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
-                ])
-            for col in ws.columns:
-                max_len = max(len(str(c.value)) for c in col)
-                ws.column_dimensions[col[0].column_letter].width = max_len + 2
-                for cell in col:
-                    cell.border = border
-                    cell.alignment = Alignment(wrap_text=True, vertical="top")
-
-            buf = io.BytesIO()
-            wb.save(buf)
-            st.download_button(
-                "⬇️ Scarica Excel",
-                data=buf.getvalue(),
-                file_name=f"contratti_{rag_soc}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"xlsx_download_{sel_id}",
-                use_container_width=True
-            )
-
-        # PDF
-        if st.button("📘 Esporta in PDF", key=f"pdf_{sel_id}"):
-            pdf = FPDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-            pdf.set_font("Arial", "", 9)
-            pdf.ln(4)
-            headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-            widths = [35, 25, 25, 20, 110, 25, 20]
-            for h, w in zip(headers, widths):
-                pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-            pdf.ln()
-            for _, row in ct.iterrows():
-                pdf.multi_cell(widths[0], 6, safe_text(row["NumeroContratto"]), 1, "L")
-                pdf.cell(widths[1], 6, fmt_date(row["DataInizio"]), 1)
-                pdf.cell(widths[2], 6, fmt_date(row["DataFine"]), 1)
-                pdf.cell(widths[3], 6, safe_text(row["Durata"]), 1)
-                pdf.multi_cell(widths[4], 6, safe_text(row["DescrizioneProdotto"]), 1)
-                pdf.cell(widths[5], 6, safe_text(row["TotRata"]), 1)
-                pdf.cell(widths[6], 6, safe_text(row["Stato"]), 1)
-                pdf.ln(6)
-            pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-            st.download_button(
-                "⬇️ Scarica PDF",
-                data=pdf_buffer,
-                file_name=f"contratti_{rag_soc}.pdf",
-                mime="application/pdf",
-                key=f"pdf_download_{sel_id}",
-                use_container_width=True
-            )
-
-   # === NUOVO CONTRATTO ===
-# === NUOVO CONTRATTO ===
-if "sel_id" in locals():
-    with st.expander("➕ Nuovo contratto"):
-        with st.form(f"frm_new_contract_{sel_id}"):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                num = st.text_input("Numero Contratto")
-            with c2:
-                data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
-            with c3:
-                durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-            desc = st.text_area("Descrizione prodotto", height=80)
-            col_nf, col_ni, col_tot = st.columns(3)
-            with col_nf:
-                nf = st.text_input("NOL_FIN")
-            with col_ni:
-                ni = st.text_input("NOL_INT")
-            with col_tot:
-                tot = st.text_input("TotRata")
-
-            if st.form_submit_button("💾 Crea contratto"):
-                try:
-                    new_row = {
-                        "ClienteID": str(sel_id),
-                        "NumeroContratto": num,
-                        "DataInizio": pd.to_datetime(data_inizio),
-                        "DataFine": pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata)),
-                        "Durata": durata,
-                        "DescrizioneProdotto": desc,
-                        "NOL_FIN": nf,
-                        "NOL_INT": ni,
-                        "TotRata": tot,
-                        "Stato": "aperto",
-                    }
-                    df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto creato con successo.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Errore creazione: {e}")
-
-
-# === ESPORTAZIONI ===
-st.divider()
-if "ct" in locals() and not ct.empty:
-    csv = ct.to_csv(index=False, encoding="utf-8-sig")
-    st.download_button(
-        "📄 Esporta CSV",
-        csv,
-        f"contratti_{rag_soc}.csv",
-        "text/csv",
-        key=f"csv_export_{sel_id}",
-        use_container_width=True
-    )
-
-    if st.button("📘 Esporta PDF", key=f"pdf_export_{sel_id}", use_container_width=True):
-        try:
-            pdf = FPDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-            pdf.set_font("Arial", "", 9)
-            pdf.ln(4)
-            headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-            widths = [35, 25, 25, 20, 110, 25, 20]
-            for h, w in zip(headers, widths):
-                pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-            pdf.ln()
-            for _, row in ct.iterrows():
-                cells = [
-                    safe_text(row["NumeroContratto"]),
-                    fmt_date(row["DataInizio"]),
-                    fmt_date(row["DataFine"]),
-                    safe_text(row["Durata"]),
-                    safe_text(row["DescrizioneProdotto"]),
-                    safe_text(row["TotRata"]),
-                    safe_text(row["Stato"]),
-                ]
-                for t, w in zip(cells, widths):
-                    pdf.multi_cell(w, 6, t, 1, "L", False)
-                pdf.ln(0)
-            buf = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-            st.download_button(
-                "⬇️ Scarica PDF",
-                data=buf,
-                file_name=f"contratti_{rag_soc}.pdf",
-                mime="application/pdf",
-                key=f"pdf_download_{sel_id}",
-                use_container_width=True,
-            )
-        except Exception as e:
-            st.error(f"Errore PDF: {e}")
-
-    # === NUOVO CONTRATTO ===
-    with st.expander("➕ Nuovo contratto"):
-        with st.form("frm_new_contract"):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                num = st.text_input("Numero Contratto")
-            with c2:
-                data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
-            with c3:
-                durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-            desc = st.text_area("Descrizione prodotto", height=80)
-            col_nf, col_ni, col_tot = st.columns(3)
-            with col_nf:
-                nf = st.text_input("NOL_FIN")
-            with col_ni:
-                ni = st.text_input("NOL_INT")
-            with col_tot:
-                tot = st.text_input("TotRata")
-
-            if st.form_submit_button("💾 Crea contratto"):
-                try:
-                    new_row = {
-                        "ClienteID": str(sel_id),
-                        "NumeroContratto": num,
-                        "DataInizio": pd.to_datetime(data_inizio),
-                        "DataFine": pd.to_datetime(data_inizio)
-                        + pd.DateOffset(months=int(durata)),
-                        "Durata": durata,
-                        "DescrizioneProdotto": desc,
-                        "NOL_FIN": nf,
-                        "NOL_INT": ni,
-                        "TotRata": tot,
-                        "Stato": "aperto",
-                    }
-                    df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto creato con successo.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Errore creazione: {e}")
+            except Exception as e:
+                st.error(f"Errore creazione: {e}")
 
 # =====================================
 # LISTA COMPLETA CLIENTI E CONTRATTI

@@ -941,13 +941,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 if st.button("🔓 Riapri", key=f"open_{i}"):
                     df_ct.loc[i, "Stato"] = "aperto"
                     save_contratti(df_ct)
-                    st.success(f"Contratto {r['NumeroContratto']} riaperto.")
+                    st.session_state["nav_target"] = "Dashboard"
                     st.rerun()
             else:
                 if st.button("❌ Chiudi", key=f"close_{i}"):
                     df_ct.loc[i, "Stato"] = "chiuso"
                     save_contratti(df_ct)
-                    st.success(f"Contratto {r['NumeroContratto']} chiuso.")
+                    st.session_state["nav_target"] = "Dashboard"
                     st.rerun()
 
     st.divider()

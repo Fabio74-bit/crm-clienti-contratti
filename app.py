@@ -767,25 +767,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
 
     # === CONTRATTI CLIENTE ===
-    st.markdown(f"### 📋 Contratti di **{rag_soc}**")
-    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+if ct.empty:
+    st.info("Nessun contratto per questo cliente.")
+    return
 
-    if ct.empty:
-        st.info("Nessun contratto per questo cliente.")
-        return
+# Prepara tabella visualizzazione
+ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
 
-    ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
+disp = ct.copy()
+disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+disp = disp.drop(columns=["ClienteID"], errors="ignore")
+disp["Azioni"] = ""  # 🔹 Aggiungila già qui (prima della tabella)
 
-    disp = ct.copy()
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-    disp = disp.drop(columns=["ClienteID"], errors="ignore")
 
 # --- Tabella AgGrid con pulsanti in riga (senza JS esterno) ---
 from st_aggrid.shared import JsCode
-
-# Aggiungiamo la colonna "Azioni"
-disp["Azioni"] = ""
 
 # Renderer HTML per i pulsanti (solo visuale)
 action_renderer = JsCode("""

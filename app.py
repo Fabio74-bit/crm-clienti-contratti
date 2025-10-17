@@ -144,10 +144,10 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
-    """Pagina di login elegante e compatta, con logo centrato, sfondo chiaro e redirect automatico"""
+    """Pagina di login centrata, senza box vuoti, con redirect automatico e logo SHT"""
     import time
 
-    # === STILE ===
+    # === STILE CSS ===
     st.markdown(
         """
         <style>
@@ -160,9 +160,9 @@ def do_login_fullscreen():
             flex-direction: column;
             justify-content: flex-start;
             align-items: center;
-            min-height: 100vh;
             background-color: #f8fafc;
-            padding-top: 3rem;
+            min-height: 100vh;
+            padding-top: 4rem;
         }
 
         .login-box {
@@ -171,8 +171,8 @@ def do_login_fullscreen():
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             border-radius: 16px;
             padding: 2rem 3rem;
-            width: 380px;
-            margin-top: 1.5rem;
+            width: 360px;
+            margin-top: 1rem;
         }
 
         .login-title {
@@ -180,7 +180,7 @@ def do_login_fullscreen():
             font-weight: 600;
             color: #2563eb;
             text-align: center;
-            margin: 0.5rem 0 1rem 0;
+            margin: 1rem 0;
         }
 
         .center-logo {
@@ -194,40 +194,41 @@ def do_login_fullscreen():
         unsafe_allow_html=True
     )
 
-    # === LOGO ===
+    # === LOGO CENTRATO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=180)  # 🔁 sostituisci col tuo logo SHT
+    st.image("https://i.imgur.com/SJ3A7Ds.png", width=160)  # 🔁 sostituisci col tuo logo
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # === TITOLO ===
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
     # === FORM LOGIN ===
-    with st.form("login_form"):
+    with st.form("login_form", clear_on_submit=False):
         st.markdown("<div class='login-box'>", unsafe_allow_html=True)
-        username = st.text_input("👤 Nome utente", key="user_input").strip().lower()
-        password = st.text_input("🔑 Password", type="password", key="pass_input")
-        submit = st.form_submit_button("Login", use_container_width=True)
+        username = st.text_input("👤 Nome utente").strip().lower()
+        password = st.text_input("🔑 Password", type="password")
+        login_button = st.form_submit_button("Login", use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # === AUTENTICAZIONE ===
-    if submit:
+    # === LOGIN CHECK ===
+    if login_button:
         users = st.secrets["auth"]["users"]
         if username in users and users[username]["password"] == password:
             role = users[username].get("role", "viewer")
             st.session_state["user"] = username
             st.session_state["role"] = role
             st.session_state["logged_in"] = True
-            st.success(f"✅ Benvenuto {username} ({role})")
-            time.sleep(0.5)
-            st.rerun()  # 🔥 ricarica subito la pagina dopo login
+            st.rerun()  # 🔥 ricarica subito la pagina, mostrando solo la dashboard
         else:
             st.error("❌ Credenziali non valide.")
 
-    # === LOGIN AUTOMATICO SE GIÀ AUTENTICATO ===
+    # === SE GIÀ LOGGATO, SALTA LOGIN ===
     if st.session_state.get("logged_in"):
-        return st.session_state["user"], st.session_state.get("role", "viewer")
+        return st.session_state["user"], st.session_state["role"]
 
-    return None, None
+    # === BLOCCA L'ESECUZIONE DEL RESTO DELL'APP ===
+    st.stop()
+
 
 
 

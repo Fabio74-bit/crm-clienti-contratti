@@ -144,30 +144,27 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
-    """Pagina di login elegante e compatta, con logo centrato e senza box vuoto"""
+    """Pagina di login elegante e compatta, con logo centrato, sfondo chiaro e redirect automatico"""
     import time
 
-    # === STILE COMPLETO ===
+    # === STILE ===
     st.markdown(
         """
         <style>
-        /* Rimuove padding verticale globale */
         div[data-testid="stAppViewContainer"] {
             padding-top: 0 !important;
         }
 
-        /* Centra tutto il contenuto */
         .block-container {
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
             align-items: center;
             min-height: 100vh;
-            background-color: #f8fafc; /* colore come dashboard */
+            background-color: #f8fafc;
             padding-top: 3rem;
         }
 
-        /* Box login */
         .login-box {
             background-color: #ffffff;
             border: 1px solid #e5e7eb;
@@ -178,7 +175,6 @@ def do_login_fullscreen():
             margin-top: 1.5rem;
         }
 
-        /* Titolo */
         .login-title {
             font-size: 1.5rem;
             font-weight: 600;
@@ -187,17 +183,6 @@ def do_login_fullscreen():
             margin: 0.5rem 0 1rem 0;
         }
 
-        /* Bottone */
-        .login-btn {
-            background-color: #2563eb !important;
-            color: white !important;
-            border-radius: 8px;
-            padding: 0.5rem;
-            width: 100%;
-            font-weight: 600;
-        }
-
-        /* Centra logo orizzontalmente */
         .center-logo {
             display: flex;
             justify-content: center;
@@ -216,7 +201,7 @@ def do_login_fullscreen():
 
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
-    # === FORM LOGIN (senza container extra) ===
+    # === FORM LOGIN ===
     with st.form("login_form"):
         st.markdown("<div class='login-box'>", unsafe_allow_html=True)
         username = st.text_input("👤 Nome utente", key="user_input").strip().lower()
@@ -224,24 +209,26 @@ def do_login_fullscreen():
         submit = st.form_submit_button("Login", use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # === LOGIN CHECK ===
+    # === AUTENTICAZIONE ===
     if submit:
         users = st.secrets["auth"]["users"]
         if username in users and users[username]["password"] == password:
             role = users[username].get("role", "viewer")
             st.session_state["user"] = username
             st.session_state["role"] = role
+            st.session_state["logged_in"] = True
             st.success(f"✅ Benvenuto {username} ({role})")
-            time.sleep(0.6)
-            return username, role
+            time.sleep(0.5)
+            st.rerun()  # 🔥 ricarica subito la pagina dopo login
         else:
             st.error("❌ Credenziali non valide.")
 
-    # === AUTOLOGIN ===
-    if "user" in st.session_state and st.session_state["user"]:
+    # === LOGIN AUTOMATICO SE GIÀ AUTENTICATO ===
+    if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state.get("role", "viewer")
 
     return None, None
+
 
 
 

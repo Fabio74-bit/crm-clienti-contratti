@@ -781,11 +781,48 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
     disp = disp.drop(columns=["ClienteID"], errors="ignore")
 
-    # --- Tabella AgGrid ---
+      # --- Tabella AgGrid con pulsanti in riga ---
+    from st_aggrid.shared import JsCode
+
+    # Aggiungiamo la colonna "Azioni"
+    disp["Azioni"] = ""
+
+    # Codice JavaScript per i pulsanti (chiudi/modifica)
+    action_renderer = JsCode("""
+    class BtnRenderer {
+        init(params) {
+            this.params = params;
+            const stato = (params.data.Stato || '').toLowerCase();
+            const chiudiText = stato === 'chiuso' ? '🔓 Riapri' : '❌ Chiudi';
+            this.eGui = document.createElement('div');
+            this.eGui.innerHTML = `
+                <div style="display:flex; gap:6px; justify-content:center;">
+                    <button class="btn-mod" style="background-color:#1976D2; color:white; border:none; border-radius:4px; padding:2px 6px; cursor:pointer;">✏️</button>
+                    <button class="btn-close" style="background-color:${stato === 'chiuso' ? '#4CAF50' : '#E53935'}; color:white; border:none; border-radius:4px; padding:2px 6px; cursor:pointer;">${chiudiText}</button>
+                </div>`;
+            this.eGui.querySelector('.btn-mod').addEventListener('click', () => this.onEdit());
+            this.eGui.querySelector('.btn-close').addEventListener('click', () => this.onToggle());
+        }
+        getGui() { return this.eGui; }
+        onEdit() {
+            window.postMessage({type: 'edit_contract', data: this.params.data}, '*');
+        }
+        onToggle() {
+            window.postMessage({type: 'toggle_contract', data: this.params.data}, '*');
+        }
+    }
+    """)
+
     gb = GridOptionsBuilder.from_dataframe(disp)
     gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
     gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
-    gb.configure_selection(selection_mode="single", use_checkbox=True)
+    gb.configure_column(
+        "Azioni",
+        cellRenderer=action_renderer,
+        width=130,
+        pinned="right",
+        suppressMovable=True
+    )
 
     js_style = JsCode("""
     function(params){
@@ -797,21 +834,45 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             return {'backgroundColor':'#ffffff','color':'#000000'};
         }
     }""")
+
     gb.configure_grid_options(getRowStyle=js_style)
     grid_opts = gb.build()
 
     grid_height = min(800, 120 + (len(disp) * 35))
-
     grid_return = AgGrid(
         disp,
         gridOptions=grid_opts,
         theme="balham",
         height=grid_height,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
         allow_unsafe_jscode=True,
+        update_mode=GridUpdateMode.NO_UPDATE
     )
 
-    selected = grid_return["selected_rows"]
+    # --- Gestione eventi JS (streamlit -> python) ---
+    from streamlit_javascript import st_javascript
+
+    msg = st_javascript("""
+    new Promise((resolve) => {
+        window.addEventListener("message", (event) => {
+            if (event.data && event.data.type) resolve(event.data);
+        }, {once: true});
+    });
+    """)
+
+    if msg and "type" in msg and "data" in msg:
+        row = msg["data"]
+        idx = ct[ct["NumeroContratto"] == row["NumeroContratto"]].index[0]
+        if msg["type"] == "edit_contract":
+            st.session_state["selected_contract_index"] = idx
+            st.rerun()
+        elif msg["type"] == "toggle_contract":
+            stato = str(row.get("Stato", "aperto")).lower()
+            nuovo = "aperto" if stato == "chiuso" else "chiuso"
+            df_ct.loc[idx, "Stato"] = nuovo
+            save_contratti(df_ct)
+            st.success(f"✅ Contratto {'riaperto' if nuovo == 'aperto' else 'chiuso'} correttamente.")
+            st.rerun()
+
 
     # === BOTTONI AZIONE RAPIDA (Chiudi / Modifica) ===
     st.markdown("---")

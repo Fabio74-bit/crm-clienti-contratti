@@ -910,98 +910,96 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         except Exception as e:
                             st.error(f"Errore durante il salvataggio: {e}")
 
-    # === NUOVO CONTRATTO ===
-    with st.expander("➕ Nuovo contratto"):
-        with st.form(f"frm_new_contract_{sel_id}"):
+   # === NUOVO CONTRATTO ===
+with st.expander("➕ Nuovo contratto"):
+    with st.form(f"frm_new_contract_{sel_id}"):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            num = st.text_input("Numero Contratto")
+        with c2:
+            data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
+        with c3:
+            durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+        desc = st.text_area("Descrizione prodotto", height=80)
+        col_nf, col_ni, col_tot = st.columns(3)
+        with col_nf:
+            nf = st.text_input("NOL_FIN")
+        with col_ni:
+            ni = st.text_input("NOL_INT")
+        with col_tot:
+            tot = st.text_input("TotRata")
 
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                num = st.text_input("Numero Contratto")
-            with c2:
-                data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
-            with c3:
-                durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-            desc = st.text_area("Descrizione prodotto", height=80)
-            col_nf, col_ni, col_tot = st.columns(3)
-            with col_nf:
-                nf = st.text_input("NOL_FIN")
-            with col_ni:
-                ni = st.text_input("NOL_INT")
-            with col_tot:
-                tot = st.text_input("TotRata")
-
-            if st.form_submit_button("💾 Crea contratto"):
-                try:
-                    new_row = {
-                        "ClienteID": str(sel_id),
-                        "NumeroContratto": num,
-                        "DataInizio": pd.to_datetime(data_inizio),
-                        "DataFine": pd.to_datetime(data_inizio)
-                        + pd.DateOffset(months=int(durata)),
-                        "Durata": durata,
-                        "DescrizioneProdotto": desc,
-                        "NOL_FIN": nf,
-                        "NOL_INT": ni,
-                        "TotRata": tot,
-                        "Stato": "aperto",
-                    }
-                    df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto creato con successo.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Errore creazione: {e}")
-
-    # === ESPORTAZIONI ===
-    st.divider()
-    if not ct.empty:
-        csv = ct.to_csv(index=False, encoding="utf-8-sig")
-        st.download_button(
-            "📄 Esporta CSV",
-            csv,
-            f"contratti_{rag_soc}.csv",
-            "text/csv",
-            key=f"csv_export_{sel_id}",
-            use_container_width=True
-        )
-
-        if st.button("📘 Esporta PDF", key="pdf_export", use_container_width=True):
+        if st.form_submit_button("💾 Crea contratto"):
             try:
-                pdf = FPDF(orientation="L", unit="mm", format="A4")
-                pdf.add_page()
-                pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-                pdf.set_font("Arial", "", 9)
-                pdf.ln(4)
-                headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-                widths = [35, 25, 25, 20, 110, 25, 20]
-                for h, w in zip(headers, widths):
-                    pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-                pdf.ln()
-                for _, row in ct.iterrows():
-                    cells = [
-                        safe_text(row["NumeroContratto"]),
-                        fmt_date(row["DataInizio"]),
-                        fmt_date(row["DataFine"]),
-                        safe_text(row["Durata"]),
-                        safe_text(row["DescrizioneProdotto"]),
-                        safe_text(row["TotRata"]),
-                        safe_text(row["Stato"]),
-                    ]
-                    for t, w in zip(cells, widths):
-                        pdf.multi_cell(w, 6, t, 1, "L", False)
-                    pdf.ln(0)
-                buf = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-                st.download_button(
-                    "⬇️ Scarica PDF",
-                    data=buf,
-                    file_name=f"contratti_{rag_soc}.pdf",
-                    mime="application/pdf",
-                    key=f"pdf_download_{sel_id}",
-                    use_container_width=True,
-                )
+                new_row = {
+                    "ClienteID": str(sel_id),
+                    "NumeroContratto": num,
+                    "DataInizio": pd.to_datetime(data_inizio),
+                    "DataFine": pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata)),
+                    "Durata": durata,
+                    "DescrizioneProdotto": desc,
+                    "NOL_FIN": nf,
+                    "NOL_INT": ni,
+                    "TotRata": tot,
+                    "Stato": "aperto",
+                }
+                df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
+                save_contratti(df_ct)
+                st.success("✅ Contratto creato con successo.")
+                st.rerun()
             except Exception as e:
-                st.error(f"Errore PDF: {e}")
+                st.error(f"Errore creazione: {e}")
+
+# === ESPORTAZIONI ===
+st.divider()
+if not ct.empty:
+    csv = ct.to_csv(index=False, encoding="utf-8-sig")
+    st.download_button(
+        "📄 Esporta CSV",
+        csv,
+        f"contratti_{rag_soc}.csv",
+        "text/csv",
+        key=f"csv_export_{sel_id}",
+        use_container_width=True
+    )
+
+    if st.button("📘 Esporta PDF", key=f"pdf_export_{sel_id}", use_container_width=True):
+        try:
+            pdf = FPDF(orientation="L", unit="mm", format="A4")
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+            pdf.set_font("Arial", "", 9)
+            pdf.ln(4)
+            headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
+            widths = [35, 25, 25, 20, 110, 25, 20]
+            for h, w in zip(headers, widths):
+                pdf.cell(w, 8, safe_text(h), 1, 0, "C")
+            pdf.ln()
+            for _, row in ct.iterrows():
+                cells = [
+                    safe_text(row["NumeroContratto"]),
+                    fmt_date(row["DataInizio"]),
+                    fmt_date(row["DataFine"]),
+                    safe_text(row["Durata"]),
+                    safe_text(row["DescrizioneProdotto"]),
+                    safe_text(row["TotRata"]),
+                    safe_text(row["Stato"]),
+                ]
+                for t, w in zip(cells, widths):
+                    pdf.multi_cell(w, 6, t, 1, "L", False)
+                pdf.ln(0)
+            buf = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
+            st.download_button(
+                "⬇️ Scarica PDF",
+                data=buf,
+                file_name=f"contratti_{rag_soc}.pdf",
+                mime="application/pdf",
+                key=f"pdf_download_{sel_id}",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.error(f"Errore PDF: {e}")
 
     # === NUOVO CONTRATTO ===
     with st.expander("➕ Nuovo contratto"):

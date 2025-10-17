@@ -874,6 +874,32 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     )
 
     selected = grid_return["selected_rows"]
+        selected = grid_return["selected_rows"]
+
+    # --- Gestione eventi pulsanti "Azioni" ---
+    from streamlit_javascript import st_javascript
+
+    msg = st_javascript("""
+    new Promise((resolve) => {
+        window.addEventListener("message", (event) => {
+            if (event.data && event.data.type) resolve(event.data);
+        }, {once: true});
+    });
+    """)
+
+    if msg and "type" in msg and "data" in msg:
+        row = msg["data"]
+        idx = ct[ct["NumeroContratto"] == row["NumeroContratto"]].index[0]
+        if msg["type"] == "edit_contract":
+            st.session_state["selected_contract_index"] = idx
+            st.rerun()
+        elif msg["type"] == "toggle_contract":
+            stato = str(row.get("Stato", "aperto")).lower()
+            nuovo = "aperto" if stato == "chiuso" else "chiuso"
+            df_ct.loc[idx, "Stato"] = nuovo
+            save_contratti(df_ct)
+            st.success(f"✅ Contratto {'riaperto' if nuovo == 'aperto' else 'chiuso'} correttamente.")
+            st.rerun()
 
     # --- Pulsanti funzionali Python ---
     if selected and len(selected) > 0:
@@ -900,7 +926,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             if st.button(f"✏️ Modifica contratto {r['NumeroContratto']}", key=f"edit_{idx}"):
                 st.session_state["selected_contract_index"] = idx
                 st.rerun()
-
+    
     # === MODIFICA CONTRATTO SELEZIONATO ===
     if "selected_contract_index" in st.session_state:
         idx = st.session_state["selected_contract_index"]

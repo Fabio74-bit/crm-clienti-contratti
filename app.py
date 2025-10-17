@@ -144,27 +144,28 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
-    """Pagina di login centrata, senza box vuoti, con redirect automatico e logo SHT"""
+    """Pagina di login centrata, senza box vuoti e con redirect automatico dopo accesso"""
     import time
 
-    # === STILE CSS ===
+    # === Se già loggato, salta il login ===
+    if st.session_state.get("logged_in"):
+        return st.session_state["user"], st.session_state["role"]
+
+    # === Stili CSS ===
     st.markdown(
         """
         <style>
         div[data-testid="stAppViewContainer"] {
             padding-top: 0 !important;
         }
-
         .block-container {
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
+            justify-content: center;
             align-items: center;
+            height: 100vh;
             background-color: #f8fafc;
-            min-height: 100vh;
-            padding-top: 4rem;
         }
-
         .login-box {
             background-color: #ffffff;
             border: 1px solid #e5e7eb;
@@ -172,9 +173,7 @@ def do_login_fullscreen():
             border-radius: 16px;
             padding: 2rem 3rem;
             width: 360px;
-            margin-top: 1rem;
         }
-
         .login-title {
             font-size: 1.5rem;
             font-weight: 600;
@@ -182,12 +181,10 @@ def do_login_fullscreen():
             text-align: center;
             margin: 1rem 0;
         }
-
         .center-logo {
             display: flex;
             justify-content: center;
-            align-items: center;
-            width: 100%;
+            margin-bottom: 0.5rem;
         }
         </style>
         """,
@@ -196,41 +193,37 @@ def do_login_fullscreen():
 
     # === LOGO CENTRATO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
-    st.image("https://i.imgur.com/SJ3A7Ds.png", width=160)  # 🔁 sostituisci col tuo logo
+    st.image("https://www.shtsrl.com/template/images/logo.png", width=200)  # 🔁 sostituisci col tuo logo
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # === TITOLO ===
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
-    # === FORM LOGIN ===
-    with st.form("login_form", clear_on_submit=False):
-        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
-        username = st.text_input("👤 Nome utente").strip().lower()
-        password = st.text_input("🔑 Password", type="password")
-        login_button = st.form_submit_button("Login", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    # === LOGIN BOX (senza margini vuoti) ===
+    login_placeholder = st.empty()
+    with login_placeholder.container():
+        with st.form("login_form", clear_on_submit=False):
+            st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+            username = st.text_input("👤 Nome utente").strip().lower()
+            password = st.text_input("🔑 Password", type="password")
+            submit = st.form_submit_button("Login", use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-    # === LOGIN CHECK ===
-    if login_button:
-        users = st.secrets["auth"]["users"]
-        if username in users and users[username]["password"] == password:
-            role = users[username].get("role", "viewer")
-            st.session_state["user"] = username
-            st.session_state["role"] = role
-            st.session_state["logged_in"] = True
-            st.rerun()  # 🔥 ricarica subito la pagina, mostrando solo la dashboard
-        else:
-            st.error("❌ Credenziali non valide.")
+        # === Controllo login ===
+        if submit:
+            users = st.secrets["auth"]["users"]
+            if username in users and users[username]["password"] == password:
+                st.session_state["user"] = username
+                st.session_state["role"] = users[username].get("role", "viewer")
+                st.session_state["logged_in"] = True
+                login_placeholder.empty()  # ⬅️ cancella il form dal DOM
+                st.success(f"✅ Benvenuto {username}")
+                time.sleep(0.3)
+                st.rerun()  # ⬅️ ricarica la pagina
+            else:
+                st.error("❌ Credenziali non valide.")
 
-    # === SE GIÀ LOGGATO, SALTA LOGIN ===
-    if st.session_state.get("logged_in"):
-        return st.session_state["user"], st.session_state["role"]
-
-    # === BLOCCA L'ESECUZIONE DEL RESTO DELL'APP ===
+    # === Ferma tutto se non autenticato ===
     st.stop()
-
-
-
 
 
 # =====================================

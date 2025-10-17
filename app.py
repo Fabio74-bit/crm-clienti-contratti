@@ -144,31 +144,32 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
-    """Pagina di login centrata con logo, senza box vuoto sopra il form"""
+    """Pagina di login elegante e compatta, con logo centrato e senza box vuoto"""
     import time
 
-    # === STILE PERSONALIZZATO ===
+    # === STILE COMPLETO ===
     st.markdown(
         """
         <style>
+        /* Rimuove padding verticale globale */
         div[data-testid="stAppViewContainer"] {
             padding-top: 0 !important;
         }
-        section.main > div {
-            padding-top: 0 !important;
-        }
 
+        /* Centra tutto il contenuto */
         .block-container {
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
             align-items: center;
-            min-height: 90vh;
-            padding-top: 2rem;
+            min-height: 100vh;
+            background-color: #f8fafc; /* colore come dashboard */
+            padding-top: 3rem;
         }
 
+        /* Box login */
         .login-box {
-            background-color: white;
+            background-color: #ffffff;
             border: 1px solid #e5e7eb;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             border-radius: 16px;
@@ -177,6 +178,7 @@ def do_login_fullscreen():
             margin-top: 1.5rem;
         }
 
+        /* Titolo */
         .login-title {
             font-size: 1.5rem;
             font-weight: 600;
@@ -185,6 +187,7 @@ def do_login_fullscreen():
             margin: 0.5rem 0 1rem 0;
         }
 
+        /* Bottone */
         .login-btn {
             background-color: #2563eb !important;
             color: white !important;
@@ -194,12 +197,12 @@ def do_login_fullscreen():
             font-weight: 600;
         }
 
-        /* Centra il logo */
+        /* Centra logo orizzontalmente */
         .center-logo {
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 0.5rem;
+            width: 100%;
         }
         </style>
         """,
@@ -208,12 +211,12 @@ def do_login_fullscreen():
 
     # === LOGO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=180)  # 👈 Sostituisci col tuo logo SHT
+    st.image("https://www.shtsrl.com/template/images/logo.png", width=180)  # 🔁 sostituisci col tuo logo SHT
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
-    # === BOX LOGIN ===
+    # === FORM LOGIN (senza container extra) ===
     with st.form("login_form"):
         st.markdown("<div class='login-box'>", unsafe_allow_html=True)
         username = st.text_input("👤 Nome utente", key="user_input").strip().lower()
@@ -221,7 +224,7 @@ def do_login_fullscreen():
         submit = st.form_submit_button("Login", use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # === AUTENTICAZIONE ===
+    # === LOGIN CHECK ===
     if submit:
         users = st.secrets["auth"]["users"]
         if username in users and users[username]["password"] == password:
@@ -234,11 +237,12 @@ def do_login_fullscreen():
         else:
             st.error("❌ Credenziali non valide.")
 
-    # === LOGIN AUTOMATICO SE GIÀ AUTENTICATO ===
+    # === AUTOLOGIN ===
     if "user" in st.session_state and st.session_state["user"]:
         return st.session_state["user"], st.session_state.get("role", "viewer")
 
     return None, None
+
 
 
 # =====================================

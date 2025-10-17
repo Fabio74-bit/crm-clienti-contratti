@@ -302,7 +302,56 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown(f"**🗓️ Prossima Visita:** {pross_vis or '—'}")
 
     st.divider()
+    # === BOX COLORATI: gestione rapida Recall / Visita ===
+st.markdown("### ⚡ Gestione Rapida Attività")
 
+col_r, col_v = st.columns(2)
+
+with col_r:
+    st.markdown(
+        """
+        <div style='background-color:#DBEAFE;padding:15px;border-radius:12px;border:1px solid #2563eb'>
+        <b>📅 Prossimo Recall</b><br>
+        <small>Modifica o imposta la prossima data di richiamo cliente</small>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    nuovo_recall = st.date_input(
+        "Seleziona nuova data recall",
+        value=as_date(cliente.get("ProssimoRecall")),
+        format="DD/MM/YYYY",
+        key=f"recall_{sel_id}"
+    )
+    if st.button("💾 Aggiorna Recall", key=f"btn_recall_{sel_id}"):
+        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+        df_cli.loc[idx, "ProssimoRecall"] = fmt_date(nuovo_recall)
+        save_clienti(df_cli)
+        st.success("✅ Prossimo Recall aggiornato!")
+        st.rerun()
+
+with col_v:
+    st.markdown(
+        """
+        <div style='background-color:#DCFCE7;padding:15px;border-radius:12px;border:1px solid #16a34a'>
+        <b>🗓️ Prossima Visita</b><br>
+        <small>Modifica o imposta la prossima data visita</small>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    nuova_visita = st.date_input(
+        "Seleziona nuova data visita",
+        value=as_date(cliente.get("ProssimaVisita")),
+        format="DD/MM/YYYY",
+        key=f"visita_{sel_id}"
+    )
+    if st.button("💾 Aggiorna Visita", key=f"btn_visita_{sel_id}"):
+        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+        df_cli.loc[idx, "ProssimaVisita"] = fmt_date(nuova_visita)
+        save_clienti(df_cli)
+        st.success("✅ Prossima Visita aggiornata!")
+        st.rerun()
     # === FUNZIONE SICURA PER DATE INPUT ===
     def safe_date_input(label, value, key=None):
         try:
@@ -734,18 +783,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-# ============================================
-# FIX UNA-TANTUM: normalizza tutte le date clienti esistenti
-# ============================================
-def normalizza_date_clienti():
-    st.info("🧩 Normalizzo le date clienti...")
-    df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
-    for col in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if col in df.columns:
-            df[col] = df[col].apply(lambda x: fmt_date(as_date(x)))
-    df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-    st.success("✅ Date normalizzate in formato DD/MM/YYYY!")
 
-# Esegui una volta (puoi commentarlo dopo)
-if st.button("🔧 Normalizza tutte le date clienti"):
-    normalizza_date_clienti()

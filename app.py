@@ -144,10 +144,10 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
-    """Pagina di login centrata, senza box vuoti e con redirect automatico dopo accesso"""
+    """Pagina di login centrata e senza box vuoti, con redirect pulito alla Dashboard."""
     import time
 
-    # === Se già loggato, salta il login ===
+    # === Se già loggato, ritorna direttamente ===
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
@@ -172,14 +172,14 @@ def do_login_fullscreen():
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             border-radius: 16px;
             padding: 2rem 3rem;
-            width: 360px;
+            width: 340px;
         }
         .login-title {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 600;
             color: #2563eb;
             text-align: center;
-            margin: 1rem 0;
+            margin-bottom: 1rem;
         }
         .center-logo {
             display: flex;
@@ -193,36 +193,33 @@ def do_login_fullscreen():
 
     # === LOGO CENTRATO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=200)  # 🔁 sostituisci col tuo logo
+    st.image("https://i.imgur.com/SJ3A7Ds.png", width=160)  # <-- Sostituisci col tuo URL/logo locale
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
-    # === LOGIN BOX (senza margini vuoti) ===
-    login_placeholder = st.empty()
-    with login_placeholder.container():
-        with st.form("login_form", clear_on_submit=False):
-            st.markdown("<div class='login-box'>", unsafe_allow_html=True)
-            username = st.text_input("👤 Nome utente").strip().lower()
-            password = st.text_input("🔑 Password", type="password")
-            submit = st.form_submit_button("Login", use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+    # === FORM DI LOGIN IN UN CONTENITORE PULITO ===
+    placeholder = st.empty()
+    with placeholder.container():
+        username = st.text_input("👤 Nome utente", key="login_user").strip().lower()
+        password = st.text_input("🔑 Password", type="password", key="login_pass")
+        login_btn = st.button("Login", use_container_width=True)
 
-        # === Controllo login ===
-        if submit:
-            users = st.secrets["auth"]["users"]
-            if username in users and users[username]["password"] == password:
-                st.session_state["user"] = username
-                st.session_state["role"] = users[username].get("role", "viewer")
-                st.session_state["logged_in"] = True
-                login_placeholder.empty()  # ⬅️ cancella il form dal DOM
-                st.success(f"✅ Benvenuto {username}")
-                time.sleep(0.3)
-                st.rerun()  # ⬅️ ricarica la pagina
-            else:
-                st.error("❌ Credenziali non valide.")
+    # === Controllo credenziali ===
+    if login_btn:
+        users = st.secrets["auth"]["users"]
+        if username in users and users[username]["password"] == password:
+            st.session_state["user"] = username
+            st.session_state["role"] = users[username].get("role", "viewer")
+            st.session_state["logged_in"] = True
+            placeholder.empty()  # 🔥 Elimina completamente il form (via DOM)
+            st.success(f"✅ Benvenuto {username}!")
+            time.sleep(0.3)
+            st.rerun()  # 🔁 Ricarica l'app (mostrerà subito la dashboard)
+        else:
+            st.error("❌ Credenziali non valide.")
 
-    # === Ferma tutto se non autenticato ===
+    # Blocca tutto se non loggato
     st.stop()
 
 
@@ -882,17 +879,15 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # MAIN APP
 # =====================================
 def main():
-    # 🔐 LOGIN
+    # === LOGIN ===
     user, role = do_login_fullscreen()
-
-    # Se non autenticato, fermiamo l’app
     if not user:
         st.stop()
 
     # === SIDEBAR ===
     st.sidebar.success(f"👤 Utente: {user} — Ruolo: {role}")
 
-    # === DEFINIZIONE PAGINE ===
+    # === PAGINE ===
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -900,7 +895,6 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
-    # === NAVIGAZIONE ===
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio(
         "📂 Menu principale",
@@ -908,15 +902,14 @@ def main():
         index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
     )
 
-    # === CARICA DATI SOLO DOPO LOGIN ===
+    # === DATI ===
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    # === MOSTRA PAGINA ===
+    # === RENDER PAGINA ===
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
 
 
-# === AVVIO APP ===
 if __name__ == "__main__":
     main()

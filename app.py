@@ -955,7 +955,7 @@ if "sel_id" in locals():
 
 # === ESPORTAZIONI ===
 st.divider()
-if not ct.empty:
+if "ct" in locals() and not ct.empty:
     csv = ct.to_csv(index=False, encoding="utf-8-sig")
     st.download_button(
         "📄 Esporta CSV",

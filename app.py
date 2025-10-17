@@ -861,7 +861,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     grid_opts = gb.build()
 
 
-        # Altezza dinamica ma con larghezza fissa fino alla colonna "Azioni"
+    # Altezza dinamica ma con larghezza fissa fino alla colonna "Azioni"
     grid_height = min(800, 120 + (len(disp) * 35))
     grid_return = AgGrid(
         disp,

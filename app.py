@@ -837,29 +837,35 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("---")
     st.markdown("### ⚙️ Gestione contratto selezionato")
 
-    if "selected" in locals() and selected is not None and len(selected) > 0:
+    # 🔹 Protezione: selected è sempre lista
+    if "selected" in locals() and isinstance(selected, list) and len(selected) > 0:
         r = selected[0]
-        if r and "NumeroContratto" in r:
-            idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
-            stato = str(r.get("Stato", "aperto")).lower()
+        if isinstance(r, dict) and "NumeroContratto" in r:
+            idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index
+            if len(idx) > 0:
+                idx = idx[0]
+                stato = str(r.get("Stato", "aperto")).lower()
 
-            c1, c2 = st.columns([0.25, 0.25])
-            with c1:
-                if stato == "chiuso":
-                    if st.button("🔓 Riapri contratto", key=f"riapri_{idx}", use_container_width=True):
-                        df_ct.loc[idx, "Stato"] = "aperto"
-                        save_contratti(df_ct)
-                        st.success("✅ Contratto riaperto correttamente.")
-                        st.rerun()
-                else:
-                    if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}", use_container_width=True):
-                        df_ct.loc[idx, "Stato"] = "chiuso"
-                        save_contratti(df_ct)
-                        st.success("✅ Contratto chiuso correttamente.")
-                        st.rerun()
-            with c2:
-                if st.button("✏️ Modifica contratto", key=f"edit_{idx}", use_container_width=True):
-                    st.session_state["selected_contract_index"] = idx
+                colA1, colA2 = st.columns([0.25, 0.25])
+                with colA1:
+                    if stato == "chiuso":
+                        if st.button("🔓 Riapri contratto", key=f"riapri_{idx}", use_container_width=True):
+                            df_ct.loc[idx, "Stato"] = "aperto"
+                            save_contratti(df_ct)
+                            st.success("✅ Contratto riaperto correttamente.")
+                            st.rerun()
+                    else:
+                        if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}", use_container_width=True):
+                            df_ct.loc[idx, "Stato"] = "chiuso"
+                            save_contratti(df_ct)
+                            st.success("✅ Contratto chiuso correttamente.")
+                            st.rerun()
+
+                with colA2:
+                    if st.button("✏️ Modifica contratto", key=f"edit_{idx}", use_container_width=True):
+                        st.session_state["selected_contract_index"] = idx
+            else:
+                st.warning("⚠️ Contratto selezionato non trovato.")
     else:
         st.info("ℹ️ Seleziona un contratto nella tabella per modificarlo o chiuderlo.")
 
@@ -902,6 +908,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         else:
             st.warning("⚠️ Indice contratto non valido.")
             del st.session_state["selected_contract_index"]
+
 
     # === NUOVO CONTRATTO ===
     st.markdown("---")

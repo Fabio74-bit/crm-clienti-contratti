@@ -833,42 +833,122 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     selected = grid_return["selected_rows"]
 
-    # === AZIONI SOTTO TABELLA ===
-if "selected" in locals() and selected is not None and len(selected) > 0:
+   # === AZIONI SOTTO TABELLA ===
+if selected is not None and len(selected) > 0:
     r = selected[0]
-    idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
+    if r and "NumeroContratto" in r:
+        idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
 
-    st.markdown("---")
-    colA1, colA2 = st.columns([0.3, 0.3])
+        st.markdown("---")
+        colA1, colA2, colA3 = st.columns([0.25, 0.25, 0.25])
 
-    # ✅ Protezione contro valori nulli o mancanti
-    stato = "aperto"
-    if "r" in locals() and isinstance(r, dict) and "Stato" in r and r["Stato"]:
-        stato = str(r["Stato"]).lower()
+        stato = str(r.get("Stato", "aperto")).lower()
 
-    with colA1:
-        if stato == "chiuso":
-            if st.button("🔓 Riapri contratto", key=f"riapri_{idx}"):
-                try:
+        with colA1:
+            if stato == "chiuso":
+                if st.button("🔓 Riapri contratto", key=f"riapri_{idx}"):
                     df_ct.loc[idx, "Stato"] = "aperto"
                     save_contratti(df_ct)
                     st.success("✅ Contratto riaperto.")
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Errore durante la riapertura: {e}")
-        else:
-            if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}"):
-                try:
+            else:
+                if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}"):
                     df_ct.loc[idx, "Stato"] = "chiuso"
                     save_contratti(df_ct)
                     st.success("✅ Contratto chiuso.")
                     st.rerun()
-                except Exception as e:
-                    st.error(f"Errore durante la chiusura: {e}")
 
-    with colA2:
-        if st.button("✏️ Modifica contratto", key=f"edit_{idx}"):
-            st.session_state["selected_contract_index"] = idx
+        with colA2:
+            if st.button("✏️ Modifica contratto", key=f"edit_{idx}"):
+                st.session_state["selected_contract_index"] = idx
+
+        with colA3:
+            st.write("")  # spazio per allineamento
+
+# === ESPORTAZIONI (sempre visibili) ===
+st.markdown("---")
+st.markdown("### 📤 Esporta contratti")
+col_exp1, col_exp2 = st.columns(2)
+
+with col_exp1:
+    if st.button("📊 Esporta in Excel (.xlsx)", key=f"xlsx_{sel_id}"):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Contratti"
+        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                   "Descrizione", "TotRata", "Stato"]
+        ws.append(headers)
+
+        header_fill = PatternFill("solid", fgColor="BDD7EE")
+        border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin")
+        )
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = Font(bold=True)
+            cell.border = border
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        for _, row in ct.iterrows():
+            ws.append([
+                row["NumeroContratto"], fmt_date(row["DataInizio"]),
+                fmt_date(row["DataFine"]), row["Durata"],
+                row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
+            ])
+        for col in ws.columns:
+            max_len = max(len(str(c.value)) for c in col)
+            ws.column_dimensions[col[0].column_letter].width = max_len + 2
+            for cell in col:
+                cell.border = border
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        st.download_button(
+            "⬇️ Scarica Excel",
+            data=buf.getvalue(),
+            file_name=f"contratti_{rag_soc}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"xlsx_download_{sel_id}",
+            use_container_width=True
+        )
+
+with col_exp2:
+    if st.button("📘 Esporta in PDF", key=f"pdf_{sel_id}"):
+        pdf = FPDF(orientation="L", unit="mm", format="A4")
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+        pdf.set_font("Arial", "", 9)
+        pdf.ln(4)
+        headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
+        widths = [35, 25, 25, 20, 110, 25, 20]
+        for h, w in zip(headers, widths):
+            pdf.cell(w, 8, safe_text(h), 1, 0, "C")
+        pdf.ln()
+        for _, row in ct.iterrows():
+            cells = [
+                safe_text(row["NumeroContratto"]),
+                fmt_date(row["DataInizio"]),
+                fmt_date(row["DataFine"]),
+                safe_text(row["Durata"]),
+                safe_text(row["DescrizioneProdotto"]),
+                safe_text(row["TotRata"]),
+                safe_text(row["Stato"]),
+            ]
+            for t, w in zip(cells, widths):
+                pdf.multi_cell(w, 6, t, 1, "L", False)
+            pdf.ln(0)
+        pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
+        st.download_button(
+            "⬇️ Scarica PDF",
+            data=pdf_buffer,
+            file_name=f"contratti_{rag_soc}.pdf",
+            mime="application/pdf",
+            key=f"pdf_download_{sel_id}",
+            use_container_width=True
+        )
 
 
 

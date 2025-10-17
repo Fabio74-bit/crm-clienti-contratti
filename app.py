@@ -236,7 +236,37 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         else:
             for _, r in prossime_visite.iterrows():
                 st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['ProssimaVisita'])}")
+    st.divider()
 
+    # ===============================
+    # CLIENTI SENZA DATA FINE (da oggi in poi)
+    # ===============================
+    st.subheader("🚫 Clienti senza Data Fine (da oggi in poi)")
+
+    # Filtro per DataFine mancante o vuota
+    if "DataFine" in df_ct.columns:
+        df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+        senza_datafine = df_ct[df_ct["DataFine"].isna()]
+
+        # Escludi contratti vecchi (considera solo quelli creati da oggi in poi)
+        senza_datafine = senza_datafine[
+            (df_ct["DataInizio"].notna()) & (df_ct["DataInizio"] >= now)
+        ]
+
+        if senza_datafine.empty:
+            st.success("✅ Tutti i contratti da oggi in poi hanno una data fine impostata.")
+        else:
+            st.warning(f"⚠️ {len(senza_datafine)} contratti recenti senza Data Fine.")
+            vis = senza_datafine.merge(
+                df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left"
+            )[
+                ["ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio"]
+            ]
+            vis["DataInizio"] = vis["DataInizio"].apply(fmt_date)
+
+            st.dataframe(vis, use_container_width=True, hide_index=True)
+    else:
+        st.info("ℹ️ Il campo 'DataFine' non è ancora presente nel file contratti.")
 # =====================================
 # CLIENTI (versione aggiornata con date sicure)
 # =====================================

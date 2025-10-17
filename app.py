@@ -144,24 +144,36 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
-    users = st.secrets.get("auth", {}).get("users", {})
-    if not users:
-        return ("ospite", "viewer")
-
-    if "auth_user" in st.session_state and st.session_state["auth_user"]:
-        return (st.session_state["auth_user"], st.session_state.get("auth_role", "viewer"))
-
     st.markdown(
-        f"""
-        <div style='display:flex; flex-direction:column; align-items:center; justify-content:center;
-                    height:100vh; text-align:center;'>
-            <img src="{LOGO_URL}" width="220" style="margin-bottom:25px;">
-            <h2>🔐 Accesso al Gestionale SHT</h2>
-            <p style='color:grey; font-size:14px;'>Inserisci le credenziali</p>
-        </div>
+        """
+        <style>
+        /* Centra e riduce i margini verticali */
+        div[data-testid="stAppViewContainer"] {
+            padding-top: 2rem !important;
+        }
+        section.main > div {
+            padding-top: 1rem !important;
+        }
+
+        /* Centra il contenitore di login */
+        .block-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* era center, ora parte più in alto */
+            align-items: center;
+            min-height: 90vh;
+            margin-top: -60px; /* sposta il box ancora più in alto */
+        }
+
+        /* Riduci spazio extra sopra titolo o logo */
+        h1, h2, h3 {
+            margin-top: 0 !important;
+        }
+        </style>
         """,
         unsafe_allow_html=True
     )
+
 
     username = st.text_input("👤 Utente", key="login_user")
     password = st.text_input("🔒 Password", type="password", key="login_pwd")

@@ -193,7 +193,7 @@ def do_login_fullscreen():
 
     # === LOGO CENTRATO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
-    st.image("https://i.imgur.com/SJ3A7Ds.png", width=160)  # <-- Sostituisci col tuo URL/logo locale
+    st.image("https://www.shtsrl.com/template/images/logo.png", width=180)  # <-- Sostituisci col tuo URL/logo locale
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)

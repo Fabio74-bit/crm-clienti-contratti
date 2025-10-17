@@ -865,133 +865,125 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with colA3:
             st.write("")  # spazio per allineamento
 
-        # === ESPORTAZIONI ===
-    st.markdown("---")
-    st.markdown("### 📤 Esporta contratti")
+    # === ESPORTAZIONI (Excel + PDF) ===
+    with st.container():
+        st.markdown("---")
+        st.markdown("### 📤 Esporta contratti")
 
-    # 🔹 Crea le due colonne per Excel e PDF
-    col_exp1, col_exp2 = st.columns(2)
+        # Safety: se ct non esiste o è vuoto, disabilito i pulsanti
+        ct_ok = ("ct" in locals()) and isinstance(ct, pd.DataFrame) and (not ct.empty)
 
-    # --- Esporta Excel ---
-    with col_exp1:
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Contratti"
+        col_exp1, col_exp2 = st.columns(2, gap="large")
 
-        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                   "Descrizione", "TotRata", "Stato"]
-        ws.append(headers)
+        # --- Esporta Excel ---
+        with col_exp1:
+            st.caption("Esporta in Excel (.xlsx)")
+            disabled = not ct_ok
+            if disabled:
+                st.info("Nessun contratto da esportare.")
+            else:
+                from openpyxl import Workbook
+                from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
 
-        header_fill = PatternFill("solid", fgColor="BDD7EE")
-        border = Border(left=Side(style="thin"), right=Side(style="thin"),
-                        top=Side(style="thin"), bottom=Side(style="thin"))
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "Contratti"
 
-        for cell in ws[1]:
-            cell.fill = header_fill
-            cell.font = Font(bold=True)
-            cell.border = border
-            cell.alignment = Alignment(horizontal="center", vertical="center")
+                headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                           "Descrizione", "TotRata", "Stato"]
+                ws.append(headers)
 
-        for _, row in ct.iterrows():
-            ws.append([
-                row["NumeroContratto"], fmt_date(row["DataInizio"]),
-                fmt_date(row["DataFine"]), row["Durata"],
-                row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
-            ])
+                header_fill = PatternFill("solid", fgColor="BDD7EE")
+                border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                                top=Side(style="thin"), bottom=Side(style="thin"))
 
-        for col in ws.columns:
-            max_len = max(len(str(c.value)) for c in col)
-            ws.column_dimensions[col[0].column_letter].width = max_len + 2
-            for cell in col:
-                cell.border = border
-                cell.alignment = Alignment(wrap_text=True, vertical="top")
+                for cell in ws[1]:
+                    cell.fill = header_fill
+                    cell.font = Font(bold=True)
+                    cell.border = border
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
 
-        buf = io.BytesIO()
-        wb.save(buf)
-        st.download_button(
-            "📊 Scarica Excel (.xlsx)",
-            data=buf.getvalue(),
-            file_name=f"contratti_{rag_soc}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"xlsx_download_{sel_id}",
-            use_container_width=True
-        )
+                # Righe
+                for _, row in ct.iterrows():
+                    ws.append([
+                        row.get("NumeroContratto", ""),
+                        fmt_date(row.get("DataInizio", "")),
+                        fmt_date(row.get("DataFine", "")),
+                        row.get("Durata", ""),
+                        row.get("DescrizioneProdotto", ""),
+                        row.get("TotRata", ""),
+                        row.get("Stato", ""),
+                    ])
 
-    # --- Esporta PDF ---
-    with col_exp2:
-        pdf = FPDF(orientation="L", unit="mm", format="A4")
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-        pdf.set_font("Arial", "", 9)
-        pdf.ln(4)
-        headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-        widths = [35, 25, 25, 20, 110, 25, 20]
+                # Larghezze + wrap + bordi
+                for col in ws.columns:
+                    max_len = max(len(str(c.value)) if c.value is not None else 0 for c in col)
+                    ws.column_dimensions[col[0].column_letter].width = max_len + 2
+                    for cell in col:
+                        cell.border = border
+                        cell.alignment = Alignment(wrap_text=True, vertical="top")
 
-        for h, w in zip(headers, widths):
-            pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-        pdf.ln()
+                buf = io.BytesIO()
+                wb.save(buf)
 
-        for _, row in ct.iterrows():
-            cells = [
-                safe_text(row["NumeroContratto"]),
-                fmt_date(row["DataInizio"]),
-                fmt_date(row["DataFine"]),
-                safe_text(row["Durata"]),
-                safe_text(row["DescrizioneProdotto"]),
-                safe_text(row["TotRata"]),
-                safe_text(row["Stato"]),
-            ]
-            for t, w in zip(cells, widths):
-                pdf.multi_cell(w, 6, t, 1, "L", False)
-            pdf.ln(0)
+                st.download_button(
+                    "📊 Scarica Excel (.xlsx)",
+                    data=buf.getvalue(),
+                    file_name=f"contratti_{rag_soc}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"xlsx_download_{sel_id}",
+                    width="stretch",
+                    disabled=disabled,
+                )
 
-        pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-        st.download_button(
-            "📘 Scarica PDF",
-            data=pdf_buffer,
-            file_name=f"contratti_{rag_soc}.pdf",
-            mime="application/pdf",
-            key=f"pdf_download_{sel_id}",
-            use_container_width=True
-        )
+        # --- Esporta PDF ---
+        with col_exp2:
+            st.caption("Esporta in PDF (orizzontale)")
+            disabled = not ct_ok
+            if disabled:
+                st.info("Nessun contratto da esportare.")
+            else:
+                pdf = FPDF(orientation="L", unit="mm", format="A4")
+                pdf.add_page()
+                pdf.set_font("Arial", "B", 12)
+                pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+                pdf.set_font("Arial", "", 9)
+                pdf.ln(4)
 
+                headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
+                widths  = [35,       25,            25,           20,        110,          25,        20]
 
-# --- Esporta PDF ---
-with col_exp2:
-    pdf = FPDF(orientation="L", unit="mm", format="A4")
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-    pdf.set_font("Arial", "", 9)
-    pdf.ln(4)
-    headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-    widths = [35, 25, 25, 20, 110, 25, 20]
-    for h, w in zip(headers, widths):
-        pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-    pdf.ln()
-    for _, row in ct.iterrows():
-        cells = [
-            safe_text(row["NumeroContratto"]),
-            fmt_date(row["DataInizio"]),
-            fmt_date(row["DataFine"]),
-            safe_text(row["Durata"]),
-            safe_text(row["DescrizioneProdotto"]),
-            safe_text(row["TotRata"]),
-            safe_text(row["Stato"]),
-        ]
-        for t, w in zip(cells, widths):
-            pdf.multi_cell(w, 6, t, 1, "L", False)
-        pdf.ln(0)
-    pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-    st.download_button(
-        "📘 Scarica PDF",
-        data=pdf_buffer,
-        file_name=f"contratti_{rag_soc}.pdf",
-        mime="application/pdf",
-        key=f"pdf_download_{sel_id}",
-        use_container_width=True
-    )
+                # Header
+                for h, w in zip(headers, widths):
+                    pdf.cell(w, 8, safe_text(h), 1, 0, "C")
+                pdf.ln()
+
+                # Righe (multi_cell per descrizione)
+                for _, row in ct.iterrows():
+                    cells = [
+                        safe_text(row.get("NumeroContratto", "")),
+                        fmt_date(row.get("DataInizio", "")),
+                        fmt_date(row.get("DataFine", "")),
+                        safe_text(row.get("Durata", "")),
+                        safe_text(row.get("DescrizioneProdotto", "")),
+                        safe_text(row.get("TotRata", "")),
+                        safe_text(row.get("Stato", "")),
+                    ]
+                    for t, w in zip(cells, widths):
+                        pdf.multi_cell(w, 6, t, 1, "L", False)
+                    pdf.ln(0)
+
+                pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
+
+                st.download_button(
+                    "📘 Scarica PDF",
+                    data=pdf_buffer,
+                    file_name=f"contratti_{rag_soc}.pdf",
+                    mime="application/pdf",
+                    key=f"pdf_download_{sel_id}",
+                    width="stretch",
+                    disabled=disabled,
+                )
 
 # === MODIFICA CONTRATTO SELEZIONATO ===
 if "selected_contract_index" in st.session_state:

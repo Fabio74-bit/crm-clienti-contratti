@@ -879,6 +879,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     from streamlit_javascript import st_javascript
 
     msg = st_javascript("""
+    st.write("🛰️ Messaggio ricevuto:", msg)
+
     new Promise((resolve) => {
         window.addEventListener("message", (event) => {
             if (event.data && event.data.type) resolve(event.data);

@@ -912,7 +912,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === NUOVO CONTRATTO ===
     with st.expander("➕ Nuovo contratto"):
-        with st.form("frm_new_contract"):
+        with st.form(f"frm_new_contract_{sel_id}"):
+
             c1, c2, c3 = st.columns(3)
             with c1:
                 num = st.text_input("Numero Contratto")

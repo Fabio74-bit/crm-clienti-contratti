@@ -339,8 +339,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             col4.markdown(stato)
             if col5.button("Apri", key=f"open_scad_{i}"):
                 st.session_state["selected_cliente"] = r["ClienteID"]
-                st.session_state["nav_target"] = "Clienti"
+                st.session_state["nav_target"] = "Contratti"
                 st.rerun()
+
 
     st.divider()
 

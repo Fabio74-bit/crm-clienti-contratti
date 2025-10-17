@@ -928,7 +928,7 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.download_button("⬇️ Esporta CSV", csv, "lista_clienti_contratti.csv", "text/csv")
 
 # =====================================
-# MAIN APP (versione migliorata)
+# MAIN APP (Robusta con protezioni)
 # =====================================
 def main():
     # === LOGIN ===
@@ -937,7 +937,10 @@ def main():
         st.stop()
 
     # === SIDEBAR ===
-    st.sidebar.image(LOGO_URL, width=120)
+    try:
+        st.sidebar.image(LOGO_URL, width=120)
+    except Exception:
+        pass
     st.sidebar.success(f"👤 Utente: {user} — Ruolo: {role}")
 
     # === Pagine disponibili ===
@@ -948,28 +951,24 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
-    # === Recupera la pagina corrente (se presente) ===
+    # === Ricorda l'ultima pagina selezionata ===
     default_page = st.session_state.get("nav_target", "Dashboard")
-
-    # === Menu laterale ===
     page = st.sidebar.radio(
         "📂 Menu principale",
         list(PAGES.keys()),
         index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
     )
-
-    # Salva la scelta attuale (così al rerun non si perde)
     st.session_state["nav_target"] = page
 
-    # === Caricamento dati ===
+    # === Dati ===
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    # === Rende persistente la selezione cliente anche dopo rerun ===
+    # === Persistenza selezione cliente ===
     if "selected_cliente" not in st.session_state:
         st.session_state["selected_cliente"] = None
 
-    # === Carica la pagina scelta ===
+    # === Render pagina con protezione errori ===
     try:
         PAGES[page](df_cli, df_ct, role)
     except Exception as e:

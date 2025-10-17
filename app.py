@@ -784,24 +784,51 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # --- Tabella AgGrid con pulsanti in riga (senza JS esterno) ---
     from st_aggrid.shared import JsCode
 
-    # Renderer HTML per i pulsanti (solo visuale)
+        # --- Colonna "Azioni" con pulsanti reali ---
     action_renderer = JsCode("""
-    function(params) {
-        const stato = (params.data.Stato || '').toLowerCase();
-        const chiudiText = stato === 'chiuso' ? '🔓 Riapri' : '❌ Chiudi';
-        return `
-            <div style="display:flex; gap:6px; justify-content:center;">
-                <span style="
-                    background-color:#1976D2; color:white; padding:2px 6px; border-radius:4px;
-                    font-size:13px; cursor:default;">✏️</span>
-                <span style="
-                    background-color:${stato === 'chiuso' ? '#4CAF50' : '#E53935'};
-                    color:white; padding:2px 6px; border-radius:4px; font-size:13px; cursor:default;">
-                    ${chiudiText}
-                </span>
-            </div>`;
+    class BtnRenderer {
+        init(params) {
+            this.params = params;
+            const stato = (params.data.Stato || '').toLowerCase();
+            const chiudiText = stato === 'chiuso' ? '🔓 Riapri' : '❌ Chiudi';
+            this.eGui = document.createElement('div');
+            this.eGui.style.display = 'flex';
+            this.eGui.style.justifyContent = 'center';
+            this.eGui.style.gap = '6px';
+            
+            // Pulsante Modifica
+            const btnMod = document.createElement('button');
+            btnMod.innerHTML = '✏️';
+            btnMod.style.backgroundColor = '#1976D2';
+            btnMod.style.color = 'white';
+            btnMod.style.border = 'none';
+            btnMod.style.borderRadius = '4px';
+            btnMod.style.padding = '2px 6px';
+            btnMod.style.cursor = 'pointer';
+            btnMod.addEventListener('click', () => {
+                window.postMessage({type: 'edit_contract', data: params.data}, '*');
+            });
+            
+            // Pulsante Chiudi / Riapri
+            const btnClose = document.createElement('button');
+            btnClose.innerHTML = chiudiText;
+            btnClose.style.backgroundColor = stato === 'chiuso' ? '#4CAF50' : '#E53935';
+            btnClose.style.color = 'white';
+            btnClose.style.border = 'none';
+            btnClose.style.borderRadius = '4px';
+            btnClose.style.padding = '2px 6px';
+            btnClose.style.cursor = 'pointer';
+            btnClose.addEventListener('click', () => {
+                window.postMessage({type: 'toggle_contract', data: params.data}, '*');
+            });
+            
+            this.eGui.appendChild(btnMod);
+            this.eGui.appendChild(btnClose);
+        }
+        getGui() { return this.eGui; }
     }
     """)
+
 
        # Configurazione tabella
     gb = GridOptionsBuilder.from_dataframe(disp)

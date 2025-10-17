@@ -833,32 +833,33 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     selected = grid_return["selected_rows"]
 
-    # === AZIONI SOTTO TABELLA ===
-    if selected is not None and len(selected) > 0:
-        r = selected[0]
-        idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
+# === AZIONI SOTTO TABELLA ===
+if selected is not None and len(selected) > 0:
+    r = selected[0]
+    idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
 
-        st.markdown("---")
-        colA1, colA2 = st.columns([0.3, 0.3])
-        stato = (r["Stato"] or "aperto").lower()
+    st.markdown("---")
+    colA1, colA2 = st.columns([0.3, 0.3])
+    stato = (r["Stato"] or "aperto").lower()
 
-        with colA1:
-            if stato == "chiuso":
-                if st.button("🔓 Riapri contratto", key=f"riapri_{idx}"):
-                    df_ct.loc[idx, "Stato"] = "aperto"
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto riaperto.")
-                    st.rerun()
-            else:
-                if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}"):
-                    df_ct.loc[idx, "Stato"] = "chiuso"
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto chiuso.")
-                    st.rerun()
+    with colA1:
+        if stato == "chiuso":
+            if st.button("🔓 Riapri contratto", key=f"riapri_{idx}"):
+                df_ct.loc[idx, "Stato"] = "aperto"
+                save_contratti(df_ct)
+                st.success("✅ Contratto riaperto.")
+                st.rerun()
+        else:
+            if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}"):
+                df_ct.loc[idx, "Stato"] = "chiuso"
+                save_contratti(df_ct)
+                st.success("✅ Contratto chiuso.")
+                st.rerun()
 
-        with colA2:
-            if st.button("✏️ Modifica contratto", key=f"edit_{idx}"):
-                st.session_state["selected_contract_index"] = idx
+    with colA2:
+        if st.button("✏️ Modifica contratto", key=f"edit_{idx}"):
+            st.session_state["selected_contract_index"] = idx
+
 
     # === ESPORTAZIONI (sempre visibili) ===
     st.markdown("---")

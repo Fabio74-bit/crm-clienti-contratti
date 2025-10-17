@@ -265,7 +265,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c3.markdown(kpi_card("Contratti chiusi", closed_contracts, "❌", "#D32F2F"), unsafe_allow_html=True)
     c4.markdown(kpi_card("Nuovi contratti anno", count_new, "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
-         # =====================================
+
+    # =====================================
     # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI (ATTIVI SOLO)
     # =====================================
     st.subheader("⚠️ Contratti in scadenza entro 6 mesi")
@@ -282,8 +283,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         & (df_ct["Stato"].str.lower() != "chiuso")
     ].copy()
 
-       else:
-            if scadenze.empty:
+    if scadenze.empty:
         st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
     else:
         scadenze = scadenze.merge(
@@ -310,18 +310,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         }
         .row-contratto:hover {
             background-color: #fef9c3;
-        }
-        .btn-apri {
-            background-color: #2563eb;
-            color: white;
-            border: none;
-            padding: 3px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85rem;
-        }
-        .btn-apri:hover {
-            background-color: #1e40af;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -354,9 +342,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["nav_target"] = "Clienti"
                 st.rerun()
 
-
-
-        st.markdown("</table>", unsafe_allow_html=True)
+    st.divider()
 
     # =====================================
     # 🔄 AGGIORNA AUTOMATICAMENTE PROSSIMI RECALL / VISITE
@@ -366,7 +352,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     df_cli["UltimaVisita"] = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce", dayfirst=True)
     df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce", dayfirst=True)
 
-    # Aggiorna solo se mancano i prossimi ma ci sono gli ultimi
     mask_recall = df_cli["UltimoRecall"].notna() & df_cli["ProssimoRecall"].isna()
     mask_visita = df_cli["UltimaVisita"].notna() & df_cli["ProssimaVisita"].isna()
 
@@ -375,7 +360,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if mask_visita.any():
         df_cli.loc[mask_visita, "ProssimaVisita"] = df_cli.loc[mask_visita, "UltimaVisita"] + pd.DateOffset(months=6)
 
-    # Salva solo se qualcosa è cambiato
     if mask_recall.any() or mask_visita.any():
         save_clienti(df_cli)
 
@@ -473,6 +457,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         st.rerun()
     else:
         st.info("ℹ️ Nessun dato contratti disponibile.")
+
 
 
 # =====================================

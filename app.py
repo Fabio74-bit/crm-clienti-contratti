@@ -835,8 +835,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === AZIONI SOTTO TABELLA ===
     if "selected" in locals() and selected is not None and len(selected) > 0:
-    r = selected[0]
-    idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
+        r = selected[0]
+        idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
 
     st.markdown("---")
     colA1, colA2 = st.columns([0.3, 0.3])
@@ -1294,6 +1294,7 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
+    # === GESTIONE NAVIGAZIONE ===
     default_page = st.session_state.pop("nav_target", "Dashboard")
     if st.session_state.pop("force_home", False):
         default_page = "Dashboard"
@@ -1304,11 +1305,11 @@ def main():
         index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
     )
 
-    # === DATI ===
+    # === CARICAMENTO DATI ===
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    # === RENDER PAGINA ===
+    # === ESECUZIONE PAGINA SELEZIONATA ===
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
 

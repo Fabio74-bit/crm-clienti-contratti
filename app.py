@@ -734,3 +734,18 @@ def main():
 
 if __name__ == "__main__":
     main()
+# ============================================
+# FIX UNA-TANTUM: normalizza tutte le date clienti esistenti
+# ============================================
+def normalizza_date_clienti():
+    st.info("🧩 Normalizzo le date clienti...")
+    df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+    for col in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        if col in df.columns:
+            df[col] = df[col].apply(lambda x: fmt_date(as_date(x)))
+    df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+    st.success("✅ Date normalizzate in formato DD/MM/YYYY!")
+
+# Esegui una volta (puoi commentarlo dopo)
+if st.button("🔧 Normalizza tutte le date clienti"):
+    normalizza_date_clienti()

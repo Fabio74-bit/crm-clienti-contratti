@@ -342,7 +342,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["nav_target"] = "Contratti"
                 st.rerun()
 
-
     st.divider()
 
     # =====================================
@@ -391,6 +390,60 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         else:
             for _, r in prossime_visite.iterrows():
                 st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['ProssimaVisita'])}")
+
+    st.divider()
+
+    # =====================================
+    # ⚠️ Recall e Visite in ritardo (versione compatta con Apri)
+    # =====================================
+    st.subheader("⚠️ Recall e Visite in ritardo")
+
+    oggi = pd.Timestamp.now().normalize()
+    df_cli["UltimoRecall"] = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce")
+    df_cli["UltimaVisita"] = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce")
+
+    recall_vecchi = df_cli[
+        df_cli["UltimoRecall"].notna() &
+        (df_cli["UltimoRecall"] < oggi - pd.DateOffset(months=3))
+    ].copy()
+
+    visite_vecchie = df_cli[
+        df_cli["UltimaVisita"].notna() &
+        (df_cli["UltimaVisita"] < oggi - pd.DateOffset(months=6))
+    ].copy()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 📞 Recall più vecchi di 3 mesi")
+        if recall_vecchi.empty:
+            st.success("✅ Nessun recall scaduto da oltre 3 mesi.")
+        else:
+            for i, r in recall_vecchi.iterrows():
+                data_fmt = fmt_date(r["UltimoRecall"])
+                cols = st.columns([0.7, 0.3])
+                with cols[0]:
+                    st.markdown(f"- **{r['RagioneSociale']}** → {data_fmt}")
+                with cols[1]:
+                    if st.button("🔍 Apri", key=f"oldrec_{i}"):
+                        st.session_state["selected_cliente"] = r["ClienteID"]
+                        st.session_state["nav_target"] = "Clienti"
+                        st.rerun()
+
+    with col2:
+        st.markdown("### 👣 Visite più vecchie di 6 mesi")
+        if visite_vecchie.empty:
+            st.success("✅ Nessuna visita scaduta da oltre 6 mesi.")
+        else:
+            for i, r in visite_vecchie.iterrows():
+                data_fmt = fmt_date(r["UltimaVisita"])
+                cols = st.columns([0.7, 0.3])
+                with cols[0]:
+                    st.markdown(f"- **{r['RagioneSociale']}** → {data_fmt}")
+                with cols[1]:
+                    if st.button("🔍 Apri", key=f"oldvis_{i}"):
+                        st.session_state["selected_cliente"] = r["ClienteID"]
+                        st.session_state["nav_target"] = "Clienti"
+                        st.rerun()
 
     st.divider()
 

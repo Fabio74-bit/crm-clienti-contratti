@@ -335,93 +335,46 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # =====================================
-    # 📞 RECALL E 👣 VISITE IMMINENTI
+       # =====================================
+    # 📅 RIEPILOGO RAPIDO RECALL E VISITE
     # =====================================
     with st.container():
         st.markdown("<div class='section-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='section-title'><span>📅</span>Recall e Visite imminenti</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-title'><span>📅</span>Recall e Visite</div>", unsafe_allow_html=True)
 
+        oggi = pd.Timestamp.now().normalize()
         df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
         df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce")
 
-        prossimi_recall = df_cli[df_cli["ProssimoRecall"].between(now, now + pd.DateOffset(days=7), inclusive="both")]
-        prossime_visite = df_cli[df_cli["ProssimaVisita"].between(now, now + pd.DateOffset(days=30), inclusive="both")]
+        prossimi = df_cli[
+            (df_cli["ProssimoRecall"].notna()) | (df_cli["ProssimaVisita"].notna())
+        ].copy()
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### 🔁 Recall (entro 7 giorni)")
-            if prossimi_recall.empty:
-                st.info("✅ Nessun recall programmato.")
-            else:
-                for _, r in prossimi_recall.iterrows():
-                    st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['ProssimoRecall'])}")
+        # Seleziona i più vicini (entro 60 giorni)
+        prossimi["DataMin"] = prossimi[["ProssimoRecall", "ProssimaVisita"]].min(axis=1)
+        prossimi = prossimi.sort_values("DataMin", ascending=True).head(10)
 
-        with col2:
-            st.markdown("### 🗓️ Visite (entro 30 giorni)")
-            if prossime_visite.empty:
-                st.info("✅ Nessuna visita programmata.")
-            else:
-                for _, r in prossime_visite.iterrows():
-                    st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['ProssimaVisita'])}")
+        if prossimi.empty:
+            st.info("✅ Nessun richiamo o visita in programma nei prossimi mesi.")
+        else:
+            for i, r in prossimi.iterrows():
+                rec = fmt_date(r["ProssimoRecall"]) if pd.notna(r["ProssimoRecall"]) else "—"
+                vis = fmt_date(r["ProssimaVisita"]) if pd.notna(r["ProssimaVisita"]) else "—"
+                cols = st.columns([0.6, 0.2, 0.2])
+                with cols[0]:
+                    st.markdown(f"**{r['RagioneSociale']}**")
+                with cols[1]:
+                    st.caption(f"📞 {rec}")
+                with cols[2]:
+                    st.caption(f"👣 {vis}")
+
+        st.divider()
+        if st.button("📋 Vai a tutti i richiami e visite", use_container_width=True):
+            st.session_state["nav_target"] = "📅 Recall e Visite"
+            st.rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # =====================================
-    # ⚠️ RECALL E VISITE IN RITARDO
-    # =====================================
-    with st.container():
-        st.markdown("<div class='section-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='section-title'><span>⏰</span>Recall e Visite in ritardo</div>", unsafe_allow_html=True)
-
-        oggi = pd.Timestamp.now().normalize()
-        df_cli["UltimoRecall"] = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce")
-        df_cli["UltimaVisita"] = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce")
-
-        recall_vecchi = df_cli[
-            df_cli["UltimoRecall"].notna() &
-            (df_cli["UltimoRecall"] < oggi - pd.DateOffset(months=3))
-        ].copy()
-
-        visite_vecchie = df_cli[
-            df_cli["UltimaVisita"].notna() &
-            (df_cli["UltimaVisita"] < oggi - pd.DateOffset(months=6))
-        ].copy()
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### 📞 Recall > 3 mesi")
-            if recall_vecchi.empty:
-                st.success("✅ Nessun recall scaduto.")
-            else:
-                for i, r in recall_vecchi.iterrows():
-                    data_fmt = fmt_date(r["UltimoRecall"])
-                    cols = st.columns([0.7, 0.3])
-                    with cols[0]:
-                        st.markdown(f"- **{r['RagioneSociale']}** → {data_fmt}")
-                    with cols[1]:
-                        if st.button("Apri", key=f"oldrec_{i}"):
-                            st.session_state["selected_cliente"] = r["ClienteID"]
-                            st.session_state["nav_target"] = "Clienti"
-                            st.rerun()
-
-        with col2:
-            st.markdown("### 👣 Visite > 6 mesi")
-            if visite_vecchie.empty:
-                st.success("✅ Nessuna visita scaduta.")
-            else:
-                for i, r in visite_vecchie.iterrows():
-                    data_fmt = fmt_date(r["UltimaVisita"])
-                    cols = st.columns([0.7, 0.3])
-                    with cols[0]:
-                        st.markdown(f"- **{r['RagioneSociale']}** → {data_fmt}")
-                    with cols[1]:
-                        if st.button("Apri", key=f"oldvis_{i}"):
-                            st.session_state["selected_cliente"] = r["ClienteID"]
-                            st.session_state["nav_target"] = "Clienti"
-                            st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
     # =====================================
     # 🚫 CLIENTI SENZA DATA FINE
@@ -809,9 +762,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
 
-# =====================================
-# CONTRATTI (AgGrid + gestione stato)
-# =====================================
+
 # =====================================
 # CONTRATTI (AgGrid + gestione stato)
 # =====================================
@@ -986,7 +937,90 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"Errore PDF: {e}")
 
+# =====================================
+# 📅 PAGINA RICHIAMI E VISITE (completa)
+# =====================================
+def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    st.image(LOGO_URL, width=120)
+    st.markdown("<h2>📅 Gestione Recall e Visite</h2>", unsafe_allow_html=True)
+    st.divider()
 
+    oggi = pd.Timestamp.now().normalize()
+    df_cli["UltimoRecall"] = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce")
+    df_cli["UltimaVisita"] = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce")
+    df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
+    df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce")
+
+    # === IMMINENTI ===
+    st.subheader("🔁 Recall e Visite imminenti")
+    imminenti = df_cli[
+        (df_cli["ProssimoRecall"].between(oggi, oggi + pd.DateOffset(days=30)))
+        | (df_cli["ProssimaVisita"].between(oggi, oggi + pd.DateOffset(days=30)))
+    ].copy()
+
+    if imminenti.empty:
+        st.success("✅ Nessun richiamo o visita imminente.")
+    else:
+        for i, r in imminenti.iterrows():
+            cols = st.columns([0.4, 0.2, 0.2, 0.2])
+            cols[0].markdown(f"**{r['RagioneSociale']}**")
+            cols[1].markdown(f"📞 {fmt_date(r['ProssimoRecall'])}")
+            cols[2].markdown(f"👣 {fmt_date(r['ProssimaVisita'])}")
+            if cols[3].button("🔍 Apri", key=f"imm_{i}"):
+                st.session_state["selected_cliente"] = r["ClienteID"]
+                st.session_state["nav_target"] = "Clienti"
+                st.rerun()
+
+    st.divider()
+
+    # === IN RITARDO ===
+    st.subheader("⚠️ Recall e Visite in ritardo")
+    recall_vecchi = df_cli[
+        df_cli["UltimoRecall"].notna() & (df_cli["UltimoRecall"] < oggi - pd.DateOffset(months=3))
+    ]
+    visite_vecchie = df_cli[
+        df_cli["UltimaVisita"].notna() & (df_cli["UltimaVisita"] < oggi - pd.DateOffset(months=6))
+    ]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 📞 Recall > 3 mesi")
+        if recall_vecchi.empty:
+            st.info("✅ Tutto aggiornato.")
+        else:
+            for i, r in recall_vecchi.iterrows():
+                st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['UltimoRecall'])}")
+                if st.button("🔍 Apri", key=f"recold_{i}"):
+                    st.session_state["selected_cliente"] = r["ClienteID"]
+                    st.session_state["nav_target"] = "Clienti"
+                    st.rerun()
+    with col2:
+        st.markdown("### 👣 Visite > 6 mesi")
+        if visite_vecchie.empty:
+            st.info("✅ Tutto aggiornato.")
+        else:
+            for i, r in visite_vecchie.iterrows():
+                st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['UltimaVisita'])}")
+                if st.button("🔍 Apri", key=f"visold_{i}"):
+                    st.session_state["selected_cliente"] = r["ClienteID"]
+                    st.session_state["nav_target"] = "Clienti"
+                    st.rerun()
+
+    st.divider()
+
+    # === STORICO COMPLETO ===
+    st.subheader("🧾 Storico completo")
+    tabella = df_cli[[
+        "RagioneSociale", "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"
+    ]].copy()
+    tabella["UltimoRecall"] = tabella["UltimoRecall"].apply(fmt_date)
+    tabella["ProssimoRecall"] = tabella["ProssimoRecall"].apply(fmt_date)
+    tabella["UltimaVisita"] = tabella["UltimaVisita"].apply(fmt_date)
+    tabella["ProssimaVisita"] = tabella["ProssimaVisita"].apply(fmt_date)
+    st.dataframe(tabella, use_container_width=True, hide_index=True)
+
+    st.divider()
+    st.caption("📅 Filtro automatico per 30 giorni / 3 mesi / 6 mesi.")
 
 # =====================================
 # LISTA COMPLETA CLIENTI E CONTRATTI

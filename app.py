@@ -236,7 +236,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         else:
             for _, r in prossime_visite.iterrows():
                 st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['ProssimaVisita'])}")
-           st.divider()
+    st.divider()
 
     # ===============================
     # CLIENTI SENZA DATA FINE (da oggi in poi)

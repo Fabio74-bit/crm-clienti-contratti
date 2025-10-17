@@ -961,7 +961,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             csv,
             f"contratti_{rag_soc}.csv",
             "text/csv",
-            key="csv_export",
+            key=f"csv_export_{sel_id}",
             use_container_width=True
         )
 
@@ -997,7 +997,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     data=buf,
                     file_name=f"contratti_{rag_soc}.pdf",
                     mime="application/pdf",
-                    key="pdf_download",
+                    key=f"pdf_download_{sel_id}",
                     use_container_width=True,
                 )
             except Exception as e:

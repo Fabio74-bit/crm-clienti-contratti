@@ -283,7 +283,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 unsafe_allow_html=True,
             )
 
-            # Righe tabella
+             # Righe tabella
             for _, row in vis.iterrows():
                 col1, col2, col3, col4, col5 = st.columns([1.2, 3, 2, 1.3, 1])
                 col1.markdown(f"{row['ClienteID']}")
@@ -292,8 +292,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 col4.markdown(row["DataInizio"] or "—")
                 if col5.button("🔍 Apri Scheda", key=f"open_{row['ClienteID']}"):
                     st.session_state["selected_cliente"] = row["ClienteID"]
-                    st.session_state["page"] = "Clienti"
+                    st.session_state["nav_target"] = "Clienti"
                     st.rerun()
+
+
 
     else:
         st.info("ℹ️ Il campo 'DataFine' non è ancora presente nel file contratti.")

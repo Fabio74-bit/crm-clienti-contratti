@@ -833,8 +833,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     selected = grid_return["selected_rows"]
 
-# === AZIONI SOTTO TABELLA ===
-    if selected is not None and len(selected) > 0:
+    # === AZIONI SOTTO TABELLA ===
+    if "selected" in locals() and selected is not None and len(selected) > 0:
     r = selected[0]
     idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
 

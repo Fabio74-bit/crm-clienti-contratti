@@ -931,7 +931,40 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             )
         except Exception as e:
             st.error(f"Errore durante l'esportazione PDF: {e}")
+# =====================================
+# LISTA COMPLETA CLIENTI E CONTRATTI
+# =====================================
+def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    st.title("📋 Lista Completa Clienti e Contratti")
 
+    st.markdown("### 🔍 Filtra Clienti")
+    col1, col2 = st.columns(2)
+    with col1:
+        filtro_nome = st.text_input("Cerca per nome cliente")
+    with col2:
+        filtro_citta = st.text_input("Cerca per città")
+
+    merged = df_ct.merge(
+        df_cli[["ClienteID", "RagioneSociale", "Citta"]],
+        on="ClienteID",
+        how="left"
+    )
+
+    if filtro_nome:
+        merged = merged[merged["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
+    if filtro_citta:
+        merged = merged[merged["Citta"].str.contains(filtro_citta, case=False, na=False)]
+
+    merged["DataInizio"] = pd.to_datetime(merged["DataInizio"], errors="coerce").dt.strftime("%d/%m/%Y")
+    merged["DataFine"] = pd.to_datetime(merged["DataFine"], errors="coerce").dt.strftime("%d/%m/%Y")
+    merged = merged[
+        ["RagioneSociale", "Citta", "NumeroContratto", "DataInizio", "DataFine", "Stato"]
+    ].fillna("")
+
+    st.dataframe(merged, use_container_width=True, hide_index=True)
+
+    csv = merged.to_csv(index=False, encoding="utf-8-sig")
+    st.download_button("⬇️ Esporta CSV", csv, "lista_clienti_contratti.csv", "text/csv")
 # =====================================
 # MAIN APP
 # =====================================

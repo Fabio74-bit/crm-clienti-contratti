@@ -746,9 +746,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         sel_index = 0
 
-    ssel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index)
+    # Mostra il menu a discesa per selezionare il cliente
+sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index if sel_index < len(labels) else 0)
+
+# Trova l'indice reale corrispondente alla scelta dell'utente
+try:
     sel_index = labels.tolist().index(sel_label)
-    sel_id = cliente_ids[sel_index]
+except ValueError:
+    sel_index = 0  # fallback di sicurezza se qualcosa non combacia
+
+sel_id = cliente_ids[sel_index]
+
 
     cliente_info = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]
     rag_soc = cliente_info["RagioneSociale"]

@@ -265,43 +265,83 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c3.markdown(kpi_card("Contratti chiusi", closed_contracts, "❌", "#D32F2F"), unsafe_allow_html=True)
     c4.markdown(kpi_card("Nuovi contratti anno", count_new, "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
-       # =====================================
-    # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI (VERSIONE COMPATTA)
+         # =====================================
+    # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI (ATTIVI SOLO)
     # =====================================
     st.subheader("⚠️ Contratti in scadenza entro 6 mesi")
 
     oggi = pd.Timestamp.now().normalize()
     entro_6_mesi = oggi + pd.DateOffset(months=6)
 
+    # Filtra contratti con data fine entro 6 mesi e non chiusi
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce")
-    in_scadenza = df_ct[
+    scadenze = df_ct[
         (df_ct["DataFine"].notna())
         & (df_ct["DataFine"] >= oggi)
         & (df_ct["DataFine"] <= entro_6_mesi)
+        & (df_ct["Stato"].str.lower() != "chiuso")
     ].copy()
 
-    if in_scadenza.empty:
-        st.success("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
+    if scadenze.empty:
+        st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
     else:
-        in_scadenza = in_scadenza.merge(
+        scadenze = scadenze.merge(
             df_cli[["ClienteID", "RagioneSociale"]],
             on="ClienteID", how="left"
         )
-        in_scadenza["DataFine"] = in_scadenza["DataFine"].apply(fmt_date)
-        in_scadenza = in_scadenza.sort_values("DataFine")
+        scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
+        scadenze = scadenze.sort_values("DataFine", ascending=True)
 
-        st.dataframe(
-            in_scadenza[["RagioneSociale", "NumeroContratto", "DataFine", "Stato"]]
-            .rename(columns={
-                "RagioneSociale": "Cliente",
-                "NumeroContratto": "Contratto",
-                "DataFine": "Scadenza",
-                "Stato": "Stato"
-            }),
-            use_container_width=True,
-            hide_index=True,
-            height=220
+        # Tabella compatta con bottone Apri
+        st.markdown("""
+        <style>
+        .tbl-scadenze td, .tbl-scadenze th {
+            padding: 6px 8px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.9rem;
+        }
+        .tbl-scadenze th {
+            background-color: #f3f4f6;
+            text-align: left;
+        }
+        .tbl-scadenze tr:hover {
+            background-color: #fef9c3;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # intestazione
+        st.markdown(
+            "<table class='tbl-scadenze' style='width:100%'>"
+            "<tr><th>Cliente</th><th>Contratto</th><th>Scadenza</th><th>Stato</th><th style='text-align:center;'>Azione</th></tr>",
+            unsafe_allow_html=True
         )
+
+        for i, r in scadenze.iterrows():
+            cliente = r["RagioneSociale"] or "—"
+            contratto = r["NumeroContratto"] or "—"
+            scadenza = r["DataFine"] or "—"
+            stato = r["Stato"] or "—"
+
+            c_html = (
+                f"<tr>"
+                f"<td>{cliente}</td>"
+                f"<td>{contratto}</td>"
+                f"<td>{scadenza}</td>"
+                f"<td>{stato}</td>"
+                f"<td style='text-align:center;'>"
+                f"<form action='#'><button name='btn_{i}' style='border:none;background:none;color:#2563eb;cursor:pointer;'>🔍 Apri</button></form>"
+                f"</td></tr>"
+            )
+            st.markdown(c_html, unsafe_allow_html=True)
+
+            # Pulsante "Apri" gestito via Streamlit
+            if st.button(f"🔍 Apri {i}", key=f"open_scad_{i}"):
+                st.session_state["selected_cliente"] = r["ClienteID"]
+                st.session_state["nav_target"] = "Clienti"
+                st.rerun()
+
+        st.markdown("</table>", unsafe_allow_html=True)
 
     # =====================================
     # 🔄 AGGIORNA AUTOMATICAMENTE PROSSIMI RECALL / VISITE

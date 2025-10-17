@@ -265,8 +265,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c3.markdown(kpi_card("Contratti chiusi", closed_contracts, "❌", "#D32F2F"), unsafe_allow_html=True)
     c4.markdown(kpi_card("Nuovi contratti anno", count_new, "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
-        # =====================================
-    # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI
+       # =====================================
+    # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI (VERSIONE COMPATTA)
     # =====================================
     st.subheader("⚠️ Contratti in scadenza entro 6 mesi")
 
@@ -274,70 +274,35 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     entro_6_mesi = oggi + pd.DateOffset(months=6)
 
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce")
-    scadenze = df_ct[
+    in_scadenza = df_ct[
         (df_ct["DataFine"].notna())
         & (df_ct["DataFine"] >= oggi)
         & (df_ct["DataFine"] <= entro_6_mesi)
     ].copy()
 
-    if scadenze.empty:
+    if in_scadenza.empty:
         st.success("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
     else:
-        # Unisce i dati cliente per nome
-        scadenze = scadenze.merge(
+        in_scadenza = in_scadenza.merge(
             df_cli[["ClienteID", "RagioneSociale"]],
-            on="ClienteID",
-            how="left"
+            on="ClienteID", how="left"
         )
-        scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
-        scadenze = scadenze.sort_values("DataFine", ascending=True)
+        in_scadenza["DataFine"] = in_scadenza["DataFine"].apply(fmt_date)
+        in_scadenza = in_scadenza.sort_values("DataFine")
 
-        # Stile card
-        st.markdown("""
-        <style>
-        .contratto-card {
-            border: 1px solid #e5e7eb;
-            background-color: #fffaf0;
-            border-radius: 10px;
-            padding: 10px 16px;
-            margin-bottom: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-        .contratto-card:hover {
-            background-color: #fff5e6;
-        }
-        .contratto-header {
-            font-weight: 600;
-            color: #b45309;
-        }
-        .contratto-info {
-            font-size: 0.9rem;
-            color: #444;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        st.dataframe(
+            in_scadenza[["RagioneSociale", "NumeroContratto", "DataFine", "Stato"]]
+            .rename(columns={
+                "RagioneSociale": "Cliente",
+                "NumeroContratto": "Contratto",
+                "DataFine": "Scadenza",
+                "Stato": "Stato"
+            }),
+            use_container_width=True,
+            hide_index=True,
+            height=220
+        )
 
-        for i, row in scadenze.iterrows():
-            col1, col2, col3, col4 = st.columns([0.3, 0.3, 0.2, 0.2])
-            with col1:
-                st.markdown(
-                    f"<div class='contratto-card'>"
-                    f"<div class='contratto-header'>{row['RagioneSociale'] or '—'}</div>"
-                    f"<div class='contratto-info'>Contratto: <b>{row['NumeroContratto']}</b></div>"
-                    f"<div class='contratto-info'>Scadenza: {row['DataFine']}</div>"
-                    f"<div class='contratto-info'>Stato: {row['Stato'] or '—'}</div>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
-            with col2:
-                st.write("")  # spaziatore
-            with col3:
-                st.write("")
-            with col4:
-                if st.button("🔍 Apri Scheda", key=f"open_exp_{i}"):
-                    st.session_state["selected_cliente"] = row["ClienteID"]
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
     # =====================================
     # 🔄 AGGIORNA AUTOMATICAMENTE PROSSIMI RECALL / VISITE
     # =====================================

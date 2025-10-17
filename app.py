@@ -913,6 +913,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === NUOVO CONTRATTO ===
     st.markdown("---")
     st.markdown("### ➕ Nuovo contratto")
+
     if "sel_id" in locals():
         with st.expander("➕ Crea un nuovo contratto per il cliente selezionato", expanded=False):
             with st.form(f"frm_new_contract_{sel_id}"):
@@ -923,7 +924,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
                 with c3:
                     durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+
                 desc = st.text_area("Descrizione prodotto", height=80)
+
                 col_nf, col_ni, col_tot = st.columns(3)
                 with col_nf:
                     nf = st.text_input("NOL_FIN")
@@ -931,10 +934,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     ni = st.text_input("NOL_INT")
                 with col_tot:
                     tot = st.text_input("TotRata")
-                if st.form_submit_button("💾 Crea contratto", use_container_width=True):
-                    if not num.strip():
-                        st.warning("⚠️ Inserisci un numero contratto.")
-                    else:
+
+                submit_new = st.form_submit_button("💾 Crea contratto", use_container_width=True)
+
+                if submit_new:
+                    try:
+                        if not num.strip():
+                            st.warning("⚠️ Inserisci un numero contratto.")
+                            st.stop()
+
                         new_row = {
                             "ClienteID": str(sel_id),
                             "NumeroContratto": num.strip(),
@@ -947,13 +955,112 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             "TotRata": tot.strip(),
                             "Stato": "aperto",
                         }
+
                         df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
                         save_contratti(df_ct)
                         st.success("✅ Contratto creato con successo.")
                         st.rerun()
+
+                    except Exception as e:
+                        st.error(f"❌ Errore durante la creazione del contratto: {e}")
     else:
         st.info("ℹ️ Seleziona prima un cliente per poter creare un nuovo contratto.")
 
+    # === ESPORTAZIONI ===
+    st.markdown("---")
+    st.markdown("### 📤 Esporta contratti")
+
+    if "ct" in locals() and not ct.empty:
+        col_exp1, col_exp2 = st.columns(2, gap="large")
+
+        # --- Esporta Excel ---
+        with col_exp1:
+            from openpyxl import Workbook
+            from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Contratti"
+
+            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                       "Descrizione", "TotRata", "Stato"]
+            ws.append(headers)
+
+            header_fill = PatternFill("solid", fgColor="BDD7EE")
+            border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                            top=Side(style="thin"), bottom=Side(style="thin"))
+
+            for cell in ws[1]:
+                cell.fill = header_fill
+                cell.font = Font(bold=True)
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            for _, row in ct.iterrows():
+                ws.append([
+                    row["NumeroContratto"], fmt_date(row["DataInizio"]),
+                    fmt_date(row["DataFine"]), row["Durata"],
+                    row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
+                ])
+
+            for col in ws.columns:
+                max_len = max(len(str(c.value)) if c.value is not None else 0 for c in col)
+                ws.column_dimensions[col[0].column_letter].width = max_len + 2
+                for cell in col:
+                    cell.border = border
+                    cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+            buf = io.BytesIO()
+            wb.save(buf)
+            st.download_button(
+                "📊 Scarica Excel (.xlsx)",
+                data=buf.getvalue(),
+                file_name=f"contratti_{rag_soc}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"xlsx_download_{sel_id}",
+                use_container_width=True
+            )
+
+        # --- Esporta PDF ---
+        with col_exp2:
+            pdf = FPDF(orientation="L", unit="mm", format="A4")
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+            pdf.set_font("Arial", "", 9)
+            pdf.ln(4)
+            headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
+            widths = [35, 25, 25, 20, 110, 25, 20]
+
+            for h, w in zip(headers, widths):
+                pdf.cell(w, 8, safe_text(h), 1, 0, "C")
+            pdf.ln()
+
+            for _, row in ct.iterrows():
+                cells = [
+                    safe_text(row["NumeroContratto"]),
+                    fmt_date(row["DataInizio"]),
+                    fmt_date(row["DataFine"]),
+                    safe_text(row["Durata"]),
+                    safe_text(row["DescrizioneProdotto"]),
+                    safe_text(row["TotRata"]),
+                    safe_text(row["Stato"]),
+                ]
+                for t, w in zip(cells, widths):
+                    pdf.multi_cell(w, 6, t, 1, "L", False)
+                pdf.ln(0)
+
+            pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
+            st.download_button(
+                "📘 Scarica PDF",
+                data=pdf_buffer,
+                file_name=f"contratti_{rag_soc}.pdf",
+                mime="application/pdf",
+                key=f"pdf_download_{sel_id}",
+                use_container_width=True
+            )
+    else:
+        st.info("ℹ️ Nessun contratto disponibile per l’esportazione.")
 
 
 # =====================================

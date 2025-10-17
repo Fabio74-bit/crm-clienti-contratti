@@ -911,44 +911,47 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"Errore durante il salvataggio: {e}")
 
    # === NUOVO CONTRATTO ===
-with st.expander("➕ Nuovo contratto"):
-    with st.form(f"frm_new_contract_{sel_id}"):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            num = st.text_input("Numero Contratto")
-        with c2:
-            data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
-        with c3:
-            durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-        desc = st.text_area("Descrizione prodotto", height=80)
-        col_nf, col_ni, col_tot = st.columns(3)
-        with col_nf:
-            nf = st.text_input("NOL_FIN")
-        with col_ni:
-            ni = st.text_input("NOL_INT")
-        with col_tot:
-            tot = st.text_input("TotRata")
+# === NUOVO CONTRATTO ===
+if "sel_id" in locals():
+    with st.expander("➕ Nuovo contratto"):
+        with st.form(f"frm_new_contract_{sel_id}"):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                num = st.text_input("Numero Contratto")
+            with c2:
+                data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
+            with c3:
+                durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+            desc = st.text_area("Descrizione prodotto", height=80)
+            col_nf, col_ni, col_tot = st.columns(3)
+            with col_nf:
+                nf = st.text_input("NOL_FIN")
+            with col_ni:
+                ni = st.text_input("NOL_INT")
+            with col_tot:
+                tot = st.text_input("TotRata")
 
-        if st.form_submit_button("💾 Crea contratto"):
-            try:
-                new_row = {
-                    "ClienteID": str(sel_id),
-                    "NumeroContratto": num,
-                    "DataInizio": pd.to_datetime(data_inizio),
-                    "DataFine": pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata)),
-                    "Durata": durata,
-                    "DescrizioneProdotto": desc,
-                    "NOL_FIN": nf,
-                    "NOL_INT": ni,
-                    "TotRata": tot,
-                    "Stato": "aperto",
-                }
-                df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
-                save_contratti(df_ct)
-                st.success("✅ Contratto creato con successo.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Errore creazione: {e}")
+            if st.form_submit_button("💾 Crea contratto"):
+                try:
+                    new_row = {
+                        "ClienteID": str(sel_id),
+                        "NumeroContratto": num,
+                        "DataInizio": pd.to_datetime(data_inizio),
+                        "DataFine": pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata)),
+                        "Durata": durata,
+                        "DescrizioneProdotto": desc,
+                        "NOL_FIN": nf,
+                        "NOL_INT": ni,
+                        "TotRata": tot,
+                        "Stato": "aperto",
+                    }
+                    df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
+                    save_contratti(df_ct)
+                    st.success("✅ Contratto creato con successo.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Errore creazione: {e}")
+
 
 # === ESPORTAZIONI ===
 st.divider()

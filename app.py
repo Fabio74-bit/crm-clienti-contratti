@@ -1066,8 +1066,10 @@ def main():
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
         "Contratti": page_contratti,
+        "📅 Recall e Visite": page_richiami_visite,
         "📋 Lista Clienti": page_lista_clienti
-    }
+}
+
 
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio(

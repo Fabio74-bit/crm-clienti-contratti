@@ -340,8 +340,17 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
-    st.caption(f"ClienteID: {sel_id}")
+    # === HEADER CON NOME CLIENTE E PULSANTE CONTRATTI ===
+    col_header1, col_header2 = st.columns([4, 1])
+    with col_header1:
+        st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
+        st.caption(f"ClienteID: {sel_id}")
+    with col_header2:
+        st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
+        if st.button("📄 Vai ai Contratti", use_container_width=True):
+            st.session_state["selected_cliente"] = sel_id
+            st.session_state["nav_target"] = "Contratti"
+            st.rerun()
 
     # === BLOCCO INFO RAPIDE ===
     indirizzo = cliente.get("Indirizzo", "")
@@ -412,6 +421,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.rerun()
 
     st.divider()
+
 
     # ===== EXPANDER ANAGRAFICA EDITABILE =====
     with st.expander("✏️ Modifica anagrafica completa"):

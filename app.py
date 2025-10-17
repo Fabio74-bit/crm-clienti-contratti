@@ -144,48 +144,95 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
+    """Pagina di login compatta e centrata, con logo e ruoli da secrets.toml"""
+    import streamlit as st
+    import time
+
+    # === STILE PERSONALIZZATO ===
     st.markdown(
         """
         <style>
-        /* Centra e riduce i margini verticali */
         div[data-testid="stAppViewContainer"] {
-            padding-top: 2rem !important;
-        }
-        section.main > div {
             padding-top: 1rem !important;
         }
+        section.main > div {
+            padding-top: 0rem !important;
+        }
 
-        /* Centra il contenitore di login */
+        /* Centra il contenuto e riduce spazi */
         .block-container {
             display: flex;
             flex-direction: column;
-            justify-content: flex-start; /* era center, ora parte più in alto */
+            justify-content: flex-start;
             align-items: center;
-            min-height: 90vh;
-            margin-top: -60px; /* sposta il box ancora più in alto */
+            min-height: 85vh;
+            padding-top: 2rem;
         }
 
-        /* Riduci spazio extra sopra titolo o logo */
-        h1, h2, h3 {
-            margin-top: 0 !important;
+        /* Box di login */
+        .login-box {
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-radius: 16px;
+            padding: 2rem 3rem;
+            width: 380px;
+        }
+
+        .login-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2563eb;
+            text-align: center;
+            margin-bottom: 1.2rem;
+        }
+
+        .login-btn {
+            background-color: #2563eb;
+            color: white;
+            border-radius: 8px;
+            padding: 0.5rem;
+            width: 100%;
+            font-weight: 600;
         }
         </style>
         """,
         unsafe_allow_html=True
     )
 
+    # === LOGO ===
+    st.image("https://www.shtsrl.com/template/images/logo.png", width=150)  # 👈 sostituisci col tuo URL/logo
 
-    username = st.text_input("👤 Utente", key="login_user")
-    password = st.text_input("🔒 Password", type="password", key="login_pwd")
+    st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
-    if st.button("Entra"):
-        if username in users and password == users[username].get("password"):
-            st.session_state["auth_user"] = username
-            st.session_state["auth_role"] = users[username].get("role", "viewer")
-            st.rerun()
-        else:
-            st.error("❌ Credenziali errate o utente inesistente.")
-    st.stop()
+    # === BOX LOGIN ===
+    with st.container():
+        with st.form("login_form"):
+            st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+            username = st.text_input("👤 Nome utente", key="user_input").strip().lower()
+            password = st.text_input("🔑 Password", type="password", key="pass_input")
+            submit = st.form_submit_button("Login", use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # === AUTENTICAZIONE ===
+        if submit:
+            users = st.secrets["auth"]["users"]
+            if username in users and users[username]["password"] == password:
+                role = users[username].get("role", "viewer")
+                st.session_state["user"] = username
+                st.session_state["role"] = role
+                st.success(f"✅ Benvenuto {username} ({role})")
+                time.sleep(0.6)
+                return username, role
+            else:
+                st.error("❌ Credenziali non valide.")
+
+    # === LOGIN AUTOMATICO SE GIÀ AUTENTICATO ===
+    if "user" in st.session_state and st.session_state["user"]:
+        return st.session_state["user"], st.session_state.get("role", "viewer")
+
+    return None, None
+
 # =====================================
 # DASHBOARD
 # =====================================

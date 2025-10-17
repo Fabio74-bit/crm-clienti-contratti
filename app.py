@@ -226,33 +226,52 @@ def do_login_fullscreen():
 # =====================================
 # DASHBOARD
 # =====================================
-def kpi_card(label, value, icon, color):
-    return f"""
-    <div style="background-color:{color};padding:18px;border-radius:12px;text-align:center;color:white;">
-        <div style="font-size:26px;">{icon}</div>
-        <div style="font-size:22px;font-weight:700;">{value}</div>
-        <div style="font-size:14px;">{label}</div>
-    </div>
-    """
-
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
     st.markdown("<h2>📊 Dashboard Gestionale</h2>", unsafe_allow_html=True)
     st.divider()
 
     now = pd.Timestamp.now().normalize()
+
+    # === 📆 AGGIORNAMENTO AUTOMATICO RECALL/VISITE ===
+    updated = False
+    for i, r in df_cli.iterrows():
+        ur = as_date(r.get("UltimoRecall"))
+        pr = as_date(r.get("ProssimoRecall"))
+        uv = as_date(r.get("UltimaVisita"))
+        pv = as_date(r.get("ProssimaVisita"))
+
+        # Calcola automatico solo se mancante
+        if pd.notna(ur) and pd.isna(pr):
+            df_cli.at[i, "ProssimoRecall"] = fmt_date(ur + pd.DateOffset(months=3))
+            updated = True
+        if pd.notna(uv) and pd.isna(pv):
+            df_cli.at[i, "ProssimaVisita"] = fmt_date(uv + pd.DateOffset(months=6))
+            updated = True
+
+    if updated:
+        save_clienti(df_cli)
+
+    # === KPI ===
+    def kpi_card(label, value, icon, color):
+        return f"""
+        <div style="background-color:{color};padding:18px;border-radius:12px;
+                    text-align:center;color:white;">
+            <div style="font-size:26px;">{icon}</div>
+            <div style="font-size:22px;font-weight:700;">{value}</div>
+            <div style="font-size:14px;">{label}</div>
+        </div>
+        """
+
     stato = df_ct["Stato"].fillna("").astype(str).str.lower()
     total_clients = len(df_cli)
     active_contracts = int((stato != "chiuso").sum())
     closed_contracts = int((stato == "chiuso").sum())
 
-    # Nuovi contratti nell’anno
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
     start_year = pd.Timestamp(year=now.year, month=1, day=1)
-    new_contracts = df_ct[(df_ct["DataInizio"].notna()) & (df_ct["DataInizio"] >= start_year)]
-    count_new = len(new_contracts)
+    count_new = len(df_ct[df_ct["DataInizio"] >= start_year])
 
-    # KPI
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(kpi_card("Clienti attivi", total_clients, "👥", "#1976D2"), unsafe_allow_html=True)
     c2.markdown(kpi_card("Contratti attivi", active_contracts, "📄", "#388E3C"), unsafe_allow_html=True)
@@ -261,9 +280,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # =====================================
-    # RECALL E VISITE IMMINENTI
-    # =====================================
+    # === RECALL E VISITE IMMINENTI ===
     st.subheader("📞 Recall e 👣 Visite imminenti")
 
     df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
@@ -291,63 +308,59 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # =====================================
-    # CLIENTI SENZA DATA FINE (DA OGGI IN POI)
-    # =====================================
+    # === CLIENTI SENZA DATA FINE ===
     st.subheader("🚫 Clienti senza Data Fine (da oggi in poi)")
 
-    if "DataFine" in df_ct.columns:
-        df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
-        df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
-        senza_datafine = df_ct[df_ct["DataFine"].isna()]
+    if "DataFine" not in df_ct.columns:
+        st.info("ℹ️ Il campo 'DataFine' non è presente nel file contratti.")
+        return
 
-        # Solo contratti con DataInizio da oggi in poi
-        senza_datafine = senza_datafine[
-            (df_ct["DataInizio"].notna()) & (df_ct["DataInizio"] >= now)
-        ]
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
 
-        if senza_datafine.empty:
-            st.success("✅ Tutti i contratti da oggi in poi hanno una data fine impostata.")
-        else:
-            st.warning(f"⚠️ {len(senza_datafine)} contratti recenti senza Data Fine.")
+    senza_fine = df_ct[
+        (df_ct["DataFine"].isna() | (df_ct["DataFine"] == ""))
+        & (df_ct["Stato"].str.lower() != "chiuso")
+        & (df_ct["ClienteID"].notna())
+    ].copy()
 
-            vis = senza_datafine.merge(
-                df_cli[["ClienteID", "RagioneSociale"]],
-                on="ClienteID",
-                how="left"
-            )[
-                ["ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio"]
-            ]
-            vis["DataInizio"] = vis["DataInizio"].apply(fmt_date)
-
-            # Intestazione tabella
-            st.markdown(
-                "<div style='display:flex;font-weight:bold;margin-bottom:5px;'>"
-                "<div style='width:15%;'>ClienteID</div>"
-                "<div style='width:35%;'>Ragione Sociale</div>"
-                "<div style='width:25%;'>Numero Contratto</div>"
-                "<div style='width:15%;'>Data Inizio</div>"
-                "<div style='width:10%;text-align:center;'>Azione</div>"
-                "</div><hr>",
-                unsafe_allow_html=True,
-            )
-
-             # Righe tabella
-            for _, row in vis.iterrows():
-                col1, col2, col3, col4, col5 = st.columns([1.2, 3, 2, 1.3, 1])
-                col1.markdown(f"{row['ClienteID']}")
-                col2.markdown(f"**{row['RagioneSociale'] or '—'}**")
-                col3.markdown(row["NumeroContratto"] or "—")
-                col4.markdown(row["DataInizio"] or "—")
-                if col5.button("🔍 Apri Scheda", key=f"open_{row['ClienteID']}"):
-                    st.session_state["selected_cliente"] = row["ClienteID"]
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
-
-
-
+    if senza_fine.empty:
+        st.success("✅ Tutti i contratti da oggi in poi hanno una data fine impostata.")
     else:
-        st.info("ℹ️ Il campo 'DataFine' non è ancora presente nel file contratti.")
+        st.warning(f"⚠️ {len(senza_fine)} contratti recenti senza Data Fine.")
+
+        vis = senza_fine.merge(
+            df_cli[["ClienteID", "RagioneSociale"]],
+            on="ClienteID",
+            how="left"
+        )[["ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio"]]
+
+        vis["DataInizio"] = vis["DataInizio"].apply(fmt_date)
+
+        # intestazione
+        st.markdown(
+            "<div style='display:flex;font-weight:bold;margin-bottom:5px;'>"
+            "<div style='width:15%;'>ClienteID</div>"
+            "<div style='width:35%;'>Ragione Sociale</div>"
+            "<div style='width:25%;'>Numero Contratto</div>"
+            "<div style='width:15%;'>Data Inizio</div>"
+            "<div style='width:10%;text-align:center;'>Azione</div>"
+            "</div><hr>",
+            unsafe_allow_html=True,
+        )
+
+        # righe tabella con pulsante apri scheda
+        for _, row in vis.iterrows():
+            col1, col2, col3, col4, col5 = st.columns([1.2, 3, 2, 1.3, 1])
+            col1.markdown(f"{row['ClienteID']}")
+            col2.markdown(f"**{row['RagioneSociale'] or '—'}**")
+            col3.markdown(row["NumeroContratto"] or "—")
+            col4.markdown(row["DataInizio"] or "—")
+            if col5.button("🔍 Apri Scheda", key=f"open_{row['ClienteID']}"):
+                st.session_state["selected_cliente"] = row["ClienteID"]
+                st.session_state["nav_target"] = "Clienti"
+                st.rerun()
+
 
 
 # =====================================

@@ -833,194 +833,99 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     selected = grid_return["selected_rows"]
 
-   # === AZIONI SOTTO TABELLA ===
+    # === AZIONI SOTTO TABELLA ===
+    st.markdown("---")
+    st.markdown("### ⚙️ Gestione contratto selezionato")
+
     if "selected" in locals() and selected is not None and len(selected) > 0:
         r = selected[0]
+
         if r and "NumeroContratto" in r:
             idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
+            stato = str(r.get("Stato", "aperto")).lower()
 
-        st.markdown("---")
-        colA1, colA2, colA3 = st.columns([0.25, 0.25, 0.25])
+            # --- Pulsanti principali (chiudi / modifica)
+            colA1, colA2 = st.columns([0.25, 0.25])
+            with colA1:
+                if stato == "chiuso":
+                    if st.button("🔓 Riapri contratto", key=f"riapri_{idx}", use_container_width=True):
+                        try:
+                            df_ct.loc[idx, "Stato"] = "aperto"
+                            save_contratti(df_ct)
+                            st.success("✅ Contratto riaperto correttamente.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Errore durante la riapertura: {e}")
+                else:
+                    if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}", use_container_width=True):
+                        try:
+                            df_ct.loc[idx, "Stato"] = "chiuso"
+                            save_contratti(df_ct)
+                            st.success("✅ Contratto chiuso correttamente.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Errore durante la chiusura: {e}")
 
-        stato = str(r.get("Stato", "aperto")).lower()
+            with colA2:
+                if st.button("✏️ Modifica contratto", key=f"edit_{idx}", use_container_width=True):
+                    st.session_state["selected_contract_index"] = idx
 
-        with colA1:
-            if stato == "chiuso":
-                if st.button("🔓 Riapri contratto", key=f"riapri_{idx}"):
-                    df_ct.loc[idx, "Stato"] = "aperto"
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto riaperto.")
-                    st.rerun()
-            else:
-                if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}"):
-                    df_ct.loc[idx, "Stato"] = "chiuso"
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto chiuso.")
-                    st.rerun()
+    else:
+        st.info("ℹ️ Seleziona un contratto nella tabella per modificarlo o chiuderlo.")
 
-        with colA2:
-            if st.button("✏️ Modifica contratto", key=f"edit_{idx}"):
-                st.session_state["selected_contract_index"] = idx
+    # === MODIFICA CONTRATTO SELEZIONATO ===
+    if "selected_contract_index" in st.session_state:
+        idx = st.session_state["selected_contract_index"]
 
-        with colA3:
-            st.write("")  # spazio per allineamento
+        if 0 <= idx < len(df_ct):
+            r = df_ct.iloc[idx]
+            with st.expander("✏️ Modifica contratto selezionato", expanded=True):
+                with st.form(f"frm_edit_{idx}"):
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        num = st.text_input("Numero Contratto", r["NumeroContratto"])
+                    with c2:
+                        datain = st.date_input("Data Inizio", pd.to_datetime(r["DataInizio"], errors="coerce"))
+                    with c3:
+                        datafin = st.date_input("Data Fine", pd.to_datetime(r["DataFine"], errors="coerce"))
 
-    # === ESPORTAZIONI (Excel + PDF) ===
-    with st.container():
-        st.markdown("---")
-        st.markdown("### 📤 Esporta contratti")
+                    durata = st.text_input("Durata (mesi)", r["Durata"])
+                    desc = st.text_area("Descrizione prodotto", r["DescrizioneProdotto"], height=80)
 
-        # Safety: se ct non esiste o è vuoto, disabilito i pulsanti
-        ct_ok = ("ct" in locals()) and isinstance(ct, pd.DataFrame) and (not ct.empty)
+                    col_nf, col_ni, col_tot = st.columns(3)
+                    with col_nf:
+                        nf = st.text_input("NOL_FIN", r["NOL_FIN"])
+                    with col_ni:
+                        ni = st.text_input("NOL_INT", r["NOL_INT"])
+                    with col_tot:
+                        tot = st.text_input("TotRata", r["TotRata"])
 
-        col_exp1, col_exp2 = st.columns(2, gap="large")
+                    stato_new = st.selectbox(
+                        "Stato",
+                        ["aperto", "chiuso"],
+                        index=0 if (r["Stato"] or "").lower() == "aperto" else 1
+                    )
 
-        # --- Esporta Excel ---
-        with col_exp1:
-            st.caption("Esporta in Excel (.xlsx)")
-            disabled = not ct_ok
-            if disabled:
-                st.info("Nessun contratto da esportare.")
-            else:
-                from openpyxl import Workbook
-                from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
-
-                wb = Workbook()
-                ws = wb.active
-                ws.title = "Contratti"
-
-                headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                           "Descrizione", "TotRata", "Stato"]
-                ws.append(headers)
-
-                header_fill = PatternFill("solid", fgColor="BDD7EE")
-                border = Border(left=Side(style="thin"), right=Side(style="thin"),
-                                top=Side(style="thin"), bottom=Side(style="thin"))
-
-                for cell in ws[1]:
-                    cell.fill = header_fill
-                    cell.font = Font(bold=True)
-                    cell.border = border
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-
-                # Righe
-                for _, row in ct.iterrows():
-                    ws.append([
-                        row.get("NumeroContratto", ""),
-                        fmt_date(row.get("DataInizio", "")),
-                        fmt_date(row.get("DataFine", "")),
-                        row.get("Durata", ""),
-                        row.get("DescrizioneProdotto", ""),
-                        row.get("TotRata", ""),
-                        row.get("Stato", ""),
-                    ])
-
-                # Larghezze + wrap + bordi
-                for col in ws.columns:
-                    max_len = max(len(str(c.value)) if c.value is not None else 0 for c in col)
-                    ws.column_dimensions[col[0].column_letter].width = max_len + 2
-                    for cell in col:
-                        cell.border = border
-                        cell.alignment = Alignment(wrap_text=True, vertical="top")
-
-                buf = io.BytesIO()
-                wb.save(buf)
-
-                st.download_button(
-                    "📊 Scarica Excel (.xlsx)",
-                    data=buf.getvalue(),
-                    file_name=f"contratti_{rag_soc}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"xlsx_download_{sel_id}",
-                    width="stretch",
-                    disabled=disabled,
-                )
-
-        # --- Esporta PDF ---
-        with col_exp2:
-            st.caption("Esporta in PDF (orizzontale)")
-            disabled = not ct_ok
-            if disabled:
-                st.info("Nessun contratto da esportare.")
-            else:
-                pdf = FPDF(orientation="L", unit="mm", format="A4")
-                pdf.add_page()
-                pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-                pdf.set_font("Arial", "", 9)
-                pdf.ln(4)
-
-                headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-                widths  = [35,       25,            25,           20,        110,          25,        20]
-
-                # Header
-                for h, w in zip(headers, widths):
-                    pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-                pdf.ln()
-
-                # Righe (multi_cell per descrizione)
-                for _, row in ct.iterrows():
-                    cells = [
-                        safe_text(row.get("NumeroContratto", "")),
-                        fmt_date(row.get("DataInizio", "")),
-                        fmt_date(row.get("DataFine", "")),
-                        safe_text(row.get("Durata", "")),
-                        safe_text(row.get("DescrizioneProdotto", "")),
-                        safe_text(row.get("TotRata", "")),
-                        safe_text(row.get("Stato", "")),
-                    ]
-                    for t, w in zip(cells, widths):
-                        pdf.multi_cell(w, 6, t, 1, "L", False)
-                    pdf.ln(0)
-
-                pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-
-                st.download_button(
-                    "📘 Scarica PDF",
-                    data=pdf_buffer,
-                    file_name=f"contratti_{rag_soc}.pdf",
-                    mime="application/pdf",
-                    key=f"pdf_download_{sel_id}",
-                    width="stretch",
-                    disabled=disabled,
-                )
-
-# === MODIFICA CONTRATTO SELEZIONATO ===
-if "selected_contract_index" in st.session_state:
-    idx = st.session_state["selected_contract_index"]
-    if idx < len(df_ct):
-        r = df_ct.iloc[idx]
-        with st.expander("✏️ Modifica contratto selezionato", expanded=True):
-            with st.form(f"frm_edit_{idx}"):
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    num = st.text_input("Numero Contratto", r["NumeroContratto"])
-                with c2:
-                    datain = st.date_input("Data Inizio", pd.to_datetime(r["DataInizio"], errors="coerce"))
-                with c3:
-                    datafin = st.date_input("Data Fine", pd.to_datetime(r["DataFine"], errors="coerce"))
-                durata = st.text_input("Durata (mesi)", r["Durata"])
-                desc = st.text_area("Descrizione prodotto", r["DescrizioneProdotto"], height=80)
-                col_nf, col_ni, col_tot = st.columns(3)
-                with col_nf:
-                    nf = st.text_input("NOL_FIN", r["NOL_FIN"])
-                with col_ni:
-                    ni = st.text_input("NOL_INT", r["NOL_INT"])
-                with col_tot:
-                    tot = st.text_input("TotRata", r["TotRata"])
-                stato_new = st.selectbox("Stato", ["aperto", "chiuso"],
-                                         index=0 if (r["Stato"] or "").lower() == "aperto" else 1)
-
-                if st.form_submit_button("💾 Salva modifiche"):
-                    df_ct.loc[idx, ["NumeroContratto", "DataInizio", "DataFine", "Durata",
-                                    "DescrizioneProdotto", "NOL_FIN", "NOL_INT",
-                                    "TotRata", "Stato"]] = [
-                        num, datain, datafin, durata, desc, nf, ni, tot, stato_new
-                    ]
-                    save_contratti(df_ct)
-                    st.success("✅ Modifiche salvate.")
-                    del st.session_state["selected_contract_index"]
-                    st.rerun()
+                    salva_btn = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
+                    if salva_btn:
+                        try:
+                            df_ct.loc[idx, [
+                                "NumeroContratto", "DataInizio", "DataFine",
+                                "Durata", "DescrizioneProdotto", "NOL_FIN",
+                                "NOL_INT", "TotRata", "Stato"
+                            ]] = [
+                                num, datain, datafin, durata, desc,
+                                nf, ni, tot, stato_new
+                            ]
+                            save_contratti(df_ct)
+                            st.success("✅ Modifiche salvate correttamente.")
+                            del st.session_state["selected_contract_index"]
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Errore durante il salvataggio: {e}")
+        else:
+            st.warning("⚠️ Indice contratto non valido.")
+            del st.session_state["selected_contract_index"]
 
     # === NUOVO CONTRATTO ===
     st.markdown("---")
@@ -1051,7 +956,6 @@ if "selected_contract_index" in st.session_state:
 
                 if submit_new:
                     try:
-                        # Controllo campi obbligatori
                         if not num.strip():
                             st.warning("⚠️ Inserisci un numero contratto.")
                             st.stop()

@@ -721,24 +721,60 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
 
-# =====================================
-# CONTRATTI (AgGrid + gestione stato)
-# =====================================
+
 # =====================================
 # CONTRATTI (nuova versione completa 2025)
+# =====================================
+# =====================================
+# CONTRATTI (versione definitiva con pulsante fisso)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import io
     from fpdf import FPDF
     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
-    st.markdown("<h2>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
+    # --- CSS: full screen + pulsante fisso ---
+    st.markdown("""
+    <style>
+    div.block-container {padding: 0 1rem 1rem 1rem !important; max-width: 100%;}
+    [data-testid="stSidebar"] {background-color: #f8fafc;}
+    .floating-home {
+        position: fixed;
+        top: 20px;
+        right: 25px;
+        z-index: 1000;
+        background-color: #2563eb;
+        color: white;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 14px;
+        cursor: pointer;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+        transition: all 0.2s ease;
+    }
+    .floating-home:hover {
+        background-color: #1e40af;
+        transform: scale(1.03);
+    }
+    </style>
+
+    <script>
+    function goHome() {
+        window.parent.postMessage({isStreamlitCommand: true, command: 'setSessionState', args: {'nav_target': 'Dashboard'}}, '*');
+    }
+    </script>
+
+    <button class="floating-home" onclick="goHome()">🏠 Home</button>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<h2 style='margin-top:3rem'>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
 
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
 
-    # --- Se arrivi da un link "Vai ai Contratti" ---
+    # --- Se arrivi da link "Vai ai Contratti" ---
     selected_cliente_id = st.session_state.pop("selected_cliente", None)
     cliente_ids = df_cli["ClienteID"].astype(str).tolist()
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1).tolist()
@@ -834,16 +870,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     gb.configure_grid_options(getRowStyle=js_style)
 
     grid_opts = gb.build()
-    st.markdown(
-        "<div style='height:600px'>",
-        unsafe_allow_html=True
-    )
 
+    st.markdown("<div style='height:620px'>", unsafe_allow_html=True)
     grid_return = AgGrid(
         disp,
         gridOptions=grid_opts,
         theme="balham",
-        height=600,
+        height=620,
         width="100%",
         update_mode=GridUpdateMode.VALUE_CHANGED,
         allow_unsafe_jscode=True,
@@ -899,6 +932,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.cell(0, 8, f"Contratti - {rag_soc}", ln=1, align="C")
             pdf.set_font("Arial", "", 9)
             pdf.ln(4)
+
             headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
             col_widths = [35, 25, 25, 20, 110, 25, 20]
 
@@ -907,9 +941,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(w, 8, safe_text(h), 1, 0, "C")
             pdf.ln()
 
-            # Rows
+            # Rows (multiline)
             for _, row in updated_rows.iterrows():
-                cells = [
+                pdf.set_font("Arial", "", 8)
+                row_data = [
                     safe_text(row.get("NumeroContratto", "")),
                     safe_text(row.get("DataInizio", "")),
                     safe_text(row.get("DataFine", "")),
@@ -918,9 +953,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     safe_text(row.get("TotRata", "")),
                     safe_text(row.get("Stato", "")),
                 ]
-                for text, width in zip(cells, col_widths):
-                    pdf.multi_cell(width, 6, text, 1, "L", False, max_line_height=6)
-                pdf.ln(0)
+                y_start = pdf.get_y()
+                x_start = pdf.get_x()
+                for text, width in zip(row_data, col_widths):
+                    x_before = pdf.get_x()
+                    pdf.multi_cell(width, 6, text, 1, "L")
+                    pdf.set_xy(x_before + width, y_start)
+                pdf.ln(6)
             pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
             st.download_button(
                 "⬇️ Scarica PDF",
@@ -931,6 +970,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             )
         except Exception as e:
             st.error(f"Errore durante l'esportazione PDF: {e}")
+
 # =====================================
 # LISTA COMPLETA CLIENTI E CONTRATTI
 # =====================================

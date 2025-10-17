@@ -746,8 +746,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         sel_index = 0
 
-    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index)
+    ssel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index)
+    sel_index = labels.tolist().index(sel_label)
     sel_id = cliente_ids[sel_index]
+
     cliente_info = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]
     rag_soc = cliente_info["RagioneSociale"]
 

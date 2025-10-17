@@ -338,6 +338,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         vis["DataInizio"] = vis["DataInizio"].apply(fmt_date)
 
         # intestazione
+                # intestazione
         st.markdown(
             "<div style='display:flex;font-weight:bold;margin-bottom:5px;'>"
             "<div style='width:15%;'>ClienteID</div>"
@@ -349,14 +350,18 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             unsafe_allow_html=True,
         )
 
-        # righe tabella con pulsante apri scheda
-        for _, row in vis.iterrows():
+        # righe tabella con pulsante apri scheda (con chiavi uniche)
+        for idx, row in vis.reset_index().iterrows():
             col1, col2, col3, col4, col5 = st.columns([1.2, 3, 2, 1.3, 1])
             col1.markdown(f"{row['ClienteID']}")
             col2.markdown(f"**{row['RagioneSociale'] or '—'}**")
             col3.markdown(row["NumeroContratto"] or "—")
             col4.markdown(row["DataInizio"] or "—")
-            if col5.button("🔍 Apri Scheda", key=f"open_{row['ClienteID']}"):
+
+            # 🔑 chiave univoca basata su ID + NumeroContratto + indice
+            unique_key = f"open_{row['ClienteID']}_{row.get('NumeroContratto','')}_{idx}"
+
+            if col5.button("🔍 Apri Scheda", key=unique_key):
                 st.session_state["selected_cliente"] = row["ClienteID"]
                 st.session_state["nav_target"] = "Clienti"
                 st.rerun()

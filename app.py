@@ -928,18 +928,18 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.download_button("⬇️ Esporta CSV", csv, "lista_clienti_contratti.csv", "text/csv")
 
 # =====================================
-# MAIN APP (Minimal fix, stabile)
+# MAIN APP
 # =====================================
 def main():
     # === LOGIN ===
-    user, role = do_login_fullscreen()  # se non loggato fa st.stop() dentro la funzione
+    user, role = do_login_fullscreen()
     if not user:
         st.stop()
 
     # === SIDEBAR ===
     st.sidebar.success(f"👤 Utente: {user} — Ruolo: {role}")
 
-    # === Pagine disponibili ===
+    # === PAGINE ===
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -947,26 +947,21 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
-    # === Ricorda l'ultima pagina selezionata ===
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio(
         "📂 Menu principale",
         list(PAGES.keys()),
         index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
     )
-    st.session_state["nav_target"] = page  # persiste la scelta
 
-    # === Dati ===
+    # === DATI ===
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    # === Rende persistente la selezione cliente anche dopo rerun ===
-    if "selected_cliente" not in st.session_state:
-        st.session_state["selected_cliente"] = None
+    # === RENDER PAGINA ===
+    if page in PAGES:
+        PAGES[page](df_cli, df_ct, role)
 
-    # === Render pagina ===
-    PAGES[page](df_cli, df_ct, role)
 
-    # === Footer ===
-    st.markdown("<hr>", unsafe_allow_html=True)
-    st.caption(f"© {datetime.now().year} – Gestionale SHT | Utente: {user}")
+if __name__ == "__main__":
+    main()

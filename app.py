@@ -724,6 +724,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # CONTRATTI (AgGrid + gestione stato)
 # =====================================
+# =====================================
+# CONTRATTI (AgGrid + gestione stato)
+# =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
 
@@ -740,35 +743,32 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     cliente_ids = df_cli["ClienteID"].astype(str).tolist()
 
-    # Se hai cliccato "Vai ai Contratti", seleziona automaticamente quel cliente
+    # === Se arrivi da Dashboard, seleziona automaticamente quel cliente ===
     if selected_cliente_id and str(selected_cliente_id) in cliente_ids:
         sel_index = cliente_ids.index(str(selected_cliente_id))
     else:
         sel_index = 0
 
-    # Mostra il menu a discesa per selezionare il cliente
-sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index if sel_index < len(labels) else 0)
+    # === Selettore cliente sicuro ===
+    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index if sel_index < len(labels) else 0)
 
-# Trova l'indice reale corrispondente alla scelta dell'utente
-try:
-    sel_index = labels.tolist().index(sel_label)
-except ValueError:
-    sel_index = 0  # fallback di sicurezza se qualcosa non combacia
+    try:
+        sel_index = labels.tolist().index(sel_label)
+    except ValueError:
+        sel_index = 0  # fallback di sicurezza se qualcosa non combacia
 
-sel_id = cliente_ids[sel_index]
-
-
+    sel_id = cliente_ids[sel_index]
     cliente_info = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]
     rag_soc = cliente_info["RagioneSociale"]
 
-    # 🔙 Se arrivi da un link diretto, mostra pulsante per tornare
+    # 🔙 Pulsante ritorno se arrivi da link diretto
     if selected_cliente_id:
         st.info(f"📌 Mostrati solo i contratti del cliente **{rag_soc}** (ID: {sel_id})")
         if st.button("🏠 Torna alla Home", use_container_width=True):
             st.session_state["nav_target"] = "Dashboard"
             st.rerun()
 
-    # 🔍 Filtra i contratti del cliente selezionato
+    # === Filtra i contratti del cliente selezionato ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
 
     # === SEZIONE NUOVO CONTRATTO ===
@@ -839,11 +839,18 @@ sel_id = cliente_ids[sel_index]
     grid_opts = gb.build()
 
     st.markdown("### 📑 Lista contratti")
-    AgGrid(disp, gridOptions=grid_opts, theme="balham", height=380,
-           update_mode=GridUpdateMode.SELECTION_CHANGED, allow_unsafe_jscode=True)
+    AgGrid(
+        disp,
+        gridOptions=grid_opts,
+        theme="balham",
+        height=380,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        allow_unsafe_jscode=True
+    )
 
     st.divider()
     st.markdown("### ⚙️ Gestione stato contratti")
+
     for i, r in ct.iterrows():
         c1, c2, c3 = st.columns([0.05, 0.65, 0.3])
         with c1:
@@ -874,6 +881,7 @@ sel_id = cliente_ids[sel_index]
         try:
             pdf = FPDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=10)
             pdf.set_font("Arial", size=9)
             pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
             for _, row in disp.iterrows():
@@ -889,6 +897,7 @@ sel_id = cliente_ids[sel_index]
             st.download_button("📘 Esporta PDF", pdf_bytes, f"contratti_{rag_soc}.pdf", "application/pdf")
         except Exception as e:
             st.error(f"Errore PDF: {e}")
+
 
 
 # =====================================

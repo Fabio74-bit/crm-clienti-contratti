@@ -721,405 +721,164 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
 
-
-   # =====================================
-# CONTRATTI – versione stabile ottobre 2025
+# =====================================
+# CONTRATTI (AgGrid + gestione stato)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    import io
-    import pandas as pd
-    from fpdf import FPDF
-    from openpyxl import Workbook
-    from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
-    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+    st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
 
-    # === TITOLO ===
-    st.markdown("<h2 style='margin-top:1rem;'>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
-
-    # === RICERCA CLIENTE ===
-    search = st.text_input("🔍 Cerca Cliente per nome o ID:")
-    df_cli_filt = (
-        df_cli[
-            df_cli["RagioneSociale"].str.contains(search, case=False, na=False)
-            | df_cli["ClienteID"].astype(str).str.contains(search, na=False)
-        ]
-        if search else df_cli
-    )
-
-    if df_cli_filt.empty:
-        st.warning("Nessun cliente trovato.")
+    if df_cli.empty:
+        st.info("Nessun cliente presente.")
         return
 
-    labels = [f"{r['ClienteID']} — {r['RagioneSociale']}" for _, r in df_cli_filt.iterrows()]
-    cliente_ids = df_cli_filt["ClienteID"].astype(str).tolist()
-
+    # === 🔁 Se arrivi da "Vai ai Contratti" ===
+    selected_cliente_id = None
     if "selected_cliente" in st.session_state:
-        selected_cliente_id = str(st.session_state.pop("selected_cliente"))
-        sel_index = cliente_ids.index(selected_cliente_id) if selected_cliente_id in cliente_ids else 0
+        selected_cliente_id = st.session_state.pop("selected_cliente")
+
+    # === Prepara lista clienti ===
+    labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
+    cliente_ids = df_cli["ClienteID"].astype(str).tolist()
+
+    # Se hai cliccato "Vai ai Contratti", seleziona automaticamente quel cliente
+    if selected_cliente_id and str(selected_cliente_id) in cliente_ids:
+        sel_index = cliente_ids.index(str(selected_cliente_id))
     else:
         sel_index = 0
 
-    sel_label = st.selectbox("Cliente", labels, index=sel_index)
-    sel_id = cliente_ids[labels.index(sel_label)]
+    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index)
+    sel_id = cliente_ids[sel_index]
     cliente_info = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]
     rag_soc = cliente_info["RagioneSociale"]
 
-    st.divider()
+    # 🔙 Se arrivi da un link diretto, mostra pulsante per tornare
+    if selected_cliente_id:
+        st.info(f"📌 Mostrati solo i contratti del cliente **{rag_soc}** (ID: {sel_id})")
+        if st.button("🏠 Torna alla Home", use_container_width=True):
+            st.session_state["nav_target"] = "Dashboard"
+            st.rerun()
 
-    # === CONTRATTI CLIENTE ===
+    # 🔍 Filtra i contratti del cliente selezionato
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+
+    # === SEZIONE NUOVO CONTRATTO ===
+    with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
+        with st.form("frm_new_contract"):
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                num = st.text_input("Numero Contratto")
+            with c2:
+                din = st.date_input("Data inizio", format="DD/MM/YYYY")
+            with c3:
+                durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+            desc = st.text_area("Descrizione prodotto", height=100)
+            col_nf, col_ni, col_tot = st.columns(3)
+            with col_nf:
+                nf = st.text_input("NOL_FIN")
+            with col_ni:
+                ni = st.text_input("NOL_INT")
+            with col_tot:
+                tot = st.text_input("TotRata")
+
+            if st.form_submit_button("💾 Crea contratto"):
+                row = {
+                    "ClienteID": str(sel_id),
+                    "NumeroContratto": num,
+                    "DataInizio": pd.to_datetime(din),
+                    "DataFine": pd.to_datetime(din) + pd.DateOffset(months=int(durata)),
+                    "Durata": durata,
+                    "DescrizioneProdotto": desc,
+                    "NOL_FIN": nf,
+                    "NOL_INT": ni,
+                    "TotRata": tot,
+                    "Stato": "aperto"
+                }
+                df_ct = pd.concat([df_ct, pd.DataFrame([row])], ignore_index=True)
+                save_contratti(df_ct)
+                st.success("✅ Contratto creato con successo.")
+                st.rerun()
+
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
         return
 
-    # Prepara tabella visualizzazione
+    # === FORMATTAZIONE E STILE TABELLA ===
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
-
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+    disp["TotRata"] = disp["TotRata"].apply(money)
     disp = disp.drop(columns=["ClienteID"], errors="ignore")
-    disp["Azioni"] = ""  # 🔹 Aggiungila già qui (prima della tabella)
-
-     # --- Tabella AgGrid con pulsanti integrati Python ---
-    from st_aggrid.shared import JsCode
-
-    # Rimuoviamo la colonna Azioni se già esiste
-    if "Azioni" in disp.columns:
-        disp = disp.drop(columns=["Azioni"])
-
-    # Aggiungiamo i pulsanti come testo (per posizione visiva)
-    disp["Azioni"] = disp.apply(lambda x: "✏️ | ❌" if x["Stato"] == "aperto" else "✏️ | 🔓", axis=1)
 
     gb = GridOptionsBuilder.from_dataframe(disp)
-    gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
-    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
-    gb.configure_column("Azioni", width=120, pinned="right", suppressMovable=True)
-
-    # Colori riga in base allo stato
-    js_style = JsCode("""
-    function(params){
-        if(!params.data.Stato) return {};
+    gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
+    js_code = JsCode("""
+    function(params) {
+        if (!params.data.Stato) return {};
         const stato = params.data.Stato.toLowerCase();
-        if(stato === 'chiuso'){
-            return {'backgroundColor':'#ffebee','color':'#b71c1c','fontWeight':'bold'};
+        if (stato === 'chiuso') {
+            return { 'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold' };
+        } else if (stato === 'aperto' || stato === 'attivo') {
+            return { 'backgroundColor': '#e8f5e9', 'color': '#1b5e20' };
         } else {
-            return {'backgroundColor':'#ffffff','color':'#000000'};
+            return {};
         }
-    }""")
-
-    gb.configure_grid_options(getRowStyle=js_style)
-    grid_opts = gb.build()
-
-    grid_height = min(800, 120 + (len(disp) * 35))
-    grid_return = AgGrid(
-        disp,
-        gridOptions=grid_opts,
-        theme="balham",
-        height=grid_height,
-        allow_unsafe_jscode=True,
-        fit_columns_on_grid_load=False,
-        update_mode=GridUpdateMode.SELECTION_CHANGED
-    )
-
-    selected = grid_return["selected_rows"]
-
-    # --- Pulsanti funzionali Python ---
-    if selected and len(selected) > 0:
-        r = selected[0]
-        idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
-        stato = str(r.get("Stato", "aperto")).lower()
-
-        st.markdown("### ⚙️ Azioni rapide")
-        col1, col2 = st.columns([0.3, 0.3])
-
-        with col1:
-            if stato == "chiuso":
-                if st.button(f"🔓 Riapri contratto {r['NumeroContratto']}", key=f"riapri_{idx}"):
-                    df_ct.loc[idx, "Stato"] = "aperto"
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto riaperto.")
-                    st.rerun()
-            else:
-                if st.button(f"❌ Chiudi contratto {r['NumeroContratto']}", key=f"chiudi_{idx}"):
-                    df_ct.loc[idx, "Stato"] = "chiuso"
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto chiuso.")
-                    st.rerun()
-
-        with col2:
-            if st.button(f"✏️ Modifica contratto {r['NumeroContratto']}", key=f"edit_{idx}"):
-                st.session_state["selected_contract_index"] = idx
-                st.rerun()
-
-       # Configurazione tabella
-    gb = GridOptionsBuilder.from_dataframe(disp)
-    gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
-    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
-    gb.configure_column("Azioni", width=120, pinned="right", suppressMovable=True)
-
-    gb.configure_grid_options(domLayout="normal", ensureDomOrder=True)
-
-    # Colori riga in base allo stato
-    js_style = JsCode("""
-    function(params){
-        if(!params.data.Stato) return {};
-        const stato = params.data.Stato.toLowerCase();
-        if(stato === 'chiuso'){
-            return {'backgroundColor':'#ffebee','color':'#b71c1c','fontWeight':'bold'};
-        } else {
-            return {'backgroundColor':'#ffffff','color':'#000000'};
-        }
-    }""")
-
-    gb.configure_grid_options(getRowStyle=js_style)
-    grid_opts = gb.build()
-
-
-    # Altezza dinamica ma con larghezza fissa fino alla colonna "Azioni"
-    grid_height = min(800, 120 + (len(disp) * 35))
-    grid_return = AgGrid(
-        disp,
-        gridOptions=grid_opts,
-        theme="balham",
-        height=grid_height,
-        allow_unsafe_jscode=True,
-        fit_columns_on_grid_load=False,
-        update_mode=GridUpdateMode.SELECTION_CHANGED
-    )
-
-    selected = grid_return["selected_rows"]
-
-    # --- Gestione eventi pulsanti "Azioni" ---
-    from streamlit_javascript import st_javascript
-
-    msg = st_javascript("""
-    new Promise((resolve) => {
-        window.addEventListener("message", (event) => {
-            if (event.data && event.data.type) resolve(event.data);
-        }, {once: true});
-    });
+    }
     """)
+    gb.configure_grid_options(getRowStyle=js_code)
+    grid_opts = gb.build()
 
-    if msg and "type" in msg and "data" in msg:
-        row = msg["data"]
-        idx = ct[ct["NumeroContratto"] == row["NumeroContratto"]].index[0]
-        if msg["type"] == "edit_contract":
-            st.session_state["selected_contract_index"] = idx
-            st.rerun()
-        elif msg["type"] == "toggle_contract":
-            stato = str(row.get("Stato", "aperto")).lower()
-            nuovo = "aperto" if stato == "chiuso" else "chiuso"
-            df_ct.loc[idx, "Stato"] = nuovo
-            save_contratti(df_ct)
-            st.success(f"✅ Contratto {'riaperto' if nuovo == 'aperto' else 'chiuso'} correttamente.")
-            st.rerun()
+    st.markdown("### 📑 Lista contratti")
+    AgGrid(disp, gridOptions=grid_opts, theme="balham", height=380,
+           update_mode=GridUpdateMode.SELECTION_CHANGED, allow_unsafe_jscode=True)
 
-    # --- Pulsanti funzionali Python ---
-    if selected and len(selected) > 0:
-        r = selected[0]
-        idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
-        stato = str(r.get("Stato", "aperto")).lower()
-
-
-        c1, c2 = st.columns([0.2, 0.2])
+    st.divider()
+    st.markdown("### ⚙️ Gestione stato contratti")
+    for i, r in ct.iterrows():
+        c1, c2, c3 = st.columns([0.05, 0.65, 0.3])
         with c1:
-            if stato == "chiuso":
-                if st.button(f"🔓 Riapri contratto {r['NumeroContratto']}", key=f"riapri_{idx}"):
-                    df_ct.loc[idx, "Stato"] = "aperto"
+            st.write("")
+        with c2:
+            st.caption(f"{r['NumeroContratto']} — {r['DescrizioneProdotto'][:60]}")
+        with c3:
+            curr = (r["Stato"] or "aperto").lower()
+            if curr == "chiuso":
+                if st.button("🔓 Riapri", key=f"open_{i}"):
+                    df_ct.loc[i, "Stato"] = "aperto"
                     save_contratti(df_ct)
-                    st.success("✅ Contratto riaperto.")
+                    st.success(f"Contratto {r['NumeroContratto']} riaperto.")
                     st.rerun()
             else:
-                if st.button(f"❌ Chiudi contratto {r['NumeroContratto']}", key=f"chiudi_{idx}"):
-                    df_ct.loc[idx, "Stato"] = "chiuso"
+                if st.button("❌ Chiudi", key=f"close_{i}"):
+                    df_ct.loc[i, "Stato"] = "chiuso"
                     save_contratti(df_ct)
-                    st.success("✅ Contratto chiuso.")
+                    st.success(f"Contratto {r['NumeroContratto']} chiuso.")
                     st.rerun()
 
-        with c2:
-            if st.button(f"✏️ Modifica contratto {r['NumeroContratto']}", key=f"edit_{idx}"):
-                st.session_state["selected_contract_index"] = idx
-                st.rerun()
-    
-    # === MODIFICA CONTRATTO SELEZIONATO ===
-    if "selected_contract_index" in st.session_state:
-        idx = st.session_state["selected_contract_index"]
-        if 0 <= idx < len(df_ct):
-            r = df_ct.iloc[idx]
-            with st.expander("✏️ Modifica contratto selezionato", expanded=True):
-                with st.form(f"frm_edit_{idx}"):
-                    c1, c2, c3 = st.columns(3)
-                    with c1:
-                        num = st.text_input("Numero Contratto", r["NumeroContratto"])
-                    with c2:
-                        datain = st.date_input("Data Inizio", pd.to_datetime(r["DataInizio"], errors="coerce"))
-                    with c3:
-                        datafin = st.date_input("Data Fine", pd.to_datetime(r["DataFine"], errors="coerce"))
-                    durata = st.text_input("Durata (mesi)", r["Durata"])
-                    desc = st.text_area("Descrizione prodotto", r["DescrizioneProdotto"], height=80)
-                    col_nf, col_ni, col_tot = st.columns(3)
-                    with col_nf:
-                        nf = st.text_input("NOL_FIN", r["NOL_FIN"])
-                    with col_ni:
-                        ni = st.text_input("NOL_INT", r["NOL_INT"])
-                    with col_tot:
-                        tot = st.text_input("TotRata", r["TotRata"])
-                    stato_new = st.selectbox("Stato", ["aperto", "chiuso"],
-                                             index=0 if (r["Stato"] or "").lower() == "aperto" else 1)
-                    salva_btn = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
-                    if salva_btn:
-                        df_ct.loc[idx, ["NumeroContratto", "DataInizio", "DataFine", "Durata",
-                                        "DescrizioneProdotto", "NOL_FIN", "NOL_INT",
-                                        "TotRata", "Stato"]] = [
-                            num, datain, datafin, durata, desc, nf, ni, tot, stato_new
-                        ]
-                        save_contratti(df_ct)
-                        st.success("✅ Modifiche salvate correttamente.")
-                        del st.session_state["selected_contract_index"]
-                        st.rerun()
-
-    # === NUOVO CONTRATTO ===
-    st.markdown("---")
-    st.markdown("### ➕ Nuovo contratto")
-
-    if "sel_id" in locals():
-        with st.expander("➕ Crea un nuovo contratto per il cliente selezionato", expanded=False):
-            with st.form(f"frm_new_contract_{sel_id}"):
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    num = st.text_input("Numero Contratto")
-                with c2:
-                    data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
-                with c3:
-                    durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-                desc = st.text_area("Descrizione prodotto", height=80)
-                col_nf, col_ni, col_tot = st.columns(3)
-                with col_nf:
-                    nf = st.text_input("NOL_FIN")
-                with col_ni:
-                    ni = st.text_input("NOL_INT")
-                with col_tot:
-                    tot = st.text_input("TotRata")
-                if st.form_submit_button("💾 Crea contratto", use_container_width=True):
-                    if not num.strip():
-                        st.warning("⚠️ Inserisci un numero contratto.")
-                    else:
-                        new_row = {
-                            "ClienteID": str(sel_id),
-                            "NumeroContratto": num.strip(),
-                            "DataInizio": pd.to_datetime(data_inizio),
-                            "DataFine": pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata)),
-                            "Durata": durata,
-                            "DescrizioneProdotto": desc.strip(),
-                            "NOL_FIN": nf.strip(),
-                            "NOL_INT": ni.strip(),
-                            "TotRata": tot.strip(),
-                            "Stato": "aperto",
-                        }
-                        df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
-                        save_contratti(df_ct)
-                        st.success("✅ Contratto creato con successo.")
-                        st.rerun()
-    else:
-        st.info("ℹ️ Seleziona prima un cliente per poter creare un nuovo contratto.")
-
-
-    # === ESPORTAZIONI ===
-    st.markdown("---")
-    st.markdown("### 📤 Esporta contratti")
-
-    if "ct" in locals() and not ct.empty:
-        col_exp1, col_exp2 = st.columns(2, gap="large")
-
-        # --- Esporta Excel ---
-        with col_exp1:
-            from openpyxl import Workbook
-            from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
-
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "Contratti"
-
-            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                       "Descrizione", "TotRata", "Stato"]
-            ws.append(headers)
-
-            header_fill = PatternFill("solid", fgColor="BDD7EE")
-            border = Border(left=Side(style="thin"), right=Side(style="thin"),
-                            top=Side(style="thin"), bottom=Side(style="thin"))
-
-            for cell in ws[1]:
-                cell.fill = header_fill
-                cell.font = Font(bold=True)
-                cell.border = border
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-
-            for _, row in ct.iterrows():
-                ws.append([
-                    row["NumeroContratto"], fmt_date(row["DataInizio"]),
-                    fmt_date(row["DataFine"]), row["Durata"],
-                    row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
-                ])
-
-            for col in ws.columns:
-                max_len = max(len(str(c.value)) if c.value is not None else 0 for c in col)
-                ws.column_dimensions[col[0].column_letter].width = max_len + 2
-                for cell in col:
-                    cell.border = border
-                    cell.alignment = Alignment(wrap_text=True, vertical="top")
-
-            buf = io.BytesIO()
-            wb.save(buf)
-            st.download_button(
-                "📊 Scarica Excel (.xlsx)",
-                data=buf.getvalue(),
-                file_name=f"contratti_{rag_soc}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"xlsx_download_{sel_id}",
-                use_container_width=True
-            )
-
-        # --- Esporta PDF ---
-        with col_exp2:
+    st.divider()
+    c1, c2 = st.columns(2)
+    with c1:
+        csv = disp.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("📄 Esporta CSV", csv, f"contratti_{rag_soc}.csv", "text/csv")
+    with c2:
+        try:
             pdf = FPDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
+            pdf.set_font("Arial", size=9)
             pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-            pdf.set_font("Arial", "", 9)
-            pdf.ln(4)
-            headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "TotRata", "Stato"]
-            widths = [35, 25, 25, 20, 110, 25, 20]
-
-            for h, w in zip(headers, widths):
-                pdf.cell(w, 8, safe_text(h), 1, 0, "C")
-            pdf.ln()
-
-            for _, row in ct.iterrows():
-                cells = [
-                    safe_text(row["NumeroContratto"]),
-                    fmt_date(row["DataInizio"]),
-                    fmt_date(row["DataFine"]),
-                    safe_text(row["Durata"]),
-                    safe_text(row["DescrizioneProdotto"]),
-                    safe_text(row["TotRata"]),
-                    safe_text(row["Stato"]),
-                ]
-                for t, w in zip(cells, widths):
-                    pdf.multi_cell(w, 6, t, 1, "L", False)
-                pdf.ln(0)
-
-            pdf_buffer = io.BytesIO(pdf.output(dest="S").encode("latin-1", "replace"))
-            st.download_button(
-                "📘 Scarica PDF",
-                data=pdf_buffer,
-                file_name=f"contratti_{rag_soc}.pdf",
-                mime="application/pdf",
-                key=f"pdf_download_{sel_id}",
-                use_container_width=True
-            )
-    else:
-        st.info("ℹ️ Nessun contratto disponibile per l’esportazione.")
+            for _, row in disp.iterrows():
+                pdf.cell(35, 6, safe_text(row["NumeroContratto"]), 1)
+                pdf.cell(25, 6, safe_text(row["DataInizio"]), 1)
+                pdf.cell(25, 6, safe_text(row["DataFine"]), 1)
+                pdf.cell(20, 6, safe_text(row["Durata"]), 1)
+                pdf.cell(80, 6, safe_text(row["DescrizioneProdotto"])[:60], 1)
+                pdf.cell(20, 6, safe_text(row["TotRata"]), 1)
+                pdf.cell(20, 6, safe_text(row["Stato"]), 1)
+                pdf.ln()
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
+            st.download_button("📘 Esporta PDF", pdf_bytes, f"contratti_{rag_soc}.pdf", "application/pdf")
+        except Exception as e:
+            st.error(f"Errore PDF: {e}")
 
 
 # =====================================
@@ -1135,12 +894,7 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col2:
         filtro_citta = st.text_input("Cerca per città")
 
-    merged = df_ct.merge(
-        df_cli[["ClienteID", "RagioneSociale", "Citta"]],
-        on="ClienteID",
-        how="left"
-    )
-
+    merged = df_ct.merge(df_cli[["ClienteID", "RagioneSociale", "Citta"]], on="ClienteID", how="left")
     if filtro_nome:
         merged = merged[merged["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
     if filtro_citta:
@@ -1148,14 +902,12 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     merged["DataInizio"] = pd.to_datetime(merged["DataInizio"], errors="coerce").dt.strftime("%d/%m/%Y")
     merged["DataFine"] = pd.to_datetime(merged["DataFine"], errors="coerce").dt.strftime("%d/%m/%Y")
-    merged = merged[
-        ["RagioneSociale", "Citta", "NumeroContratto", "DataInizio", "DataFine", "Stato"]
-    ].fillna("")
+    merged = merged[["RagioneSociale", "Citta", "NumeroContratto", "DataInizio", "DataFine", "Stato"]].fillna("")
 
     st.dataframe(merged, use_container_width=True, hide_index=True)
-
     csv = merged.to_csv(index=False, encoding="utf-8-sig")
     st.download_button("⬇️ Esporta CSV", csv, "lista_clienti_contratti.csv", "text/csv")
+
 # =====================================
 # MAIN APP
 # =====================================
@@ -1176,22 +928,18 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
-    # === GESTIONE NAVIGAZIONE ===
     default_page = st.session_state.pop("nav_target", "Dashboard")
-    if st.session_state.pop("force_home", False):
-        default_page = "Dashboard"
-
     page = st.sidebar.radio(
         "📂 Menu principale",
         list(PAGES.keys()),
         index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
     )
 
-    # === CARICAMENTO DATI ===
+    # === DATI ===
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    # === ESECUZIONE PAGINA SELEZIONATA ===
+    # === RENDER PAGINA ===
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
 

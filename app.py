@@ -203,7 +203,7 @@ def do_login_fullscreen():
     with placeholder.container():
         username = st.text_input("👤 Nome utente", key="login_user").strip().lower()
         password = st.text_input("🔑 Password", type="password", key="login_pass")
-        login_btn = st.button("Login", use_container_width=True)
+        login_btn = st.button("Entra", use_container_width=True)
 
     # === Controllo credenziali ===
     if login_btn:

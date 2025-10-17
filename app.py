@@ -308,9 +308,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-  # =====================================
-# CLIENTI SENZA DATA FINE (DA OGGI IN POI)
-# =====================================
 # =====================================
 # CLIENTI SENZA DATA FINE (DA OGGI IN POI)
 # =====================================
@@ -318,7 +315,7 @@ st.subheader("🚫 Clienti senza Data Fine (da oggi in poi)")
 
 if df_ct is None or df_ct.empty:
     st.info("ℹ️ Nessun dato contratti disponibile.")
-else:
+    else:
     if "DataFine" not in df_ct.columns:
         st.info("ℹ️ Il campo 'DataFine' non è presente nel file contratti.")
     else:

@@ -722,87 +722,87 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 
-# =====================================
-# CONTRATTI – versione stabile ottobre 2025
-# =====================================
-def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    import io
-    import pandas as pd
-    from fpdf import FPDF
-    from openpyxl import Workbook
-    from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
-    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+    # =====================================
+    # CONTRATTI – versione stabile ottobre 2025
+    # =====================================
+    def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+        import io
+        import pandas as pd
+        from fpdf import FPDF
+        from openpyxl import Workbook
+        from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
+    
+        # === TITOLO ===
+        st.markdown("<h2 style='margin-top:1rem;'>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
+    
+        # === RICERCA CLIENTE ===
+        search = st.text_input("🔍 Cerca Cliente per nome o ID:")
+        df_cli_filt = (
+            df_cli[
+                df_cli["RagioneSociale"].str.contains(search, case=False, na=False)
+                | df_cli["ClienteID"].astype(str).str.contains(search, na=False)
+            ]
+            if search else df_cli
+        )
+    
+        if df_cli_filt.empty:
+            st.warning("Nessun cliente trovato.")
+            return
+    
+        labels = [f"{r['ClienteID']} — {r['RagioneSociale']}" for _, r in df_cli_filt.iterrows()]
+        cliente_ids = df_cli_filt["ClienteID"].astype(str).tolist()
+    
+        if "selected_cliente" in st.session_state:
+            selected_cliente_id = str(st.session_state.pop("selected_cliente"))
+            sel_index = cliente_ids.index(selected_cliente_id) if selected_cliente_id in cliente_ids else 0
+        else:
+            sel_index = 0
+    
+        sel_label = st.selectbox("Cliente", labels, index=sel_index)
+        sel_id = cliente_ids[labels.index(sel_label)]
+        cliente_info = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]
+        rag_soc = cliente_info["RagioneSociale"]
+    
+        st.divider()
+    
+        # === CONTRATTI CLIENTE ===
+        ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+        if ct.empty:
+            st.info("Nessun contratto per questo cliente.")
+            return
 
-    # === TITOLO ===
-    st.markdown("<h2 style='margin-top:1rem;'>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
-
-    # === RICERCA CLIENTE ===
-    search = st.text_input("🔍 Cerca Cliente per nome o ID:")
-    df_cli_filt = (
-        df_cli[
-            df_cli["RagioneSociale"].str.contains(search, case=False, na=False)
-            | df_cli["ClienteID"].astype(str).str.contains(search, na=False)
-        ]
-        if search else df_cli
-    )
-
-    if df_cli_filt.empty:
-        st.warning("Nessun cliente trovato.")
-        return
-
-    labels = [f"{r['ClienteID']} — {r['RagioneSociale']}" for _, r in df_cli_filt.iterrows()]
-    cliente_ids = df_cli_filt["ClienteID"].astype(str).tolist()
-
-    if "selected_cliente" in st.session_state:
-        selected_cliente_id = str(st.session_state.pop("selected_cliente"))
-        sel_index = cliente_ids.index(selected_cliente_id) if selected_cliente_id in cliente_ids else 0
-    else:
-        sel_index = 0
-
-    sel_label = st.selectbox("Cliente", labels, index=sel_index)
-    sel_id = cliente_ids[labels.index(sel_label)]
-    cliente_info = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]
-    rag_soc = cliente_info["RagioneSociale"]
-
-    st.divider()
-
-    # === CONTRATTI CLIENTE ===
-ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-if ct.empty:
-    st.info("Nessun contratto per questo cliente.")
-    return
-
-# Prepara tabella visualizzazione
-ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
-
-disp = ct.copy()
-disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-disp = disp.drop(columns=["ClienteID"], errors="ignore")
-disp["Azioni"] = ""  # 🔹 Aggiungila già qui (prima della tabella)
-
-
-# --- Tabella AgGrid con pulsanti in riga (senza JS esterno) ---
-from st_aggrid.shared import JsCode
-
-# Renderer HTML per i pulsanti (solo visuale)
-action_renderer = JsCode("""
-function(params) {
-    const stato = (params.data.Stato || '').toLowerCase();
-    const chiudiText = stato === 'chiuso' ? '🔓 Riapri' : '❌ Chiudi';
-    return `
-        <div style="display:flex; gap:6px; justify-content:center;">
-            <span style="
-                background-color:#1976D2; color:white; padding:2px 6px; border-radius:4px;
-                font-size:13px; cursor:default;">✏️</span>
-            <span style="
-                background-color:${stato === 'chiuso' ? '#4CAF50' : '#E53935'};
-                color:white; padding:2px 6px; border-radius:4px; font-size:13px; cursor:default;">
-                ${chiudiText}
-            </span>
-        </div>`;
-}
-""")
+    # Prepara tabella visualizzazione
+    ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
+    
+    disp = ct.copy()
+    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+    disp = disp.drop(columns=["ClienteID"], errors="ignore")
+    disp["Azioni"] = ""  # 🔹 Aggiungila già qui (prima della tabella)
+    
+    
+    # --- Tabella AgGrid con pulsanti in riga (senza JS esterno) ---
+    from st_aggrid.shared import JsCode
+    
+    # Renderer HTML per i pulsanti (solo visuale)
+    action_renderer = JsCode("""
+    function(params) {
+        const stato = (params.data.Stato || '').toLowerCase();
+        const chiudiText = stato === 'chiuso' ? '🔓 Riapri' : '❌ Chiudi';
+        return `
+            <div style="display:flex; gap:6px; justify-content:center;">
+                <span style="
+                    background-color:#1976D2; color:white; padding:2px 6px; border-radius:4px;
+                    font-size:13px; cursor:default;">✏️</span>
+                <span style="
+                    background-color:${stato === 'chiuso' ? '#4CAF50' : '#E53935'};
+                    color:white; padding:2px 6px; border-radius:4px; font-size:13px; cursor:default;">
+                    ${chiudiText}
+                </span>
+            </div>`;
+    }
+    """)
 
 # Configurazione tabella
 gb = GridOptionsBuilder.from_dataframe(disp)

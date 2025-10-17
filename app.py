@@ -840,7 +840,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.markdown("---")
     colA1, colA2 = st.columns([0.3, 0.3])
-    stato = (r["Stato"] or "aperto").lower()
+    stato = "aperto"
+    if "r" in locals() and isinstance(r, dict) and "Stato" in r and r["Stato"]:
+    stato = str(r["Stato"]).lower()
+
 
     with colA1:
         if stato == "chiuso":

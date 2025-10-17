@@ -236,7 +236,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         else:
             for _, r in prossime_visite.iterrows():
                 st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['ProssimaVisita'])}")
-        st.divider()
+           st.divider()
 
     # ===============================
     # CLIENTI SENZA DATA FINE (da oggi in poi)
@@ -257,8 +257,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.success("✅ Tutti i contratti da oggi in poi hanno una data fine impostata.")
         else:
             st.warning(f"⚠️ {len(senza_datafine)} contratti recenti senza Data Fine.")
-            
-            # Merge con anagrafica clienti
+
             vis = senza_datafine.merge(
                 df_cli[["ClienteID", "RagioneSociale"]],
                 on="ClienteID",
@@ -268,16 +267,27 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             ]
             vis["DataInizio"] = vis["DataInizio"].apply(fmt_date)
 
-            # Mostra righe come tabella compatta con link per aprire cliente
+            # Visualizzazione compatta con pulsante Apri
+            st.markdown(
+                "<div style='display:flex;font-weight:bold;margin-bottom:5px;'>"
+                "<div style='width:15%;'>ClienteID</div>"
+                "<div style='width:35%;'>Ragione Sociale</div>"
+                "<div style='width:25%;'>Numero Contratto</div>"
+                "<div style='width:15%;'>Data Inizio</div>"
+                "<div style='width:10%;text-align:center;'>Azione</div>"
+                "</div><hr>",
+                unsafe_allow_html=True,
+            )
+
             for _, row in vis.iterrows():
-                col1, col2, col3, col4, col5 = st.columns([1.5, 3, 2, 1.5, 1])
-                col1.markdown(f"**{row['ClienteID']}**")
-                col2.markdown(row["RagioneSociale"] or "—")
+                col1, col2, col3, col4, col5 = st.columns([1.2, 3, 2, 1.3, 1])
+                col1.markdown(f"{row['ClienteID']}")
+                col2.markdown(f"**{row['RagioneSociale'] or '—'}**")
                 col3.markdown(row["NumeroContratto"] or "—")
                 col4.markdown(row["DataInizio"] or "—")
-                if col5.button("🔍 Apri", key=f"open_{row['ClienteID']}"):
+                if col5.button("🔍 Apri Scheda", key=f"open_{row['ClienteID']}"):
                     st.session_state["selected_cliente"] = row["ClienteID"]
-                    st.switch_page("app.py")  # 🔁 torna alla pagina principale dei clienti
+                    st.switch_page("pages/Clienti.py")  # 🔁 cambia path se la pagina è diversa
     else:
         st.info("ℹ️ Il campo 'DataFine' non è ancora presente nel file contratti.")
 
@@ -286,7 +296,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
-
+    # 🔁 Se è stato selezionato un cliente dalla dashboard, aprilo automaticamente
+    if "selected_cliente" in st.session_state:
+        selected_id = st.session_state.pop("selected_cliente")
+        if selected_id in df_cli["ClienteID"].values:
+            cliente_row = df_cli[df_cli["ClienteID"] == selected_id].iloc[0]
+            sel_rag = cliente_row["RagioneSociale"]
+            st.session_state["cliente_selezionato"] = sel_rag
     # 🔍 Ricerca
     st.markdown("### 🔍 Cerca Cliente")
     search_query = st.text_input("Cerca cliente per nome o ID:")
@@ -304,7 +320,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # Selezione cliente
     options = filtered["RagioneSociale"].tolist()
-    sel_rag = st.selectbox("Seleziona Cliente", options)
+        sel_rag = st.selectbox(
+        "Seleziona Cliente",
+        options,
+        index=options.index(st.session_state.get("cliente_selezionato", options[0])) if options else 0
+    )
+
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 

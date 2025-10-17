@@ -18,3 +18,5 @@ streamlit-aggrid>=1.0.4  # ✅ versione aggiornata e stabile
 # Altre utilità
 openpyxl==3.1.5
 
+# Gestione eventi JS per pulsanti AgGrid
+streamlit-javascript

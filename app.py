@@ -852,21 +852,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["selected_contract_index"] = idx
                 st.rerun()
 
-
-
        # Configurazione tabella
     gb = GridOptionsBuilder.from_dataframe(disp)
     gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
     gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
-    gb.configure_column(
-        "Azioni",
-        cellRenderer=action_renderer,
-        cellRendererParams={"innerRenderer": "html"},
-        width=160,
-        pinned="right",
-        suppressMovable=True,
-        wrapText=False,
-    )
+    gb.configure_column("Azioni", width=120, pinned="right", suppressMovable=True)
+
     gb.configure_grid_options(domLayout="normal", ensureDomOrder=True)
 
     # Colori riga in base allo stato

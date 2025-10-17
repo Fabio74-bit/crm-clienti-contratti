@@ -232,55 +232,49 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
 
     now = pd.Timestamp.now().normalize()
-
-    # === 📆 AGGIORNAMENTO AUTOMATICO RECALL/VISITE ===
-    updated = False
-    for i, r in df_cli.iterrows():
-        ur = as_date(r.get("UltimoRecall"))
-        pr = as_date(r.get("ProssimoRecall"))
-        uv = as_date(r.get("UltimaVisita"))
-        pv = as_date(r.get("ProssimaVisita"))
-
-        # Calcola automatico solo se mancante
-        if pd.notna(ur) and pd.isna(pr):
-            df_cli.at[i, "ProssimoRecall"] = fmt_date(ur + pd.DateOffset(months=3))
-            updated = True
-        if pd.notna(uv) and pd.isna(pv):
-            df_cli.at[i, "ProssimaVisita"] = fmt_date(uv + pd.DateOffset(months=6))
-            updated = True
-
-    if updated:
-        save_clienti(df_cli)
-
-    # === KPI ===
-    def kpi_card(label, value, icon, color):
-        return f"""
-        <div style="background-color:{color};padding:18px;border-radius:12px;
-                    text-align:center;color:white;">
-            <div style="font-size:26px;">{icon}</div>
-            <div style="font-size:22px;font-weight:700;">{value}</div>
-            <div style="font-size:14px;">{label}</div>
-        </div>
-        """
-
     stato = df_ct["Stato"].fillna("").astype(str).str.lower()
     total_clients = len(df_cli)
     active_contracts = int((stato != "chiuso").sum())
     closed_contracts = int((stato == "chiuso").sum())
 
+    # Nuovi contratti dell’anno
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
     start_year = pd.Timestamp(year=now.year, month=1, day=1)
-    count_new = len(df_ct[df_ct["DataInizio"] >= start_year])
+    new_contracts = df_ct[(df_ct["DataInizio"].notna()) & (df_ct["DataInizio"] >= start_year)]
+    count_new = len(new_contracts)
 
+    # === KPI ===
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(kpi_card("Clienti attivi", total_clients, "👥", "#1976D2"), unsafe_allow_html=True)
     c2.markdown(kpi_card("Contratti attivi", active_contracts, "📄", "#388E3C"), unsafe_allow_html=True)
     c3.markdown(kpi_card("Contratti chiusi", closed_contracts, "❌", "#D32F2F"), unsafe_allow_html=True)
     c4.markdown(kpi_card("Nuovi contratti anno", count_new, "⭐", "#FBC02D"), unsafe_allow_html=True)
-
     st.divider()
 
-    # === RECALL E VISITE IMMINENTI ===
+    # =====================================
+    # 🔄 AGGIORNA AUTOMATICAMENTE PROSSIMI RECALL / VISITE
+    # =====================================
+    df_cli["UltimoRecall"] = pd.to_datetime(df_cli["UltimoRecall"], errors="coerce", dayfirst=True)
+    df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce", dayfirst=True)
+    df_cli["UltimaVisita"] = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce", dayfirst=True)
+    df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce", dayfirst=True)
+
+    # Aggiorna solo se mancano i prossimi ma ci sono gli ultimi
+    mask_recall = df_cli["UltimoRecall"].notna() & df_cli["ProssimoRecall"].isna()
+    mask_visita = df_cli["UltimaVisita"].notna() & df_cli["ProssimaVisita"].isna()
+
+    if mask_recall.any():
+        df_cli.loc[mask_recall, "ProssimoRecall"] = df_cli.loc[mask_recall, "UltimoRecall"] + pd.DateOffset(months=3)
+    if mask_visita.any():
+        df_cli.loc[mask_visita, "ProssimaVisita"] = df_cli.loc[mask_visita, "UltimaVisita"] + pd.DateOffset(months=6)
+
+    # Salva solo se qualcosa è cambiato
+    if mask_recall.any() or mask_visita.any():
+        save_clienti(df_cli)
+
+    # =====================================
+    # RECALL E VISITE IMMINENTI
+    # =====================================
     st.subheader("📞 Recall e 👣 Visite imminenti")
 
     df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
@@ -308,78 +302,71 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-# =====================================
-# CLIENTI SENZA DATA FINE (DA OGGI IN POI)
-# =====================================
-st.subheader("🚫 Clienti senza Data Fine (da oggi in poi)")
+    # =====================================
+    # CLIENTI SENZA DATA FINE (DA OGGI IN POI)
+    # =====================================
+    st.subheader("🚫 Clienti senza Data Fine (da oggi in poi)")
 
-if df_ct is None or df_ct.empty:
-    st.info("ℹ️ Nessun dato contratti disponibile.")
-    else:
-    if "DataFine" not in df_ct.columns:
-        st.info("ℹ️ Il campo 'DataFine' non è presente nel file contratti.")
-    else:
-        today = pd.Timestamp.today().normalize()
-
-        # Copia di lavoro + parsing date
-        ct = df_ct.copy()
-        ct["DataInizio"] = pd.to_datetime(ct["DataInizio"], errors="coerce", dayfirst=True)
-        ct["DataFine"]   = pd.to_datetime(ct["DataFine"],   errors="coerce", dayfirst=True)
-
-        # 1) Solo contratti senza DataFine
-        senza_datafine = ct[ct["DataFine"].isna()].copy()
-
-        # 2) Escludi righe “sporche” (NuovoContratto, vuoti, NaN, ecc.)
-        bad_ids = {"nuovocontratto", "nuovo contratto", "nan", ""}
-        mask_bad = senza_datafine["ClienteID"].astype(str).str.strip().str.lower().isin(bad_ids)
-        senza_datafine = senza_datafine[~mask_bad]
-
-        # 3) Solo contratti con DataInizio da oggi in poi  (⚠️ filtra su senza_datafine)
-        mask_recent = senza_datafine["DataInizio"].notna() & (senza_datafine["DataInizio"] >= today)
-        senza_datafine = senza_datafine.loc[mask_recent].copy()
-
-        # 4) Ordina
-        senza_datafine = senza_datafine.sort_values("DataInizio", ascending=True)
-
-        if senza_datafine.empty:
-            st.success("✅ Tutti i contratti da oggi in poi hanno una Data Fine impostata.")
+    if df_ct is not None and not df_ct.empty:
+        if "DataFine" not in df_ct.columns:
+            st.info("ℹ️ Il campo 'DataFine' non è presente nel file contratti.")
         else:
-            st.warning(f"⚠️ {len(senza_datafine)} contratti recenti senza Data Fine.")
+            today = pd.Timestamp.today().normalize()
 
-            vis = (
-                senza_datafine
-                .merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-                [["ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio"]]
-                .reset_index(drop=True)
-            )
-            vis["DataInizio"] = vis["DataInizio"].apply(fmt_date)
+            ct = df_ct.copy()
+            ct["DataInizio"] = pd.to_datetime(ct["DataInizio"], errors="coerce", dayfirst=True)
+            ct["DataFine"] = pd.to_datetime(ct["DataFine"], errors="coerce", dayfirst=True)
 
-            # Intestazione
-            st.markdown(
-                "<div style='display:flex;font-weight:bold;margin-bottom:6px'>"
-                "<div style='width:15%'>ClienteID</div>"
-                "<div style='width:35%'>Ragione Sociale</div>"
-                "<div style='width:25%'>Numero Contratto</div>"
-                "<div style='width:15%'>Data Inizio</div>"
-                "<div style='width:10%;text-align:center'>Azione</div>"
-                "</div><hr>",
-                unsafe_allow_html=True,
-            )
+            senza_datafine = ct[ct["DataFine"].isna()].copy()
 
-            # Righe
-            for i, row in vis.iterrows():
-                c1, c2, c3, c4, c5 = st.columns([1.2, 3, 2, 1.3, 1])
-                c1.markdown(str(row["ClienteID"]))
-                c2.markdown(f"**{row['RagioneSociale'] or '—'}**")
-                c3.markdown(row["NumeroContratto"] or "—")
-                c4.markdown(row["DataInizio"] or "—")
+            bad_ids = {"nuovocontratto", "nuovo contratto", "nan", ""}
+            mask_bad = senza_datafine["ClienteID"].astype(str).str.strip().str.lower().isin(bad_ids)
+            senza_datafine = senza_datafine[~mask_bad]
 
-                # Chiave univoca (evita StreamlitDuplicateElementKey)
-                btn_key = f"open_{row['ClienteID']}_{row.get('NumeroContratto','')}_{i}"
-                if c5.button("🔍 Apri Scheda", key=btn_key):
-                    st.session_state["selected_cliente"] = row["ClienteID"]
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
+            mask_recent = senza_datafine["DataInizio"].notna() & (senza_datafine["DataInizio"] >= today)
+            senza_datafine = senza_datafine.loc[mask_recent].copy()
+
+            senza_datafine = senza_datafine.sort_values("DataInizio", ascending=True)
+
+            if senza_datafine.empty:
+                st.success("✅ Tutti i contratti da oggi in poi hanno una Data Fine impostata.")
+            else:
+                st.warning(f"⚠️ {len(senza_datafine)} contratti recenti senza Data Fine.")
+
+                vis = (
+                    senza_datafine
+                    .merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+                    [["ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio"]]
+                    .reset_index(drop=True)
+                )
+                vis["DataInizio"] = vis["DataInizio"].apply(fmt_date)
+
+                st.markdown(
+                    "<div style='display:flex;font-weight:bold;margin-bottom:6px'>"
+                    "<div style='width:15%'>ClienteID</div>"
+                    "<div style='width:35%'>Ragione Sociale</div>"
+                    "<div style='width:25%'>Numero Contratto</div>"
+                    "<div style='width:15%'>Data Inizio</div>"
+                    "<div style='width:10%;text-align:center'>Azione</div>"
+                    "</div><hr>",
+                    unsafe_allow_html=True,
+                )
+
+                for i, row in vis.iterrows():
+                    c1, c2, c3, c4, c5 = st.columns([1.2, 3, 2, 1.3, 1])
+                    c1.markdown(str(row["ClienteID"]))
+                    c2.markdown(f"**{row['RagioneSociale'] or '—'}**")
+                    c3.markdown(row["NumeroContratto"] or "—")
+                    c4.markdown(row["DataInizio"] or "—")
+
+                    btn_key = f"open_{row['ClienteID']}_{row.get('NumeroContratto','')}_{i}"
+                    if c5.button("🔍 Apri Scheda", key=btn_key):
+                        st.session_state["selected_cliente"] = row["ClienteID"]
+                        st.session_state["nav_target"] = "Clienti"
+                        st.rerun()
+    else:
+        st.info("ℹ️ Nessun dato contratti disponibile.")
+
 
 # =====================================
 # PAGINA CLIENTI

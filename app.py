@@ -865,53 +865,55 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with colA3:
             st.write("")  # spazio per allineamento
 
-# === ESPORTAZIONI ===
-st.markdown("---")
-st.markdown("### 📤 Esporta contratti")
-col_exp1, col_exp2 = st.columns(2)
+    # === ESPORTAZIONI ===
+    st.markdown("---")
+    st.markdown("### 📤 Esporta contratti")
+    col_exp1, col_exp2 = st.columns(2)
 
-# --- Esporta Excel ---
-with col_exp1:
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Contratti"
-    headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-               "Descrizione", "TotRata", "Stato"]
-    ws.append(headers)
+    # --- Esporta Excel ---
+    with col_exp1:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Contratti"
+        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                   "Descrizione", "TotRata", "Stato"]
+        ws.append(headers)
 
-    header_fill = PatternFill("solid", fgColor="BDD7EE")
-    border = Border(left=Side(style="thin"), right=Side(style="thin"),
-                    top=Side(style="thin"), bottom=Side(style="thin"))
+        header_fill = PatternFill("solid", fgColor="BDD7EE")
+        border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                        top=Side(style="thin"), bottom=Side(style="thin"))
 
-    for cell in ws[1]:
-        cell.fill = header_fill
-        cell.font = Font(bold=True)
-        cell.border = border
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-
-    for _, row in ct.iterrows():
-        ws.append([
-            row["NumeroContratto"], fmt_date(row["DataInizio"]),
-            fmt_date(row["DataFine"]), row["Durata"],
-            row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
-        ])
-    for col in ws.columns:
-        max_len = max(len(str(c.value)) for c in col)
-        ws.column_dimensions[col[0].column_letter].width = max_len + 2
-        for cell in col:
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = Font(bold=True)
             cell.border = border
-            cell.alignment = Alignment(wrap_text=True, vertical="top")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    buf = io.BytesIO()
-    wb.save(buf)
-    st.download_button(
-        "📊 Scarica Excel (.xlsx)",
-        data=buf.getvalue(),
-        file_name=f"contratti_{rag_soc}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key=f"xlsx_download_{sel_id}",
-        use_container_width=True
-    )
+        for _, row in ct.iterrows():
+            ws.append([
+                row["NumeroContratto"], fmt_date(row["DataInizio"]),
+                fmt_date(row["DataFine"]), row["Durata"],
+                row["DescrizioneProdotto"], row["TotRata"], row["Stato"]
+            ])
+
+        for col in ws.columns:
+            max_len = max(len(str(c.value)) for c in col)
+            ws.column_dimensions[col[0].column_letter].width = max_len + 2
+            for cell in col:
+                cell.border = border
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        st.download_button(
+            "📊 Scarica Excel (.xlsx)",
+            data=buf.getvalue(),
+            file_name=f"contratti_{rag_soc}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"xlsx_download_{sel_id}",
+            use_container_width=True
+        )
+
 
 # --- Esporta PDF ---
 with col_exp2:

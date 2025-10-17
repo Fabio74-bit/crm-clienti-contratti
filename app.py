@@ -203,6 +203,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     new_contracts = df_ct[(df_ct["DataInizio"].notna()) & (df_ct["DataInizio"] >= start_year)]
     count_new = len(new_contracts)
 
+    # KPI
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(kpi_card("Clienti attivi", total_clients, "👥", "#1976D2"), unsafe_allow_html=True)
     c2.markdown(kpi_card("Contratti attivi", active_contracts, "📄", "#388E3C"), unsafe_allow_html=True)
@@ -211,7 +212,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # Recall e visite
+    # =====================================
+    # RECALL E VISITE IMMINENTI
+    # =====================================
     st.subheader("📞 Recall e 👣 Visite imminenti")
 
     df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
@@ -236,11 +239,12 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         else:
             for _, r in prossime_visite.iterrows():
                 st.markdown(f"- **{r['RagioneSociale']}** → {fmt_date(r['ProssimaVisita'])}")
+
     st.divider()
 
-    # ===============================
-    # CLIENTI SENZA DATA FINE (da oggi in poi)
-    # ===============================
+    # =====================================
+    # CLIENTI SENZA DATA FINE (DA OGGI IN POI)
+    # =====================================
     st.subheader("🚫 Clienti senza Data Fine (da oggi in poi)")
 
     if "DataFine" in df_ct.columns:
@@ -248,7 +252,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
         senza_datafine = df_ct[df_ct["DataFine"].isna()]
 
-        # Solo contratti da oggi in poi
+        # Solo contratti con DataInizio da oggi in poi
         senza_datafine = senza_datafine[
             (df_ct["DataInizio"].notna()) & (df_ct["DataInizio"] >= now)
         ]
@@ -267,7 +271,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             ]
             vis["DataInizio"] = vis["DataInizio"].apply(fmt_date)
 
-            # Visualizzazione compatta con pulsante Apri
+            # Intestazione tabella
             st.markdown(
                 "<div style='display:flex;font-weight:bold;margin-bottom:5px;'>"
                 "<div style='width:15%;'>ClienteID</div>"
@@ -279,6 +283,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 unsafe_allow_html=True,
             )
 
+            # Righe tabella
             for _, row in vis.iterrows():
                 col1, col2, col3, col4, col5 = st.columns([1.2, 3, 2, 1.3, 1])
                 col1.markdown(f"{row['ClienteID']}")
@@ -287,9 +292,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 col4.markdown(row["DataInizio"] or "—")
                 if col5.button("🔍 Apri Scheda", key=f"open_{row['ClienteID']}"):
                     st.session_state["selected_cliente"] = row["ClienteID"]
-                    st.switch_page("pages/Clienti.py")  # modifica percorso se necessario
+                    st.switch_page("pages/Clienti.py")  # ⚙️ cambia path se necessario
     else:
         st.info("ℹ️ Il campo 'DataFine' non è ancora presente nel file contratti.")
+
 
 # =====================================
 # CLIENTI (versione aggiornata con date sicure)

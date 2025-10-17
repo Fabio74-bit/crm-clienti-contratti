@@ -781,132 +781,98 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
     disp = disp.drop(columns=["ClienteID"], errors="ignore")
 
-      # --- Tabella AgGrid con pulsanti in riga ---
-    from st_aggrid.shared import JsCode
+# --- Tabella AgGrid con pulsanti in riga (senza JS esterno) ---
+from st_aggrid.shared import JsCode
 
-    # Aggiungiamo la colonna "Azioni"
-    disp["Azioni"] = ""
+# Aggiungiamo la colonna "Azioni"
+disp["Azioni"] = ""
 
-    # Codice JavaScript per i pulsanti (chiudi/modifica)
-    action_renderer = JsCode("""
-    class BtnRenderer {
-        init(params) {
-            this.params = params;
-            const stato = (params.data.Stato || '').toLowerCase();
-            const chiudiText = stato === 'chiuso' ? '🔓 Riapri' : '❌ Chiudi';
-            this.eGui = document.createElement('div');
-            this.eGui.innerHTML = `
-                <div style="display:flex; gap:6px; justify-content:center;">
-                    <button class="btn-mod" style="background-color:#1976D2; color:white; border:none; border-radius:4px; padding:2px 6px; cursor:pointer;">✏️</button>
-                    <button class="btn-close" style="background-color:${stato === 'chiuso' ? '#4CAF50' : '#E53935'}; color:white; border:none; border-radius:4px; padding:2px 6px; cursor:pointer;">${chiudiText}</button>
-                </div>`;
-            this.eGui.querySelector('.btn-mod').addEventListener('click', () => this.onEdit());
-            this.eGui.querySelector('.btn-close').addEventListener('click', () => this.onToggle());
-        }
-        getGui() { return this.eGui; }
-        onEdit() {
-            window.postMessage({type: 'edit_contract', data: this.params.data}, '*');
-        }
-        onToggle() {
-            window.postMessage({type: 'toggle_contract', data: this.params.data}, '*');
-        }
+# Renderer HTML per i pulsanti (solo visuale)
+action_renderer = JsCode("""
+function(params) {
+    const stato = (params.data.Stato || '').toLowerCase();
+    const chiudiText = stato === 'chiuso' ? '🔓 Riapri' : '❌ Chiudi';
+    return `
+        <div style="display:flex; gap:6px; justify-content:center;">
+            <span style="
+                background-color:#1976D2; color:white; padding:2px 6px; border-radius:4px;
+                font-size:13px; cursor:default;">✏️</span>
+            <span style="
+                background-color:${stato === 'chiuso' ? '#4CAF50' : '#E53935'};
+                color:white; padding:2px 6px; border-radius:4px; font-size:13px; cursor:default;">
+                ${chiudiText}
+            </span>
+        </div>`;
+}
+""")
+
+# Configurazione tabella
+gb = GridOptionsBuilder.from_dataframe(disp)
+gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
+gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
+gb.configure_column(
+    "Azioni",
+    cellRenderer=action_renderer,
+    width=160,
+    pinned="right",
+    suppressMovable=True
+)
+
+# Colori riga in base allo stato
+js_style = JsCode("""
+function(params){
+    if(!params.data.Stato) return {};
+    const stato = params.data.Stato.toLowerCase();
+    if(stato === 'chiuso'){
+        return {'backgroundColor':'#ffebee','color':'#b71c1c','fontWeight':'bold'};
+    } else {
+        return {'backgroundColor':'#ffffff','color':'#000000'};
     }
-    """)
+}""")
 
-    gb = GridOptionsBuilder.from_dataframe(disp)
-    gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
-    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
-    gb.configure_column(
-        "Azioni",
-        cellRenderer=action_renderer,
-        width=130,
-        pinned="right",
-        suppressMovable=True
-    )
+gb.configure_grid_options(getRowStyle=js_style)
+grid_opts = gb.build()
 
-    js_style = JsCode("""
-    function(params){
-        if(!params.data.Stato) return {};
-        const stato = params.data.Stato.toLowerCase();
-        if(stato === 'chiuso'){
-            return {'backgroundColor':'#ffebee','color':'#b71c1c','fontWeight':'bold'};
-        } else {
-            return {'backgroundColor':'#ffffff','color':'#000000'};
-        }
-    }""")
+# Altezza dinamica ma con larghezza fissa fino alla colonna "Azioni"
+grid_height = min(800, 120 + (len(disp) * 35))
+grid_return = AgGrid(
+    disp,
+    gridOptions=grid_opts,
+    theme="balham",
+    height=grid_height,
+    allow_unsafe_jscode=True,
+    fit_columns_on_grid_load=False,
+    update_mode=GridUpdateMode.SELECTION_CHANGED
+)
 
-    gb.configure_grid_options(getRowStyle=js_style)
-    grid_opts = gb.build()
+selected = grid_return["selected_rows"]
 
-    grid_height = min(800, 120 + (len(disp) * 35))
-    grid_return = AgGrid(
-        disp,
-        gridOptions=grid_opts,
-        theme="balham",
-        height=grid_height,
-        allow_unsafe_jscode=True,
-        update_mode=GridUpdateMode.NO_UPDATE
-    )
+# --- Pulsanti funzionali Python ---
+if selected and len(selected) > 0:
+    r = selected[0]
+    idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
+    stato = str(r.get("Stato", "aperto")).lower()
 
-    # --- Gestione eventi JS (streamlit -> python) ---
-    from streamlit_javascript import st_javascript
+    c1, c2 = st.columns([0.2, 0.2])
+    with c1:
+        if stato == "chiuso":
+            if st.button(f"🔓 Riapri contratto {r['NumeroContratto']}", key=f"riapri_{idx}"):
+                df_ct.loc[idx, "Stato"] = "aperto"
+                save_contratti(df_ct)
+                st.success("✅ Contratto riaperto.")
+                st.rerun()
+        else:
+            if st.button(f"❌ Chiudi contratto {r['NumeroContratto']}", key=f"chiudi_{idx}"):
+                df_ct.loc[idx, "Stato"] = "chiuso"
+                save_contratti(df_ct)
+                st.success("✅ Contratto chiuso.")
+                st.rerun()
 
-    msg = st_javascript("""
-    new Promise((resolve) => {
-        window.addEventListener("message", (event) => {
-            if (event.data && event.data.type) resolve(event.data);
-        }, {once: true});
-    });
-    """)
-
-    if msg and "type" in msg and "data" in msg:
-        row = msg["data"]
-        idx = ct[ct["NumeroContratto"] == row["NumeroContratto"]].index[0]
-        if msg["type"] == "edit_contract":
+    with c2:
+        if st.button(f"✏️ Modifica contratto {r['NumeroContratto']}", key=f"edit_{idx}"):
             st.session_state["selected_contract_index"] = idx
             st.rerun()
-        elif msg["type"] == "toggle_contract":
-            stato = str(row.get("Stato", "aperto")).lower()
-            nuovo = "aperto" if stato == "chiuso" else "chiuso"
-            df_ct.loc[idx, "Stato"] = nuovo
-            save_contratti(df_ct)
-            st.success(f"✅ Contratto {'riaperto' if nuovo == 'aperto' else 'chiuso'} correttamente.")
-            st.rerun()
 
-
-    # === BOTTONI AZIONE RAPIDA (Chiudi / Modifica) ===
-    st.markdown("---")
-    st.markdown("### ⚙️ Azioni contratto selezionato")
-
-    if "selected" in locals() and isinstance(selected, list) and len(selected) > 0:
-        r = selected[0]
-        if isinstance(r, dict) and "NumeroContratto" in r:
-            idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index
-            if len(idx) > 0:
-                idx = idx[0]
-                stato = str(r.get("Stato", "aperto")).lower()
-
-                c1, c2 = st.columns([0.25, 0.25])
-                with c1:
-                    if stato == "chiuso":
-                        if st.button("🔓 Riapri contratto", key=f"riapri_{idx}", use_container_width=True):
-                            df_ct.loc[idx, "Stato"] = "aperto"
-                            save_contratti(df_ct)
-                            st.success("✅ Contratto riaperto correttamente.")
-                            st.rerun()
-                    else:
-                        if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}", use_container_width=True):
-                            df_ct.loc[idx, "Stato"] = "chiuso"
-                            save_contratti(df_ct)
-                            st.success("✅ Contratto chiuso correttamente.")
-                            st.rerun()
-                with c2:
-                    if st.button("✏️ Modifica contratto", key=f"edit_{idx}", use_container_width=True):
-                        st.session_state["selected_contract_index"] = idx
-            else:
-                st.warning("⚠️ Contratto selezionato non trovato.")
-    else:
-        st.info("ℹ️ Seleziona un contratto nella tabella per modificarlo o chiuderlo.")
 
     # === MODIFICA CONTRATTO SELEZIONATO ===
     if "selected_contract_index" in st.session_state:

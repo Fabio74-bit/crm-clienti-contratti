@@ -298,17 +298,18 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# CLIENTI (versione aggiornata con date sicure)
+# PAGINA CLIENTI
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
+
     # 🔁 Se è stato selezionato un cliente dalla dashboard, aprilo automaticamente
     if "selected_cliente" in st.session_state:
         selected_id = st.session_state.pop("selected_cliente")
         if selected_id in df_cli["ClienteID"].values:
             cliente_row = df_cli[df_cli["ClienteID"] == selected_id].iloc[0]
-            sel_rag = cliente_row["RagioneSociale"]
-            st.session_state["cliente_selezionato"] = sel_rag
+            st.session_state["cliente_selezionato"] = cliente_row["RagioneSociale"]
+
     # 🔍 Ricerca
     st.markdown("### 🔍 Cerca Cliente")
     search_query = st.text_input("Cerca cliente per nome o ID:")
@@ -326,7 +327,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # Selezione cliente
     options = filtered["RagioneSociale"].tolist()
-        sel_rag = st.selectbox(
+    sel_rag = st.selectbox(
         "Seleziona Cliente",
         options,
         index=options.index(st.session_state.get("cliente_selezionato", options[0])) if options else 0
@@ -389,36 +390,24 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown("<div style='background:#BBF7D0;padding:8px;border-radius:8px'><b>🗓️ Prossima Visita</b></div>", unsafe_allow_html=True)
         pv = st.date_input(" ", value=_safe_date_for_input(cliente.get("ProssimaVisita")), format="DD/MM/YYYY", key=f"pv_{sel_id}")
 
+    # 🔄 Aggiorna automatico: se ci sono date Ultimo Recall / Ultima Visita, aggiorna anche Prossimi
+    if ur and (not pr):
+        pr = ur + pd.Timedelta(days=30)
+    if uv and (not pv):
+        pv = uv + pd.Timedelta(days=90)
+
+    # Pulsante per salvare
     if st.button("💾 Salva Aggiornamenti", use_container_width=True):
-        from pandas.tseries.offsets import DateOffset
-
-        # 🔁 Aggiornamento automatico prossime date
-        if ur and not pr:
-            pr = ur + DateOffset(months=3)
-            st.info("⚙️ Prossimo Recall impostato automaticamente a +3 mesi.")
-        if uv and not pv:
-            pv = uv + DateOffset(months=6)
-            st.info("⚙️ Prossima Visita impostata automaticamente a +6 mesi.")
-
         idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
         df_cli.loc[idx, "UltimoRecall"] = fmt_date(ur)
         df_cli.loc[idx, "ProssimoRecall"] = fmt_date(pr)
         df_cli.loc[idx, "UltimaVisita"] = fmt_date(uv)
         df_cli.loc[idx, "ProssimaVisita"] = fmt_date(pv)
         save_clienti(df_cli)
-
         st.success("✅ Date aggiornate correttamente!")
         st.rerun()
 
-    # === FUNZIONE SICURA PER DATE INPUT (per form anagrafica) ===
-    def safe_date_input(label, value, key=None):
-        try:
-            d = as_date(value)
-            if pd.isna(d):
-                return st.date_input(label, value=datetime.now().date(), key=key, format="DD/MM/YYYY")
-            return st.date_input(label, value=d.date(), key=key, format="DD/MM/YYYY")
-        except Exception:
-            return st.date_input(label, value=datetime.now().date(), key=key, format="DD/MM/YYYY")
+    st.divider()
 
     # ===== EXPANDER ANAGRAFICA EDITABILE =====
     with st.expander("✏️ Modifica anagrafica completa"):
@@ -436,10 +425,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
                 iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
                 sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
-                ur = safe_date_input("⏰ Ultimo Recall", cliente.get("UltimoRecall"), key=f"urf_{sel_id}")
-                pr = safe_date_input("📅 Prossimo Recall", cliente.get("ProssimoRecall"), key=f"prf_{sel_id}")
-                uv = safe_date_input("👣 Ultima Visita", cliente.get("UltimaVisita"), key=f"uvf_{sel_id}")
-                pv = safe_date_input("🗓️ Prossima Visita", cliente.get("ProssimaVisita"), key=f"pvf_{sel_id}")
 
             salva_btn = st.form_submit_button("💾 Salva modifiche")
             if salva_btn:
@@ -454,10 +439,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 df_cli.loc[idx, "PartitaIVA"] = piva
                 df_cli.loc[idx, "IBAN"] = iban
                 df_cli.loc[idx, "SDI"] = sdi
-                df_cli.loc[idx, "UltimoRecall"] = fmt_date(ur)
-                df_cli.loc[idx, "ProssimoRecall"] = fmt_date(pr)
-                df_cli.loc[idx, "UltimaVisita"] = fmt_date(uv)
-                df_cli.loc[idx, "ProssimaVisita"] = fmt_date(pv)
                 save_clienti(df_cli)
                 st.success("✅ Anagrafica aggiornata.")
                 st.rerun()
@@ -474,6 +455,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         save_clienti(df_cli)
         st.success("✅ Note aggiornate.")
         st.rerun()
+
 
             # =======================================================
     # SEZIONE PREVENTIVI DOCX (con gestione date integrata)

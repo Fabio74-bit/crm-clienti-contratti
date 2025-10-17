@@ -303,13 +303,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
    # === BOX COLORATI: gestione rapida Recall / Visita ===
-st.markdown("### ⚡ Gestione Rapida Attività")
+    st.markdown("### ⚡ Gestione Rapida Attività")
 
-# helper per avere un valore sicuro per st.date_input (None | date)
-def _safe_date_for_input(val):
-    d = as_date(val)
-    if d is None or pd.isna(d):
-        return None
+    # helper per avere un valore sicuro per st.date_input (None | date)
+    def _safe_date_for_input(val):
+        d = as_date(val)
+        if d is None or pd.isna(d):
+            return None
     try:
         return d.date()
     except Exception:

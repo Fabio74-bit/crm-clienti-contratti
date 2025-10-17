@@ -291,6 +291,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         unsafe_allow_html=True
     )
 
+    # === DATE ATTUALI ===
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(f"**⏰ Ultimo Recall:** {ult_rec or '—'}")
@@ -302,7 +303,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown(f"**🗓️ Prossima Visita:** {pross_vis or '—'}")
 
     st.divider()
-   # === BOX COLORATI: gestione rapida Recall / Visita ===
+
+    # === BOX COLORATI: gestione rapida Recall / Visita ===
     st.markdown("### ⚡ Gestione Rapida Attività")
 
     # helper per avere un valore sicuro per st.date_input (None | date)
@@ -310,58 +312,61 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         d = as_date(val)
         if d is None or pd.isna(d):
             return None
-    try:
-        return d.date()
-    except Exception:
-        return None
+        try:
+            return d.date()
+        except Exception:
+            return None
 
-col_r, col_v = st.columns(2)
+    col_r, col_v = st.columns(2)
 
-with col_r:
-    st.markdown(
-        """
-        <div style='background-color:#DBEAFE;padding:15px;border-radius:12px;border:1px solid #2563eb;margin-bottom:8px'>
-        <b>📅 Prossimo Recall</b><br>
-        <small>Modifica o imposta la prossima data di richiamo</small>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    nuovo_recall = st.date_input(
-        "Seleziona nuova data recall",
-         value=_safe_date_for_input(cliente.get("ProssimoRecall")),
-        format="DD/MM/YYYY",
-        key=f"recall_{sel_id}"
-    )
-    if st.button("💾 Aggiorna Recall", key=f"btn_recall_{sel_id}"):
-        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-        df_cli.loc[idx, "ProssimoRecall"] = fmt_date(nuovo_recall)
-        save_clienti(df_cli)
-        st.success("✅ Prossimo Recall aggiornato!")
-        st.rerun()
+    with col_r:
+        st.markdown(
+            """
+            <div style='background-color:#DBEAFE;padding:15px;border-radius:12px;
+                        border:1px solid #2563eb;margin-bottom:8px'>
+              <b>📅 Prossimo Recall</b><br>
+              <small>Modifica o imposta la prossima data di richiamo</small>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        nuovo_recall = st.date_input(
+            "Seleziona nuova data recall",
+            value=_safe_date_for_input(cliente.get("ProssimoRecall")),
+            format="DD/MM/YYYY",
+            key=f"recall_{sel_id}"
+        )
+        if st.button("💾 Aggiorna Recall", key=f"btn_recall_{sel_id}"):
+            idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+            df_cli.loc[idx, "ProssimoRecall"] = fmt_date(nuovo_recall)
+            save_clienti(df_cli)
+            st.success("✅ Prossimo Recall aggiornato!")
+            st.rerun()
 
-with col_v:
-    st.markdown(
-        """
-        <div style='background-color:#DCFCE7;padding:15px;border-radius:12px;border:1px solid #16a34a;margin-bottom:8px'>
-        <b>🗓️ Prossima Visita</b><br>
-        <small>Modifica o imposta la prossima data visita</small>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    nuova_visita = st.date_input(
-        "Seleziona nuova data visita",
-        value=_safe_date_for_input(cliente.get("ProssimaVisita")),
-        format="DD/MM/YYYY",
-        key=f"visita_{sel_id}"
-    )
-    if st.button("💾 Aggiorna Visita", key=f"btn_visita_{sel_id}"):
-        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-        df_cli.loc[idx, "ProssimaVisita"] = fmt_date(nuova_visita)
-        save_clienti(df_cli)
-        st.success("✅ Prossima Visita aggiornata!")
-        st.rerun()
+    with col_v:
+        st.markdown(
+            """
+            <div style='background-color:#DCFCE7;padding:15px;border-radius:12px;
+                        border:1px solid #16a34a;margin-bottom:8px'>
+              <b>🗓️ Prossima Visita</b><br>
+              <small>Modifica o imposta la prossima data visita</small>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        nuova_visita = st.date_input(
+            "Seleziona nuova data visita",
+            value=_safe_date_for_input(cliente.get("ProssimaVisita")),
+            format="DD/MM/YYYY",
+            key=f"visita_{sel_id}"
+        )
+        if st.button("💾 Aggiorna Visita", key=f"btn_visita_{sel_id}"):
+            idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+            df_cli.loc[idx, "ProssimaVisita"] = fmt_date(nuova_visita)
+            save_clienti(df_cli)
+            st.success("✅ Prossima Visita aggiornata!")
+            st.rerun()
+
 
     # === FUNZIONE SICURA PER DATE INPUT ===
     def safe_date_input(label, value, key=None):

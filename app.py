@@ -282,9 +282,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         & (df_ct["Stato"].str.lower() != "chiuso")
     ].copy()
 
-    if scadenze.empty:
-        st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
-    else:
+       else:
         scadenze = scadenze.merge(
             df_cli[["ClienteID", "RagioneSociale"]],
             on="ClienteID", how="left"
@@ -292,54 +290,67 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
         scadenze = scadenze.sort_values("DataFine", ascending=True)
 
-        # Tabella compatta con bottone Apri
         st.markdown("""
         <style>
-        .tbl-scadenze td, .tbl-scadenze th {
-            padding: 6px 8px;
+        .row-contratto {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 0.8fr 0.8fr;
+            align-items: center;
+            padding: 6px 10px;
             border-bottom: 1px solid #e5e7eb;
-            font-size: 0.9rem;
+            font-size: 0.92rem;
         }
-        .tbl-scadenze th {
+        .row-contratto.header {
+            font-weight: 600;
             background-color: #f3f4f6;
-            text-align: left;
+            border-top: 1px solid #e5e7eb;
         }
-        .tbl-scadenze tr:hover {
+        .row-contratto:hover {
             background-color: #fef9c3;
+        }
+        .btn-apri {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 3px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .btn-apri:hover {
+            background-color: #1e40af;
         }
         </style>
         """, unsafe_allow_html=True)
 
-        # intestazione
+        # Header tabella
         st.markdown(
-            "<table class='tbl-scadenze' style='width:100%'>"
-            "<tr><th>Cliente</th><th>Contratto</th><th>Scadenza</th><th>Stato</th><th style='text-align:center;'>Azione</th></tr>",
-            unsafe_allow_html=True
+            "<div class='row-contratto header'>"
+            "<div>Cliente</div>"
+            "<div>Contratto</div>"
+            "<div>Scadenza</div>"
+            "<div>Stato</div>"
+            "<div style='text-align:center'>Azione</div>"
+            "</div>", unsafe_allow_html=True
         )
 
+        # Righe
         for i, r in scadenze.iterrows():
             cliente = r["RagioneSociale"] or "—"
             contratto = r["NumeroContratto"] or "—"
             scadenza = r["DataFine"] or "—"
             stato = r["Stato"] or "—"
 
-            c_html = (
-                f"<tr>"
-                f"<td>{cliente}</td>"
-                f"<td>{contratto}</td>"
-                f"<td>{scadenza}</td>"
-                f"<td>{stato}</td>"
-                f"<td style='text-align:center;'>"
-                f"<form action='#'><button name='btn_{i}' style='border:none;background:none;color:#2563eb;cursor:pointer;'>🔍 Apri</button></form>"
-                f"</td></tr>"
-            )
-            st.markdown(c_html, unsafe_allow_html=True)
-
-            # Pulsante "Apri" gestito via Streamlit
-            if st.button(f"🔍 Apri {i}", key=f"open_scad_{i}"):
+            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
+            col1.markdown(f"**{cliente}**")
+            col2.markdown(contratto)
+            col3.markdown(scadenza)
+            col4.markdown(stato)
+            if col5.button("Apri", key=f"open_scad_{i}"):
                 st.session_state["selected_cliente"] = r["ClienteID"]
                 st.session_state["nav_target"] = "Clienti"
                 st.rerun()
+
 
         st.markdown("</table>", unsafe_allow_html=True)
 

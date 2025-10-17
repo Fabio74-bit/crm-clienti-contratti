@@ -803,7 +803,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     }
     """)
 
-    # Configurazione tabella
+       # Configurazione tabella
     gb = GridOptionsBuilder.from_dataframe(disp)
     gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
     gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
@@ -815,9 +815,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         pinned="right",
         suppressMovable=True,
         wrapText=False,
-)
-gb.configure_grid_options(domLayout="normal", ensureDomOrder=True)
-
+    )
+    gb.configure_grid_options(domLayout="normal", ensureDomOrder=True)
 
     # Colori riga in base allo stato
     js_style = JsCode("""
@@ -833,6 +832,7 @@ gb.configure_grid_options(domLayout="normal", ensureDomOrder=True)
 
     gb.configure_grid_options(getRowStyle=js_style)
     grid_opts = gb.build()
+
 
     # Altezza dinamica ma con larghezza fissa fino alla colonna "Azioni"
     grid_height = min(800, 120 + (len(disp) * 35))

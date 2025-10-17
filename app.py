@@ -287,7 +287,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 col4.markdown(row["DataInizio"] or "—")
                 if col5.button("🔍 Apri Scheda", key=f"open_{row['ClienteID']}"):
                     st.session_state["selected_cliente"] = row["ClienteID"]
-                    st.switch_page("pages/Clienti.py")  # 🔁 cambia path se la pagina è diversa
+                    st.switch_page("pages/Clienti.py")  # modifica percorso se necessario
     else:
         st.info("ℹ️ Il campo 'DataFine' non è ancora presente nel file contratti.")
 

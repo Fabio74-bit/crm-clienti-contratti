@@ -1022,45 +1022,63 @@ if "selected_contract_index" in st.session_state:
                     del st.session_state["selected_contract_index"]
                     st.rerun()
 
-# === NUOVO CONTRATTO ===
-with st.expander("➕ Nuovo contratto"):
-    with st.form(f"frm_new_contract_{sel_id}"):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            num = st.text_input("Numero Contratto")
-        with c2:
-            data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
-        with c3:
-            durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-        desc = st.text_area("Descrizione prodotto", height=80)
-        col_nf, col_ni, col_tot = st.columns(3)
-        with col_nf:
-            nf = st.text_input("NOL_FIN")
-        with col_ni:
-            ni = st.text_input("NOL_INT")
-        with col_tot:
-            tot = st.text_input("TotRata")
+    # === NUOVO CONTRATTO ===
+    st.markdown("---")
+    st.markdown("### ➕ Nuovo contratto")
 
-        if st.form_submit_button("💾 Crea contratto"):
-            try:
-                new_row = {
-                    "ClienteID": str(sel_id),
-                    "NumeroContratto": num,
-                    "DataInizio": pd.to_datetime(data_inizio),
-                    "DataFine": pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata)),
-                    "Durata": durata,
-                    "DescrizioneProdotto": desc,
-                    "NOL_FIN": nf,
-                    "NOL_INT": ni,
-                    "TotRata": tot,
-                    "Stato": "aperto",
-                }
-                df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
-                save_contratti(df_ct)
-                st.success("✅ Contratto creato con successo.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Errore creazione: {e}")
+    if "sel_id" in locals():
+        with st.expander("➕ Crea un nuovo contratto per il cliente selezionato", expanded=False):
+            with st.form(f"frm_new_contract_{sel_id}"):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    num = st.text_input("Numero Contratto")
+                with c2:
+                    data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
+                with c3:
+                    durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+
+                desc = st.text_area("Descrizione prodotto", height=80)
+
+                col_nf, col_ni, col_tot = st.columns(3)
+                with col_nf:
+                    nf = st.text_input("NOL_FIN")
+                with col_ni:
+                    ni = st.text_input("NOL_INT")
+                with col_tot:
+                    tot = st.text_input("TotRata")
+
+                submit_new = st.form_submit_button("💾 Crea contratto", use_container_width=True)
+
+                if submit_new:
+                    try:
+                        # Controllo campi obbligatori
+                        if not num.strip():
+                            st.warning("⚠️ Inserisci un numero contratto.")
+                            st.stop()
+
+                        new_row = {
+                            "ClienteID": str(sel_id),
+                            "NumeroContratto": num.strip(),
+                            "DataInizio": pd.to_datetime(data_inizio),
+                            "DataFine": pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata)),
+                            "Durata": durata,
+                            "DescrizioneProdotto": desc.strip(),
+                            "NOL_FIN": nf.strip(),
+                            "NOL_INT": ni.strip(),
+                            "TotRata": tot.strip(),
+                            "Stato": "aperto",
+                        }
+
+                        df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
+                        save_contratti(df_ct)
+                        st.success("✅ Contratto creato con successo.")
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"❌ Errore durante la creazione del contratto: {e}")
+    else:
+        st.info("ℹ️ Seleziona prima un cliente per poter creare un nuovo contratto.")
+
 
 # =====================================
 # LISTA COMPLETA CLIENTI E CONTRATTI

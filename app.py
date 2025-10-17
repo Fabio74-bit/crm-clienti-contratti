@@ -144,8 +144,7 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
-    """Pagina di login compatta e centrata, con logo e ruoli da secrets.toml"""
-    import streamlit as st
+    """Pagina di login centrata con logo, senza box vuoto sopra il form"""
     import time
 
     # === STILE PERSONALIZZATO ===
@@ -153,23 +152,21 @@ def do_login_fullscreen():
         """
         <style>
         div[data-testid="stAppViewContainer"] {
-            padding-top: 1rem !important;
+            padding-top: 0 !important;
         }
         section.main > div {
-            padding-top: 0rem !important;
+            padding-top: 0 !important;
         }
 
-        /* Centra il contenuto e riduce spazi */
         .block-container {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             align-items: center;
-            min-height: 85vh;
+            min-height: 90vh;
             padding-top: 2rem;
         }
 
-        /* Box di login */
         .login-box {
             background-color: white;
             border: 1px solid #e5e7eb;
@@ -177,6 +174,7 @@ def do_login_fullscreen():
             border-radius: 16px;
             padding: 2rem 3rem;
             width: 380px;
+            margin-top: 1.5rem;
         }
 
         .login-title {
@@ -184,16 +182,24 @@ def do_login_fullscreen():
             font-weight: 600;
             color: #2563eb;
             text-align: center;
-            margin-bottom: 1.2rem;
+            margin: 0.5rem 0 1rem 0;
         }
 
         .login-btn {
-            background-color: #2563eb;
-            color: white;
+            background-color: #2563eb !important;
+            color: white !important;
             border-radius: 8px;
             padding: 0.5rem;
             width: 100%;
             font-weight: 600;
+        }
+
+        /* Centra il logo */
+        .center-logo {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 0.5rem;
         }
         </style>
         """,
@@ -201,37 +207,39 @@ def do_login_fullscreen():
     )
 
     # === LOGO ===
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=200)  # 👈 sostituisci col tuo URL/logo
+    st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
+    st.image("https://i.imgur.com/SJ3A7Ds.png", width=160)  # 👈 Sostituisci col tuo logo SHT
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
     # === BOX LOGIN ===
-    with st.container():
-        with st.form("login_form"):
-            st.markdown("<div class='login-box'>", unsafe_allow_html=True)
-            username = st.text_input("👤 Nome utente", key="user_input").strip().lower()
-            password = st.text_input("🔑 Password", type="password", key="pass_input")
-            submit = st.form_submit_button("Login", use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+    with st.form("login_form"):
+        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+        username = st.text_input("👤 Nome utente", key="user_input").strip().lower()
+        password = st.text_input("🔑 Password", type="password", key="pass_input")
+        submit = st.form_submit_button("Login", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        # === AUTENTICAZIONE ===
-        if submit:
-            users = st.secrets["auth"]["users"]
-            if username in users and users[username]["password"] == password:
-                role = users[username].get("role", "viewer")
-                st.session_state["user"] = username
-                st.session_state["role"] = role
-                st.success(f"✅ Benvenuto {username} ({role})")
-                time.sleep(0.6)
-                return username, role
-            else:
-                st.error("❌ Credenziali non valide.")
+    # === AUTENTICAZIONE ===
+    if submit:
+        users = st.secrets["auth"]["users"]
+        if username in users and users[username]["password"] == password:
+            role = users[username].get("role", "viewer")
+            st.session_state["user"] = username
+            st.session_state["role"] = role
+            st.success(f"✅ Benvenuto {username} ({role})")
+            time.sleep(0.6)
+            return username, role
+        else:
+            st.error("❌ Credenziali non valide.")
 
     # === LOGIN AUTOMATICO SE GIÀ AUTENTICATO ===
     if "user" in st.session_state and st.session_state["user"]:
         return st.session_state["user"], st.session_state.get("role", "viewer")
 
     return None, None
+
 
 # =====================================
 # DASHBOARD

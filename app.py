@@ -723,7 +723,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# CONTRATTI – versione finale pulita con Excel, PDF e funzioni corrette (ottobre 2025)
+# CONTRATTI – versione stabile ottobre 2025
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import io
@@ -733,23 +733,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
-    # --- Nascondi sidebar SOLO in questa pagina ---
-    st.markdown("""
-        <style>
-        [data-testid="stSidebar"] {visibility: hidden;}
-        div.block-container {padding: 0 2rem 2rem 2rem !important; max-width: 100%;}
-        </style>
-    """, unsafe_allow_html=True)
-
-    # --- Titolo + pulsante Home ---
-    c1, c2 = st.columns([6, 1])
-    with c1:
-        st.markdown("<h2 style='margin-top:1rem;'>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
-    with c2:
-        if st.button("🏠 Home", key="btn_home"):
-            st.session_state["nav_target"] = "Dashboard"
-            st.session_state["force_home"] = True
-            st.rerun()
+    # === TITOLO ===
+    st.markdown("<h2 style='margin-top:1rem;'>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
 
     # === RICERCA CLIENTE ===
     search = st.text_input("🔍 Cerca Cliente per nome o ID:")
@@ -768,7 +753,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     labels = [f"{r['ClienteID']} — {r['RagioneSociale']}" for _, r in df_cli_filt.iterrows()]
     cliente_ids = df_cli_filt["ClienteID"].astype(str).tolist()
 
-    # Se arrivo dalla scheda cliente
     if "selected_cliente" in st.session_state:
         selected_cliente_id = str(st.session_state.pop("selected_cliente"))
         sel_index = cliente_ids.index(selected_cliente_id) if selected_cliente_id in cliente_ids else 0
@@ -797,12 +781,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
     disp = disp.drop(columns=["ClienteID"], errors="ignore")
 
-    # --- Configurazione tabella AgGrid ---
+    # --- Tabella AgGrid ---
     gb = GridOptionsBuilder.from_dataframe(disp)
     gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
     gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
-    gb.configure_selection(selection_mode="single", use_checkbox=False)
-    gb.configure_grid_options(domLayout="normal", ensureDomOrder=True)
+    gb.configure_selection(selection_mode="single", use_checkbox=True)
 
     js_style = JsCode("""
     function(params){
@@ -811,15 +794,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         if(stato === 'chiuso'){
             return {'backgroundColor':'#ffebee','color':'#b71c1c','fontWeight':'bold'};
         } else {
-            return {'backgroundColor':'white','color':'black'};
+            return {'backgroundColor':'#ffffff','color':'#000000'};
         }
     }""")
     gb.configure_grid_options(getRowStyle=js_style)
     grid_opts = gb.build()
 
-    grid_height = 120 + (len(disp) * 35)
-    if grid_height > 800:
-        grid_height = 800
+    grid_height = min(800, 120 + (len(disp) * 35))
 
     grid_return = AgGrid(
         disp,
@@ -828,16 +809,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         height=grid_height,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         allow_unsafe_jscode=True,
-        fit_columns_on_grid_load=False,
     )
 
     selected = grid_return["selected_rows"]
 
-    # === AZIONI SOTTO TABELLA ===
+    # === BOTTONI AZIONE RAPIDA (Chiudi / Modifica) ===
     st.markdown("---")
-    st.markdown("### ⚙️ Gestione contratto selezionato")
+    st.markdown("### ⚙️ Azioni contratto selezionato")
 
-    # 🔹 Protezione: selected è sempre lista
     if "selected" in locals() and isinstance(selected, list) and len(selected) > 0:
         r = selected[0]
         if isinstance(r, dict) and "NumeroContratto" in r:
@@ -846,8 +825,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 idx = idx[0]
                 stato = str(r.get("Stato", "aperto")).lower()
 
-                colA1, colA2 = st.columns([0.25, 0.25])
-                with colA1:
+                c1, c2 = st.columns([0.25, 0.25])
+                with c1:
                     if stato == "chiuso":
                         if st.button("🔓 Riapri contratto", key=f"riapri_{idx}", use_container_width=True):
                             df_ct.loc[idx, "Stato"] = "aperto"
@@ -860,8 +839,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             save_contratti(df_ct)
                             st.success("✅ Contratto chiuso correttamente.")
                             st.rerun()
-
-                with colA2:
+                with c2:
                     if st.button("✏️ Modifica contratto", key=f"edit_{idx}", use_container_width=True):
                         st.session_state["selected_contract_index"] = idx
             else:
@@ -905,10 +883,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         st.success("✅ Modifiche salvate correttamente.")
                         del st.session_state["selected_contract_index"]
                         st.rerun()
-        else:
-            st.warning("⚠️ Indice contratto non valido.")
-            del st.session_state["selected_contract_index"]
-
 
     # === NUOVO CONTRATTO ===
     st.markdown("---")
@@ -924,9 +898,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
                 with c3:
                     durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-
                 desc = st.text_area("Descrizione prodotto", height=80)
-
                 col_nf, col_ni, col_tot = st.columns(3)
                 with col_nf:
                     nf = st.text_input("NOL_FIN")
@@ -934,15 +906,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     ni = st.text_input("NOL_INT")
                 with col_tot:
                     tot = st.text_input("TotRata")
-
-                submit_new = st.form_submit_button("💾 Crea contratto", use_container_width=True)
-
-                if submit_new:
-                    try:
-                        if not num.strip():
-                            st.warning("⚠️ Inserisci un numero contratto.")
-                            st.stop()
-
+                if st.form_submit_button("💾 Crea contratto", use_container_width=True):
+                    if not num.strip():
+                        st.warning("⚠️ Inserisci un numero contratto.")
+                    else:
                         new_row = {
                             "ClienteID": str(sel_id),
                             "NumeroContratto": num.strip(),
@@ -955,16 +922,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             "TotRata": tot.strip(),
                             "Stato": "aperto",
                         }
-
                         df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
                         save_contratti(df_ct)
                         st.success("✅ Contratto creato con successo.")
                         st.rerun()
-
-                    except Exception as e:
-                        st.error(f"❌ Errore durante la creazione del contratto: {e}")
     else:
         st.info("ℹ️ Seleziona prima un cliente per poter creare un nuovo contratto.")
+
 
     # === ESPORTAZIONI ===
     st.markdown("---")

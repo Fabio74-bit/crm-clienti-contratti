@@ -1295,7 +1295,7 @@ def main():
 
     default_page = st.session_state.pop("nav_target", "Dashboard")
     if st.session_state.pop("force_home", False):
-    default_page = "Dashboard"
+        default_page = "Dashboard"
 
     page = st.sidebar.radio(
         "📂 Menu principale",

@@ -645,41 +645,42 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
 
-    # === 🔁 Se arrivi da "Vai ai Contratti" ===
-    if "selected_cliente" in st.session_state:
-        cliente_id = st.session_state.pop("selected_cliente")
-
-        if cliente_id in df_cli["ClienteID"].values:
-            cliente_info = df_cli[df_cli["ClienteID"] == cliente_id].iloc[0]
-            ragione = cliente_info.get("RagioneSociale", "")
-            st.info(f"📌 Mostrati solo i contratti del cliente **{ragione}** (ID: {cliente_id})")
-
-            # 🔍 Filtra solo i contratti del cliente selezionato
-            df_ct = df_ct[df_ct["ClienteID"] == cliente_id]
-
-            # 🔙 Pulsante per tornare al cliente
-            if st.button("⬅️ Torna al Cliente", use_container_width=True):
-                st.session_state["selected_cliente"] = cliente_id
-                st.session_state["nav_target"] = "Clienti"
-                st.rerun()
-
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
 
-    pre = st.session_state.get("selected_client_id")
+    # === 🔁 Se arrivi da "Vai ai Contratti" ===
+    selected_cliente_id = None
+    if "selected_cliente" in st.session_state:
+        selected_cliente_id = st.session_state.pop("selected_cliente")
+
+    # === Prepara lista clienti ===
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
-    idx = 0
-    if pre:
-        try:
-            idx = int(df_cli.index[df_cli["ClienteID"].astype(str) == str(pre)][0])
-        except:
-            idx = 0
+    cliente_ids = df_cli["ClienteID"].astype(str).tolist()
 
-    sel_label = st.selectbox("Cliente", labels.tolist(), index=idx if idx < len(labels) else 0)
-    sel_id = df_cli.iloc[labels[labels == sel_label].index[0]]["ClienteID"]
-    rag_soc = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]["RagioneSociale"]
+    # Se hai cliccato "Vai ai Contratti", seleziona automaticamente quel cliente
+    if selected_cliente_id and str(selected_cliente_id) in cliente_ids:
+        sel_index = cliente_ids.index(str(selected_cliente_id))
+    else:
+        sel_index = 0
 
+    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index)
+    sel_id = cliente_ids[sel_index]
+    cliente_info = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)].iloc[0]
+    rag_soc = cliente_info["RagioneSociale"]
+
+    # 🔙 Se arrivi da un link diretto, mostra pulsante per tornare
+    if selected_cliente_id:
+        st.info(f"📌 Mostrati solo i contratti del cliente **{rag_soc}** (ID: {sel_id})")
+        if st.button("⬅️ Torna al Cliente", use_container_width=True):
+            st.session_state["selected_cliente"] = sel_id
+            st.session_state["nav_target"] = "Clienti"
+            st.rerun()
+
+    # 🔍 Filtra i contratti del cliente selezionato
+    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+
+    # === SEZIONE NUOVO CONTRATTO ===
     with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
         with st.form("frm_new_contract"):
             c1, c2, c3 = st.columns(3)
@@ -716,11 +717,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.success("✅ Contratto creato con successo.")
                 st.rerun()
 
-    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
         return
 
+    # === FORMATTAZIONE E STILE TABELLA ===
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)

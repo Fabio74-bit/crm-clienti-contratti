@@ -861,7 +861,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     grid_opts = gb.build()
 
 
-    # Altezza dinamica ma con larghezza fissa fino alla colonna "Azioni"
+        # Altezza dinamica ma con larghezza fissa fino alla colonna "Azioni"
     grid_height = min(800, 120 + (len(disp) * 35))
     grid_return = AgGrid(
         disp,
@@ -874,7 +874,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     )
 
     selected = grid_return["selected_rows"]
-        selected = grid_return["selected_rows"]
 
     # --- Gestione eventi pulsanti "Azioni" ---
     from streamlit_javascript import st_javascript
@@ -906,6 +905,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         r = selected[0]
         idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
         stato = str(r.get("Stato", "aperto")).lower()
+
 
         c1, c2 = st.columns([0.2, 0.2])
         with c1:

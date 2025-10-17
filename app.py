@@ -329,7 +329,7 @@ with col_r:
     )
     nuovo_recall = st.date_input(
         "Seleziona nuova data recall",
-        value=_safe_date_for_input(cliente.get("ProssimoRecall")),
+         value=_safe_date_for_input(cliente.get("ProssimoRecall")),
         format="DD/MM/YYYY",
         key=f"recall_{sel_id}"
     )

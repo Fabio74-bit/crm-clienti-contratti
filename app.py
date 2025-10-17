@@ -835,9 +835,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
    # === AZIONI SOTTO TABELLA ===
     if "selected" in locals() and selected is not None and len(selected) > 0:
-    r = selected[0]
-    if r and "NumeroContratto" in r:
-        idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
+        r = selected[0]
+        if r and "NumeroContratto" in r:
+            idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
 
         st.markdown("---")
         colA1, colA2, colA3 = st.columns([0.25, 0.25, 0.25])

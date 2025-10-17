@@ -221,7 +221,22 @@ def do_login_fullscreen():
 
     # Blocca tutto se non loggato
     st.stop()
-
+# ==========================
+# KPI CARD (riutilizzata in Dashboard)
+# ==========================
+def kpi_card(label: str, value, icon: str, color: str) -> str:
+    return f"""
+    <div style="
+        background-color:{color};
+        padding:18px;
+        border-radius:12px;
+        text-align:center;
+        color:white;">
+        <div style="font-size:26px;">{icon}</div>
+        <div style="font-size:22px;font-weight:700;">{value}</div>
+        <div style="font-size:14px;">{label}</div>
+    </div>
+    """
 
 # =====================================
 # DASHBOARD

@@ -940,9 +940,35 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # 📅 PAGINA RICHIAMI E VISITE (completa)
 # =====================================
+# =====================================
+# 📅 PAGINA RICHIAMI E VISITE (con ricerca)
+# =====================================
 def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
     st.markdown("<h2>📅 Gestione Recall e Visite</h2>", unsafe_allow_html=True)
+    st.divider()
+
+    # === FILTRO DI RICERCA ===
+    st.markdown("### 🔍 Filtra clienti")
+    col1, col2 = st.columns(2)
+    with col1:
+        filtro_nome = st.text_input("Cerca per nome cliente")
+    with col2:
+        filtro_citta = st.text_input("Cerca per città")
+
+    # Applica filtro
+    filtrato = df_cli.copy()
+    if filtro_nome:
+        filtrato = filtrato[filtrato["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
+    if filtro_citta:
+        filtrato = filtrato[filtrato["Citta"].str.contains(filtro_citta, case=False, na=False)]
+
+    if filtrato.empty:
+        st.warning("❌ Nessun cliente trovato con i criteri di ricerca.")
+        return
+
+    df_cli = filtrato.copy()
+
     st.divider()
 
     oggi = pd.Timestamp.now().normalize()
@@ -950,6 +976,7 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     df_cli["UltimaVisita"] = pd.to_datetime(df_cli["UltimaVisita"], errors="coerce")
     df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
     df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce")
+
 
     # === IMMINENTI ===
     st.subheader("🔁 Recall e Visite imminenti")

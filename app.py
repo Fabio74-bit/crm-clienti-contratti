@@ -283,6 +283,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ].copy()
 
        else:
+            if scadenze.empty:
+        st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
+    else:
         scadenze = scadenze.merge(
             df_cli[["ClienteID", "RagioneSociale"]],
             on="ClienteID", how="left"
@@ -350,6 +353,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["selected_cliente"] = r["ClienteID"]
                 st.session_state["nav_target"] = "Clienti"
                 st.rerun()
+
 
 
         st.markdown("</table>", unsafe_allow_html=True)

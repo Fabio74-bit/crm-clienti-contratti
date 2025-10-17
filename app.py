@@ -645,6 +645,24 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
 
+    # === 🔁 Se arrivi da "Vai ai Contratti" ===
+    if "selected_cliente" in st.session_state:
+        cliente_id = st.session_state.pop("selected_cliente")
+
+        if cliente_id in df_cli["ClienteID"].values:
+            cliente_info = df_cli[df_cli["ClienteID"] == cliente_id].iloc[0]
+            ragione = cliente_info.get("RagioneSociale", "")
+            st.info(f"📌 Mostrati solo i contratti del cliente **{ragione}** (ID: {cliente_id})")
+
+            # 🔍 Filtra solo i contratti del cliente selezionato
+            df_ct = df_ct[df_ct["ClienteID"] == cliente_id]
+
+            # 🔙 Pulsante per tornare al cliente
+            if st.button("⬅️ Torna al Cliente", use_container_width=True):
+                st.session_state["selected_cliente"] = cliente_id
+                st.session_state["nav_target"] = "Clienti"
+                st.rerun()
+
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
@@ -779,6 +797,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.download_button("📘 Esporta PDF", pdf_bytes, f"contratti_{rag_soc}.pdf", "application/pdf")
         except Exception as e:
             st.error(f"Errore PDF: {e}")
+
 
 # =====================================
 # LISTA COMPLETA CLIENTI E CONTRATTI

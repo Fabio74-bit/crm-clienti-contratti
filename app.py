@@ -781,53 +781,77 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     disp = disp.drop(columns=["ClienteID"], errors="ignore")
     disp["Azioni"] = ""  # 🔹 Aggiungila già qui (prima della tabella)
 
-    # --- Tabella AgGrid con pulsanti in riga (senza JS esterno) ---
+     # --- Tabella AgGrid con pulsanti integrati Python ---
     from st_aggrid.shared import JsCode
 
-        # --- Colonna "Azioni" con pulsanti reali ---
-    action_renderer = JsCode("""
-    class BtnRenderer {
-        init(params) {
-            this.params = params;
-            const stato = (params.data.Stato || '').toLowerCase();
-            const chiudiText = stato === 'chiuso' ? '🔓 Riapri' : '❌ Chiudi';
-            this.eGui = document.createElement('div');
-            this.eGui.style.display = 'flex';
-            this.eGui.style.justifyContent = 'center';
-            this.eGui.style.gap = '6px';
-            
-            // Pulsante Modifica
-            const btnMod = document.createElement('button');
-            btnMod.innerHTML = '✏️';
-            btnMod.style.backgroundColor = '#1976D2';
-            btnMod.style.color = 'white';
-            btnMod.style.border = 'none';
-            btnMod.style.borderRadius = '4px';
-            btnMod.style.padding = '2px 6px';
-            btnMod.style.cursor = 'pointer';
-            btnMod.addEventListener('click', () => {
-                window.postMessage({type: 'edit_contract', data: params.data}, '*');
-            });
-            
-            // Pulsante Chiudi / Riapri
-            const btnClose = document.createElement('button');
-            btnClose.innerHTML = chiudiText;
-            btnClose.style.backgroundColor = stato === 'chiuso' ? '#4CAF50' : '#E53935';
-            btnClose.style.color = 'white';
-            btnClose.style.border = 'none';
-            btnClose.style.borderRadius = '4px';
-            btnClose.style.padding = '2px 6px';
-            btnClose.style.cursor = 'pointer';
-            btnClose.addEventListener('click', () => {
-                window.postMessage({type: 'toggle_contract', data: params.data}, '*');
-            });
-            
-            this.eGui.appendChild(btnMod);
-            this.eGui.appendChild(btnClose);
+    # Rimuoviamo la colonna Azioni se già esiste
+    if "Azioni" in disp.columns:
+        disp = disp.drop(columns=["Azioni"])
+
+    # Aggiungiamo i pulsanti come testo (per posizione visiva)
+    disp["Azioni"] = disp.apply(lambda x: "✏️ | ❌" if x["Stato"] == "aperto" else "✏️ | 🔓", axis=1)
+
+    gb = GridOptionsBuilder.from_dataframe(disp)
+    gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
+    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True)
+    gb.configure_column("Azioni", width=120, pinned="right", suppressMovable=True)
+
+    # Colori riga in base allo stato
+    js_style = JsCode("""
+    function(params){
+        if(!params.data.Stato) return {};
+        const stato = params.data.Stato.toLowerCase();
+        if(stato === 'chiuso'){
+            return {'backgroundColor':'#ffebee','color':'#b71c1c','fontWeight':'bold'};
+        } else {
+            return {'backgroundColor':'#ffffff','color':'#000000'};
         }
-        getGui() { return this.eGui; }
-    }
-    """)
+    }""")
+
+    gb.configure_grid_options(getRowStyle=js_style)
+    grid_opts = gb.build()
+
+    grid_height = min(800, 120 + (len(disp) * 35))
+    grid_return = AgGrid(
+        disp,
+        gridOptions=grid_opts,
+        theme="balham",
+        height=grid_height,
+        allow_unsafe_jscode=True,
+        fit_columns_on_grid_load=False,
+        update_mode=GridUpdateMode.SELECTION_CHANGED
+    )
+
+    selected = grid_return["selected_rows"]
+
+    # --- Pulsanti funzionali Python ---
+    if selected and len(selected) > 0:
+        r = selected[0]
+        idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
+        stato = str(r.get("Stato", "aperto")).lower()
+
+        st.markdown("### ⚙️ Azioni rapide")
+        col1, col2 = st.columns([0.3, 0.3])
+
+        with col1:
+            if stato == "chiuso":
+                if st.button(f"🔓 Riapri contratto {r['NumeroContratto']}", key=f"riapri_{idx}"):
+                    df_ct.loc[idx, "Stato"] = "aperto"
+                    save_contratti(df_ct)
+                    st.success("✅ Contratto riaperto.")
+                    st.rerun()
+            else:
+                if st.button(f"❌ Chiudi contratto {r['NumeroContratto']}", key=f"chiudi_{idx}"):
+                    df_ct.loc[idx, "Stato"] = "chiuso"
+                    save_contratti(df_ct)
+                    st.success("✅ Contratto chiuso.")
+                    st.rerun()
+
+        with col2:
+            if st.button(f"✏️ Modifica contratto {r['NumeroContratto']}", key=f"edit_{idx}"):
+                st.session_state["selected_contract_index"] = idx
+                st.rerun()
+
 
 
        # Configurazione tabella

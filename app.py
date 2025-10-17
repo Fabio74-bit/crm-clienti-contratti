@@ -163,7 +163,7 @@ def do_login_fullscreen():
         .block-container {
             display: flex;
             flex-direction: column;
-            justify-content: flex-start;
+            justify-content: center;
             align-items: center;
             min-height: 85vh;
             padding-top: 2rem;
@@ -201,7 +201,7 @@ def do_login_fullscreen():
     )
 
     # === LOGO ===
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=150)  # 👈 sostituisci col tuo URL/logo
+    st.image("https://www.shtsrl.com/template/images/logo.png", width=200)  # 👈 sostituisci col tuo URL/logo
 
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 

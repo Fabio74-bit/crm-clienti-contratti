@@ -839,44 +839,33 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     if "selected" in locals() and selected is not None and len(selected) > 0:
         r = selected[0]
-
         if r and "NumeroContratto" in r:
             idx = ct[ct["NumeroContratto"] == r["NumeroContratto"]].index[0]
             stato = str(r.get("Stato", "aperto")).lower()
 
-            # --- Pulsanti principali (chiudi / modifica)
-            colA1, colA2 = st.columns([0.25, 0.25])
-            with colA1:
+            c1, c2 = st.columns([0.25, 0.25])
+            with c1:
                 if stato == "chiuso":
                     if st.button("🔓 Riapri contratto", key=f"riapri_{idx}", use_container_width=True):
-                        try:
-                            df_ct.loc[idx, "Stato"] = "aperto"
-                            save_contratti(df_ct)
-                            st.success("✅ Contratto riaperto correttamente.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Errore durante la riapertura: {e}")
+                        df_ct.loc[idx, "Stato"] = "aperto"
+                        save_contratti(df_ct)
+                        st.success("✅ Contratto riaperto correttamente.")
+                        st.rerun()
                 else:
                     if st.button("❌ Chiudi contratto", key=f"chiudi_{idx}", use_container_width=True):
-                        try:
-                            df_ct.loc[idx, "Stato"] = "chiuso"
-                            save_contratti(df_ct)
-                            st.success("✅ Contratto chiuso correttamente.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Errore durante la chiusura: {e}")
-
-            with colA2:
+                        df_ct.loc[idx, "Stato"] = "chiuso"
+                        save_contratti(df_ct)
+                        st.success("✅ Contratto chiuso correttamente.")
+                        st.rerun()
+            with c2:
                 if st.button("✏️ Modifica contratto", key=f"edit_{idx}", use_container_width=True):
                     st.session_state["selected_contract_index"] = idx
-
     else:
         st.info("ℹ️ Seleziona un contratto nella tabella per modificarlo o chiuderlo.")
 
     # === MODIFICA CONTRATTO SELEZIONATO ===
     if "selected_contract_index" in st.session_state:
         idx = st.session_state["selected_contract_index"]
-
         if 0 <= idx < len(df_ct):
             r = df_ct.iloc[idx]
             with st.expander("✏️ Modifica contratto selezionato", expanded=True):
@@ -888,10 +877,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         datain = st.date_input("Data Inizio", pd.to_datetime(r["DataInizio"], errors="coerce"))
                     with c3:
                         datafin = st.date_input("Data Fine", pd.to_datetime(r["DataFine"], errors="coerce"))
-
                     durata = st.text_input("Durata (mesi)", r["Durata"])
                     desc = st.text_area("Descrizione prodotto", r["DescrizioneProdotto"], height=80)
-
                     col_nf, col_ni, col_tot = st.columns(3)
                     with col_nf:
                         nf = st.text_input("NOL_FIN", r["NOL_FIN"])
@@ -899,30 +886,19 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         ni = st.text_input("NOL_INT", r["NOL_INT"])
                     with col_tot:
                         tot = st.text_input("TotRata", r["TotRata"])
-
-                    stato_new = st.selectbox(
-                        "Stato",
-                        ["aperto", "chiuso"],
-                        index=0 if (r["Stato"] or "").lower() == "aperto" else 1
-                    )
-
+                    stato_new = st.selectbox("Stato", ["aperto", "chiuso"],
+                                             index=0 if (r["Stato"] or "").lower() == "aperto" else 1)
                     salva_btn = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
                     if salva_btn:
-                        try:
-                            df_ct.loc[idx, [
-                                "NumeroContratto", "DataInizio", "DataFine",
-                                "Durata", "DescrizioneProdotto", "NOL_FIN",
-                                "NOL_INT", "TotRata", "Stato"
-                            ]] = [
-                                num, datain, datafin, durata, desc,
-                                nf, ni, tot, stato_new
-                            ]
-                            save_contratti(df_ct)
-                            st.success("✅ Modifiche salvate correttamente.")
-                            del st.session_state["selected_contract_index"]
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Errore durante il salvataggio: {e}")
+                        df_ct.loc[idx, ["NumeroContratto", "DataInizio", "DataFine", "Durata",
+                                        "DescrizioneProdotto", "NOL_FIN", "NOL_INT",
+                                        "TotRata", "Stato"]] = [
+                            num, datain, datafin, durata, desc, nf, ni, tot, stato_new
+                        ]
+                        save_contratti(df_ct)
+                        st.success("✅ Modifiche salvate correttamente.")
+                        del st.session_state["selected_contract_index"]
+                        st.rerun()
         else:
             st.warning("⚠️ Indice contratto non valido.")
             del st.session_state["selected_contract_index"]
@@ -930,7 +906,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === NUOVO CONTRATTO ===
     st.markdown("---")
     st.markdown("### ➕ Nuovo contratto")
-
     if "sel_id" in locals():
         with st.expander("➕ Crea un nuovo contratto per il cliente selezionato", expanded=False):
             with st.form(f"frm_new_contract_{sel_id}"):
@@ -941,9 +916,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
                 with c3:
                     durata = st.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-
                 desc = st.text_area("Descrizione prodotto", height=80)
-
                 col_nf, col_ni, col_tot = st.columns(3)
                 with col_nf:
                     nf = st.text_input("NOL_FIN")
@@ -951,15 +924,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     ni = st.text_input("NOL_INT")
                 with col_tot:
                     tot = st.text_input("TotRata")
-
-                submit_new = st.form_submit_button("💾 Crea contratto", use_container_width=True)
-
-                if submit_new:
-                    try:
-                        if not num.strip():
-                            st.warning("⚠️ Inserisci un numero contratto.")
-                            st.stop()
-
+                if st.form_submit_button("💾 Crea contratto", use_container_width=True):
+                    if not num.strip():
+                        st.warning("⚠️ Inserisci un numero contratto.")
+                    else:
                         new_row = {
                             "ClienteID": str(sel_id),
                             "NumeroContratto": num.strip(),
@@ -972,16 +940,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             "TotRata": tot.strip(),
                             "Stato": "aperto",
                         }
-
                         df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
                         save_contratti(df_ct)
                         st.success("✅ Contratto creato con successo.")
                         st.rerun()
-
-                    except Exception as e:
-                        st.error(f"❌ Errore durante la creazione del contratto: {e}")
     else:
         st.info("ℹ️ Seleziona prima un cliente per poter creare un nuovo contratto.")
+
 
 
 # =====================================

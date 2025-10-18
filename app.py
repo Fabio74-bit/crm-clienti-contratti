@@ -292,8 +292,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c4.markdown(kpi_card("Nuovi contratti anno", count_new, "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-    # =====================================
-    # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI
+        # =====================================
+    # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI (TABELLARE)
     # =====================================
     with st.container():
         st.markdown("<div class='section-card'>", unsafe_allow_html=True)
@@ -302,6 +302,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         oggi = pd.Timestamp.now().normalize()
         entro_6_mesi = oggi + pd.DateOffset(months=6)
 
+        # Filtra solo contratti attivi in scadenza
         df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce")
         scadenze = df_ct[
             (df_ct["DataFine"].notna())
@@ -320,72 +321,65 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
             scadenze = scadenze.sort_values("DataFine", ascending=True)
 
-                  # === Versione tabellare compatta ===
-        st.markdown("""
-        <style>
-        .tbl-scadenze {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        .tbl-scadenze th, .tbl-scadenze td {
-            border-bottom: 1px solid #e5e7eb;
-            padding: 6px 10px;
-            text-align: left;
-        }
-        .tbl-scadenze th {
-            background-color: #f3f4f6;
-            font-weight: 600;
-        }
-        .tbl-scadenze tr:hover td {
-            background-color: #fef9c3;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+            # ✅ Totale contratti in scadenza
+            st.markdown(f"**🔢 {len(scadenze)} contratti attivi in scadenza entro 6 mesi:**")
 
-        # Header tabella
-        st.markdown(
-            "<table class='tbl-scadenze'>"
-            "<thead><tr>"
-            "<th>Cliente</th><th>Contratto</th><th>Scadenza</th><th>Stato</th><th style='text-align:center;'>Azione</th>"
-            "</tr></thead><tbody>",
-            unsafe_allow_html=True
-        )
+            # === Stile tabella ===
+            st.markdown("""
+            <style>
+            .tbl-scadenze {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.9rem;
+            }
+            .tbl-scadenze th, .tbl-scadenze td {
+                border-bottom: 1px solid #e5e7eb;
+                padding: 8px 10px;
+                text-align: left;
+            }
+            .tbl-scadenze th {
+                background-color: #f3f4f6;
+                font-weight: 600;
+            }
+            .tbl-scadenze tr:hover td {
+                background-color: #fef9c3;
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
-        # Righe
-        for i, r in scadenze.iterrows():
-            cliente = r["RagioneSociale"] or "—"
-            contratto = r["NumeroContratto"] or "—"
-            scadenza = r["DataFine"] or "—"
-            stato = r["Stato"] or "—"
-
-            # Aggiunge bottone Apri con key univoca
-            btn_key = f"btn_{i}"
-            col_html = (
-                f"<tr>"
-                f"<td>{cliente}</td>"
-                f"<td>{contratto}</td>"
-                f"<td>{scadenza}</td>"
-                f"<td>{stato}</td>"
-                f"<td style='text-align:center;'>"
-                f"<button class='stButton' style='background:#2563eb;color:white;padding:4px 10px;"
-                f"border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;' id='{btn_key}'>Apri</button>"
-                f"</td></tr>"
+            # === Header tabella ===
+            st.markdown(
+                "<table class='tbl-scadenze'>"
+                "<thead><tr>"
+                "<th>Cliente</th>"
+                "<th>Contratto</th>"
+                "<th>Scadenza</th>"
+                "<th>Stato</th>"
+                "<th style='text-align:center;width:120px;'>Azione</th>"
+                "</tr></thead><tbody>",
+                unsafe_allow_html=True
             )
-            st.markdown(col_html, unsafe_allow_html=True)
 
-            # Streamlit button effettivo
-            if st.button("Apri", key=f"open_scad_{i}"):
-                st.session_state["selected_cliente"] = r["ClienteID"]
-                st.session_state["nav_target"] = "Contratti"
-                st.rerun()
+            # === Righe tabella ===
+            for i, r in scadenze.iterrows():
+                col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
+                with col1:
+                    st.markdown(f"**{r['RagioneSociale']}**")
+                with col2:
+                    st.markdown(r["NumeroContratto"] or "—")
+                with col3:
+                    st.markdown(r["DataFine"] or "—")
+                with col4:
+                    st.markdown(r["Stato"] or "—")
+                with col5:
+                    if st.button("Apri", key=f"open_scad_{i}", use_container_width=True):
+                        st.session_state["selected_cliente"] = r["ClienteID"]
+                        st.session_state["nav_target"] = "Contratti"
+                        st.rerun()
 
-        st.markdown("</tbody></table>", unsafe_allow_html=True)
-
-
+            st.markdown("</tbody></table>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
- 
     # =====================================
     # 🚫 CLIENTI SENZA DATA FINE
     # =====================================

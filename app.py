@@ -21,12 +21,27 @@ st.markdown("""
     max-width: 100% !important;
 }
 
-/* Nasconde eventuali contenitori vuoti di Streamlit (come quello sopra il login) */
-div[data-testid="stVerticalBlock"] > div:empty {
+/* 🔧 Fix: rimuove qualsiasi blocco o margine vuoto sopra la prima card */
+div[data-testid="stVerticalBlock"] > div:first-child:empty,
+div[data-testid="stVerticalBlock"] > div:first-child > div:empty,
+div[data-testid="stVerticalBlock"] > div:first-child > div:has(> div:empty),
+div[data-testid="stVerticalBlock"] > div:first-child > div:has(> div > div:empty),
+div[data-testid="stVerticalBlock"]:has(> div:empty),
+section.main > div:has(div:empty) {
     display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* 🔹 Rimuove spazi extra sopra il contenuto principale */
+section.main > div:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 from pathlib import Path

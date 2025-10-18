@@ -134,39 +134,99 @@ def safe_text(txt):
 # =====================================
 # I/O DATI
 # =====================================
+# =====================================
+# I/O DATI — VERSIONE PULITA (NO NAN)
+# =====================================
+
 def load_clienti() -> pd.DataFrame:
+    """Carica i clienti dal CSV, garantendo assenza di NaN o valori nulli."""
     if CLIENTI_CSV.exists():
-        df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+        df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig")
     else:
         df = pd.DataFrame(columns=CLIENTI_COLS)
         df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+
+    # 🔹 Pulizia totale di NaN, None, NaT, ecc.
+    df = df.replace(
+        to_replace=["nan", "NaN", "None", "NULL", "null", "NaT"],
+        value="",
+        regex=True
+    ).fillna("")
+
+    # 🔹 Garantisce tutte le colonne
     df = ensure_columns(df, CLIENTI_COLS)
+
+    # 🔹 Conversione date
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         df[c] = to_date_series(df[c])
+
     return df
 
+
 def save_clienti(df: pd.DataFrame):
+    """Salva i clienti puliti nel CSV (senza NaN o valori nulli)."""
     out = df.copy()
+
+    # 🔹 Pulizia completa prima del salvataggio
+    out = out.replace(
+        to_replace=["nan", "NaN", "None", "NULL", "null", "NaT"],
+        value="",
+        regex=True
+    ).fillna("")
+
+    # 🔹 Format date
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        out[c] = out[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
+        out[c] = out[c].apply(
+            lambda d: "" if pd.isna(d) or d == "" else pd.to_datetime(d).strftime("%Y-%m-%d")
+        )
+
     out.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
 
+
 def load_contratti() -> pd.DataFrame:
+    """Carica i contratti dal CSV, garantendo assenza di NaN o valori nulli."""
     if CONTRATTI_CSV.exists():
-        df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+        df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig")
     else:
         df = pd.DataFrame(columns=CONTRATTI_COLS)
         df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+
+    # 🔹 Pulizia totale di NaN, None, NaT, ecc.
+    df = df.replace(
+        to_replace=["nan", "NaN", "None", "NULL", "null", "NaT"],
+        value="",
+        regex=True
+    ).fillna("")
+
+    # 🔹 Garantisce tutte le colonne
     df = ensure_columns(df, CONTRATTI_COLS)
+
+    # 🔹 Conversione date
     for c in ["DataInizio", "DataFine"]:
         df[c] = to_date_series(df[c])
+
     return df
 
+
 def save_contratti(df: pd.DataFrame):
+    """Salva i contratti puliti nel CSV (senza NaN o valori nulli)."""
     out = df.copy()
+
+    # 🔹 Pulizia completa prima del salvataggio
+    out = out.replace(
+        to_replace=["nan", "NaN", "None", "NULL", "null", "NaT"],
+        value="",
+        regex=True
+    ).fillna("")
+
+    # 🔹 Format date
     for c in ["DataInizio", "DataFine"]:
-        out[c] = out[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
+        out[c] = out[c].apply(
+            lambda d: "" if pd.isna(d) or d == "" else pd.to_datetime(d).strftime("%Y-%m-%d")
+        )
+
     out.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+
 
 def do_login_fullscreen():
     """Pagina di login centrata e compatta (funzionante al 100% in Streamlit)."""

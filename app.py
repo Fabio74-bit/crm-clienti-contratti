@@ -176,11 +176,15 @@ def do_login_fullscreen():
         .login-box {
             background-color: #ffffff;
             border: 1px solid #e5e7eb;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             border-radius: 12px;
-            padding: 1.5rem 2rem;
-            width: 300px;
+            padding: 1.5rem 1.8rem;
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
         }
+
         .login-title {
             font-size: 1.2rem;
             font-weight: 600;

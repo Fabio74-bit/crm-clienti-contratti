@@ -1024,11 +1024,15 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for col in ["UltimoRecall", "UltimaVisita", "ProssimoRecall", "ProssimaVisita"]:
         df_cli[col] = pd.to_datetime(df_cli[col], errors="coerce")
 
-    # =====================================
-    # 🔁 IMMINENTI (entro 30 giorni)
+       # =====================================
+    # 🔁 RECALL E VISITE IMMINENTI (entro 30 giorni)
     # =====================================
     st.markdown("<div class='section-card'>", unsafe_allow_html=True)
     st.markdown("<div class='section-title'><span>🔁</span>Recall e Visite imminenti (entro 30 giorni)</div>", unsafe_allow_html=True)
+
+    oggi = pd.Timestamp.now().normalize()
+    df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
+    df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce")
 
     imminenti = df_cli[
         (df_cli["ProssimoRecall"].between(oggi, oggi + pd.DateOffset(days=30))) |
@@ -1038,23 +1042,56 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if imminenti.empty:
         st.success("✅ Nessun richiamo o visita imminente.")
     else:
-        st.markdown("<table class='tbl-recall'><thead><tr><th>Cliente</th><th>Prossimo Recall</th><th>Prossima Visita</th><th style='text-align:center;width:120px;'>Azione</th></tr></thead><tbody>", unsafe_allow_html=True)
+        st.markdown("""
+        <style>
+        .tbl-imminenti {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .tbl-imminenti th, .tbl-imminenti td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 6px 10px;
+            text-align: left;
+        }
+        .tbl-imminenti th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+        .tbl-imminenti tr:hover td {
+            background-color: #fef9c3;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Header tabella
+        st.markdown(
+            "<table class='tbl-imminenti'><thead><tr>"
+            "<th style='width:45%'>Cliente</th>"
+            "<th style='width:25%'>Prossimo Recall</th>"
+            "<th style='width:25%'>Prossima Visita</th>"
+            "<th style='text-align:center;width:15%'>Azione</th>"
+            "</tr></thead><tbody>",
+            unsafe_allow_html=True
+        )
+
+        # Righe
         for i, r in imminenti.iterrows():
-            st.markdown(
-                f"<tr>"
-                f"<td>{r['RagioneSociale']}</td>"
-                f"<td>{fmt_date(r['ProssimoRecall'])}</td>"
-                f"<td>{fmt_date(r['ProssimaVisita'])}</td>"
-                f"<td style='text-align:center;'>"
-                f"<button class='btn-apri'>Apri</button>"
-                f"</td></tr>",
-                unsafe_allow_html=True
-            )
-            if st.button("Apri", key=f"imm_{i}", use_container_width=True):
-                st.session_state["selected_cliente"] = r["ClienteID"]
-                st.session_state["nav_target"] = "Clienti"
-                st.rerun()
+            cols = st.columns([2.5, 1.2, 1.2, 0.8])
+            with cols[0]:
+                st.markdown(f"**{r['RagioneSociale']}**")
+            with cols[1]:
+                st.markdown(fmt_date(r["ProssimoRecall"]))
+            with cols[2]:
+                st.markdown(fmt_date(r["ProssimaVisita"]))
+            with cols[3]:
+                if st.button("Apri", key=f"imm_{i}", use_container_width=True):
+                    st.session_state["selected_cliente"] = r["ClienteID"]
+                    st.session_state["nav_target"] = "Clienti"
+                    st.rerun()
+
         st.markdown("</tbody></table>", unsafe_allow_html=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
        # =====================================

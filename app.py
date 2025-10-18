@@ -176,9 +176,10 @@ def do_login_fullscreen():
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             border-radius: 12px;
             padding: 1.5rem 1.8rem;
-            width: 320px;
+            width: 340px;
             display: flex;
             flex-direction: column;
+            align-items: center;
             gap: 0.8rem;
         }
         .login-title {
@@ -192,16 +193,33 @@ def do_login_fullscreen():
         .center-logo {
             display: flex;
             justify-content: center;
-            margin-bottom: 0.2rem;
+            margin-bottom: 0.5rem;
         }
-        input[type="text"], input[type="password"] {
+        .stTextInput>div>div>input {
+            width: 250px !important;
+            text-align: left !important;
             font-size: 0.9rem !important;
             padding: 6px 8px !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 6px !important;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         }
-        button[kind="primary"] {
+        .stTextInput>div>div>input:focus {
+            border-color: #2563eb !important;
+            box-shadow: 0 0 0 2px rgba(37,99,235,0.2) !important;
+            outline: none !important;
+        }
+        .stButton>button {
+            width: 250px !important;
             font-size: 0.9rem !important;
             padding: 0.4rem 0 !important;
             border-radius: 6px !important;
+            background-color: #2563eb !important;
+            color: white !important;
+            border: none !important;
+        }
+        .stButton>button:hover {
+            background-color: #1e40af !important;
         }
         </style>
         """,
@@ -210,28 +228,29 @@ def do_login_fullscreen():
 
     # === LOGO E TITOLO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=160)
+    st.image("https://www.shtsrl.com/template/images/logo.png", width=150)
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
     # === BOX LOGIN ===
-    with st.container():
-        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
-        username = st.text_input(
-            "Nome utente",
-            key="login_user",
-            placeholder="Inserisci il tuo nome utente"
-        ).strip().lower()
+    st.markdown("<div class='login-box'>", unsafe_allow_html=True)
 
-        password = st.text_input(
-            "Password",
-            type="password",
-            key="login_pass",
-            placeholder="Inserisci la tua password"
-        )
+    username = st.text_input(
+        "Nome utente",
+        key="login_user",
+        placeholder="Inserisci il tuo nome utente"
+    ).strip().lower()
 
-        login_btn = st.button("Entra", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    password = st.text_input(
+        "Password",
+        type="password",
+        key="login_pass",
+        placeholder="Inserisci la tua password"
+    )
+
+    login_btn = st.button("Entra")
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # === LOGICA LOGIN ===
     if login_btn:
@@ -247,6 +266,7 @@ def do_login_fullscreen():
             st.error("❌ Credenziali non valide.")
 
     st.stop()
+
 
 
 # ==========================

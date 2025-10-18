@@ -20,8 +20,14 @@ st.markdown("""
     padding-right: 2rem;
     max-width: 100% !important;
 }
+
+/* Nasconde eventuali contenitori vuoti di Streamlit (come quello sopra il login) */
+div[data-testid="stVerticalBlock"] > div:empty {
+    display: none !important;
+}
 </style>
 """, unsafe_allow_html=True)
+
 
 from pathlib import Path
 from datetime import datetime
@@ -155,6 +161,7 @@ def do_login_fullscreen():
         return st.session_state["user"], st.session_state["role"]
 
     # === Stile generale ===
+        
     st.markdown("""
     <style>
     div[data-testid="stAppViewContainer"] {
@@ -168,6 +175,12 @@ def do_login_fullscreen():
         height: 100vh;
         background-color: #f8fafc;
     }
+
+    /* Nasconde placeholder vuoti */
+    div[data-testid="stVerticalBlock"] > div:empty {
+        display: none !important;
+    }
+
     .login-card {
         background: #ffffff;
         border: 1px solid #e5e7eb;
@@ -177,6 +190,7 @@ def do_login_fullscreen():
         width: 360px;
         text-align: center;
     }
+
     .login-title {
         font-size: 1.3rem;
         font-weight: 600;

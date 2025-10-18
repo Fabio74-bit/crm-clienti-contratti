@@ -161,6 +161,9 @@ def do_login_fullscreen():
     # === Stili CSS ===
     st.markdown(
         """
+          # === Stili CSS ===
+    st.markdown(
+        """
         <style>
         div[data-testid="stAppViewContainer"] {
             padding-top: 0 !important;
@@ -176,27 +179,37 @@ def do_login_fullscreen():
         .login-box {
             background-color: #ffffff;
             border: 1px solid #e5e7eb;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            border-radius: 16px;
-            padding: 2rem 3rem;
-            width: 340px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            width: 300px;
         }
         .login-title {
-            font-size: 1.4rem;
+            font-size: 1.2rem;
             font-weight: 600;
             color: #2563eb;
             text-align: center;
-            margin-bottom: 1rem;
+            margin-bottom: 0.6rem;
         }
         .center-logo {
             display: flex;
             justify-content: center;
             margin-bottom: 0.5rem;
         }
+        input[type="text"], input[type="password"] {
+            font-size: 0.9rem !important;
+            padding: 6px 8px !important;
+        }
+        button[kind="primary"] {
+            font-size: 0.9rem !important;
+            padding: 0.4rem 0 !important;
+            border-radius: 6px !important;
+        }
         </style>
         """,
         unsafe_allow_html=True
     )
+
 
     # === LOGO CENTRATO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)

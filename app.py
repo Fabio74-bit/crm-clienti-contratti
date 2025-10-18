@@ -335,47 +335,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-       # =====================================
-    # 📅 RIEPILOGO RAPIDO RECALL E VISITE
-    # =====================================
-    with st.container():
-        st.markdown("<div class='section-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='section-title'><span>📅</span>Recall e Visite</div>", unsafe_allow_html=True)
-
-        oggi = pd.Timestamp.now().normalize()
-        df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
-        df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce")
-
-        prossimi = df_cli[
-            (df_cli["ProssimoRecall"].notna()) | (df_cli["ProssimaVisita"].notna())
-        ].copy()
-
-        # Seleziona i più vicini (entro 60 giorni)
-        prossimi["DataMin"] = prossimi[["ProssimoRecall", "ProssimaVisita"]].min(axis=1)
-        prossimi = prossimi.sort_values("DataMin", ascending=True).head(10)
-
-        if prossimi.empty:
-            st.info("✅ Nessun richiamo o visita in programma nei prossimi mesi.")
-        else:
-            for i, r in prossimi.iterrows():
-                rec = fmt_date(r["ProssimoRecall"]) if pd.notna(r["ProssimoRecall"]) else "—"
-                vis = fmt_date(r["ProssimaVisita"]) if pd.notna(r["ProssimaVisita"]) else "—"
-                cols = st.columns([0.6, 0.2, 0.2])
-                with cols[0]:
-                    st.markdown(f"**{r['RagioneSociale']}**")
-                with cols[1]:
-                    st.caption(f"📞 {rec}")
-                with cols[2]:
-                    st.caption(f"👣 {vis}")
-
-        st.divider()
-        if st.button("📋 Vai a tutti i richiami e visite", use_container_width=True):
-            st.session_state["nav_target"] = "📅 Recall e Visite"
-            st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
+ 
     # =====================================
     # 🚫 CLIENTI SENZA DATA FINE
     # =====================================

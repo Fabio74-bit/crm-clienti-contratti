@@ -123,10 +123,16 @@ def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
 
 def money(x):
     try:
+        # Se vuoto, NaN, None, o stringa non numerica -> restituisci vuoto
+        if x in (None, "", "nan", "NaN", "None") or pd.isna(x):
+            return ""
         v = float(pd.to_numeric(x, errors="coerce"))
+        if pd.isna(v):
+            return ""
         return f"{v:,.2f} €"
     except Exception:
         return ""
+
 
 def safe_text(txt):
     return str(txt).encode("latin-1", "replace").decode("latin-1")

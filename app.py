@@ -172,11 +172,11 @@ def do_login_fullscreen():
     """Pagina di login centrata e compatta (funzionante al 100% in Streamlit)."""
     import time
 
+    # Se già loggato, ritorna subito
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # === Stile generale ===
-        
+    # === STILE GENERALE ===
     st.markdown("""
     <style>
     div[data-testid="stAppViewContainer"] {
@@ -191,11 +191,17 @@ def do_login_fullscreen():
         background-color: #f8fafc;
     }
 
-    /* Nasconde placeholder vuoti */
-    div[data-testid="stVerticalBlock"] > div:empty {
+    /* 🔧 Rimuove qualsiasi contenitore Streamlit vuoto sopra al login */
+    div[data-testid="stVerticalBlock"] > div:empty,
+    div[data-testid="stVerticalBlock"] > div:first-child:empty,
+    div[data-testid="stVerticalBlock"]:has(> div:empty) {
         display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
+    /* === CARD LOGIN === */
     .login-card {
         background: #ffffff;
         border: 1px solid #e5e7eb;
@@ -204,6 +210,13 @@ def do_login_fullscreen():
         padding: 2rem 2.5rem;
         width: 360px;
         text-align: center;
+        animation: fadeIn 0.4s ease-in-out;
+    }
+
+    /* Effetto comparsa */
+    @keyframes fadeIn {
+        from {opacity: 0; transform: translateY(-10px);}
+        to {opacity: 1; transform: translateY(0);}
     }
 
     .login-title {
@@ -212,27 +225,62 @@ def do_login_fullscreen():
         color: #2563eb;
         margin: 0.8rem 0 1.4rem 0;
     }
-    input, button {
+
+    .stTextInput>div>div>input {
+        width: 260px !important;
+        text-align: left !important;
+        font-size: 0.9rem !important;
+        padding: 6px 8px !important;
+        border: 1px solid #d1d5db !important;
         border-radius: 6px !important;
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .stTextInput>div>div>input:focus {
+        border-color: #2563eb !important;
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.2) !important;
+        outline: none !important;
+    }
+    .stButton>button {
+        width: 260px !important;
+        font-size: 0.9rem !important;
+        padding: 0.4rem 0 !important;
+        border-radius: 6px !important;
+        background-color: #2563eb !important;
+        color: white !important;
+        border: none !important;
+    }
+    .stButton>button:hover {
+        background-color: #1e40af !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # === Layout ===
-    st.markdown("<div class='login-card'>", unsafe_allow_html=True)
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=140)
-    st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
+    # === LAYOUT CENTRATO ===
+    login_col1, login_col2, login_col3 = st.columns([1, 2, 1])
+    with login_col2:
+        with st.container():
+            st.markdown("<div class='login-card'>", unsafe_allow_html=True)
+            st.image("https://www.shtsrl.com/template/images/logo.png", width=140)
+            st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
-    # Contenitore stretto
-    col_spacer_left, col_center, col_spacer_right = st.columns([1, 2, 1])
-    with col_center:
-        username = st.text_input("Nome utente", key="login_user", placeholder="Inserisci il tuo nome utente").strip().lower()
-        password = st.text_input("Password", type="password", key="login_pass", placeholder="Inserisci la tua password")
-        login_btn = st.button("Entra", use_container_width=True)
+            username = st.text_input(
+                "Nome utente",
+                key="login_user",
+                placeholder="Inserisci il tuo nome utente"
+            ).strip().lower()
 
-    st.markdown("</div>", unsafe_allow_html=True)
+            password = st.text_input(
+                "Password",
+                type="password",
+                key="login_pass",
+                placeholder="Inserisci la tua password"
+            )
 
-    # === Logica login ===
+            login_btn = st.button("Entra")
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    # === LOGICA LOGIN ===
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
         users = st.secrets["auth"]["users"]
@@ -248,8 +296,6 @@ def do_login_fullscreen():
             st.session_state["_login_checked"] = False
 
     st.stop()
-
-
 
 
 # ==========================

@@ -968,7 +968,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         allow_unsafe_jscode=True
     )
 
-       st.divider()
+    st.divider()
 
     # Recupera la ragione sociale (fallback se non definita)
     rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"

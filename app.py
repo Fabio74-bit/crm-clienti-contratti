@@ -995,28 +995,133 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
-        csv = disp.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("📄 Esporta CSV", csv, f"contratti_{rag_soc}.csv", "text/csv")
-    with c2:
-        try:
-            pdf = FPDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=10)
-            pdf.set_font("Arial", size=9)
-            pdf.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-            for _, row in disp.iterrows():
-                pdf.cell(35, 6, safe_text(row["NumeroContratto"]), 1)
-                pdf.cell(25, 6, safe_text(row["DataInizio"]), 1)
-                pdf.cell(25, 6, safe_text(row["DataFine"]), 1)
-                pdf.cell(20, 6, safe_text(row["Durata"]), 1)
-                pdf.cell(80, 6, safe_text(row["DescrizioneProdotto"])[:60], 1)
-                pdf.cell(20, 6, safe_text(row["TotRata"]), 1)
-                pdf.cell(20, 6, safe_text(row["Stato"]), 1)
-                pdf.ln()
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
-            st.download_button("📘 Esporta PDF", pdf_bytes, f"contratti_{rag_soc}.pdf", "application/pdf")
-        except Exception as e:
-            st.error(f"Errore PDF: {e}")
+        st.divider()
+c1, c2 = st.columns(2)
+
+# === ESPORTAZIONE EXCEL ===
+with c1:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, Border, Side
+    from io import BytesIO
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Contratti {rag_soc}"
+
+    # Stili
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    bold = Font(bold=True)
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin")
+    )
+
+    # Intestazioni
+    headers = list(disp.columns)
+    ws.append(headers)
+    for col_idx, col in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = bold
+        cell.alignment = center
+        cell.border = thin_border
+
+    # Dati
+    for row in disp.itertuples(index=False):
+        ws.append(row)
+        for col_idx, _ in enumerate(headers, 1):
+            c = ws.cell(row=ws.max_row, column=col_idx)
+            c.alignment = center
+            c.border = thin_border
+
+    # Larghezza colonne automatica
+    for col_idx, col in enumerate(headers, 1):
+        max_len = max(
+            [len(str(ws.cell(row=r, column=col_idx).value or "")) for r in range(1, ws.max_row + 1)]
+        )
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = max_len + 2
+
+    # Esporta come Excel
+    output = BytesIO()
+    wb.save(output)
+    excel_data = output.getvalue()
+
+    st.download_button(
+        "📘 Esporta Excel",
+        data=excel_data,
+        file_name=f"contratti_{rag_soc}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
+# === ESPORTAZIONE PDF (formattato come Excel) ===
+with c2:
+    from fpdf import FPDF
+    from io import BytesIO
+
+    try:
+        class PDF(FPDF):
+            def header(self):
+                self.set_font("Arial", "B", 12)
+                self.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), border=0, ln=1, align="C")
+                self.ln(5)
+
+        pdf = PDF(orientation="L", unit="mm", format="A4")
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+
+        # === Stili generali ===
+        pdf.set_font("Arial", size=9)
+        line_height = 7
+        col_widths = [35, 25, 25, 20, 80, 25, 25]  # colonne proporzionate
+
+        # === INTESTAZIONI ===
+        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                   "Descrizione Prodotto", "Tot Rata", "Stato"]
+
+        pdf.set_fill_color(37, 99, 235)  # blu SHT
+        pdf.set_text_color(255, 255, 255)  # testo bianco
+        pdf.set_font("Arial", "B", 9)
+        for i, h in enumerate(headers):
+            pdf.cell(col_widths[i], line_height, safe_text(h), border=1, align="C", fill=True)
+        pdf.ln(line_height)
+
+        # === RIGHE DATI ===
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_font("Arial", "", 9)
+        fill = False
+        for _, row in disp.iterrows():
+            dati = [
+                safe_text(row["NumeroContratto"]),
+                safe_text(row["DataInizio"]),
+                safe_text(row["DataFine"]),
+                safe_text(row["Durata"]),
+                safe_text(row["DescrizioneProdotto"])[:60],
+                safe_text(row["TotRata"]),
+                safe_text(row["Stato"]),
+            ]
+            for i, text in enumerate(dati):
+                pdf.cell(col_widths[i], line_height, text, border=1, align="C", fill=fill)
+            pdf.ln(line_height)
+            fill = not fill  # righe alternate
+
+        # === Salvataggio in memoria ===
+        output = BytesIO()
+        pdf.output(output)
+        pdf_bytes = output.getvalue()
+
+        st.download_button(
+            "📗 Esporta PDF",
+            pdf_bytes,
+            f"contratti_{rag_soc}.pdf",
+            "application/pdf",
+            use_container_width=True,
+        )
+
+    except Exception as e:
+        st.error(f"❌ Errore durante la creazione del PDF: {e}")
+
 
 # =====================================
 # 📅 PAGINA RICHIAMI E VISITE (stile Pulito Business)

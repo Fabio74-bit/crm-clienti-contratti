@@ -147,103 +147,90 @@ def save_contratti(df: pd.DataFrame):
         out[c] = out[c].apply(lambda d: "" if pd.isna(d) else pd.to_datetime(d).strftime("%Y-%m-%d"))
     out.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
-# =====================================
-# LOGIN
-# =====================================
 def do_login_fullscreen():
-    """Pagina di login centrata e compatta, con redirect pulito alla Dashboard."""
+    """Pagina di login centrata, compatta e proporzionata."""
     import time
 
-    # === Se già loggato, ritorna direttamente ===
+    # Se già loggato, ritorna subito
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # === STILI CSS ===
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stAppViewContainer"] {
-            padding-top: 0 !important;
-        }
-        .block-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f8fafc;
-        }
-        .login-box {
-            background-color: #ffffff;
-            border: 1px solid #e5e7eb;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            border-radius: 12px;
-            padding: 1.5rem 1.8rem;
-            width: 320px;
-            display: flex;
-            flex-direction: column;
-            gap: 0.8rem;
-        }
+    # === STILE COMPATTO ===
+    st.markdown("""
+    <style>
+    div[data-testid="stAppViewContainer"] {
+        padding-top: 0 !important;
+    }
+    .block-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f8fafc;
+    }
+    .login-box {
+        background-color: #ffffff;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border-radius: 12px;
+        padding: 1.5rem 1.8rem;
+        width: 320px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+    .login-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #2563eb;
+        text-align: center;
+        margin-top: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .center-logo {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 0.2rem;
+    }
+    input[type="text"], input[type="password"] {
+        font-size: 0.9rem !important;
+        padding: 6px 8px !important;
+    }
+    button[kind="primary"] {
+        font-size: 0.9rem !important;
+        padding: 0.4rem 0 !important;
+        border-radius: 6px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-        .login-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #2563eb;
-            text-align: center;
-            margin-bottom: 0.6rem;
-        }
-        .center-logo {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 0.5rem;
-        }
-        input[type="text"], input[type="password"] {
-            font-size: 0.9rem !important;
-            padding: 6px 8px !important;
-        }
-        button[kind="primary"] {
-            font-size: 0.9rem !important;
-            padding: 0.4rem 0 !important;
-            border-radius: 6px !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # === LOGO CENTRATO ===
+    # === LOGO E TITOLO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
     st.image("https://www.shtsrl.com/template/images/logo.png", width=160)
     st.markdown("</div>", unsafe_allow_html=True)
-
-    # === TITOLO ===
     st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
-      # === BOX DI LOGIN COMPATTO ===
-    st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+    # === BOX LOGIN ===
+    with st.container():
+        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+        username = st.text_input(
+            "Nome utente",
+            key="login_user",
+            placeholder="Inserisci il tuo nome utente"
+        ).strip().lower()
 
-    username = st.text_input(
-        "Nome utente",
-        key="login_user",
-        label_visibility="visible",
-        placeholder="Inserisci il tuo nome utente",
-    ).strip().lower()
+        password = st.text_input(
+            "Password",
+            type="password",
+            key="login_pass",
+            placeholder="Inserisci la tua password"
+        )
 
-    password = st.text_input(
-        "Password",
-        type="password",
-        key="login_pass",
-        label_visibility="visible",
-        placeholder="Inserisci la tua password",
-    )
+        login_btn = st.button("Entra", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    login_btn = st.button("Entra", use_container_width=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # === CONTROLLO CREDENZIALI ===
+    # === LOGICA LOGIN ===
     if login_btn:
         users = st.secrets["auth"]["users"]
         if username in users and users[username]["password"] == password:

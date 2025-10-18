@@ -151,95 +151,96 @@ def save_contratti(df: pd.DataFrame):
 # LOGIN
 # =====================================
 def do_login_fullscreen():
-    """Pagina di login centrata e senza box vuoti, con redirect pulito alla Dashboard."""
+    """Pagina di login centrata e compatta, con redirect pulito alla Dashboard."""
     import time
 
     # === Se già loggato, ritorna direttamente ===
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-          # === Stili CSS ===
+    # === STILI CSS ===
     st.markdown(
         """
-       st.markdown(
-    """
-    <style>
-    div[data-testid="stAppViewContainer"] {
-        padding-top: 0 !important;
-    }
-    .block-container {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        background-color: #f8fafc;
-    }
-    .login-box {
-        background-color: #ffffff;
-        border: 1px solid #e5e7eb;
-        box-shadow: 0 3px 8px rgba(0,0,0,0.05);
-        border-radius: 12px;
-        padding: 1.5rem 2rem;
-        width: 300px;
-    }
-    .login-title {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #2563eb;
-        text-align: center;
-        margin-bottom: 0.6rem;
-    }
-    .center-logo {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 0.5rem;
-    }
-    input[type="text"], input[type="password"] {
-        font-size: 0.9rem !important;
-        padding: 6px 8px !important;
-    }
-    button[kind="primary"] {
-        font-size: 0.9rem !important;
-        padding: 0.4rem 0 !important;
-        border-radius: 6px !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
+        <style>
+        div[data-testid="stAppViewContainer"] {
+            padding-top: 0 !important;
+        }
+        .block-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f8fafc;
+        }
+        .login-box {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+            border-radius: 12px;
+            padding: 1.5rem 2rem;
+            width: 300px;
+        }
+        .login-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2563eb;
+            text-align: center;
+            margin-bottom: 0.6rem;
+        }
+        .center-logo {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 0.5rem;
+        }
+        input[type="text"], input[type="password"] {
+            font-size: 0.9rem !important;
+            padding: 6px 8px !important;
+        }
+        button[kind="primary"] {
+            font-size: 0.9rem !important;
+            padding: 0.4rem 0 !important;
+            border-radius: 6px !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
     # === LOGO CENTRATO ===
     st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=180)  # <-- Sostituisci col tuo URL/logo locale
+    st.image("https://www.shtsrl.com/template/images/logo.png", width=160)
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # === TITOLO ===
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
-    # === FORM DI LOGIN IN UN CONTENITORE PULITO ===
+    # === BOX DI LOGIN ===
     placeholder = st.empty()
     with placeholder.container():
+        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
         username = st.text_input("👤 Nome utente", key="login_user").strip().lower()
         password = st.text_input("🔑 Password", type="password", key="login_pass")
         login_btn = st.button("Entra", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # === Controllo credenziali ===
+    # === CONTROLLO CREDENZIALI ===
     if login_btn:
         users = st.secrets["auth"]["users"]
         if username in users and users[username]["password"] == password:
             st.session_state["user"] = username
             st.session_state["role"] = users[username].get("role", "viewer")
             st.session_state["logged_in"] = True
-            placeholder.empty()  # 🔥 Elimina completamente il form (via DOM)
+            placeholder.empty()
             st.success(f"✅ Benvenuto {username}!")
             time.sleep(0.3)
-            st.rerun()  # 🔁 Ricarica l'app (mostrerà subito la dashboard)
+            st.rerun()
         else:
             st.error("❌ Credenziali non valide.")
 
     # Blocca tutto se non loggato
     st.stop()
+
 # ==========================
 # KPI CARD (riutilizzata in Dashboard)
 # ==========================

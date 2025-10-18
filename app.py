@@ -932,7 +932,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto per questo cliente.")
         return
 
-    # === FORMATTAZIONE E STILE TABELLA ===
+       # === FORMATTAZIONE E STILE TABELLA ===
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
@@ -970,139 +970,139 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-# Recupera la ragione sociale (fallback se non definita)
-rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
-if "disp" not in locals() or disp.empty:
-    st.warning("⚠️ Nessun dato disponibile per l’esportazione.")
-    st.stop()
-# Due colonne: Excel a sinistra, PDF a destra
-c1, c2 = st.columns(2)
-
-# === ESPORTAZIONE EXCEL ===
-with c1:
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+    # === ESPORTAZIONI ===
+    import pandas as pd
     from io import BytesIO
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = f"Contratti {rag_soc}"
+    # Recupera la ragione sociale (fallback se non definita)
+    rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
 
-    # Stili base
-    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    bold = Font(bold=True, color="FFFFFF")
-    thin_border = Border(
-        left=Side(style="thin"),
-        right=Side(style="thin"),
-        top=Side(style="thin"),
-        bottom=Side(style="thin")
-    )
-    header_fill = PatternFill("solid", fgColor="2563EB")  # blu SHT
+    if disp.empty:
+        st.warning("⚠️ Nessun dato disponibile per l’esportazione.")
+    else:
+        c1, c2 = st.columns(2)
 
-    # Intestazioni
-    headers = list(disp.columns)
-    ws.append(headers)
-    for col_idx, col in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx)
-        cell.font = bold
-        cell.alignment = center
-        cell.border = thin_border
-        cell.fill = header_fill
+        # === ESPORTAZIONE EXCEL ===
+        with c1:
+            from openpyxl import Workbook
+            from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
 
-    # Dati
-    for row in disp.itertuples(index=False):
-        ws.append(row)
-        for col_idx, _ in enumerate(headers, 1):
-            c = ws.cell(row=ws.max_row, column=col_idx)
-            c.alignment = center
-            c.border = thin_border
+            wb = Workbook()
+            ws = wb.active
+            ws.title = f"Contratti {rag_soc}"
 
-    # Larghezza colonne automatica
-    for col_idx, col in enumerate(headers, 1):
-        max_len = max(
-            [len(str(ws.cell(row=r, column=col_idx).value or "")) for r in range(1, ws.max_row + 1)]
-        )
-        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = max_len + 2
+            # Stili base
+            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            bold = Font(bold=True, color="FFFFFF")
+            thin_border = Border(
+                left=Side(style="thin"),
+                right=Side(style="thin"),
+                top=Side(style="thin"),
+                bottom=Side(style="thin")
+            )
+            header_fill = PatternFill("solid", fgColor="2563EB")  # blu SHT
 
-    # Esporta come Excel
-    output = BytesIO()
-    wb.save(output)
-    excel_data = output.getvalue()
+            # Intestazioni
+            headers = list(disp.columns)
+            ws.append(headers)
+            for col_idx, col in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col_idx)
+                cell.font = bold
+                cell.alignment = center
+                cell.border = thin_border
+                cell.fill = header_fill
 
-    st.download_button(
-        "📘 Esporta Excel",
-        data=excel_data,
-        file_name=f"contratti_{rag_soc}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
+            # Dati
+            for row in disp.itertuples(index=False):
+                ws.append(row)
+                for col_idx, _ in enumerate(headers, 1):
+                    c = ws.cell(row=ws.max_row, column=col_idx)
+                    c.alignment = center
+                    c.border = thin_border
 
+            # Larghezza colonne automatica
+            for col_idx, col in enumerate(headers, 1):
+                max_len = max(
+                    [len(str(ws.cell(row=r, column=col_idx).value or "")) for r in range(1, ws.max_row + 1)]
+                )
+                ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = max_len + 2
 
-# === ESPORTAZIONE PDF (stile simile all'Excel) ===
-with c2:
-    from fpdf import FPDF
+            # Esporta Excel
+            output = BytesIO()
+            wb.save(output)
+            excel_data = output.getvalue()
 
-    try:
-        class PDF(FPDF):
-            def header(self):
-                self.set_font("Arial", "B", 12)
-                self.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), border=0, ln=1, align="C")
-                self.ln(5)
+            st.download_button(
+                "📘 Esporta Excel",
+                data=excel_data,
+                file_name=f"contratti_{rag_soc}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
 
-        pdf = PDF(orientation="L", unit="mm", format="A4")
-        pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        # === ESPORTAZIONE PDF (stile simile all'Excel) ===
+        with c2:
+            from fpdf import FPDF
 
-        # === Stili generali ===
-        pdf.set_font("Arial", size=9)
-        line_height = 7
-        col_widths = [35, 25, 25, 20, 80, 25, 25]  # proporzioni
+            try:
+                class PDF(FPDF):
+                    def header(self):
+                        self.set_font("Arial", "B", 12)
+                        self.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), border=0, ln=1, align="C")
+                        self.ln(5)
 
-        # === Intestazioni ===
-        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                   "Descrizione Prodotto", "Tot Rata", "Stato"]
+                pdf = PDF(orientation="L", unit="mm", format="A4")
+                pdf.add_page()
+                pdf.set_auto_page_break(auto=True, margin=15)
 
-        pdf.set_fill_color(37, 99, 235)  # blu SHT
-        pdf.set_text_color(255, 255, 255)  # bianco
-        pdf.set_font("Arial", "B", 9)
-        for i, h in enumerate(headers):
-            pdf.cell(col_widths[i], line_height, safe_text(h), border=1, align="C", fill=True)
-        pdf.ln(line_height)
+                # Stili generali
+                pdf.set_font("Arial", size=9)
+                line_height = 7
+                col_widths = [35, 25, 25, 20, 80, 25, 25]
 
-        # === Righe dati ===
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Arial", "", 9)
-        fill = False
-        for _, row in disp.iterrows():
-            dati = [
-                safe_text(row["NumeroContratto"]),
-                safe_text(row["DataInizio"]),
-                safe_text(row["DataFine"]),
-                safe_text(row["Durata"]),
-                safe_text(row["DescrizioneProdotto"])[:60],
-                safe_text(row["TotRata"]),
-                safe_text(row["Stato"]),
-            ]
-            for i, text in enumerate(dati):
-                pdf.cell(col_widths[i], line_height, text, border=1, align="C", fill=fill)
-            pdf.ln(line_height)
-            fill = not fill  # righe alternate
+                # Intestazioni
+                headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                           "Descrizione Prodotto", "Tot Rata", "Stato"]
 
-        # Esporta PDF in memoria
-        output = BytesIO()
-        pdf.output(output)
-        pdf_bytes = output.getvalue()
+                pdf.set_fill_color(37, 99, 235)
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font("Arial", "B", 9)
+                for i, h in enumerate(headers):
+                    pdf.cell(col_widths[i], line_height, safe_text(h), border=1, align="C", fill=True)
+                pdf.ln(line_height)
 
-        st.download_button(
-            "📗 Esporta PDF",
-            data=pdf_bytes,
-            file_name=f"contratti_{rag_soc}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+                # Righe
+                pdf.set_text_color(0, 0, 0)
+                pdf.set_font("Arial", "", 9)
+                fill = False
+                for _, row in disp.iterrows():
+                    dati = [
+                        safe_text(row["NumeroContratto"]),
+                        safe_text(row["DataInizio"]),
+                        safe_text(row["DataFine"]),
+                        safe_text(row["Durata"]),
+                        safe_text(row["DescrizioneProdotto"])[:60],
+                        safe_text(row["TotRata"]),
+                        safe_text(row["Stato"]),
+                    ]
+                    for i, text in enumerate(dati):
+                        pdf.cell(col_widths[i], line_height, text, border=1, align="C", fill=fill)
+                    pdf.ln(line_height)
+                    fill = not fill  # righe alternate
 
-    except Exception as e:
-        st.error(f"❌ Errore durante la creazione del PDF: {e}")
+                # Esporta PDF
+                pdf_bytes = pdf.output(dest="S").encode("latin-1")
+
+                st.download_button(
+                    "📗 Esporta PDF",
+                    data=pdf_bytes,
+                    file_name=f"contratti_{rag_soc}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+
+            except Exception as e:
+                st.error(f"❌ Errore durante la creazione del PDF: {e}")
 
 
 

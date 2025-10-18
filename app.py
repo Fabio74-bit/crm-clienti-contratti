@@ -983,7 +983,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         c1, c2 = st.columns(2)
 
         # === ESPORTAZIONE EXCEL MIGLIORATA ===
-with c1:
+    with c1:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
     from io import BytesIO

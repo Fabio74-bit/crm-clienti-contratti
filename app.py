@@ -320,18 +320,68 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
             scadenze = scadenze.sort_values("DataFine", ascending=True)
 
-            st.markdown("<div style='font-weight:500;margin-bottom:6px;'>Clienti con contratti prossimi alla scadenza:</div>", unsafe_allow_html=True)
+                  # === Versione tabellare compatta ===
+        st.markdown("""
+        <style>
+        .tbl-scadenze {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .tbl-scadenze th, .tbl-scadenze td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 6px 10px;
+            text-align: left;
+        }
+        .tbl-scadenze th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+        .tbl-scadenze tr:hover td {
+            background-color: #fef9c3;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
-            for i, r in scadenze.iterrows():
-                col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
-                col1.markdown(f"**{r['RagioneSociale']}**")
-                col2.markdown(r["NumeroContratto"] or "—")
-                col3.markdown(r["DataFine"] or "—")
-                col4.markdown(r["Stato"] or "—")
-                if col5.button("Apri", key=f"open_scad_{i}"):
-                    st.session_state["selected_cliente"] = r["ClienteID"]
-                    st.session_state["nav_target"] = "Contratti"
-                    st.rerun()
+        # Header tabella
+        st.markdown(
+            "<table class='tbl-scadenze'>"
+            "<thead><tr>"
+            "<th>Cliente</th><th>Contratto</th><th>Scadenza</th><th>Stato</th><th style='text-align:center;'>Azione</th>"
+            "</tr></thead><tbody>",
+            unsafe_allow_html=True
+        )
+
+        # Righe
+        for i, r in scadenze.iterrows():
+            cliente = r["RagioneSociale"] or "—"
+            contratto = r["NumeroContratto"] or "—"
+            scadenza = r["DataFine"] or "—"
+            stato = r["Stato"] or "—"
+
+            # Aggiunge bottone Apri con key univoca
+            btn_key = f"btn_{i}"
+            col_html = (
+                f"<tr>"
+                f"<td>{cliente}</td>"
+                f"<td>{contratto}</td>"
+                f"<td>{scadenza}</td>"
+                f"<td>{stato}</td>"
+                f"<td style='text-align:center;'>"
+                f"<button class='stButton' style='background:#2563eb;color:white;padding:4px 10px;"
+                f"border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;' id='{btn_key}'>Apri</button>"
+                f"</td></tr>"
+            )
+            st.markdown(col_html, unsafe_allow_html=True)
+
+            # Streamlit button effettivo
+            if st.button("Apri", key=f"open_scad_{i}"):
+                st.session_state["selected_cliente"] = r["ClienteID"]
+                st.session_state["nav_target"] = "Contratti"
+                st.rerun()
+
+        st.markdown("</tbody></table>", unsafe_allow_html=True)
+
 
         st.markdown("</div>", unsafe_allow_html=True)
 

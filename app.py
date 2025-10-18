@@ -148,103 +148,62 @@ def save_contratti(df: pd.DataFrame):
     out.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
 def do_login_fullscreen():
-    """Pagina di login elegante, centrata e compatta."""
+    """Pagina di login centrata e compatta (funzionante al 100% in Streamlit)."""
     import time
 
-    # Se già loggato, ritorna subito
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # === STILE CARD COMPATTA ===
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stAppViewContainer"] {
-            padding-top: 0 !important;
-        }
-        .block-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f8fafc;
-        }
-        .login-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-            padding: 2rem 2.5rem;
-            width: 360px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-        }
-        .login-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: #2563eb;
-            margin: 0.8rem 0 1.4rem 0;
-        }
-        .login-input {
-            width: 260px !important;
-        }
-        .stTextInput>div>div>input {
-            width: 260px !important;
-            text-align: left !important;
-            font-size: 0.9rem !important;
-            padding: 6px 8px !important;
-            border: 1px solid #d1d5db !important;
-            border-radius: 6px !important;
-            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-        }
-        .stTextInput>div>div>input:focus {
-            border-color: #2563eb !important;
-            box-shadow: 0 0 0 2px rgba(37,99,235,0.2) !important;
-            outline: none !important;
-        }
-        .stButton>button {
-            width: 260px !important;
-            font-size: 0.9rem !important;
-            padding: 0.4rem 0 !important;
-            border-radius: 6px !important;
-            background-color: #2563eb !important;
-            color: white !important;
-            border: none !important;
-        }
-        .stButton>button:hover {
-            background-color: #1e40af !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    # === Stile generale ===
+    st.markdown("""
+    <style>
+    div[data-testid="stAppViewContainer"] {
+        padding-top: 0 !important;
+    }
+    .block-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f8fafc;
+    }
+    .login-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        padding: 2rem 2.5rem;
+        width: 360px;
+        text-align: center;
+    }
+    .login-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #2563eb;
+        margin: 0.8rem 0 1.4rem 0;
+    }
+    input, button {
+        border-radius: 6px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # === CARD CENTRATA ===
+    # === Layout ===
     st.markdown("<div class='login-card'>", unsafe_allow_html=True)
-
     st.image("https://www.shtsrl.com/template/images/logo.png", width=140)
     st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
-    username = st.text_input(
-        "Nome utente",
-        key="login_user",
-        placeholder="Inserisci il tuo nome utente"
-    ).strip().lower()
-
-    password = st.text_input(
-        "Password",
-        type="password",
-        key="login_pass",
-        placeholder="Inserisci la tua password"
-    )
-
-    login_btn = st.button("Entra")
+    # Contenitore stretto
+    col_spacer_left, col_center, col_spacer_right = st.columns([1, 2, 1])
+    with col_center:
+        username = st.text_input("Nome utente", key="login_user", placeholder="Inserisci il tuo nome utente").strip().lower()
+        password = st.text_input("Password", type="password", key="login_pass", placeholder="Inserisci la tua password")
+        login_btn = st.button("Entra", use_container_width=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # === LOGICA LOGIN ===
+    # === Logica login ===
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
         users = st.secrets["auth"]["users"]

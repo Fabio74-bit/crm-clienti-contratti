@@ -1017,14 +1017,16 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
 
     # Recupera la ragione sociale (fallback se non definita)
-    rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
+    # Recupera la ragione sociale (fallback se non definita)
+rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
 
-    if disp.empty:
-        st.warning("⚠️ Nessun dato disponibile per l’esportazione.")
-    else:
-        c1, c2 = st.columns(2)
+if disp.empty:
+    st.warning("⚠️ Nessun dato disponibile per l’esportazione.")
+else:
+    # 👇 CREA LE DUE COLONNE
+    c1, c2 = st.columns(2)
 
-       # === ESPORTAZIONE EXCEL MIGLIORATA ===
+    # === ESPORTAZIONE EXCEL MIGLIORATA ===
     with c1:
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
@@ -1104,90 +1106,80 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
- # === ESPORTAZIONE PDF MIGLIORATA ===
+    # === ESPORTAZIONE PDF MIGLIORATA ===
     with c2:
-    from fpdf import FPDF
-    from textwrap import wrap
+        from fpdf import FPDF
+        from textwrap import wrap
 
-    # Funzione di pulizia testo per il PDF
-    def safe_pdf_text(txt: str) -> str:
-        """Rende il testo compatibile con PDF latin-1, sostituendo simboli non validi."""
-        if pd.isna(txt) or txt is None:
-            return ""
-        if not isinstance(txt, str):
-            txt = str(txt)
-        txt = txt.replace("€", "EUR").replace("–", "-").replace("—", "-")
-        return txt.encode("latin-1", "replace").decode("latin-1")
+        def safe_pdf_text(txt: str) -> str:
+            """Rende il testo compatibile con PDF latin-1, sostituendo simboli non validi."""
+            if pd.isna(txt) or txt is None:
+                return ""
+            if not isinstance(txt, str):
+                txt = str(txt)
+            txt = txt.replace("€", "EUR").replace("–", "-").replace("—", "-")
+            return txt.encode("latin-1", "replace").decode("latin-1")
 
-    try:
-        class PDF(FPDF):
-            def header(self):
-                self.set_font("Arial", "B", 12)
-                titolo = safe_pdf_text(f"Contratti - {rag_soc}")
-                self.cell(0, 8, titolo, ln=1, align="C")
-                self.ln(4)
+        try:
+            class PDF(FPDF):
+                def header(self):
+                    self.set_font("Arial", "B", 12)
+                    titolo = safe_pdf_text(f"Contratti - {rag_soc}")
+                    self.cell(0, 8, titolo, ln=1, align="C")
+                    self.ln(4)
 
-        pdf = PDF(orientation="L", unit="mm", format="A4")
-        pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
+            pdf = PDF(orientation="L", unit="mm", format="A4")
+            pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=15)
 
-        # === INTESTAZIONI ===
-        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                   "Descrizione Prodotto", "Tot Rata", "Stato"]
-        widths = [35, 25, 25, 20, 90, 25, 25]
-        pdf.set_font("Arial", "B", 9)
-        pdf.set_fill_color(37, 99, 235)
-        pdf.set_text_color(255, 255, 255)
-        for i, h in enumerate(headers):
-            pdf.cell(widths[i], 7, safe_pdf_text(h), 1, 0, "C", fill=True)
-        pdf.ln(7)
+            # === INTESTAZIONI ===
+            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                       "Descrizione Prodotto", "Tot Rata", "Stato"]
+            widths = [35, 25, 25, 20, 90, 25, 25]
+            pdf.set_font("Arial", "B", 9)
+            pdf.set_fill_color(37, 99, 235)
+            pdf.set_text_color(255, 255, 255)
+            for i, h in enumerate(headers):
+                pdf.cell(widths[i], 7, safe_pdf_text(h), 1, 0, "C", fill=True)
+            pdf.ln(7)
 
-        # === RIGHE ===
-        pdf.set_font("Arial", "", 9)
-        pdf.set_text_color(0, 0, 0)
+            # === RIGHE ===
+            pdf.set_font("Arial", "", 9)
+            pdf.set_text_color(0, 0, 0)
+            for _, row in disp.iterrows():
+                desc = safe_pdf_text(row.get("DescrizioneProdotto", ""))
+                desc_lines = wrap(desc, 70)
+                h = max(7, len(desc_lines) * 4)
 
-        for _, row in disp.iterrows():
-            desc = safe_pdf_text(row.get("DescrizioneProdotto", ""))
-            desc_lines = wrap(desc, 70)
-            h = max(7, len(desc_lines) * 4)
+                x = pdf.get_x()
+                y = pdf.get_y()
 
-            x = pdf.get_x()
-            y = pdf.get_y()
+                def cell(text, w, align="C"):
+                    pdf.multi_cell(w, h, safe_pdf_text(text or ""), 1, align)
+                    pdf.set_xy(x + w, y)
 
-            # Celle helper
-            def cell(text, w, align="C"):
-                pdf.multi_cell(w, h, safe_pdf_text(text or ""), 1, align)
-                pdf.set_xy(x + w, y)
+                cell(row.get("NumeroContratto", ""), widths[0])
+                cell(row.get("DataInizio", ""), widths[1])
+                cell(row.get("DataFine", ""), widths[2])
+                cell(row.get("Durata", ""), widths[3])
+                pdf.multi_cell(widths[4], 4, desc, 1, "L")
+                y_new = pdf.get_y()
+                pdf.set_xy(x + sum(widths[:5]), y)
+                cell(row.get("TotRata", ""), widths[5])
+                cell(row.get("Stato", ""), widths[6])
+                pdf.set_y(max(y_new, y + h))
 
-            # Celle una per una
-            cell(row.get("NumeroContratto", ""), widths[0])
-            cell(row.get("DataInizio", ""), widths[1])
-            cell(row.get("DataFine", ""), widths[2])
-            cell(row.get("Durata", ""), widths[3])
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+            st.download_button(
+                "📗 Esporta PDF",
+                data=pdf_bytes,
+                file_name=f"contratti_{rag_soc}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
 
-            # Descrizione multilinea
-            pdf.multi_cell(widths[4], 4, desc, 1, "L")
-            y_new = pdf.get_y()
-
-            pdf.set_xy(x + sum(widths[:5]), y)
-            cell(row.get("TotRata", ""), widths[5])
-            cell(row.get("Stato", ""), widths[6])
-            pdf.set_y(max(y_new, y + h))
-
-        # === SALVA E OFFRI DOWNLOAD ===
-        pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-        st.download_button(
-            "📗 Esporta PDF",
-            data=pdf_bytes,
-            file_name=f"contratti_{rag_soc}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
-
-    except Exception as e:
-        st.error(f"❌ Errore PDF: {e}")
-
-
+        except Exception as e:
+            st.error(f"❌ Errore PDF: {e}")
 
 # =====================================
 # 📅 PAGINA RICHIAMI E VISITE (stile Pulito Business)

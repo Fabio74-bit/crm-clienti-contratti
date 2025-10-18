@@ -978,166 +978,141 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         c1, c2 = st.columns(2)
 
-        # === ESPORTAZIONE EXCEL MIGLIORATA ===
-        with c1:
-            from openpyxl import Workbook
-            from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
-            from io import BytesIO
+            # === ESPORTAZIONE EXCEL MIGLIORATA ===
+    with c1:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+        from io import BytesIO
 
-            wb = Workbook()
-            ws = wb.active
-            ws.title = f"Contratti {rag_soc}"
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"Contratti {rag_soc}"
 
-            # === INTESTAZIONE CLIENTE ===
-            ws.merge_cells("A1:G1")
-            title_cell = ws["A1"]
-            title_cell.value = f"Contratti - {rag_soc}"
-            title_cell.font = Font(size=12, bold=True, color="2563EB")
-            title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        # === TITOLO CLIENTE ===
+        ws.merge_cells("A1:G1")
+        title = ws["A1"]
+        title.value = f"Contratti - {rag_soc}"
+        title.font = Font(size=12, bold=True, color="2563EB")
+        title.alignment = Alignment(horizontal="center", vertical="center")
+        ws.append([])  # Riga vuota
 
-            start_row = 3
+        # === PULIZIA DATI ===
+        disp = disp.copy()
+        disp = disp.loc[:, ~disp.columns.str.lower().str.startswith("je")]  # rimuove colonna JE
+        disp = disp.fillna("")  # sostituisce veri NaN
+        disp = disp.replace(["nan", "NaN"], "")  # sostituisce stringhe nan
 
-            # === STILI BASE ===
-            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            left = Alignment(horizontal="left", vertical="top", wrap_text=True)
-            bold = Font(bold=True, color="FFFFFF")
-            thin_border = Border(
-                left=Side(style="thin"),
-                right=Side(style="thin"),
-                top=Side(style="thin"),
-                bottom=Side(style="thin")
-            )
-            header_fill = PatternFill("solid", fgColor="2563EB")
+        # === STILI ===
+        center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left = Alignment(horizontal="left", vertical="top", wrap_text=True)
+        bold = Font(bold=True, color="FFFFFF")
+        thin_border = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin")
+        )
+        header_fill = PatternFill("solid", fgColor="2563EB")
 
-            # 🔧 Rimuovi colonne spurie e valori NaN
-            disp = disp.replace(["nan", "NaN"], "").fillna("")
-            valid_cols = [c for c in disp.columns if not c.strip().lower().startswith("je")]
-            disp = disp[valid_cols]
+        # === INTESTAZIONI ===
+        headers = list(disp.columns)
+        ws.append(headers)
+        for i, h in enumerate(headers, 1):
+            cell = ws.cell(row=ws.max_row, column=i)
+            cell.font = bold
+            cell.fill = header_fill
+            cell.alignment = center
+            cell.border = thin_border
+
+        # === RIGHE DATI ===
+        for _, riga in disp.iterrows():
+            ws.append(list(riga))
+            for col_idx, col_name in enumerate(headers, 1):
+                cell = ws.cell(row=ws.max_row, column=col_idx)
+                cell.border = thin_border
+                cell.alignment = left if "descrizione" in col_name.lower() else center
+
+        # === ADATTA LARGHEZZA E ALTEZZA ===
+        for col in ws.columns:
+            max_length = max(len(str(cell.value or "")) for cell in col)
+            ws.column_dimensions[col[0].column_letter].width = min(max_length + 4, 60)
+        for row in ws.iter_rows(min_row=3, max_row=ws.max_row):
+            ws.row_dimensions[row[0].row].height = 30
+
+        # === SALVATAGGIO ===
+        bio = BytesIO()
+        wb.save(bio)
+        st.download_button(
+            "📘 Esporta Excel",
+            data=bio.getvalue(),
+            file_name=f"contratti_{rag_soc}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+    # === ESPORTAZIONE PDF MIGLIORATA ===
+    with c2:
+        from fpdf import FPDF
+        from textwrap import wrap
+
+        try:
+            class PDF(FPDF):
+                def header(self):
+                    self.set_font("Arial", "B", 12)
+                    self.cell(0, 8, f"Contratti - {rag_soc}", ln=1, align="C")
+                    self.ln(4)
+
+            pdf = PDF(orientation="L", unit="mm", format="A4")
+            pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=15)
 
             # === INTESTAZIONI ===
-            ws.append([])
-            ws.append(valid_cols)
-            for col_idx, col in enumerate(valid_cols, 1):
-                cell = ws.cell(row=start_row, column=col_idx)
-                cell.font = bold
-                cell.alignment = center
-                cell.border = thin_border
-                cell.fill = header_fill
+            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                       "Descrizione Prodotto", "Tot Rata", "Stato"]
+            widths = [35, 25, 25, 20, 90, 25, 25]
+            pdf.set_font("Arial", "B", 9)
+            pdf.set_fill_color(37, 99, 235)
+            pdf.set_text_color(255, 255, 255)
+            for i, h in enumerate(headers):
+                pdf.cell(widths[i], 7, h, 1, 0, "C", fill=True)
+            pdf.ln(7)
 
-            # === DATI ===
-            for _, row_data in disp.iterrows():
-                ws.append(list(row_data))
-                for col_idx, col in enumerate(valid_cols, 1):
-                    c = ws.cell(row=ws.max_row, column=col_idx)
-                    c.border = thin_border
-                    if "Descrizione" in col:
-                        c.alignment = left
-                    else:
-                        c.alignment = center
+            # === RIGHE ===
+            pdf.set_font("Arial", "", 9)
+            pdf.set_text_color(0, 0, 0)
+            for _, row in disp.iterrows():
+                desc = str(row["DescrizioneProdotto"]) if not pd.isna(row["DescrizioneProdotto"]) else ""
+                desc_lines = wrap(desc, 70)
+                h = max(7, len(desc_lines) * 4)
 
-            # 🔧 Larghezza automatica colonne
-            for col_idx, col in enumerate(valid_cols, 1):
-                max_len = max(
-                    [len(str(ws.cell(row=r, column=col_idx).value or "")) for r in range(1, ws.max_row + 1)]
-                )
-                ws.column_dimensions[ws.cell(row=start_row, column=col_idx).column_letter].width = min(max_len + 4, 60)
+                x = pdf.get_x()
+                y = pdf.get_y()
 
-            output = BytesIO()
-            wb.save(output)
-            excel_data = output.getvalue()
+                def cell(text, w, align="C"):
+                    pdf.multi_cell(w, h, str(text or ""), 1, align)
+                    pdf.set_xy(x + w, y)
+
+                # Celle una per una
+                cell(row["NumeroContratto"], widths[0])
+                cell(row["DataInizio"], widths[1])
+                cell(row["DataFine"], widths[2])
+                cell(row["Durata"], widths[3])
+                pdf.multi_cell(widths[4], 4, desc, 1, "L")
+                y_new = pdf.get_y()
+                pdf.set_xy(x + sum(widths[:5]), y)
+                cell(row["TotRata"], widths[5])
+                cell(row["Stato"], widths[6])
+                pdf.set_y(max(y_new, y + h))
 
             st.download_button(
-                "📘 Esporta Excel",
-                data=excel_data,
-                file_name=f"contratti_{rag_soc}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "📗 Esporta PDF",
+                data=pdf.output(dest="S").encode("latin-1"),
+                file_name=f"contratti_{rag_soc}.pdf",
+                mime="application/pdf",
                 use_container_width=True
             )
 
-        # === ESPORTAZIONE PDF MIGLIORATA ===
-        with c2:
-            from fpdf import FPDF
-            from textwrap import wrap
+        except Exception as e:
+            st.error(f"❌ Errore PDF: {e}")
 
-            try:
-                class PDF(FPDF):
-                    def header(self):
-                        self.set_font("Arial", "B", 12)
-                        self.cell(0, 8, safe_text(f"Contratti - {rag_soc}"), border=0, ln=1, align="C")
-                        self.ln(5)
-
-                pdf = PDF(orientation="L", unit="mm", format="A4")
-                pdf.add_page()
-                pdf.set_auto_page_break(auto=True, margin=15)
-
-                # === Stili generali ===
-                pdf.set_font("Arial", size=9)
-                col_widths = [35, 25, 25, 20, 90, 25, 25]
-                headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                           "Descrizione Prodotto", "Tot Rata", "Stato"]
-
-                # === INTESTAZIONI ===
-                pdf.set_fill_color(37, 99, 235)
-                pdf.set_text_color(255, 255, 255)
-                pdf.set_font("Arial", "B", 9)
-                for i, h in enumerate(headers):
-                    pdf.cell(col_widths[i], 7, safe_text(h), border=1, align="C", fill=True)
-                pdf.ln(7)
-
-                # === RIGHE DATI ===
-                pdf.set_text_color(0, 0, 0)
-                pdf.set_font("Arial", "", 9)
-                for _, row in disp.iterrows():
-                    desc = str(row["DescrizioneProdotto"]) if not pd.isna(row["DescrizioneProdotto"]) else ""
-                    desc_lines = wrap(desc, 70)
-                    line_height = 4
-                    row_height = max(7, line_height * len(desc_lines))
-
-                    y_top = pdf.get_y()
-                    x_left = pdf.get_x()
-
-                    # Numero Contratto
-                    pdf.multi_cell(col_widths[0], row_height, safe_text(row["NumeroContratto"]), border=1, align="C")
-                    pdf.set_xy(x_left + col_widths[0], y_top)
-
-                    # Data Inizio
-                    pdf.multi_cell(col_widths[1], row_height, safe_text(row["DataInizio"]), border=1, align="C")
-                    pdf.set_xy(x_left + sum(col_widths[:2]), y_top)
-
-                    # Data Fine
-                    pdf.multi_cell(col_widths[2], row_height, safe_text(row["DataFine"]), border=1, align="C")
-                    pdf.set_xy(x_left + sum(col_widths[:3]), y_top)
-
-                    # Durata
-                    pdf.multi_cell(col_widths[3], row_height, safe_text(row["Durata"]), border=1, align="C")
-                    pdf.set_xy(x_left + sum(col_widths[:4]), y_top)
-
-                    # Descrizione multilinea
-                    pdf.multi_cell(col_widths[4], line_height, safe_text(desc), border=1, align="L")
-                    y_after = pdf.get_y()
-                    pdf.set_xy(x_left + sum(col_widths[:5]), y_top)
-
-                    # Tot Rata
-                    pdf.multi_cell(col_widths[5], row_height, safe_text(row["TotRata"]), border=1, align="C")
-                    pdf.set_xy(x_left + sum(col_widths[:6]), y_top)
-
-                    # Stato
-                    pdf.multi_cell(col_widths[6], row_height, safe_text(row["Stato"]), border=1, align="C")
-
-                    pdf.set_y(max(y_after, y_top + row_height))
-
-                pdf_bytes = pdf.output(dest="S").encode("latin-1")
-
-                st.download_button(
-                    "📗 Esporta PDF",
-                    data=pdf_bytes,
-                    file_name=f"contratti_{rag_soc}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-
-            except Exception as e:
-                st.error(f"❌ Errore durante la creazione del PDF: {e}")
 
 
 # =====================================

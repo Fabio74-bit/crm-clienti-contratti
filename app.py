@@ -215,14 +215,29 @@ def do_login_fullscreen():
     # === TITOLO ===
     st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
 
-    # === BOX DI LOGIN ===
-    placeholder = st.empty()
-    with placeholder.container():
-        st.markdown("<div class='login-box'>", unsafe_allow_html=True)
-        username = st.text_input("👤 Nome utente", key="login_user").strip().lower()
-        password = st.text_input("🔑 Password", type="password", key="login_pass")
-        login_btn = st.button("Entra", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+      # === BOX DI LOGIN COMPATTO ===
+    st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+
+    username = st.text_input(
+        "Nome utente",
+        key="login_user",
+        label_visibility="visible",
+        placeholder="Inserisci il tuo nome utente",
+    ).strip().lower()
+
+    password = st.text_input(
+        "Password",
+        type="password",
+        key="login_pass",
+        label_visibility="visible",
+        placeholder="Inserisci la tua password",
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    login_btn = st.button("Entra", use_container_width=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # === CONTROLLO CREDENZIALI ===
     if login_btn:
@@ -231,15 +246,14 @@ def do_login_fullscreen():
             st.session_state["user"] = username
             st.session_state["role"] = users[username].get("role", "viewer")
             st.session_state["logged_in"] = True
-            placeholder.empty()
             st.success(f"✅ Benvenuto {username}!")
             time.sleep(0.3)
             st.rerun()
         else:
             st.error("❌ Credenziali non valide.")
 
-    # Blocca tutto se non loggato
     st.stop()
+
 
 # ==========================
 # KPI CARD (riutilizzata in Dashboard)

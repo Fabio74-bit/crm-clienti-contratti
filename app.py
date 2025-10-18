@@ -1024,7 +1024,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         # 👇 CREA LE DUE COLONNE
         c1, c2 = st.columns(2)
-         st.divider()
+    st.divider()
 
     # =====================================
     # 🔹 Pulizia definitiva dei dati prima di esportazione
@@ -1047,9 +1047,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === CREA LE DUE COLONNE ===
     c1, c2 = st.columns(2)
 
-    # =====================================
-    # 📘 ESPORTAZIONE EXCEL MIGLIORATA
-    # =====================================
+    # === ESPORTAZIONE EXCEL MIGLIORATA ===
     with c1:
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
@@ -1066,13 +1064,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         title.value = f"Contratti - {rag_soc}"
         title.font = Font(size=12, bold=True, color="2563EB")
         title.alignment = Alignment(horizontal="center", vertical="center")
-        ws.append([])  # Riga vuota
+        ws.append([])
 
         # === PULIZIA COLONNE ===
-        disp = disp.loc[:, ~disp.columns.str.lower().str.startswith("je")]  # Rimuove JE
+        disp = disp.loc[:, ~disp.columns.str.lower().str.startswith("je")]
         headers = list(disp.columns)
 
-        # === STILI ===
         center = Alignment(horizontal="center", vertical="center", wrap_text=True)
         left = Alignment(horizontal="left", vertical="top", wrap_text=True)
         bold = Font(bold=True, color="FFFFFF")
@@ -1115,7 +1112,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         for r in range(3, ws.max_row + 1):
             ws.row_dimensions[r].height = 30
 
-        # === SALVATAGGIO ===
         bio = BytesIO()
         wb.save(bio)
         st.download_button(
@@ -1126,15 +1122,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
-    # =====================================
-    # 📗 ESPORTAZIONE PDF MIGLIORATA
-    # =====================================
+    # === ESPORTAZIONE PDF MIGLIORATA ===
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
 
         def safe_pdf_text(txt: str) -> str:
-            """Rende il testo compatibile con PDF latin-1, sostituendo simboli non validi."""
             if pd.isna(txt) or txt is None:
                 return ""
             if not isinstance(txt, str):
@@ -1154,7 +1147,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
 
-            # === INTESTAZIONI ===
             headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
                        "Descrizione Prodotto", "Tot Rata", "Stato"]
             widths = [35, 25, 25, 20, 90, 25, 25]
@@ -1165,7 +1157,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(widths[i], 7, safe_pdf_text(h), 1, 0, "C", fill=True)
             pdf.ln(7)
 
-            # === RIGHE ===
             pdf.set_font("Arial", "", 9)
             pdf.set_text_color(0, 0, 0)
             for _, row in disp.iterrows():
@@ -1202,6 +1193,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         except Exception as e:
             st.error(f"❌ Errore PDF: {e}")
+
 
 
 # =====================================

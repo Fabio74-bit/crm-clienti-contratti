@@ -968,7 +968,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         allow_unsafe_jscode=True
     )
 
-    st.divider()
+       st.divider()
 
     # Recupera la ragione sociale (fallback se non definita)
     rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
@@ -976,7 +976,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if disp.empty:
         st.warning("⚠️ Nessun dato disponibile per l’esportazione.")
     else:
-        # ✅ Definizione colonne per Excel e PDF
         c1, c2 = st.columns(2)
 
         # === ESPORTAZIONE EXCEL MIGLIORATA ===
@@ -996,7 +995,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             title_cell.font = Font(size=12, bold=True, color="2563EB")
             title_cell.alignment = Alignment(horizontal="center", vertical="center")
 
-            # Riga vuota prima della tabella
             start_row = 3
 
             # === STILI BASE ===
@@ -1009,16 +1007,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 top=Side(style="thin"),
                 bottom=Side(style="thin")
             )
-            header_fill = PatternFill("solid", fgColor="2563EB")  # blu SHT
+            header_fill = PatternFill("solid", fgColor="2563EB")
 
-            # Rimuovi NaN e colonne spurie
-            disp = disp.replace("nan", "").replace("NaN", "").fillna("")
-            headers = [col for col in disp.columns if col.strip().lower() not in ("je", "nan")]
+            # 🔧 Rimuovi colonne spurie e valori NaN
+            disp = disp.replace(["nan", "NaN"], "").fillna("")
+            valid_cols = [c for c in disp.columns if not c.strip().lower().startswith("je")]
+            disp = disp[valid_cols]
 
             # === INTESTAZIONI ===
             ws.append([])
-            ws.append(headers)
-            for col_idx, col in enumerate(headers, 1):
+            ws.append(valid_cols)
+            for col_idx, col in enumerate(valid_cols, 1):
                 cell = ws.cell(row=start_row, column=col_idx)
                 cell.font = bold
                 cell.alignment = center
@@ -1026,24 +1025,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 cell.fill = header_fill
 
             # === DATI ===
-            for row_data in disp.itertuples(index=False):
-                ws.append(row_data)
-                for col_idx, col in enumerate(headers, 1):
+            for _, row_data in disp.iterrows():
+                ws.append(list(row_data))
+                for col_idx, col in enumerate(valid_cols, 1):
                     c = ws.cell(row=ws.max_row, column=col_idx)
+                    c.border = thin_border
                     if "Descrizione" in col:
                         c.alignment = left
                     else:
                         c.alignment = center
-                    c.border = thin_border
 
-            # Larghezza colonne automatica
-            for col_idx, col in enumerate(headers, 1):
+            # 🔧 Larghezza automatica colonne
+            for col_idx, col in enumerate(valid_cols, 1):
                 max_len = max(
                     [len(str(ws.cell(row=r, column=col_idx).value or "")) for r in range(1, ws.max_row + 1)]
                 )
-                ws.column_dimensions[ws.cell(row=start_row, column=col_idx).column_letter].width = max_len + 2
+                ws.column_dimensions[ws.cell(row=start_row, column=col_idx).column_letter].width = min(max_len + 4, 60)
 
-            # Esporta come Excel
             output = BytesIO()
             wb.save(output)
             excel_data = output.getvalue()
@@ -1074,7 +1072,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 # === Stili generali ===
                 pdf.set_font("Arial", size=9)
-                col_widths = [35, 25, 25, 20, 90, 25, 25]  # Descrizione più larga
+                col_widths = [35, 25, 25, 20, 90, 25, 25]
                 headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
                            "Descrizione Prodotto", "Tot Rata", "Stato"]
 
@@ -1082,10 +1080,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.set_fill_color(37, 99, 235)
                 pdf.set_text_color(255, 255, 255)
                 pdf.set_font("Arial", "B", 9)
-                line_height = 7
                 for i, h in enumerate(headers):
-                    pdf.cell(col_widths[i], line_height, safe_text(h), border=1, align="C", fill=True)
-                pdf.ln(line_height)
+                    pdf.cell(col_widths[i], 7, safe_text(h), border=1, align="C", fill=True)
+                pdf.ln(7)
 
                 # === RIGHE DATI ===
                 pdf.set_text_color(0, 0, 0)
@@ -1093,28 +1090,41 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 for _, row in disp.iterrows():
                     desc = str(row["DescrizioneProdotto"]) if not pd.isna(row["DescrizioneProdotto"]) else ""
                     desc_lines = wrap(desc, 70)
-                    row_height = max(7, 4 * len(desc_lines))
+                    line_height = 4
+                    row_height = max(7, line_height * len(desc_lines))
 
-                    dati = [
-                        safe_text(row["NumeroContratto"]),
-                        safe_text(row["DataInizio"]),
-                        safe_text(row["DataFine"]),
-                        safe_text(row["Durata"]),
-                        desc,
-                        safe_text(row["TotRata"]),
-                        safe_text(row["Stato"]),
-                    ]
+                    y_top = pdf.get_y()
+                    x_left = pdf.get_x()
 
-                    y_before = pdf.get_y()
-                    for i, text in enumerate(dati):
-                        align = "L" if i == 4 else "C"
-                        if i == 4:
-                            pdf.multi_cell(col_widths[i], 4, safe_text(text), border=1, align=align)
-                        else:
-                            x_before = pdf.get_x()
-                            pdf.cell(col_widths[i], row_height, safe_text(text), border=1, align=align)
-                            pdf.set_xy(x_before + col_widths[i], y_before)
-                    pdf.ln(row_height)
+                    # Numero Contratto
+                    pdf.multi_cell(col_widths[0], row_height, safe_text(row["NumeroContratto"]), border=1, align="C")
+                    pdf.set_xy(x_left + col_widths[0], y_top)
+
+                    # Data Inizio
+                    pdf.multi_cell(col_widths[1], row_height, safe_text(row["DataInizio"]), border=1, align="C")
+                    pdf.set_xy(x_left + sum(col_widths[:2]), y_top)
+
+                    # Data Fine
+                    pdf.multi_cell(col_widths[2], row_height, safe_text(row["DataFine"]), border=1, align="C")
+                    pdf.set_xy(x_left + sum(col_widths[:3]), y_top)
+
+                    # Durata
+                    pdf.multi_cell(col_widths[3], row_height, safe_text(row["Durata"]), border=1, align="C")
+                    pdf.set_xy(x_left + sum(col_widths[:4]), y_top)
+
+                    # Descrizione multilinea
+                    pdf.multi_cell(col_widths[4], line_height, safe_text(desc), border=1, align="L")
+                    y_after = pdf.get_y()
+                    pdf.set_xy(x_left + sum(col_widths[:5]), y_top)
+
+                    # Tot Rata
+                    pdf.multi_cell(col_widths[5], row_height, safe_text(row["TotRata"]), border=1, align="C")
+                    pdf.set_xy(x_left + sum(col_widths[:6]), y_top)
+
+                    # Stato
+                    pdf.multi_cell(col_widths[6], row_height, safe_text(row["Stato"]), border=1, align="C")
+
+                    pdf.set_y(max(y_after, y_top + row_height))
 
                 pdf_bytes = pdf.output(dest="S").encode("latin-1")
 
@@ -1128,6 +1138,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             except Exception as e:
                 st.error(f"❌ Errore durante la creazione del PDF: {e}")
+
 
 # =====================================
 # 📅 PAGINA RICHIAMI E VISITE (stile Pulito Business)

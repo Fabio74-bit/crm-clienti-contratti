@@ -148,14 +148,14 @@ def save_contratti(df: pd.DataFrame):
     out.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
 def do_login_fullscreen():
-    """Pagina di login centrata, compatta e proporzionata."""
+    """Pagina di login elegante, centrata e compatta."""
     import time
 
     # Se già loggato, ritorna subito
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # === STILE COMPATTO ===
+    # === STILE CARD COMPATTA ===
     st.markdown(
         """
         <style>
@@ -164,39 +164,34 @@ def do_login_fullscreen():
         }
         .block-container {
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             background-color: #f8fafc;
         }
-        .login-box {
-            background-color: #ffffff;
+        .login-card {
+            background: #ffffff;
             border: 1px solid #e5e7eb;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
             border-radius: 12px;
-            padding: 1.5rem 1.8rem;
-            width: 340px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            padding: 2rem 2.5rem;
+            width: 360px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.8rem;
+            text-align: center;
         }
         .login-title {
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             font-weight: 600;
             color: #2563eb;
-            text-align: center;
-            margin-top: 0.5rem;
-            margin-bottom: 1rem;
+            margin: 0.8rem 0 1.4rem 0;
         }
-        .center-logo {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 0.5rem;
+        .login-input {
+            width: 260px !important;
         }
         .stTextInput>div>div>input {
-            width: 250px !important;
+            width: 260px !important;
             text-align: left !important;
             font-size: 0.9rem !important;
             padding: 6px 8px !important;
@@ -210,7 +205,7 @@ def do_login_fullscreen():
             outline: none !important;
         }
         .stButton>button {
-            width: 250px !important;
+            width: 260px !important;
             font-size: 0.9rem !important;
             padding: 0.4rem 0 !important;
             border-radius: 6px !important;
@@ -226,14 +221,11 @@ def do_login_fullscreen():
         unsafe_allow_html=True
     )
 
-    # === LOGO E TITOLO ===
-    st.markdown("<div class='center-logo'>", unsafe_allow_html=True)
-    st.image("https://www.shtsrl.com/template/images/logo.png", width=150)
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
+    # === CARD CENTRATA ===
+    st.markdown("<div class='login-card'>", unsafe_allow_html=True)
 
-    # === BOX LOGIN ===
-    st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+    st.image("https://www.shtsrl.com/template/images/logo.png", width=140)
+    st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
     username = st.text_input(
         "Nome utente",
@@ -253,7 +245,8 @@ def do_login_fullscreen():
     st.markdown("</div>", unsafe_allow_html=True)
 
     # === LOGICA LOGIN ===
-    if login_btn:
+    if login_btn or (username and password and not st.session_state.get("_login_checked")):
+        st.session_state["_login_checked"] = True
         users = st.secrets["auth"]["users"]
         if username in users and users[username]["password"] == password:
             st.session_state["user"] = username
@@ -262,10 +255,12 @@ def do_login_fullscreen():
             st.success(f"✅ Benvenuto {username}!")
             time.sleep(0.3)
             st.rerun()
-        else:
+        elif username and password:
             st.error("❌ Credenziali non valide.")
+            st.session_state["_login_checked"] = False
 
     st.stop()
+
 
 
 

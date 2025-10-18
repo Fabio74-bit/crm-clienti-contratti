@@ -1024,7 +1024,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         # 👇 CREA LE DUE COLONNE
         c1, c2 = st.columns(2)
-      st.divider()
+         st.divider()
 
     # =====================================
     # 🔹 Pulizia definitiva dei dati prima di esportazione
@@ -1202,6 +1202,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         except Exception as e:
             st.error(f"❌ Errore PDF: {e}")
+
 
 # =====================================
 # 📅 PAGINA RICHIAMI E VISITE (stile Pulito Business)

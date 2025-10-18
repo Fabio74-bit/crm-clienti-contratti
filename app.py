@@ -4,7 +4,14 @@
 from __future__ import annotations
 import streamlit as st
 st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
-
+# Forza lo scroll in alto dopo ogni rerun (navigazione)
+st.markdown("""
+<script>
+    window.addEventListener('load', function() {
+        window.scrollTo(0, 0);
+    });
+</script>
+""", unsafe_allow_html=True)
 # --- stile generale pagina ---
 st.markdown("""
 <style>

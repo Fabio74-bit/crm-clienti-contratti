@@ -132,64 +132,50 @@ def safe_text(txt):
     return str(txt).encode("latin-1", "replace").decode("latin-1")
 
 # =====================================
-# I/O DATI
-# =====================================
-# =====================================
 # I/O DATI — VERSIONE PULITA (NO NAN)
 # =====================================
 
 def load_clienti() -> pd.DataFrame:
-    """Carica i clienti dal CSV, garantendo assenza di NaN o valori nulli."""
     if CLIENTI_CSV.exists():
         df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=",", encoding="utf-8-sig")
     else:
         df = pd.DataFrame(columns=CLIENTI_COLS)
         df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
 
-    # 🔹 Pulizia totale di NaN, None, NaT, ecc.
-    df = df.replace(
-        to_replace=["nan", "NaN", "None", "NULL", "null", "NaT"],
-        value="",
-        regex=True
-    ).fillna("")
+    # 🔹 Pulizia totale — anche delle stringhe "nan"
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+        .applymap(lambda x: "" if str(x).strip().lower() in ["nan", "none", "null", "nat"] else x)
+    )
 
-    # 🔹 Garantisce tutte le colonne
     df = ensure_columns(df, CLIENTI_COLS)
-
-    # 🔹 Conversione date
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         df[c] = to_date_series(df[c])
 
     return df
 
 
-def save_clienti(df: pd.DataFrame):
-    """Salva i clienti puliti nel CSV (senza NaN o valori nulli)."""
-    out = df.copy()
-
-    # 🔹 Pulizia completa prima del salvataggio
-    out = out.replace(
-        to_replace=["nan", "NaN", "None", "NULL", "null", "NaT"],
-        value="",
-        regex=True
-    ).fillna("")
-
-    # 🔹 Format date
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        out[c] = out[c].apply(
-            lambda d: "" if pd.isna(d) or d == "" else pd.to_datetime(d).strftime("%Y-%m-%d")
-        )
-
-    out.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-
-
 def load_contratti() -> pd.DataFrame:
-    """Carica i contratti dal CSV, garantendo assenza di NaN o valori nulli."""
     if CONTRATTI_CSV.exists():
         df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig")
     else:
         df = pd.DataFrame(columns=CONTRATTI_COLS)
         df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+
+    # 🔹 Pulizia totale — anche delle stringhe "nan"
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+        .applymap(lambda x: "" if str(x).strip().lower() in ["nan", "none", "null", "nat"] else x)
+    )
+
+    df = ensure_columns(df, CONTRATTI_COLS)
+    for c in ["DataInizio", "DataFine"]:
+        df[c] = to_date_series(df[c])
+
+    return df
+
 
     # 🔹 Pulizia totale di NaN, None, NaT, ecc.
     df = df.replace(
@@ -1118,70 +1104,88 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
-    # === ESPORTAZIONE PDF MIGLIORATA ===
-    with c2:
-        from fpdf import FPDF
-        from textwrap import wrap
+ # === ESPORTAZIONE PDF MIGLIORATA ===
+with c2:
+    from fpdf import FPDF
+    from textwrap import wrap
 
-        try:
-            class PDF(FPDF):
-                def header(self):
-                    self.set_font("Arial", "B", 12)
-                    self.cell(0, 8, f"Contratti - {rag_soc}", ln=1, align="C")
-                    self.ln(4)
+    # Funzione di pulizia testo per il PDF
+    def safe_pdf_text(txt: str) -> str:
+        """Rende il testo compatibile con PDF latin-1, sostituendo simboli non validi."""
+        if pd.isna(txt) or txt is None:
+            return ""
+        if not isinstance(txt, str):
+            txt = str(txt)
+        txt = txt.replace("€", "EUR").replace("–", "-").replace("—", "-")
+        return txt.encode("latin-1", "replace").decode("latin-1")
 
-            pdf = PDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
+    try:
+        class PDF(FPDF):
+            def header(self):
+                self.set_font("Arial", "B", 12)
+                titolo = safe_pdf_text(f"Contratti - {rag_soc}")
+                self.cell(0, 8, titolo, ln=1, align="C")
+                self.ln(4)
 
-            # === INTESTAZIONI ===
-            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                       "Descrizione Prodotto", "Tot Rata", "Stato"]
-            widths = [35, 25, 25, 20, 90, 25, 25]
-            pdf.set_font("Arial", "B", 9)
-            pdf.set_fill_color(37, 99, 235)
-            pdf.set_text_color(255, 255, 255)
-            for i, h in enumerate(headers):
-                pdf.cell(widths[i], 7, h, 1, 0, "C", fill=True)
-            pdf.ln(7)
+        pdf = PDF(orientation="L", unit="mm", format="A4")
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
 
-            # === RIGHE ===
-            pdf.set_font("Arial", "", 9)
-            pdf.set_text_color(0, 0, 0)
-            for _, row in disp.iterrows():
-                desc = str(row["DescrizioneProdotto"]) if not pd.isna(row["DescrizioneProdotto"]) else ""
-                desc_lines = wrap(desc, 70)
-                h = max(7, len(desc_lines) * 4)
+        # === INTESTAZIONI ===
+        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                   "Descrizione Prodotto", "Tot Rata", "Stato"]
+        widths = [35, 25, 25, 20, 90, 25, 25]
+        pdf.set_font("Arial", "B", 9)
+        pdf.set_fill_color(37, 99, 235)
+        pdf.set_text_color(255, 255, 255)
+        for i, h in enumerate(headers):
+            pdf.cell(widths[i], 7, safe_pdf_text(h), 1, 0, "C", fill=True)
+        pdf.ln(7)
 
-                x = pdf.get_x()
-                y = pdf.get_y()
+        # === RIGHE ===
+        pdf.set_font("Arial", "", 9)
+        pdf.set_text_color(0, 0, 0)
 
-                def cell(text, w, align="C"):
-                    pdf.multi_cell(w, h, str(text or ""), 1, align)
-                    pdf.set_xy(x + w, y)
+        for _, row in disp.iterrows():
+            desc = safe_pdf_text(row.get("DescrizioneProdotto", ""))
+            desc_lines = wrap(desc, 70)
+            h = max(7, len(desc_lines) * 4)
 
-                # Celle una per una
-                cell(row["NumeroContratto"], widths[0])
-                cell(row["DataInizio"], widths[1])
-                cell(row["DataFine"], widths[2])
-                cell(row["Durata"], widths[3])
-                pdf.multi_cell(widths[4], 4, desc, 1, "L")
-                y_new = pdf.get_y()
-                pdf.set_xy(x + sum(widths[:5]), y)
-                cell(row["TotRata"], widths[5])
-                cell(row["Stato"], widths[6])
-                pdf.set_y(max(y_new, y + h))
+            x = pdf.get_x()
+            y = pdf.get_y()
 
-            st.download_button(
-                "📗 Esporta PDF",
-                data=pdf.output(dest="S").encode("latin-1"),
-                file_name=f"contratti_{rag_soc}.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
+            # Celle helper
+            def cell(text, w, align="C"):
+                pdf.multi_cell(w, h, safe_pdf_text(text or ""), 1, align)
+                pdf.set_xy(x + w, y)
 
-        except Exception as e:
-            st.error(f"❌ Errore PDF: {e}")
+            # Celle una per una
+            cell(row.get("NumeroContratto", ""), widths[0])
+            cell(row.get("DataInizio", ""), widths[1])
+            cell(row.get("DataFine", ""), widths[2])
+            cell(row.get("Durata", ""), widths[3])
+
+            # Descrizione multilinea
+            pdf.multi_cell(widths[4], 4, desc, 1, "L")
+            y_new = pdf.get_y()
+
+            pdf.set_xy(x + sum(widths[:5]), y)
+            cell(row.get("TotRata", ""), widths[5])
+            cell(row.get("Stato", ""), widths[6])
+            pdf.set_y(max(y_new, y + h))
+
+        # === SALVA E OFFRI DOWNLOAD ===
+        pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+        st.download_button(
+            "📗 Esporta PDF",
+            data=pdf_bytes,
+            file_name=f"contratti_{rag_soc}.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+
+    except Exception as e:
+        st.error(f"❌ Errore PDF: {e}")
 
 
 

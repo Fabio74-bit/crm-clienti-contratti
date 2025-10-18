@@ -213,7 +213,7 @@ def do_login_fullscreen():
     st.markdown("</div>", unsafe_allow_html=True)
 
     # === TITOLO ===
-    st.markdown("<div class='login-title'>Accedi al CRM</div>", unsafe_allow_html=True)
+    st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
       # === BOX DI LOGIN COMPATTO ===
     st.markdown("<div class='login-box'>", unsafe_allow_html=True)

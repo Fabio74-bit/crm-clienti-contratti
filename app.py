@@ -158,9 +158,6 @@ def do_login_fullscreen():
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # === Stili CSS ===
-    st.markdown(
-        """
           # === Stili CSS ===
     st.markdown(
         """

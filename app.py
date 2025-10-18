@@ -978,10 +978,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         c1, c2 = st.columns(2)
 
-            # === ESPORTAZIONE EXCEL MIGLIORATA ===
+       # === ESPORTAZIONE EXCEL MIGLIORATA ===
     with c1:
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+        from openpyxl.utils import get_column_letter
         from io import BytesIO
 
         wb = Workbook()
@@ -1031,25 +1032,20 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 cell.alignment = left if "descrizione" in col_name.lower() else center
 
         # === ADATTA LARGHEZZA E ALTEZZA ===
-        # === ADATTA LARGHEZZA E ALTEZZA ===
-from openpyxl.utils import get_column_letter
+        for col_idx in range(1, ws.max_column + 1):
+            max_length = 0
+            for row in range(1, ws.max_row + 1):
+                cell = ws.cell(row=row, column=col_idx)
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except Exception:
+                    pass
+            col_letter = get_column_letter(col_idx)
+            ws.column_dimensions[col_letter].width = min(max_length + 4, 60)
 
-for col_idx in range(1, ws.max_column + 1):
-    max_length = 0
-    for row in range(1, ws.max_row + 1):
-        cell = ws.cell(row=row, column=col_idx)
-        try:
-            if cell.value:
-                max_length = max(max_length, len(str(cell.value)))
-        except Exception:
-            pass
-    col_letter = get_column_letter(col_idx)
-    ws.column_dimensions[col_letter].width = min(max_length + 4, 60)
-
-# Altezza uniforme (descrizioni più alte)
-for r in range(3, ws.max_row + 1):
-    ws.row_dimensions[r].height = 30
-
+        for r in range(3, ws.max_row + 1):
+            ws.row_dimensions[r].height = 30
 
         # === SALVATAGGIO ===
         bio = BytesIO()

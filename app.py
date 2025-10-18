@@ -972,7 +972,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 # Recupera la ragione sociale (fallback se non definita)
 rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
-
+if "disp" not in locals() or disp.empty:
+    st.warning("⚠️ Nessun dato disponibile per l’esportazione.")
+    st.stop()
 # Due colonne: Excel a sinistra, PDF a destra
 c1, c2 = st.columns(2)
 

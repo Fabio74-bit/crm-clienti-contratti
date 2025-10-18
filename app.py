@@ -1057,7 +1057,7 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown("</tbody></table>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # =====================================
+       # =====================================
     # ⚠️ IN RITARDO
     # =====================================
     st.markdown("<div class='section-card'>", unsafe_allow_html=True)
@@ -1072,109 +1072,110 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ].copy()
 
     col1, col2 = st.columns(2)
-  with col1:
-    st.markdown("### 📞 Recall > 3 mesi")
-    if recall_vecchi.empty:
-        st.info("✅ Nessun recall scaduto.")
-    else:
-        st.markdown("""
-        <style>
-        .tbl-recall {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        .tbl-recall th, .tbl-recall td {
-            border-bottom: 1px solid #e5e7eb;
-            padding: 6px 10px;
-            text-align: left;
-        }
-        .tbl-recall th {
-            background-color: #f3f4f6;
-            font-weight: 600;
-        }
-        .tbl-recall tr:hover td {
-            background-color: #fef9c3;
-        }
-        </style>
-        """, unsafe_allow_html=True)
 
-        # Header
-        st.markdown(
-            "<table class='tbl-recall'><thead><tr>"
-            "<th style='width:55%'>Cliente</th>"
-            "<th style='width:25%'>Ultimo Recall</th>"
-            "<th style='text-align:center;width:20%'>Azione</th>"
-            "</tr></thead><tbody>",
-            unsafe_allow_html=True
-        )
+    # === COLONNA SINISTRA: RECALL ===
+    with col1:
+        st.markdown("### 📞 Recall > 3 mesi")
+        if recall_vecchi.empty:
+            st.info("✅ Nessun recall scaduto.")
+        else:
+            st.markdown("""
+            <style>
+            .tbl-recall {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.9rem;
+            }
+            .tbl-recall th, .tbl-recall td {
+                border-bottom: 1px solid #e5e7eb;
+                padding: 6px 10px;
+                text-align: left;
+            }
+            .tbl-recall th {
+                background-color: #f3f4f6;
+                font-weight: 600;
+            }
+            .tbl-recall tr:hover td {
+                background-color: #fef9c3;
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
-        # Righe
-        for i, r in recall_vecchi.iterrows():
-            cols = st.columns([2.5, 1.2, 0.8])
-            with cols[0]:
-                st.markdown(f"**{r['RagioneSociale']}**")
-            with cols[1]:
-                st.markdown(fmt_date(r["UltimoRecall"]))
-            with cols[2]:
-                if st.button("Apri", key=f"recold_{i}", use_container_width=True):
-                    st.session_state["selected_cliente"] = r["ClienteID"]
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
+            st.markdown(
+                "<table class='tbl-recall'><thead><tr>"
+                "<th style='width:55%'>Cliente</th>"
+                "<th style='width:25%'>Ultimo Recall</th>"
+                "<th style='text-align:center;width:20%'>Azione</th>"
+                "</tr></thead><tbody>",
+                unsafe_allow_html=True
+            )
 
-        st.markdown("</tbody></table>", unsafe_allow_html=True)
+            for i, r in recall_vecchi.iterrows():
+                cols = st.columns([2.5, 1.2, 0.8])
+                with cols[0]:
+                    st.markdown(f"**{r['RagioneSociale']}**")
+                with cols[1]:
+                    st.markdown(fmt_date(r["UltimoRecall"]))
+                with cols[2]:
+                    if st.button("Apri", key=f"recold_{i}", use_container_width=True):
+                        st.session_state["selected_cliente"] = r["ClienteID"]
+                        st.session_state["nav_target"] = "Clienti"
+                        st.rerun()
 
+            st.markdown("</tbody></table>", unsafe_allow_html=True)
 
-   with col2:
-    st.markdown("### 👣 Visite > 6 mesi")
-    if visite_vecchie.empty:
-        st.info("✅ Nessuna visita scaduta.")
-    else:
-        st.markdown("""
-        <style>
-        .tbl-recall {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        .tbl-recall th, .tbl-recall td {
-            border-bottom: 1px solid #e5e7eb;
-            padding: 6px 10px;
-            text-align: left;
-        }
-        .tbl-recall th {
-            background-color: #f3f4f6;
-            font-weight: 600;
-        }
-        .tbl-recall tr:hover td {
-            background-color: #fef9c3;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+    # === COLONNA DESTRA: VISITE ===
+    with col2:
+        st.markdown("### 👣 Visite > 6 mesi")
+        if visite_vecchie.empty:
+            st.info("✅ Nessuna visita scaduta.")
+        else:
+            st.markdown("""
+            <style>
+            .tbl-recall {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.9rem;
+            }
+            .tbl-recall th, .tbl-recall td {
+                border-bottom: 1px solid #e5e7eb;
+                padding: 6px 10px;
+                text-align: left;
+            }
+            .tbl-recall th {
+                background-color: #f3f4f6;
+                font-weight: 600;
+            }
+            .tbl-recall tr:hover td {
+                background-color: #fef9c3;
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
-        st.markdown(
-            "<table class='tbl-recall'><thead><tr>"
-            "<th style='width:55%'>Cliente</th>"
-            "<th style='width:25%'>Ultima Visita</th>"
-            "<th style='text-align:center;width:20%'>Azione</th>"
-            "</tr></thead><tbody>",
-            unsafe_allow_html=True
-        )
+            st.markdown(
+                "<table class='tbl-recall'><thead><tr>"
+                "<th style='width:55%'>Cliente</th>"
+                "<th style='width:25%'>Ultima Visita</th>"
+                "<th style='text-align:center;width:20%'>Azione</th>"
+                "</tr></thead><tbody>",
+                unsafe_allow_html=True
+            )
 
-        for i, r in visite_vecchie.iterrows():
-            cols = st.columns([2.5, 1.2, 0.8])
-            with cols[0]:
-                st.markdown(f"**{r['RagioneSociale']}**")
-            with cols[1]:
-                st.markdown(fmt_date(r["UltimaVisita"]))
-            with cols[2]:
-                if st.button("Apri", key=f"visold_{i}", use_container_width=True):
-                    st.session_state["selected_cliente"] = r["ClienteID"]
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
+            for i, r in visite_vecchie.iterrows():
+                cols = st.columns([2.5, 1.2, 0.8])
+                with cols[0]:
+                    st.markdown(f"**{r['RagioneSociale']}**")
+                with cols[1]:
+                    st.markdown(fmt_date(r["UltimaVisita"]))
+                with cols[2]:
+                    if st.button("Apri", key=f"visold_{i}", use_container_width=True):
+                        st.session_state["selected_cliente"] = r["ClienteID"]
+                        st.session_state["nav_target"] = "Clienti"
+                        st.rerun()
 
-        st.markdown("</tbody></table>", unsafe_allow_html=True)
+            st.markdown("</tbody></table>", unsafe_allow_html=True)
 
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # =====================================
     # 🧾 STORICO COMPLETO

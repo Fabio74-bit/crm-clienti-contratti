@@ -535,12 +535,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.caption(f"ClienteID: {sel_id}")
     with col_header2:
         st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
-    if st.button("📄 Vai ai Contratti", use_container_width=True):
-        st.session_state["selected_cliente"] = sel_id
-        st.session_state["nav_target"] = "Contratti"
-        # 🔹 Forza subito il cambio pagina prima del rerun
-        st.experimental_set_query_params(page="Contratti")
-        st.rerun()
+ if st.button("📄 Vai ai Contratti", use_container_width=True):
+    st.session_state["selected_cliente"] = sel_id
+    st.session_state["nav_target"] = "Contratti"
+
+    # 🔹 Segnala cambio pagina immediato per il main()
+    st.session_state["_go_contratti_now"] = True
+    st.rerun()
 
 
         st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
@@ -779,6 +780,20 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CONTRATTI
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+        # 🔝 Forza lo scroll in cima ogni volta che la pagina viene aperta o ricaricata
+    st.markdown("""
+        <script>
+        setTimeout(function() {
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }, 100);
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }, 100);
+        });
+        </script>
+    """, unsafe_allow_html=True)
+
     st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
 
     if df_cli.empty:
@@ -1302,13 +1317,18 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
-    # === SELEZIONE PAGINA ===
+     # === SELEZIONE PAGINA ===
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio(
         "📂 Menu principale",
         list(PAGES.keys()),
         index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
     )
+
+    # 🔹 Se viene impostato un cambio pagina immediato (es. "Vai ai Contratti"), forza subito la navigazione
+    if st.session_state.get("_go_contratti_now"):
+        st.session_state["_go_contratti_now"] = False
+        page = "Contratti"
 
     # === CARICAMENTO DATI ===
     df_cli = load_clienti()
@@ -1317,7 +1337,6 @@ def main():
     # === ESECUZIONE PAGINA SELEZIONATA ===
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
-
 
 # =====================================
 # AVVIO APPLICAZIONE

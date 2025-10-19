@@ -586,14 +586,15 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === NOTE CLIENTE (sezione indipendente) ===
     st.divider()
     st.markdown("### 📝 Note Cliente")
-    note_attuali = cliente.get("NoteCliente", "")
+
     import time
-nuove_note = st.text_area(
-    "Modifica note cliente:",
-    note_attuali,
-    height=160,
-    key=f"note_{sel_id}_{int(time.time()*1000)}"
-)
+    note_attuali = cliente.get("NoteCliente", "")
+    nuove_note = st.text_area(
+        "Modifica note cliente:",
+        note_attuali,
+        height=160,
+        key=f"note_{sel_id}_{int(time.time()*1000)}"
+    )
 
     if st.button("💾 Salva Note Cliente", use_container_width=True):
         try:
@@ -604,6 +605,7 @@ nuove_note = st.text_area(
             st.rerun()
         except Exception as e:
             st.error(f"❌ Errore durante il salvataggio delle note: {e}")
+
 
     # === DATE RECALL E VISITE ===
     st.divider()

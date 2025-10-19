@@ -1159,7 +1159,7 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# LISTA COMPLETA CLIENTI E CONTRATTI — CON BADGE, RIEPILOGO E ORDINAMENTO
+# LISTA COMPLETA CLIENTI E CONTRATTI — CON BADGE, RIEPILOGO, ORDINAMENTO E SCROLL
 # =====================================
 def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.title("📋 Lista Completa Clienti e Scadenze Contratti")
@@ -1303,6 +1303,14 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             if st.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
                 st.session_state["selected_cliente"] = r["ClienteID"]
                 st.session_state["nav_target"] = "Clienti"
+
+                # 🔹 Scroll automatico all’inizio della pagina (smooth)
+                st.markdown("""
+                    <script>
+                        window.scrollTo({top: 0, behavior: 'smooth'});
+                    </script>
+                """, unsafe_allow_html=True)
+
                 st.rerun()
 
     st.markdown("</tbody></table>", unsafe_allow_html=True)

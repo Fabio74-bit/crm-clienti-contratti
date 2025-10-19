@@ -528,12 +528,14 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    # === HEADER CON NOME CLIENTE E PULSANTI ===
+        # === HEADER CON NOME CLIENTE E PULSANTI ===
     col_header1, col_header2 = st.columns([4, 1])
+
     with col_header1:
         st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
         st.caption(f"ClienteID: {sel_id}")
-       with col_header2:
+
+    with col_header2:
         st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
 
         if st.button("📄 Vai ai Contratti", use_container_width=True):
@@ -543,12 +545,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.rerun()
 
         st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
-        if st.button("✏️ Modifica Anagrafica", key=f"btn_anag_{sel_id}", use_container_width=True, type="secondary"):
-            st.session_state[f"show_anagrafica_{sel_id}"] = not st.session_state.get(f"show_anagrafica_{sel_id}", False)
-            st.rerun()
 
-
-        st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
         if st.button("✏️ Modifica Anagrafica", key=f"btn_anag_{sel_id}", use_container_width=True, type="secondary"):
             st.session_state[f"show_anagrafica_{sel_id}"] = not st.session_state.get(f"show_anagrafica_{sel_id}", False)
             st.rerun()

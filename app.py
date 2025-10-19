@@ -1033,12 +1033,15 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # MAIN APP
 # =====================================
 def main():
+    # === LOGIN ===
     user, role = do_login_fullscreen()
     if not user:
         st.stop()
 
+    # === SIDEBAR ===
     st.sidebar.success(f"👤 Utente: {user} — Ruolo: {role}")
 
+    # === PAGINE DISPONIBILI ===
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -1047,11 +1050,25 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
+    # === SELEZIONE PAGINA ===
     default_page = st.session_state.pop("nav_target", "Dashboard")
-    page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()),
-                            index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0)
+    page = st.sidebar.radio(
+        "📂 Menu principale",
+        list(PAGES.keys()),
+        index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
+    )
 
+    # === CARICAMENTO DATI ===
     df_cli = load_clienti()
     df_ct = load_contratti()
 
-    if page in P
+    # === ESECUZIONE PAGINA SELEZIONATA ===
+    if page in PAGES:
+        PAGES[page](df_cli, df_ct, role)
+
+
+# =====================================
+# AVVIO APPLICAZIONE
+# =====================================
+if __name__ == "__main__":
+    main()

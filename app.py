@@ -322,7 +322,7 @@ def page_dashboard(df_cli, df_ct, role):
 
 
 # =====================================
-# PAGINA CLIENTI (aggiornata con preventivi integrati)
+# PAGINA CLIENTI (completa con anagrafica + preventivi)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
@@ -418,8 +418,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.success("✅ Date aggiornate.")
         st.rerun()
 
-    st.divider()
-        # === MODIFICA ANAGRAFICA COMPLETA ===
+    # === MODIFICA ANAGRAFICA COMPLETA ===
     st.divider()
     with st.expander("✏️ Modifica Anagrafica Completa"):
         with st.form(f"frm_anagrafica_{sel_id}"):
@@ -455,43 +454,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 save_clienti(df_cli)
                 st.success("✅ Anagrafica aggiornata.")
                 st.rerun()
-    # === MODIFICA ANAGRAFICA ===
-    with st.expander("✏️ Modifica Anagrafica Completa"):
-        with st.form(f"frm_anagrafica_{sel_id}"):
-            col1, col2 = st.columns(2)
-            with col1:
-                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
-                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
-                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
-                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
-                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
-                email = st.text_input("✉️ Email", cliente.get("Email", ""))
-                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-            with col2:
-                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
-                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
-                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
-
-            salva_btn = st.form_submit_button("💾 Salva Modifiche")
-            if salva_btn:
-                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                df_cli.loc[idx, ["Indirizzo","Citta","CAP","Telefono","Cell","Email","PersonaRiferimento","PartitaIVA","IBAN","SDI"]] = \
-                    [indirizzo,citta,cap,telefono,cell,email,persona,piva,iban,sdi]
-                save_clienti(df_cli)
-                st.success("✅ Anagrafica aggiornata.")
-                st.rerun()
-
-    st.divider()
-
-    # ===== NOTE CLIENTE =====
-    st.markdown("### 📝 Note Cliente")
-    note = cliente.get("NoteCliente", "")
-    new_note = st.text_area("Modifica note:", note, height=150)
-    if st.button("💾 Salva Note"):
-        df_cli.loc[df_cli["ClienteID"] == sel_id, "NoteCliente"] = new_note
-        save_clienti(df_cli)
-        st.success("✅ Note aggiornate.")
-        st.rerun()
 
     st.divider()
 

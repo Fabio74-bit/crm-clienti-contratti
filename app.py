@@ -1,4 +1,4 @@
-page_lista_clienti# =====================================
+# =====================================
 # app.py — Gestionale Clienti SHT (FULL 2025 ITA)
 # =====================================
 from __future__ import annotations

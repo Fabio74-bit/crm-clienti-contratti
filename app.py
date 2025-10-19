@@ -478,7 +478,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.rerun()
 
 # =====================================
-# PAGINA CLIENTI (corretta + integrazione Elenco Contratti)
+# PAGINA CLIENTI (corretta — con sezione contratti integrata)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # 🔝 Scroll automatico in cima
@@ -675,14 +675,21 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("### 📋 Elenco Contratti Cliente")
 
     df_ct_local = load_contratti()
+    required_cols = {"ClienteID","NumeroContratto","DataInizio","DataFine","Durata",
+                     "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"}
+    missing = [c for c in required_cols if c not in df_ct_local.columns]
+    if missing:
+        st.error(f"Nel CSV mancano queste colonne obbligatorie: {', '.join(missing)}")
+        return
+
     contratti_cli = df_ct_local[df_ct_local["ClienteID"].astype(str) == str(sel_id)].copy()
 
     if contratti_cli.empty:
         st.info("Nessun contratto registrato per questo cliente.")
     else:
         contratti_cli["DataInizio"] = contratti_cli["DataInizio"].apply(fmt_date)
-        contratti_cli["DataFine"] = contratti_cli["DataFine"].apply(fmt_date)
-        contratti_cli["TotRata"] = contratti_cli["TotRata"].apply(money)
+        contratti_cli["DataFine"]   = contratti_cli["DataFine"].apply(fmt_date)
+        contratti_cli["TotRata"]    = contratti_cli["TotRata"].apply(money)
 
         st.markdown("""
         <style>
@@ -700,9 +707,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             background-color: #f3f4f6;
             font-weight: 600;
         }
-        .tbl-contratti tr:hover td {
-            background-color: #fef9c3;
-        }
+        .tbl-contratti tr:hover td { background-color: #fef9c3; }
         </style>
         """, unsafe_allow_html=True)
 
@@ -717,12 +722,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         for _, r in contratti_cli.iterrows():
             stato = str(r.get("Stato", "")).lower().strip()
-            colore_bg = "#e8f5e9" if "aperto" in stato or "attivo" in stato else "#fffde7" if "scaden" in stato else "#ffebee"
-            colore_tx = "#1b5e20" if "aperto" in stato or "attivo" in stato else "#b45309" if "scaden" in stato else "#b71c1c"
+            bg = "#e8f5e9" if ("aperto" in stato or "attivo" in stato) else ("#fffde7" if "scad" in stato else "#ffebee")
+            tx = "#1b5e20" if ("aperto" in stato or "attivo" in stato) else ("#b45309" if "scad" in stato else "#b71c1c")
 
             st.markdown(
                 f"""
-                <tr style="background:{colore_bg}; color:{colore_tx};">
+                <tr style="background:{bg}; color:{tx};">
                     <td>{r.get("NumeroContratto","")}</td>
                     <td>{r.get("DescrizioneProdotto","")}</td>
                     <td>{r.get("DataInizio","")}</td>
@@ -740,6 +745,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             )
 
         st.markdown("</tbody></table>", unsafe_allow_html=True)
+
 
 
     # =======================================================

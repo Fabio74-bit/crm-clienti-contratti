@@ -876,15 +876,19 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf = PDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
             pdf.set_font("Arial", size=9)
+
             widths = [35, 25, 25, 20, 140, 32]
             headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata", "Descrizione Prodotto", "Tot Rata"]
 
+            # Intestazione tabella
             pdf.set_fill_color(37, 99, 235)
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Arial", "B", 9)
             for i, h in enumerate(headers):
                 pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
             pdf.ln(8)
+
+            # Dati tabella
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Arial", "", 8)
             for _, row in disp.iterrows():
@@ -896,16 +900,22 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     safe_pdf_text(row.get("DescrizioneProdotto", "")),
                     safe_pdf_text(row.get("TotRata", "")),
                 ]
+                # Calcolo altezza dinamica
                 desc_lines = wrap(values[4], 110)
                 max_lines = max(len(desc_lines), 1)
                 line_height = 4
                 row_height = line_height * max_lines
+                x_start = pdf.get_x()
+                y_start = pdf.get_y()
+
                 for i, text in enumerate(values):
                     align = "L" if i == 4 else "C"
-                    pdf.multi_cell(widths[i], line_height, text, border=1, align=align, max_line_height=pdf.font_size)
-                    x = sum(widths[:i+1])
-                    pdf.set_xy(x + 10, pdf.get_y() - row_height)
+                    x = pdf.get_x()
+                    pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
+                    pdf.set_xy(x + widths[i], y_start)
+
                 pdf.ln(row_height)
+
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
                 "📗 Esporta PDF",
@@ -914,6 +924,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 mime="application/pdf",
                 use_container_width=True
             )
+
         except Exception as e:
             st.error(f"❌ Errore PDF: {e}")
 

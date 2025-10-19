@@ -1160,23 +1160,109 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # LISTA COMPLETA CLIENTI E CONTRATTI
 # =====================================
+# =====================================
+# LISTA COMPLETA CLIENTI E CONTRATTI — VERSIONE ESTESA
+# =====================================
 def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    st.title("📋 Lista Completa Clienti e Contratti")
-    filtro_nome = st.text_input("Cerca per nome cliente")
-    filtro_citta = st.text_input("Cerca per città")
+    st.title("📋 Lista Completa Clienti e Scadenze Contratti")
 
-    merged = df_ct.merge(df_cli[["ClienteID", "RagioneSociale", "Citta"]], on="ClienteID", how="left")
+    # === FILTRI DI RICERCA ===
+    st.markdown("### 🔍 Filtri di ricerca")
+    col1, col2, col3, col4 = st.columns([1.5, 1.5, 1, 1])
+    filtro_nome = col1.text_input("🔤 Nome Cliente")
+    filtro_citta = col2.text_input("🏙️ Città")
+    data_da = col3.date_input("📅 Da Data Scadenza", format="DD/MM/YYYY", value=None)
+    data_a = col4.date_input("📅 A Data Scadenza", format="DD/MM/YYYY", value=None)
+
+    # === PREPARA DATI CLIENTI ===
+    df_cli = df_cli.copy()
+    df_ct = df_ct.copy()
+
+    # Conversione date
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+
+    # Calcola la prima scadenza per ogni cliente
+    prime_scadenze = (
+        df_ct[df_ct["DataFine"].notna()]
+        .groupby("ClienteID")["DataFine"]
+        .min()
+        .reset_index()
+        .rename(columns={"DataFine": "PrimaScadenza"})
+    )
+
+    merged = df_cli.merge(prime_scadenze, on="ClienteID", how="left")
+    merged["PrimaScadenza_fmt"] = merged["PrimaScadenza"].apply(fmt_date)
+
+    # === FILTRI ===
     if filtro_nome:
         merged = merged[merged["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
     if filtro_citta:
         merged = merged[merged["Citta"].str.contains(filtro_citta, case=False, na=False)]
+    if data_da:
+        merged = merged[merged["PrimaScadenza"] >= pd.Timestamp(data_da)]
+    if data_a:
+        merged = merged[merged["PrimaScadenza"] <= pd.Timestamp(data_a)]
 
-    merged["DataInizio"] = pd.to_datetime(merged["DataInizio"], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
-    merged["DataFine"] = pd.to_datetime(merged["DataFine"], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
-    merged = merged[["RagioneSociale", "Citta", "NumeroContratto", "DataInizio", "DataFine", "Stato"]].fillna("")
-    st.dataframe(merged, use_container_width=True, hide_index=True)
-    csv = merged.to_csv(index=False, encoding="utf-8-sig")
-    st.download_button("⬇️ Esporta CSV", csv, "lista_clienti_contratti.csv", "text/csv")
+    # Ordina alfabeticamente per cliente
+    merged = merged.sort_values("RagioneSociale", ascending=True)
+
+    # === VISUALIZZAZIONE ===
+    if merged.empty:
+        st.warning("❌ Nessun cliente trovato con i criteri selezionati.")
+        return
+
+    st.markdown("### 📇 Elenco Clienti e Scadenze")
+
+    st.markdown("""
+    <style>
+    .tbl-clienti {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .tbl-clienti th, .tbl-clienti td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 8px 10px;
+        text-align: left;
+    }
+    .tbl-clienti th {
+        background-color: #f3f4f6;
+        font-weight: 600;
+    }
+    .tbl-clienti tr:hover td {
+        background-color: #fef9c3;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown(
+        "<table class='tbl-clienti'>"
+        "<thead><tr>"
+        "<th>Cliente</th>"
+        "<th>Città</th>"
+        "<th>Prima Scadenza</th>"
+        "<th style='text-align:center;width:120px;'>Azione</th>"
+        "</tr></thead><tbody>",
+        unsafe_allow_html=True
+    )
+
+    for i, r in merged.iterrows():
+        c1, c2, c3, c4 = st.columns([2, 1.5, 1.2, 0.7])
+        with c1:
+            st.markdown(f"**{r['RagioneSociale']}**")
+        with c2:
+            st.markdown(r.get("Citta", "") or "—")
+        with c3:
+            st.markdown(r["PrimaScadenza_fmt"] or "—")
+        with c4:
+            if st.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
+                st.session_state["selected_cliente"] = r["ClienteID"]
+                st.session_state["nav_target"] = "Clienti"
+                st.rerun()
+
+    st.markdown("</tbody></table>", unsafe_allow_html=True)
+
 
 # =====================================
 # MAIN APP

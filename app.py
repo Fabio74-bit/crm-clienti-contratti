@@ -1133,22 +1133,37 @@ with c1:
     )
 
 # =====================================
-# 📗 ESPORTAZIONE PDF A PAGINA UNICA
+# 📗 ESPORTAZIONE PDF A PAGINA UNICA (compatibile con simbolo €)
 # =====================================
 with c2:
     from fpdf import FPDF
     from textwrap import wrap
+    import os
+    import tempfile
+    import requests
 
     try:
         class PDF(FPDF):
             def header(self):
                 self.image("https://www.shtsrl.com/template/images/logo.png", 10, 8, 25)
-                self.set_font("Arial", "B", 12)
+                self.set_font("DejaVu", "B", 12)
                 self.cell(0, 10, f"Contratti - {rag_soc}", ln=1, align="C")
                 self.ln(8)
 
+        # === SCARICA TEMPORANEAMENTE IL FONT DEJAVU ===
+        temp_dir = tempfile.gettempdir()
+        font_path = os.path.join(temp_dir, "DejaVuSans.ttf")
+
+        if not os.path.exists(font_path):
+            url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/version_2_37/ttf/DejaVuSans.ttf"
+            r = requests.get(url)
+            with open(font_path, "wb") as f:
+                f.write(r.content)
+
         pdf = PDF(orientation="L", unit="mm", format="A4")
         pdf.add_page()
+        pdf.add_font("DejaVu", "", font_path, uni=True)
+        pdf.add_font("DejaVu", "B", font_path, uni=True)
         pdf.set_auto_page_break(auto=False, margin=0)
 
         headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
@@ -1157,16 +1172,16 @@ with c2:
         line_height = 6
         row_height = 20
 
-        # Intestazioni
-        pdf.set_font("Arial", "B", 9)
+        # === INTESTAZIONI ===
+        pdf.set_font("DejaVu", "B", 9)
         pdf.set_fill_color(37, 99, 235)
         pdf.set_text_color(255, 255, 255)
         for i, h in enumerate(headers):
             pdf.cell(widths[i], line_height, h, border=1, align="C", fill=True)
         pdf.ln(line_height)
 
-        # Righe
-        pdf.set_font("Arial", "", 8)
+        # === RIGHE DATI ===
+        pdf.set_font("DejaVu", "", 8)
         pdf.set_text_color(0, 0, 0)
         for _, row in disp.iterrows():
             descr = str(row.get("DescrizioneProdotto", "")).strip()
@@ -1193,7 +1208,8 @@ with c2:
 
             pdf.set_y(y_top + row_height)
 
-        pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+        # === OUTPUT CON FONT UNICODE ===
+        pdf_bytes = pdf.output(dest="S").encode("utf-8")
         st.download_button(
             "📗 Esporta PDF",
             pdf_bytes,

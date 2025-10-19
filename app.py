@@ -138,10 +138,10 @@ def load_clienti() -> pd.DataFrame:
 
 
 # =====================================
-# LOAD CONTRATTI (versione estesa per nuovo CSV)
+# LOAD CONTRATTI (robusta + compatibile)
 # =====================================
 def load_contratti() -> pd.DataFrame:
-    """Legge e normalizza il file contratti_clienti.csv aggiornato."""
+    """Carica il file contratti_clienti.csv con riconoscimento automatico colonne e formattazione italiana."""
     if CONTRATTI_CSV.exists():
         df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig")
     else:
@@ -152,24 +152,41 @@ def load_contratti() -> pd.DataFrame:
         ])
         df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
-    # Pulizia e normalizzazione
+    # 🔹 Normalizza nomi colonne (gestione spazi, maiuscole/minuscole)
+    df.columns = df.columns.str.strip().str.replace(" ", "", regex=False).str.title()
+
+    # 🔹 Mappa varianti comuni verso le colonne ufficiali
+    col_map = {
+        "Datainizio": "DataInizio",
+        "DataInizio": "DataInizio",
+        "Datainizio.": "DataInizio",
+        "Datafine": "DataFine",
+        "DataFine": "DataFine",
+        "Descrizioneprodotto": "DescrizioneProdotto",
+    }
+    df = df.rename(columns=col_map)
+
+    # 🔹 Pulizia dei valori
     df = (
         df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
           .fillna("")
     )
 
-    # Aggiungi colonne mancanti (per retrocompatibilità)
-    extra_cols = ["Copie", "Eccedenze"]
-    for col in extra_cols:
-        if col not in df.columns:
-            df[col] = ""
+    # 🔹 Assicura tutte le colonne richieste
+    required_cols = [
+        "ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+        "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+        "Copie", "Eccedenze", "Stato"
+    ]
+    df = ensure_columns(df, required_cols)
 
-    # Converte le date
+    # 🔹 Conversione delle date (solo se esistono)
     for c in ["DataInizio", "DataFine"]:
-        df[c] = to_date_series(df[c])
+        if c in df.columns:
+            df[c] = to_date_series(df[c])
 
-    # Ritorna DataFrame pulito
     return df
+
 
 
 # =====================================

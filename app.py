@@ -145,8 +145,8 @@ def page_dashboard(df_cli, df_ct, role):
     c4.markdown(kpi_card("Nuovi contratti anno", count_new, "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-    # =====================================
-    # ➕ CREA NUOVO CLIENTE + CONTRATTO
+       # =====================================
+    # ➕ CREA NUOVO CLIENTE + CONTRATTO (aggiornato)
     # =====================================
     with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
         with st.form("frm_new_cliente_contratto"):
@@ -156,19 +156,22 @@ def page_dashboard(df_cli, df_ct, role):
                 new_id = f"C{len(df_cli)+1:04d}"
                 rag_soc = st.text_input("Ragione Sociale *")
                 persona = st.text_input("Referente")
+                piva = st.text_input("Partita IVA")
             with col2:
                 indirizzo = st.text_input("Indirizzo")
                 citta = st.text_input("Città")
                 cap = st.text_input("CAP")
+                iban = st.text_input("IBAN")
             with col3:
                 telefono = st.text_input("Telefono")
                 cell = st.text_input("Cellulare")
                 email = st.text_input("Email")
+                sdi = st.text_input("SDI")
 
             st.markdown("#### 📄 Primo Contratto")
             colc1, colc2, colc3 = st.columns(3)
             with colc1:
-                num = st.text_input("Numero Contratto", f"CT-{new_id}-{datetime.now().year}")
+                num = st.text_input("Numero Contratto (inserisci manualmente)")
             with colc2:
                 data_inizio = st.date_input("Data Inizio")
             with colc3:
@@ -184,6 +187,8 @@ def page_dashboard(df_cli, df_ct, role):
             if submit:
                 if not rag_soc.strip():
                     st.error("Inserisci la ragione sociale.")
+                elif not num.strip():
+                    st.error("Inserisci il Numero Contratto.")
                 else:
                     nuovo_cliente = {
                         "ClienteID": new_id,
@@ -195,9 +200,13 @@ def page_dashboard(df_cli, df_ct, role):
                         "Telefono": telefono,
                         "Cell": cell,
                         "Email": email,
-                        "PartitaIVA": "", "IBAN": "", "SDI": "",
-                        "UltimoRecall": "", "ProssimoRecall": "",
-                        "UltimaVisita": "", "ProssimaVisita": "",
+                        "PartitaIVA": piva,
+                        "IBAN": iban,
+                        "SDI": sdi,
+                        "UltimoRecall": "",
+                        "ProssimoRecall": "",
+                        "UltimaVisita": "",
+                        "ProssimaVisita": "",
                         "NoteCliente": ""
                     }
                     df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
@@ -223,6 +232,7 @@ def page_dashboard(df_cli, df_ct, role):
                     st.session_state["selected_cliente"] = new_id
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
+
     # =====================================
     # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI
     # =====================================

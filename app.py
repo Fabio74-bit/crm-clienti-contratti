@@ -480,7 +480,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     </style>
     """, unsafe_allow_html=True)
 
-    # 🔍 Ricerca cliente
+    # === RICERCA CLIENTE ===
     st.markdown("### 🔍 Cerca Cliente")
     search_query = st.text_input("Cerca cliente per nome o ID:")
 
@@ -496,7 +496,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.warning("Nessun cliente trovato.")
         return
 
-    # === Selezione cliente ===
+    # === SELEZIONE CLIENTE ===
     options = filtered["RagioneSociale"].tolist()
     sel_rag = st.selectbox(
         "Seleziona Cliente",
@@ -548,8 +548,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.divider()
         st.markdown("### ✏️ Modifica Anagrafica Cliente")
         import time
-with st.form(f"frm_anagrafica_{sel_id}_{int(time.time()*1000)}"):
-
+        with st.form(f"frm_anagrafica_{sel_id}_{int(time.time()*1000)}"):
             col1, col2 = st.columns(2)
             with col1:
                 indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
@@ -584,8 +583,23 @@ with st.form(f"frm_anagrafica_{sel_id}_{int(time.time()*1000)}"):
                 st.session_state[f"show_anagrafica_{sel_id}"] = False
                 st.rerun()
 
+    # === NOTE CLIENTE (sezione indipendente) ===
+    st.divider()
+    st.markdown("### 📝 Note Cliente")
+    note_attuali = cliente.get("NoteCliente", "")
+    nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=160, key=f"note_{sel_id}")
+    if st.button("💾 Salva Note Cliente", use_container_width=True):
+        try:
+            idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+            df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+            save_clienti(df_cli)
+            st.success("✅ Note aggiornate correttamente!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Errore durante il salvataggio delle note: {e}")
 
     # === DATE RECALL E VISITE ===
+    st.divider()
     st.markdown("### ⚡ Recall e Visite")
 
     def _safe_date(val):
@@ -610,6 +624,7 @@ with st.form(f"frm_anagrafica_{sel_id}_{int(time.time()*1000)}"):
         save_clienti(df_cli)
         st.success("✅ Date aggiornate.")
         st.rerun()
+
         # === NOTE CLIENTE (blocco indipendente) ===
     st.divider()
     st.markdown("### 📝 Note Cliente")

@@ -434,7 +434,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.set_xy(x,y); pdf.multi_cell(widths[i],4,str(v),border=1,align=a)
                 x+=widths[i]
             pdf.set_y(y+h)
-        st.download_button("📗 Esporta PDF", data=pdf.output(dest="S").encode("latin-1","replace"), file_name=f"contratti_{rag_soc}.pdf", mime="application/pdf")
+        pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")  # 🔄 conversione base sicura
+# oppure, ancora meglio per compatibilità universale:
+pdf_bytes = pdf.output(dest="S").encode("utf-8", "replace")
+
+st.download_button("📗 Esporta PDF",
+    data=pdf_bytes,
+    file_name=f"contratti_{rag_soc}.pdf",
+    mime="application/pdf",
+    use_container_width=True
+)
+
 # =====================================
 # PAGINA PREVENTIVI (DOCX)
 # =====================================

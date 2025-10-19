@@ -1128,139 +1128,81 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
-           # === ESPORTAZIONE PDF (senza colonna Stato, tabella centrata e testo adattivo) ===
-    with c2:
-        from fpdf import FPDF
-        from textwrap import wrap
+           # === ESPORTAZIONE PDF A PAGINA UNICA (layout uniforme e centrato) ===
+with c2:
+    from fpdf import FPDF
+    from textwrap import wrap
 
-        def safe_pdf_text(txt: str) -> str:
-            """Pulisce testo da simboli non compatibili e gestisce UTF-8/latin1."""
-            if pd.isna(txt) or txt is None:
-                return ""
-            if not isinstance(txt, str):
-                txt = str(txt)
-            txt = txt.replace("€", "EUR").replace("–", "-").replace("—", "-")
-            return txt.encode("latin-1", "replace").decode("latin-1")
+    try:
+        class PDF(FPDF):
+            def header(self):
+                # Logo e titolo centrato
+                self.image("https://www.shtsrl.com/template/images/logo.png", 10, 8, 25)
+                self.set_font("Arial", "B", 12)
+                self.cell(0, 10, f"Contratti - {rag_soc}", ln=1, align="C")
+                self.ln(8)
 
-        def fit_text(text, max_len=18):
-            """
-            Mantiene 'RINNOVO AUTOMATICO' e frasi lunghe compatte su 1-2 righe leggibili.
-            Se il testo supera max_len, lo spezza solo tra parole.
-            """
-            if not text:
-                return ""
-            text = str(text).strip()
-            words = text.split()
-            lines, current = [], ""
-            for w in words:
-                if len(current + " " + w) <= max_len:
-                    current = (current + " " + w).strip()
-                else:
-                    lines.append(current)
-                    current = w
-            lines.append(current)
-            return "\n".join(lines)
+        pdf = PDF(orientation="L", unit="mm", format="A4")
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=False, margin=0)
 
-        try:
-            class PDF(FPDF):
-                def header(self):
-                    # LOGO E TITOLO
-                    try:
-                        self.image("https://www.shtsrl.com/template/images/logo.png", x=130, y=8, w=35)
-                    except:
-                        pass
-                    self.set_font("Arial", "B", 12)
-                    self.ln(18)
-                    titolo = safe_pdf_text(f"Contratti - {rag_soc}")
-                    self.cell(0, 10, titolo, ln=1, align="C")
-                    self.ln(3)
+        # === Imposta larghezze e stile ===
+        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                   "Descrizione Prodotto", "Tot Rata"]
+        widths = [35, 25, 25, 25, 135, 25]  # riempie l'intera pagina
+        line_height = 6
+        row_height = 18  # spazio uniforme per ogni contratto
 
-            pdf = PDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.set_font("Arial", size=9)
+        # === Intestazioni ===
+        pdf.set_font("Arial", "B", 9)
+        pdf.set_fill_color(37, 99, 235)
+        pdf.set_text_color(255, 255, 255)
+        for i, h in enumerate(headers):
+            pdf.cell(widths[i], line_height, h, border=1, align="C", fill=True)
+        pdf.ln(line_height)
 
-            # === Definizione colonne (usa tutta la larghezza A4, senza "Stato") ===
-            page_width = 297 - 20  # 10 mm margine sinistro e destro
-            widths = [35, 25, 25, 25, 140, 32]  # proporzioni bilanciate
-            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                       "Descrizione Prodotto", "Tot Rata"]
+        # === Righe contratti ===
+        pdf.set_font("Arial", "", 8)
+        pdf.set_text_color(0, 0, 0)
 
-            # === Calcola la larghezza totale e centrala ===
-            table_width = sum(widths)
-            x_start_table = (page_width - table_width) / 2 + 10  # centratura orizzontale
+        for _, row in disp.iterrows():
+            descrizione = str(row.get("DescrizioneProdotto", "")).strip()
+            descr_lines = wrap(descrizione, 110)[:3]  # max 3 righe visibili
+            descr_text = "\n".join(descr_lines)
 
-            # === Intestazioni ===
-            pdf.set_fill_color(37, 99, 235)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font("Arial", "B", 9)
-            pdf.set_x(x_start_table)
-            for i, h in enumerate(headers):
-                pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
-            pdf.ln(8)
-            # === Righe dati (altezza uniforme, 3 righe per cella) ===
-            pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Arial", "", 8)
+            values = [
+                str(row.get("NumeroContratto", "") or ""),
+                str(row.get("DataInizio", "") or ""),
+                str(row.get("DataFine", "") or ""),
+                str(row.get("Durata", "") or ""),
+                descr_text,
+                str(row.get("TotRata", "") or ""),
+            ]
 
-            for _, row in disp.iterrows():
-                # Pulisci e adatta i testi
-                num_contr = safe_pdf_text(row.get("NumeroContratto", ""))
-                data_in = safe_pdf_text(row.get("DataInizio", ""))
-                data_fin = safe_pdf_text(row.get("DataFine", ""))
-                durata_txt = fit_text(row.get("Durata", ""), max_len=18)
-                descrizione_txt = safe_pdf_text(row.get("DescrizioneProdotto", ""))
-                tot_rata = safe_pdf_text(row.get("TotRata", ""))
+            y_top = pdf.get_y()
+            x_pos = pdf.l_margin
 
-                # 🔹 Limita durata a max 3 righe
-                durata_lines = durata_txt.split("\n")[:3]
-                durata_txt = "\n".join(durata_lines)
+            for i, text in enumerate(values):
+                align = "L" if i == 4 else "C"
+                pdf.multi_cell(widths[i], 6, text, border=1, align=align)
+                pdf.set_xy(x_pos + widths[i], y_top)
+                x_pos += widths[i]
 
-                # 🔹 Limita descrizione a max 3 righe
-                desc_lines = wrap(descrizione_txt, 95)[:3]
-                descrizione_txt = "\n".join(desc_lines)
+            pdf.set_y(y_top + row_height)
 
-                # 🔹 Lista finale dei valori
-                values = [
-                    num_contr,
-                    data_in,
-                    data_fin,
-                    durata_txt,
-                    descrizione_txt,
-                    tot_rata,
-                ]
-
-                # 🔹 Altezza uniforme (3 righe x 5 mm = 15 mm)
-                line_height = 5
-                row_height = 15
-
-                x_table = x_start_table
-                y_top = pdf.get_y()
-
-                # Disegna celle con altezza fissa
-                for i, text in enumerate(values):
-                    align = "L" if i == 4 else "C"
-                    pdf.set_xy(x_table, y_top)
-                    pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
-                    x_table += widths[i]
-
-                # Mantiene l’allineamento orizzontale perfetto
-                pdf.set_y(y_top + row_height)
-
-
-
-
-            # === Esporta PDF ===
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+        pdf.output("contratti_temp.pdf")
+        with open("contratti_temp.pdf", "rb") as f:
             st.download_button(
-                "📗 Esporta PDF (centrato e pulito)",
-                data=pdf_bytes,
+                "📗 Esporta PDF",
+                f.read(),
                 file_name=f"contratti_{rag_soc}.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
 
-        except Exception as e:
-            st.error(f"❌ Errore PDF: {e}")
+    except Exception as e:
+        st.error(f"❌ Errore durante la creazione del PDF: {e}")
+
 
 
 

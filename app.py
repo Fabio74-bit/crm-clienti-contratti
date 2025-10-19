@@ -1130,14 +1130,6 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.title("📋 Lista Completa Clienti e Scadenze Contratti")
 
-    # === FILTRI DI RICERCA ===
-    st.markdown("### 🔍 Filtri di ricerca")
-    col1, col2, col3, col4 = st.columns([1.5, 1.5, 1, 1])
-    filtro_nome = col1.text_input("🔤 Nome Cliente")
-    filtro_citta = col2.text_input("🏙️ Città")
-    data_da = col3.date_input("📅 Da Data Scadenza", format="DD/MM/YYYY", value=None)
-    data_a = col4.date_input("📅 A Data Scadenza", format="DD/MM/YYYY", value=None)
-
     # === PREPARA DATI CLIENTI ===
     df_cli = df_cli.copy()
     df_ct = df_ct.copy()

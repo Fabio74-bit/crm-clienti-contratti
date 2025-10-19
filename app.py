@@ -984,222 +984,227 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto per questo cliente.")
         return
 
-       # === FORMATTAZIONE E STILE TABELLA ===
-    ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
-    disp = ct.copy()
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-    disp["TotRata"] = disp["TotRata"].apply(money)
-    disp = disp.drop(columns=["ClienteID"], errors="ignore")
+# === FORMATTAZIONE E STILE TABELLA ===
+ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
+disp = ct.copy()
+disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+disp["TotRata"] = disp["TotRata"].apply(money)
+disp = disp.drop(columns=["ClienteID"], errors="ignore")
 
-    gb = GridOptionsBuilder.from_dataframe(disp)
-    gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
-    js_code = JsCode("""
-    function(params) {
-        if (!params.data.Stato) return {};
-        const stato = params.data.Stato.toLowerCase();
-        if (stato === 'chiuso') {
-            return { 'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold' };
-        } else if (stato === 'aperto' || stato === 'attivo') {
-            return { 'backgroundColor': '#e8f5e9', 'color': '#1b5e20' };
-        } else {
-            return {};
-        }
+gb = GridOptionsBuilder.from_dataframe(disp)
+gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
+
+js_code = JsCode("""
+function(params) {
+    if (!params.data.Stato) return {};
+    const stato = params.data.Stato.toLowerCase();
+    if (stato === 'chiuso') {
+        return { 'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold' };
+    } else if (stato === 'aperto' || stato === 'attivo') {
+        return { 'backgroundColor': '#e8f5e9', 'color': '#1b5e20' };
+    } else {
+        return {};
     }
-    """)
-    gb.configure_grid_options(getRowStyle=js_code)
-    grid_opts = gb.build()
+}
+""")
+gb.configure_grid_options(getRowStyle=js_code)
+grid_opts = gb.build()
 
-    st.markdown("### 📑 Lista contratti")
-    AgGrid(
-        disp,
-        gridOptions=grid_opts,
-        theme="balham",
-        height=380,
-        update_mode=GridUpdateMode.SELECTION_CHANGED,
-        allow_unsafe_jscode=True
-    )
+st.markdown("### 📑 Lista contratti")
+AgGrid(
+    disp,
+    gridOptions=grid_opts,
+    theme="balham",
+    height=380,
+    update_mode=GridUpdateMode.SELECTION_CHANGED,
+    allow_unsafe_jscode=True
+)
 
-    st.divider()
+st.divider()
 
-    # Recupera la ragione sociale (fallback se non definita)
-    rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
-    
-    if disp.empty:
-        st.warning("⚠️ Nessun dato disponibile per l’esportazione.")
-    else:
-        # 👇 CREA LE DUE COLONNE
-        c1, c2 = st.columns(2)
-    st.divider()
+# Recupera la ragione sociale (fallback se non definita)
+rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
 
-    # =====================================
-    # 🔹 Pulizia definitiva dei dati prima di esportazione
-    # =====================================
-    rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
-
-    if "disp" not in locals() or disp is None or disp.empty:
-        st.warning("⚠️ Nessun contratto disponibile per l’esportazione.")
-        st.stop()
-
-    disp = disp.copy().astype(str)
-    disp = disp.replace(
-        to_replace=r"^(nan|NaN|None|null|NULL|NaT|nan\s*EUR|\s*)$",
-        value="",
-        regex=True
-    )
-    for c in disp.columns:
-        disp[c] = disp[c].apply(lambda x: x.strip() if isinstance(x, str) else x)
-
-    # === CREA LE DUE COLONNE ===
+if disp.empty:
+    st.warning("⚠️ Nessun dato disponibile per l’esportazione.")
+else:
+    # 👇 CREA LE DUE COLONNE
     c1, c2 = st.columns(2)
 
-    # === ESPORTAZIONE EXCEL MIGLIORATA ===
-    with c1:
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
-        from openpyxl.utils import get_column_letter
-        from io import BytesIO
+st.divider()
 
-        wb = Workbook()
-        ws = wb.active
-        ws.title = f"Contratti {rag_soc}"
+# =====================================
+# 🔹 Pulizia definitiva dei dati prima di esportazione
+# =====================================
+rag_soc = cliente_info["RagioneSociale"] if "cliente_info" in locals() else "Cliente"
 
-        # === TITOLO CLIENTE ===
-        ws.merge_cells("A1:G1")
-        title = ws["A1"]
-        title.value = f"Contratti - {rag_soc}"
-        title.font = Font(size=12, bold=True, color="2563EB")
-        title.alignment = Alignment(horizontal="center", vertical="center")
-        ws.append([])
+if "disp" not in locals() or disp is None or disp.empty:
+    st.warning("⚠️ Nessun contratto disponibile per l’esportazione.")
+    st.stop()
 
-        # === PULIZIA COLONNE ===
-        disp = disp.loc[:, ~disp.columns.str.lower().str.startswith("je")]
-        headers = list(disp.columns)
+disp = disp.copy().astype(str)
+disp = disp.replace(
+    to_replace=r"^(nan|NaN|None|null|NULL|NaT|nan\s*EUR|\s*)$",
+    value="",
+    regex=True
+)
+for c in disp.columns:
+    disp[c] = disp[c].apply(lambda x: x.strip() if isinstance(x, str) else x)
 
-        center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        left = Alignment(horizontal="left", vertical="top", wrap_text=True)
-        bold = Font(bold=True, color="FFFFFF")
-        thin_border = Border(
-            left=Side(style="thin"), right=Side(style="thin"),
-            top=Side(style="thin"), bottom=Side(style="thin")
-        )
-        header_fill = PatternFill("solid", fgColor="2563EB")
+# === CREA LE DUE COLONNE ===
+c1, c2 = st.columns(2)
 
-        # === INTESTAZIONI ===
-        ws.append(headers)
-        for i, h in enumerate(headers, 1):
-            cell = ws.cell(row=ws.max_row, column=i)
-            cell.font = bold
-            cell.fill = header_fill
-            cell.alignment = center
+# =====================================
+# 📘 ESPORTAZIONE EXCEL MIGLIORATA
+# =====================================
+with c1:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Contratti {rag_soc}"
+
+    # === TITOLO CLIENTE ===
+    ws.merge_cells("A1:G1")
+    title = ws["A1"]
+    title.value = f"Contratti - {rag_soc}"
+    title.font = Font(size=12, bold=True, color="2563EB")
+    title.alignment = Alignment(horizontal="center", vertical="center")
+    ws.append([])
+
+    # === PULIZIA COLONNE ===
+    disp = disp.loc[:, ~disp.columns.str.lower().str.startswith("je")]
+    headers = list(disp.columns)
+
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    bold = Font(bold=True, color="FFFFFF")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+    header_fill = PatternFill("solid", fgColor="2563EB")
+
+    # === INTESTAZIONI ===
+    ws.append(headers)
+    for i, h in enumerate(headers, 1):
+        cell = ws.cell(row=ws.max_row, column=i)
+        cell.font = bold
+        cell.fill = header_fill
+        cell.alignment = center
+        cell.border = thin_border
+
+    # === RIGHE DATI ===
+    for _, riga in disp.iterrows():
+        ws.append(list(riga))
+        for col_idx, col_name in enumerate(headers, 1):
+            cell = ws.cell(row=ws.max_row, column=col_idx)
             cell.border = thin_border
+            cell.alignment = left if "descrizione" in col_name.lower() else center
 
-        # === RIGHE DATI ===
-        for _, riga in disp.iterrows():
-            ws.append(list(riga))
-            for col_idx, col_name in enumerate(headers, 1):
-                cell = ws.cell(row=ws.max_row, column=col_idx)
-                cell.border = thin_border
-                cell.alignment = left if "descrizione" in col_name.lower() else center
+    # === ADATTA LARGHEZZA E ALTEZZA ===
+    for col_idx in range(1, ws.max_column + 1):
+        max_length = 0
+        for row in range(1, ws.max_row + 1):
+            cell = ws.cell(row=row, column=col_idx)
+            try:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+            except Exception:
+                pass
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = min(max_length + 4, 60)
 
-        # === ADATTA LARGHEZZA E ALTEZZA ===
-        for col_idx in range(1, ws.max_column + 1):
-            max_length = 0
-            for row in range(1, ws.max_row + 1):
-                cell = ws.cell(row=row, column=col_idx)
-                try:
-                    if cell.value:
-                        max_length = max(max_length, len(str(cell.value)))
-                except Exception:
-                    pass
-            col_letter = get_column_letter(col_idx)
-            ws.column_dimensions[col_letter].width = min(max_length + 4, 60)
+    for r in range(3, ws.max_row + 1):
+        ws.row_dimensions[r].height = 30
 
-        for r in range(3, ws.max_row + 1):
-            ws.row_dimensions[r].height = 30
+    bio = BytesIO()
+    wb.save(bio)
+    st.download_button(
+        "📘 Esporta Excel",
+        data=bio.getvalue(),
+        file_name=f"contratti_{rag_soc}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
 
-        bio = BytesIO()
-        wb.save(bio)
+# =====================================
+# 📗 ESPORTAZIONE PDF A PAGINA UNICA
+# =====================================
+with c2:
+    from fpdf import FPDF
+    from textwrap import wrap
+
+    try:
+        class PDF(FPDF):
+            def header(self):
+                self.image("https://www.shtsrl.com/template/images/logo.png", 10, 8, 25)
+                self.set_font("Arial", "B", 12)
+                self.cell(0, 10, f"Contratti - {rag_soc}", ln=1, align="C")
+                self.ln(8)
+
+        pdf = PDF(orientation="L", unit="mm", format="A4")
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=False, margin=0)
+
+        headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
+                   "Descrizione Prodotto", "Tot Rata"]
+        widths = [35, 25, 25, 25, 135, 25]
+        line_height = 6
+        row_height = 20
+
+        # Intestazioni
+        pdf.set_font("Arial", "B", 9)
+        pdf.set_fill_color(37, 99, 235)
+        pdf.set_text_color(255, 255, 255)
+        for i, h in enumerate(headers):
+            pdf.cell(widths[i], line_height, h, border=1, align="C", fill=True)
+        pdf.ln(line_height)
+
+        # Righe
+        pdf.set_font("Arial", "", 8)
+        pdf.set_text_color(0, 0, 0)
+        for _, row in disp.iterrows():
+            descr = str(row.get("DescrizioneProdotto", "")).strip()
+            descr_lines = wrap(descr, 110)[:3]
+            descr_text = "\n".join(descr_lines)
+
+            values = [
+                row.get("NumeroContratto", ""),
+                row.get("DataInizio", ""),
+                row.get("DataFine", ""),
+                row.get("Durata", ""),
+                descr_text,
+                row.get("TotRata", ""),
+            ]
+
+            y_top = pdf.get_y()
+            x_pos = pdf.l_margin
+
+            for i, text in enumerate(values):
+                align = "L" if i == 4 else "C"
+                pdf.multi_cell(widths[i], 6, str(text), border=1, align=align)
+                pdf.set_xy(x_pos + widths[i], y_top)
+                x_pos += widths[i]
+
+            pdf.set_y(y_top + row_height)
+
+        pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
         st.download_button(
-            "📘 Esporta Excel",
-            data=bio.getvalue(),
-            file_name=f"contratti_{rag_soc}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "📗 Esporta PDF",
+            pdf_bytes,
+            f"contratti_{rag_soc}.pdf",
+            "application/pdf",
             use_container_width=True
         )
 
-   # =====================================
-    # 📗 ESPORTAZIONE PDF A PAGINA UNICA
-    # =====================================
-    with c2:
-        from fpdf import FPDF
-        from textwrap import wrap
+    except Exception as e:
+        st.error(f"❌ Errore durante la creazione del PDF: {e}")
 
-        try:
-            class PDF(FPDF):
-                def header(self):
-                    self.image("https://www.shtsrl.com/template/images/logo.png", 10, 8, 25)
-                    self.set_font("Arial", "B", 12)
-                    self.cell(0, 10, f"Contratti - {rag_soc}", ln=1, align="C")
-                    self.ln(8)
-
-            pdf = PDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=False, margin=0)
-
-            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                       "Descrizione Prodotto", "Tot Rata"]
-            widths = [35, 25, 25, 25, 135, 25]
-            line_height = 6
-            row_height = 20
-
-            # Intestazioni
-            pdf.set_font("Arial", "B", 9)
-            pdf.set_fill_color(37, 99, 235)
-            pdf.set_text_color(255, 255, 255)
-            for i, h in enumerate(headers):
-                pdf.cell(widths[i], line_height, h, border=1, align="C", fill=True)
-            pdf.ln(line_height)
-
-            # Righe
-            pdf.set_font("Arial", "", 8)
-            pdf.set_text_color(0, 0, 0)
-            for _, row in disp.iterrows():
-                descr = str(row.get("DescrizioneProdotto", "")).strip()
-                descr_lines = wrap(descr, 110)[:3]
-                descr_text = "\n".join(descr_lines)
-
-                values = [
-                    row.get("NumeroContratto", ""),
-                    row.get("DataInizio", ""),
-                    row.get("DataFine", ""),
-                    row.get("Durata", ""),
-                    descr_text,
-                    row.get("TotRata", ""),
-                ]
-
-                y_top = pdf.get_y()
-                x_pos = pdf.l_margin
-
-                for i, text in enumerate(values):
-                    align = "L" if i == 4 else "C"
-                    pdf.multi_cell(widths[i], 6, str(text), border=1, align=align)
-                    pdf.set_xy(x_pos + widths[i], y_top)
-                    x_pos += widths[i]
-
-                pdf.set_y(y_top + row_height)
-
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-            st.download_button(
-                "📗 Esporta PDF",
-                pdf_bytes,
-                f"contratti_{rag_soc}.pdf",
-                "application/pdf",
-                use_container_width=True
-            )
-
-        except Exception as e:
-            st.error(f"❌ Errore durante la creazione del PDF: {e}")
 
 # =====================================
 # 📅 PAGINA RICHIAMI E VISITE (stile Pulito Business)

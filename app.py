@@ -137,20 +137,38 @@ def load_clienti() -> pd.DataFrame:
     return df
 
 
+# =====================================
+# LOAD CONTRATTI (versione estesa per nuovo CSV)
+# =====================================
 def load_contratti() -> pd.DataFrame:
+    """Legge e normalizza il file contratti_clienti.csv aggiornato."""
     if CONTRATTI_CSV.exists():
         df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig")
     else:
-        df = pd.DataFrame(columns=CONTRATTI_COLS)
+        df = pd.DataFrame(columns=[
+            "ClienteID", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+            "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+            "Copie", "Eccedenze", "Stato"
+        ])
         df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
+    # Pulizia e normalizzazione
     df = (
         df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
+          .fillna("")
     )
-    df = ensure_columns(df, CONTRATTI_COLS)
+
+    # Aggiungi colonne mancanti (per retrocompatibilità)
+    extra_cols = ["Copie", "Eccedenze"]
+    for col in extra_cols:
+        if col not in df.columns:
+            df[col] = ""
+
+    # Converte le date
     for c in ["DataInizio", "DataFine"]:
         df[c] = to_date_series(df[c])
+
+    # Ritorna DataFrame pulito
     return df
 
 
@@ -776,7 +794,85 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
-# ==== FINE BLOCCO 3 ====
+# =====================================
+# 📋 ELENCO CONTRATTI DEL CLIENTE (layout business clean)
+# =====================================
+st.divider()
+st.markdown("### 📋 Elenco Contratti Cliente")
+
+contratti_cli = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+
+if contratti_cli.empty:
+    st.info("Nessun contratto registrato per questo cliente.")
+else:
+    contratti_cli["DataInizio"] = contratti_cli["DataInizio"].apply(fmt_date)
+    contratti_cli["DataFine"] = contratti_cli["DataFine"].apply(fmt_date)
+    contratti_cli["TotRata"] = contratti_cli["TotRata"].apply(money)
+
+    st.markdown("""
+    <style>
+    .tbl-contratti {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        margin-top: 10px;
+    }
+    .tbl-contratti th, .tbl-contratti td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 8px 10px;
+        text-align: left;
+    }
+    .tbl-contratti th {
+        background-color: #f3f4f6;
+        font-weight: 600;
+    }
+    .tbl-contratti tr:hover td {
+        background-color: #fef9c3;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown(
+        "<table class='tbl-contratti'>"
+        "<thead><tr>"
+        "<th>Numero</th><th>Descrizione</th><th>Inizio</th><th>Fine</th><th>Durata</th>"
+        "<th>NOL FIN</th><th>NOL INT</th><th>Tot Rata</th><th>Copie</th><th>Eccedenze</th><th>Stato</th><th>Azioni</th>"
+        "</tr></thead><tbody>",
+        unsafe_allow_html=True
+    )
+
+    for i, r in contratti_cli.iterrows():
+        stato = str(r.get("Stato", "")).lower().strip()
+        colore_bg = "#e8f5e9" if "aperto" in stato or "attivo" in stato else "#fffde7" if "scaden" in stato else "#ffebee"
+        colore_tx = "#1b5e20" if "aperto" in stato or "attivo" in stato else "#b45309" if "scaden" in stato else "#b71c1c"
+
+        c_html = f"""
+        <tr style="background:{colore_bg}; color:{colore_tx};">
+            <td>{r.get("NumeroContratto","")}</td>
+            <td>{r.get("DescrizioneProdotto","")}</td>
+            <td>{r.get("DataInizio","")}</td>
+            <td>{r.get("DataFine","")}</td>
+            <td>{r.get("Durata","")}</td>
+            <td>{r.get("NOL_FIN","")}</td>
+            <td>{r.get("NOL_INT","")}</td>
+            <td>{r.get("TotRata","")}</td>
+            <td>{r.get("Copie","")}</td>
+            <td>{r.get("Eccedenze","")}</td>
+            <td style="font-weight:600;">{r.get("Stato","")}</td>
+            <td>
+                <form action="#" method="post">
+                    <button name="mod_{i}" style="background:#2563eb;color:white;border:none;padding:4px 8px;border-radius:6px;margin-right:3px;">✏️</button>
+                    <button name="chiudi_{i}" style="background:#16a34a;color:white;border:none;padding:4px 8px;border-radius:6px;margin-right:3px;">✅</button>
+                    <button name="pdf_{i}" style="background:#2563eb;color:white;border:none;padding:4px 8px;border-radius:6px;margin-right:3px;">📄</button>
+                    <button name="xls_{i}" style="background:#64748b;color:white;border:none;padding:4px 8px;border-radius:6px;">📘</button>
+                </form>
+            </td>
+        </tr>
+        """
+        st.markdown(c_html, unsafe_allow_html=True)
+
+    st.markdown("</tbody></table>", unsafe_allow_html=True)
+
 # =====================================
 # PAGINA CONTRATTI
 # =====================================

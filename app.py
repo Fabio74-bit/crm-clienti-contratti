@@ -547,7 +547,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if st.session_state.get(f"show_anagrafica_{sel_id}", False):
         st.divider()
         st.markdown("### ✏️ Modifica Anagrafica Cliente")
-        with st.form(f"frm_anagrafica_{sel_id}"):
+        import time
+with st.form(f"frm_anagrafica_{sel_id}_{int(time.time()*1000)}"):
+
             col1, col2 = st.columns(2)
             with col1:
                 indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))

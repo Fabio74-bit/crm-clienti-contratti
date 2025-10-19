@@ -983,6 +983,20 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
         return
+# =====================================
+# 📋 PREPARAZIONE DATI CONTRATTI CLIENTE
+# =====================================
+try:
+    # Seleziona i contratti del cliente corrente
+    ct = df_ct[df_ct["ClienteID"] == cliente_info["ID"]].copy()
+
+    if ct.empty:
+        st.warning("⚠️ Nessun contratto disponibile per questo cliente.")
+        st.stop()
+except Exception as e:
+    st.error(f"❌ Errore nel caricamento contratti: {e}")
+    st.stop()
+
 
 # === FORMATTAZIONE E STILE TABELLA ===
 ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")

@@ -1128,12 +1128,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
-    # === ESPORTAZIONE PDF MIGLIORATA ===
+        # === ESPORTAZIONE PDF MIGLIORATA ===
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
 
         def safe_pdf_text(txt: str) -> str:
+            """Pulisce testo da simboli non compatibili e gestisce UTF-8/latin1."""
             if pd.isna(txt) or txt is None:
                 return ""
             if not isinstance(txt, str):
@@ -1146,48 +1147,63 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 def header(self):
                     self.set_font("Arial", "B", 12)
                     titolo = safe_pdf_text(f"Contratti - {rag_soc}")
-                    self.cell(0, 8, titolo, ln=1, align="C")
-                    self.ln(4)
+                    self.cell(0, 10, titolo, ln=1, align="C")
+                    self.ln(3)
 
             pdf = PDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.set_font("Arial", size=9)
 
+            # === Definizione colonne (usa tutta la larghezza A4) ===
+            page_width = 297 - 20  # 10 mm margine per lato
+            widths = [30, 25, 25, 20, 140, 30, 27]  # proporzioni corrette
             headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
                        "Descrizione Prodotto", "Tot Rata", "Stato"]
-            widths = [35, 25, 25, 20, 90, 25, 25]
-            pdf.set_font("Arial", "B", 9)
+
+            # === Intestazioni ===
             pdf.set_fill_color(37, 99, 235)
             pdf.set_text_color(255, 255, 255)
+            pdf.set_font("Arial", "B", 9)
             for i, h in enumerate(headers):
-                pdf.cell(widths[i], 7, safe_pdf_text(h), 1, 0, "C", fill=True)
-            pdf.ln(7)
+                pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
+            pdf.ln(8)
 
-            pdf.set_font("Arial", "", 9)
+            # === Dati ===
             pdf.set_text_color(0, 0, 0)
+            pdf.set_font("Arial", "", 8)
+
             for _, row in disp.iterrows():
-                desc = safe_pdf_text(row.get("DescrizioneProdotto", ""))
-                desc_lines = wrap(desc, 70)
-                h = max(7, len(desc_lines) * 4)
+                # Estrai campi
+                values = [
+                    safe_pdf_text(row.get("NumeroContratto", "")),
+                    safe_pdf_text(row.get("DataInizio", "")),
+                    safe_pdf_text(row.get("DataFine", "")),
+                    safe_pdf_text(row.get("Durata", "")),
+                    safe_pdf_text(row.get("DescrizioneProdotto", "")),
+                    safe_pdf_text(row.get("TotRata", "")),
+                    safe_pdf_text(row.get("Stato", "")),
+                ]
 
-                x = pdf.get_x()
-                y = pdf.get_y()
+                # Calcola l’altezza della riga in base alla descrizione
+                desc_lines = wrap(values[4], 110)
+                max_lines = max(len(desc_lines), 1)
+                line_height = 4
+                row_height = line_height * max_lines
 
-                def cell(text, w, align="C"):
-                    pdf.multi_cell(w, h, safe_pdf_text(text or ""), 1, align)
-                    pdf.set_xy(x + w, y)
+                # Stampa la riga con celle allineate
+                x_start = pdf.get_x()
+                y_start = pdf.get_y()
 
-                cell(row.get("NumeroContratto", ""), widths[0])
-                cell(row.get("DataInizio", ""), widths[1])
-                cell(row.get("DataFine", ""), widths[2])
-                cell(row.get("Durata", ""), widths[3])
-                pdf.multi_cell(widths[4], 4, desc, 1, "L")
-                y_new = pdf.get_y()
-                pdf.set_xy(x + sum(widths[:5]), y)
-                cell(row.get("TotRata", ""), widths[5])
-                cell(row.get("Stato", ""), widths[6])
-                pdf.set_y(max(y_new, y + h))
+                for i, text in enumerate(values):
+                    align = "L" if i == 4 else "C"
+                    pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
+                    x_start += widths[i]
+                    pdf.set_xy(x_start, y_start)
 
+                pdf.ln(row_height)
+
+            # === Esporta PDF ===
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
                 "📗 Esporta PDF",

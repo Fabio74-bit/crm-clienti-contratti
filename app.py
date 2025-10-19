@@ -1199,9 +1199,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
             pdf.ln(8)
 
-            # === Righe dati ===
+                       # === Righe dati (uniformi a 2 righe) ===
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Arial", "", 8)
+
             for _, row in disp.iterrows():
                 values = [
                     safe_pdf_text(row.get("NumeroContratto", "")),
@@ -1212,12 +1213,21 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     safe_pdf_text(row.get("TotRata", "")),
                 ]
 
-                # Calcolo altezza dinamica in base alla descrizione
-                desc_lines = wrap(values[4], 110)
-                dur_lines = values[3].count("\n") + 1
-                max_lines = max(len(desc_lines), dur_lines, 1)
+                # 🔹 Forza Durata su massimo 2 righe
+                durata_lines = values[3].split("\n")[:2]
+                durata_text = "\n".join(durata_lines)
+
+                # 🔹 Limita descrizione a massimo 2 righe leggibili
+                desc_lines = wrap(values[4], 90)[:2]
+                descrizione_text = "\n".join(desc_lines)
+
+                # 🔹 Aggiorna i valori modificati
+                values[3] = durata_text
+                values[4] = descrizione_text
+
+                # 🔹 Altezza uniforme (2 righe x 4mm = 8mm)
                 line_height = 4
-                row_height = line_height * max_lines
+                row_height = 8
 
                 x_table = x_start_table
                 y_top = pdf.get_y()
@@ -1229,6 +1239,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     x_table += widths[i]
 
                 pdf.set_y(y_top + row_height)
+
 
             # === Esporta PDF ===
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")

@@ -562,7 +562,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
                 iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
                 sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
-                note = st.text_area("📝 Note Cliente", cliente.get("NoteCliente", ""), height=110)
+               
 
             salva_btn = st.form_submit_button("💾 Salva Modifiche")
             if salva_btn:

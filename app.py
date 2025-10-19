@@ -441,23 +441,33 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.session_state["selected_cliente"] = r["ClienteID"]
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
-# ==== FINE BLOCCO 2 ====
 # =====================================
 # PAGINA CLIENTI (completa con anagrafica + preventivi)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
 
-    # 🔁 Se è stato selezionato un cliente dalla dashboard, aprilo automaticamente
-    if "selected_cliente" in st.session_state:
-        selected_id = st.session_state.pop("selected_cliente")
-        if selected_id in df_cli["ClienteID"].values:
-            cliente_row = df_cli[df_cli["ClienteID"] == selected_id].iloc[0]
-            st.session_state["cliente_selezionato"] = cliente_row["RagioneSociale"]
+    # === STILE PERSONALIZZATO ===
+    st.markdown("""
+    <style>
+    input[data-baseweb="input"] {
+        border: 2px solid #2563eb !important;
+        border-radius: 8px !important;
+        font-size: 15px !important;
+        padding: 6px 10px !important;
+        color: #111 !important;
+    }
+    input[data-baseweb="input"]:focus {
+        border-color: #1e40af !important;
+        box-shadow: 0 0 0 2px rgba(37,99,235,0.2) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     # 🔍 Ricerca cliente
     st.markdown("### 🔍 Cerca Cliente")
     search_query = st.text_input("Cerca cliente per nome o ID:")
+
     if search_query:
         filtered = df_cli[
             df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)
@@ -470,6 +480,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.warning("Nessun cliente trovato.")
         return
 
+    # === Selezione cliente ===
     options = filtered["RagioneSociale"].tolist()
     sel_rag = st.selectbox(
         "Seleziona Cliente",
@@ -480,7 +491,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    # === HEADER ===
+    # === HEADER CON NOME CLIENTE E PULSANTI ===
     col_header1, col_header2 = st.columns([4, 1])
     with col_header1:
         st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
@@ -490,6 +501,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         if st.button("📄 Vai ai Contratti", use_container_width=True):
             st.session_state["selected_cliente"] = sel_id
             st.session_state["nav_target"] = "Contratti"
+            st.rerun()
+
+        st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+        # Pulsante per aprire l’anagrafica
+        if st.button("✏️ Modifica Anagrafica", use_container_width=True):
+            st.session_state[f"show_anagrafica_{sel_id}"] = not st.session_state.get(f"show_anagrafica_{sel_id}", False)
             st.rerun()
 
     # === INFO RAPIDE ===
@@ -511,7 +528,46 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         unsafe_allow_html=True
     )
 
-    st.divider()
+    # === BLOCCO ANAGRAFICA MOSTRATO SOLO SE ATTIVO ===
+    if st.session_state.get(f"show_anagrafica_{sel_id}", False):
+        st.divider()
+        with st.container():
+            st.markdown("### ✏️ Modifica Anagrafica Cliente")
+            with st.form(f"frm_anagrafica_{sel_id}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+                    citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+                    cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
+                    telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+                    cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+                    email = st.text_input("✉️ Email", cliente.get("Email", ""))
+                    persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+                with col2:
+                    piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+                    iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+                    sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
+                    note = st.text_area("📝 Note Cliente", cliente.get("NoteCliente", ""), height=110)
+
+                salva_btn = st.form_submit_button("💾 Salva Modifiche")
+                if salva_btn:
+                    idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                    df_cli.loc[idx, "Indirizzo"] = indirizzo
+                    df_cli.loc[idx, "Citta"] = citta
+                    df_cli.loc[idx, "CAP"] = cap
+                    df_cli.loc[idx, "Telefono"] = telefono
+                    df_cli.loc[idx, "Cell"] = cell
+                    df_cli.loc[idx, "Email"] = email
+                    df_cli.loc[idx, "PersonaRiferimento"] = persona
+                    df_cli.loc[idx, "PartitaIVA"] = piva
+                    df_cli.loc[idx, "IBAN"] = iban
+                    df_cli.loc[idx, "SDI"] = sdi
+                    df_cli.loc[idx, "NoteCliente"] = note
+                    save_clienti(df_cli)
+                    st.success("✅ Anagrafica aggiornata.")
+                    st.session_state[f"show_anagrafica_{sel_id}"] = False
+                    st.rerun()
+
 
     # === DATE RECALL E VISITE ===
     st.markdown("### ⚡ Recall e Visite")

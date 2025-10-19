@@ -270,8 +270,9 @@ def page_dashboard(df_cli, df_ct, role):
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
 
-        # =====================================
-    # 🚫 CLIENTI SENZA DATA FINE (esclude Durata = vendita/rinnovo/annuale/*)
+       # =====================================
+    # 🚫 CLIENTI SENZA DATA FINE
+    # (esclude Durata = vendita/rinnovo/annuale/* e Stato = chiuso)
     # =====================================
     with st.container():
         st.markdown("<hr>", unsafe_allow_html=True)
@@ -281,12 +282,17 @@ def page_dashboard(df_cli, df_ct, role):
         df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
         df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
 
-        # 🔹 Contratti senza Data Fine
+        # 🔹 Filtra solo contratti senza Data Fine
         senza_datafine = df_ct[df_ct["DataFine"].isna() | (df_ct["DataFine"] == "")]
-        # 🔹 Solo contratti nuovi (dal 2025)
+        # 🔹 Solo contratti nuovi (dal 2025 in poi)
         senza_datafine = senza_datafine[senza_datafine["DataInizio"] >= pd.Timestamp("2025-01-01")]
 
-        # 🔹 Escludi contratti in cui Durata contiene determinate parole o simboli
+        # 🔹 Escludi contratti chiusi
+        senza_datafine = senza_datafine[
+            ~senza_datafine["Stato"].astype(str).str.lower().eq("chiuso")
+        ]
+
+        # 🔹 Escludi contratti dove "Durata" contiene parole chiave o simboli non validi
         exclude_keywords = ["vendita", "rinnovo", "rinnovo automatico", "annuale", "*"]
         mask_exclude = senza_datafine["Durata"].astype(str).str.lower().apply(
             lambda x: any(k in x for k in exclude_keywords)
@@ -318,7 +324,6 @@ def page_dashboard(df_cli, df_ct, role):
                         st.session_state["selected_cliente"] = r["ClienteID"]
                         st.session_state["nav_target"] = "Contratti"
                         st.rerun()
-
 
 
 # =====================================

@@ -270,9 +270,9 @@ def page_dashboard(df_cli, df_ct, role):
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
 
-       # =====================================
+        # =====================================
     # 🚫 CLIENTI SENZA DATA FINE
-    # (esclude Durata = vendita/rinnovo/annuale/* e Stato = chiuso)
+    # (mostra SOLO Durata = 36, 48, 60, 72)
     # =====================================
     with st.container():
         st.markdown("<hr>", unsafe_allow_html=True)
@@ -282,9 +282,9 @@ def page_dashboard(df_cli, df_ct, role):
         df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
         df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
 
-        # 🔹 Filtra solo contratti senza Data Fine
+        # 🔹 Contratti senza Data Fine
         senza_datafine = df_ct[df_ct["DataFine"].isna() | (df_ct["DataFine"] == "")]
-        # 🔹 Solo contratti nuovi (dal 2025 in poi)
+        # 🔹 Solo contratti nuovi (dal 2025)
         senza_datafine = senza_datafine[senza_datafine["DataInizio"] >= pd.Timestamp("2025-01-01")]
 
         # 🔹 Escludi contratti chiusi
@@ -292,22 +292,20 @@ def page_dashboard(df_cli, df_ct, role):
             ~senza_datafine["Stato"].astype(str).str.lower().eq("chiuso")
         ]
 
-        # 🔹 Escludi contratti dove "Durata" contiene parole chiave o simboli non validi
-        exclude_keywords = ["vendita", "rinnovo", "rinnovo automatico", "annuale", "*"]
-        mask_exclude = senza_datafine["Durata"].astype(str).str.lower().apply(
-            lambda x: any(k in x for k in exclude_keywords)
-        )
-        senza_datafine = senza_datafine[~mask_exclude]
+        # 🔹 Includi solo quelli con Durata 36, 48, 60, 72
+        valid_durations = ["36", "48", "60", "72"]
+        mask_valid = senza_datafine["Durata"].astype(str).str.strip().isin(valid_durations)
+        senza_datafine = senza_datafine[mask_valid]
 
         if senza_datafine.empty:
-            st.success("✅ Tutti i nuovi contratti hanno una Data Fine impostata.")
+            st.success("✅ Tutti i nuovi contratti hanno una Data Fine impostata o non rientrano nelle durate 36-48-60-72.")
         else:
             senza_datafine = senza_datafine.merge(
                 df_cli[["ClienteID", "RagioneSociale"]],
                 on="ClienteID", how="left"
             )
             senza_datafine = senza_datafine.sort_values("DataInizio", ascending=True)
-            st.markdown(f"**🔹 {len(senza_datafine)} clienti hanno contratti senza Data Fine:**")
+            st.markdown(f"**🔹 {len(senza_datafine)} clienti hanno contratti senza Data Fine (36/48/60/72 mesi):**")
 
             for i, r in senza_datafine.iterrows():
                 c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 0.8])

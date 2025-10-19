@@ -478,10 +478,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.rerun()
 
 # =====================================
-# PAGINA CLIENTI (corretta — selezione diretta + scroll top)
+# PAGINA CLIENTI (corretta + integrazione Elenco Contratti)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    # 🔝 Scroll automatico in cima (anche dopo rerun), con leggero ritardo per compatibilità
+    # 🔝 Scroll automatico in cima
     st.markdown("""
         <script>
         setTimeout(function() {
@@ -497,8 +497,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.subheader("📋 Clienti")
 
-
-    # 🔗 Arrivo da "Apri" in Lista Clienti o Dashboard: pre-seleziona cliente giusto
+    # 🔗 Arrivo da "Apri" in Lista Clienti o Dashboard
     if "selected_cliente" in st.session_state:
         selected_id = str(st.session_state.pop("selected_cliente"))
         cli_ids = df_cli["ClienteID"].astype(str)
@@ -563,16 +562,14 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-        # === HEADER CON NOME CLIENTE E PULSANTI ===
+    # === HEADER CON NOME CLIENTE E PULSANTI ===
     col_header1, col_header2 = st.columns([4, 1])
-
     with col_header1:
         st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
         st.caption(f"ClienteID: {sel_id}")
 
     with col_header2:
         st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
-
         if st.button("📄 Vai ai Contratti", use_container_width=True):
             st.session_state["selected_cliente"] = sel_id
             st.session_state["nav_target"] = "Contratti"
@@ -580,25 +577,17 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.rerun()
 
         st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
-
         if st.button("✏️ Modifica Anagrafica", key=f"btn_anag_{sel_id}", use_container_width=True, type="secondary"):
             st.session_state[f"show_anagrafica_{sel_id}"] = not st.session_state.get(f"show_anagrafica_{sel_id}", False)
             st.rerun()
 
     # === INFO RAPIDE ===
-    indirizzo = cliente.get("Indirizzo", "")
-    citta = cliente.get("Citta", "")
-    cap = cliente.get("CAP", "")
-    persona = cliente.get("PersonaRiferimento", "")
-    telefono = cliente.get("Telefono", "")
-    cell = cliente.get("Cell", "")
-
     st.markdown(
         f"""
         <div style='font-size:15px; line-height:1.7;'>
-            <b>📍 Indirizzo:</b> {indirizzo} – {citta} {cap}<br>
-            <b>🧑‍💼 Referente:</b> {persona}<br>
-            <b>📞 Telefono:</b> {telefono} — <b>📱 Cell:</b> {cell}
+            <b>📍 Indirizzo:</b> {cliente.get("Indirizzo", "")} – {cliente.get("Citta", "")} {cliente.get("CAP", "")}<br>
+            <b>🧑‍💼 Referente:</b> {cliente.get("PersonaRiferimento", "")}<br>
+            <b>📞 Telefono:</b> {cliente.get("Telefono", "")} — <b>📱 Cell:</b> {cliente.get("Cell", "")}
         </div>
         """,
         unsafe_allow_html=True
@@ -626,16 +615,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             salva_btn = st.form_submit_button("💾 Salva Modifiche")
             if salva_btn:
                 idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                df_cli.loc[idx, "Indirizzo"] = indirizzo
-                df_cli.loc[idx, "Citta"] = citta
-                df_cli.loc[idx, "CAP"] = cap
-                df_cli.loc[idx, "Telefono"] = telefono
-                df_cli.loc[idx, "Cell"] = cell
-                df_cli.loc[idx, "Email"] = email
-                df_cli.loc[idx, "PersonaRiferimento"] = persona
-                df_cli.loc[idx, "PartitaIVA"] = piva
-                df_cli.loc[idx, "IBAN"] = iban
-                df_cli.loc[idx, "SDI"] = sdi
+                df_cli.loc[idx, ["Indirizzo","Citta","CAP","Telefono","Cell","Email",
+                                 "PersonaRiferimento","PartitaIVA","IBAN","SDI"]] = [
+                                     indirizzo,citta,cap,telefono,cell,email,persona,piva,iban,sdi
+                                 ]
                 save_clienti(df_cli)
                 st.success("✅ Anagrafica aggiornata.")
                 st.session_state[f"show_anagrafica_{sel_id}"] = False
@@ -644,30 +627,20 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === NOTE CLIENTE ===
     st.divider()
     st.markdown("### 📝 Note Cliente")
-
     import time
     note_attuali = cliente.get("NoteCliente", "")
-    nuove_note = st.text_area(
-        "Modifica note cliente:",
-        note_attuali,
-        height=160,
-        key=f"note_{sel_id}_{int(time.time()*1000)}"
-    )
+    nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=160, key=f"note_{sel_id}_{int(time.time()*1000)}")
 
     if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}_{int(time.time()*1000)}", use_container_width=True):
-        try:
-            idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-            df_cli.loc[idx_row, "NoteCliente"] = nuove_note
-            save_clienti(df_cli)
-            st.success("✅ Note aggiornate correttamente!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Errore durante il salvataggio delle note: {e}")
+        idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+        df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+        save_clienti(df_cli)
+        st.success("✅ Note aggiornate.")
+        st.rerun()
 
     # === RECALL E VISITE ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
-
     def _safe_date(val):
         try:
             d = pd.to_datetime(val, dayfirst=True)
@@ -679,28 +652,95 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     pr_val = _safe_date(cliente.get("ProssimoRecall"))
     uv_val = _safe_date(cliente.get("UltimaVisita"))
     pv_val = _safe_date(cliente.get("ProssimaVisita"))
-
-    # Calcolo automatico se vuoti
     if ur_val and not pr_val:
         pr_val = (pd.Timestamp(ur_val) + pd.DateOffset(months=3)).date()
     if uv_val and not pv_val:
         pv_val = (pd.Timestamp(uv_val) + pd.DateOffset(months=6)).date()
-
     col1, col2, col3, col4 = st.columns(4)
     ur = col1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{sel_id}")
     pr = col2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{sel_id}")
     uv = col3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{sel_id}")
     pv = col4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{sel_id}")
-
     if st.button("💾 Salva Aggiornamenti", use_container_width=True):
         idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-        df_cli.loc[idx, "UltimoRecall"] = fmt_date(ur)
-        df_cli.loc[idx, "ProssimoRecall"] = fmt_date(pr)
-        df_cli.loc[idx, "UltimaVisita"] = fmt_date(uv)
-        df_cli.loc[idx, "ProssimaVisita"] = fmt_date(pv)
+        df_cli.loc[idx, ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]] = [
+            fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)
+        ]
         save_clienti(df_cli)
         st.success("✅ Date aggiornate.")
         st.rerun()
+
+    # === 📋 ELENCO CONTRATTI DEL CLIENTE ===
+    st.divider()
+    st.markdown("### 📋 Elenco Contratti Cliente")
+
+    df_ct_local = load_contratti()
+    contratti_cli = df_ct_local[df_ct_local["ClienteID"].astype(str) == str(sel_id)].copy()
+
+    if contratti_cli.empty:
+        st.info("Nessun contratto registrato per questo cliente.")
+    else:
+        contratti_cli["DataInizio"] = contratti_cli["DataInizio"].apply(fmt_date)
+        contratti_cli["DataFine"] = contratti_cli["DataFine"].apply(fmt_date)
+        contratti_cli["TotRata"] = contratti_cli["TotRata"].apply(money)
+
+        st.markdown("""
+        <style>
+        .tbl-contratti {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .tbl-contratti th, .tbl-contratti td {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 8px 10px;
+            text-align: left;
+        }
+        .tbl-contratti th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+        .tbl-contratti tr:hover td {
+            background-color: #fef9c3;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown(
+            "<table class='tbl-contratti'>"
+            "<thead><tr>"
+            "<th>Numero</th><th>Descrizione</th><th>Inizio</th><th>Fine</th><th>Durata</th>"
+            "<th>NOL FIN</th><th>NOL INT</th><th>Tot Rata</th><th>Copie</th><th>Eccedenze</th><th>Stato</th>"
+            "</tr></thead><tbody>",
+            unsafe_allow_html=True
+        )
+
+        for _, r in contratti_cli.iterrows():
+            stato = str(r.get("Stato", "")).lower().strip()
+            colore_bg = "#e8f5e9" if "aperto" in stato or "attivo" in stato else "#fffde7" if "scaden" in stato else "#ffebee"
+            colore_tx = "#1b5e20" if "aperto" in stato or "attivo" in stato else "#b45309" if "scaden" in stato else "#b71c1c"
+
+            st.markdown(
+                f"""
+                <tr style="background:{colore_bg}; color:{colore_tx};">
+                    <td>{r.get("NumeroContratto","")}</td>
+                    <td>{r.get("DescrizioneProdotto","")}</td>
+                    <td>{r.get("DataInizio","")}</td>
+                    <td>{r.get("DataFine","")}</td>
+                    <td>{r.get("Durata","")}</td>
+                    <td>{r.get("NOL_FIN","")}</td>
+                    <td>{r.get("NOL_INT","")}</td>
+                    <td>{r.get("TotRata","")}</td>
+                    <td>{r.get("Copie","")}</td>
+                    <td>{r.get("Eccedenze","")}</td>
+                    <td style="font-weight:600;">{r.get("Stato","")}</td>
+                </tr>
+                """,
+                unsafe_allow_html=True
+            )
+
+        st.markdown("</tbody></table>", unsafe_allow_html=True)
+
 
     # =======================================================
     # 🧾 GESTIONE PREVENTIVI INTEGRATA

@@ -270,8 +270,8 @@ def page_dashboard(df_cli, df_ct, role):
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
 
-           # =====================================
-    # 🚫 CLIENTI SENZA DATA FINE (esclude Durata = vendita/rinnovo/annuale)
+        # =====================================
+    # 🚫 CLIENTI SENZA DATA FINE (esclude Durata = vendita/rinnovo/annuale/*)
     # =====================================
     with st.container():
         st.markdown("<hr>", unsafe_allow_html=True)
@@ -286,8 +286,8 @@ def page_dashboard(df_cli, df_ct, role):
         # 🔹 Solo contratti nuovi (dal 2025)
         senza_datafine = senza_datafine[senza_datafine["DataInizio"] >= pd.Timestamp("2025-01-01")]
 
-        # 🔹 Escludi contratti di vendita / rinnovo / rinnovo automatico / annuale dalla colonna DURATA
-        exclude_keywords = ["vendita", "rinnovo", "rinnovo automatico", "annuale"]
+        # 🔹 Escludi contratti in cui Durata contiene determinate parole o simboli
+        exclude_keywords = ["vendita", "rinnovo", "rinnovo automatico", "annuale", "*"]
         mask_exclude = senza_datafine["Durata"].astype(str).str.lower().apply(
             lambda x: any(k in x for k in exclude_keywords)
         )

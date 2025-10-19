@@ -411,39 +411,66 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         bio = BytesIO(); wb.save(bio)
         st.download_button("📘 Esporta Excel", data=bio.getvalue(), file_name=f"contratti_{rag_soc}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    # --- PDF export
+      # --- PDF export (corretto con safe text e UTF-8) ---
     with c2:
         from textwrap import wrap
-        class PDF(FPDF):
-            def header(self):
-                self.set_font("Arial", "B", 12)
-                self.cell(0, 10, f"Contratti - {rag_soc}", ln=1, align="C")
-                self.ln(3)
-        pdf = PDF("L", "mm", "A4")
-        pdf.add_page(); pdf.set_font("Arial", size=9)
-        widths = [35, 25, 25, 20, 140, 32]
-        headers = ["Numero Contratto","Data Inizio","Data Fine","Durata","Descrizione Prodotto","Tot Rata"]
-        pdf.set_fill_color(37,99,235); pdf.set_text_color(255,255,255)
-        for i,h in enumerate(headers): pdf.cell(widths[i],8,h,border=1,align="C",fill=True)
-        pdf.ln(8); pdf.set_text_color(0,0,0)
-        for _,row in disp.iterrows():
-            vals=[row.get(c,"") for c in ["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","TotRata"]]
-            desc=wrap(vals[4],110); h=len(desc)*4 or 4; x=10; y=pdf.get_y()
-            for i,v in enumerate(vals):
-                a="L" if i==4 else "C"
-                pdf.set_xy(x,y); pdf.multi_cell(widths[i],4,str(v),border=1,align=a)
-                x+=widths[i]
-            pdf.set_y(y+h)
-        pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")  # 🔄 conversione base sicura
-# oppure, ancora meglio per compatibilità universale:
-pdf_bytes = pdf.output(dest="S").encode("utf-8", "replace")
 
-st.download_button("📗 Esporta PDF",
-    data=pdf_bytes,
-    file_name=f"contratti_{rag_soc}.pdf",
-    mime="application/pdf",
-    use_container_width=True
-)
+        def safe_pdf_text(txt):
+            if pd.isna(txt) or txt is None:
+                return ""
+            if not isinstance(txt, str):
+                txt = str(txt)
+            txt = txt.replace("€", "EUR").replace("–", "-").replace("—", "-")
+            return txt.encode("latin-1", "replace").decode("latin-1")
+
+        try:
+            class PDF(FPDF):
+                def header(self):
+                    self.set_font("Arial", "B", 12)
+                    self.cell(0, 10, safe_pdf_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+                    self.ln(3)
+
+            pdf = PDF("L", "mm", "A4")
+            pdf.add_page()
+            pdf.set_font("Arial", size=9)
+
+            widths = [35, 25, 25, 20, 140, 32]
+            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata", "Descrizione Prodotto", "Tot Rata"]
+
+            # intestazione
+            pdf.set_fill_color(37, 99, 235)
+            pdf.set_text_color(255, 255, 255)
+            for i, h in enumerate(headers):
+                pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
+            pdf.ln(8)
+            pdf.set_text_color(0, 0, 0)
+
+            for _, row in disp.iterrows():
+                vals = [safe_pdf_text(row.get(c, "")) for c in [
+                    "NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto", "TotRata"
+                ]]
+                desc_lines = wrap(vals[4], 110)
+                row_h = max(len(desc_lines), 1) * 4
+                x = 10
+                y = pdf.get_y()
+                for i, v in enumerate(vals):
+                    a = "L" if i == 4 else "C"
+                    pdf.set_xy(x, y)
+                    pdf.multi_cell(widths[i], 4, v, border=1, align=a)
+                    x += widths[i]
+                pdf.set_y(y + row_h)
+
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
+
+            st.download_button(
+                "📗 Esporta PDF",
+                data=pdf_bytes,
+                file_name=f"contratti_{rag_soc}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"❌ Errore durante la generazione del PDF: {e}")
 
 # =====================================
 # PAGINA PREVENTIVI (DOCX)

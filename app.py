@@ -1128,7 +1128,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
-            # === ESPORTAZIONE PDF (senza colonna Stato) ===
+               # === ESPORTAZIONE PDF (senza colonna Stato, tabella centrata) ===
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
@@ -1155,24 +1155,28 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.set_font("Arial", size=9)
 
-            # === Definizione colonne (usa tutta la larghezza A4, senza "Stato") ===
-            page_width = 297 - 20  # 10 mm margine per lato
-            widths = [35, 25, 25, 20, 160, 32]  # redistribuite senza l'ultima colonna
+            # === Definizione colonne (usa tutta la larghezza, senza "Stato") ===
+            page_width = 297 - 20  # 10 mm margini laterali
+            widths = [35, 25, 25, 20, 140, 32]  # proporzioni senza "Stato"
             headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
                        "Descrizione Prodotto", "Tot Rata"]
+
+            # === Calcola la larghezza totale della tabella ===
+            table_width = sum(widths)
+            x_start_table = (page_width - table_width) / 2 + 10  # centrazione orizzontale (10mm margine sinistro)
 
             # === Intestazioni ===
             pdf.set_fill_color(37, 99, 235)
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Arial", "B", 9)
+            pdf.set_x(x_start_table)
             for i, h in enumerate(headers):
                 pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
             pdf.ln(8)
 
-            # === Dati ===
+            # === Righe ===
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Arial", "", 8)
-
             for _, row in disp.iterrows():
                 values = [
                     safe_pdf_text(row.get("NumeroContratto", "")),
@@ -1183,26 +1187,27 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     safe_pdf_text(row.get("TotRata", "")),
                 ]
 
+                # Calcolo altezza dinamica in base alla descrizione
                 desc_lines = wrap(values[4], 110)
                 max_lines = max(len(desc_lines), 1)
                 line_height = 4
                 row_height = line_height * max_lines
 
-                x_start = pdf.get_x()
-                y_start = pdf.get_y()
+                x_table = x_start_table
+                y_top = pdf.get_y()
 
                 for i, text in enumerate(values):
                     align = "L" if i == 4 else "C"
+                    pdf.set_xy(x_table, y_top)
                     pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
-                    x_start += widths[i]
-                    pdf.set_xy(x_start, y_start)
+                    x_table += widths[i]
 
-                pdf.ln(row_height)
+                pdf.set_y(y_top + row_height)
 
             # === Esporta PDF ===
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
-                "📗 Esporta PDF (senza Stato)",
+                "📗 Esporta PDF (centrato)",
                 data=pdf_bytes,
                 file_name=f"contratti_{rag_soc}.pdf",
                 mime="application/pdf",

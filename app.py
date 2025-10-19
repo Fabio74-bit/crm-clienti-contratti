@@ -1138,21 +1138,20 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     data_da = col3.date_input("📅 Da Data Scadenza", format="DD/MM/YYYY", value=None)
     data_a = col4.date_input("📅 A Data Scadenza", format="DD/MM/YYYY", value=None)
 
-# === PREPARA DATI CLIENTI ===
-df_cli = df_cli.copy()
-df_ct = df_ct.copy()
-oggi = pd.Timestamp.now().normalize()
+    # === PREPARA DATI CLIENTI ===
+    df_cli = df_cli.copy()
+    df_ct = df_ct.copy()
+    oggi = pd.Timestamp.now().normalize()
 
-# 🔹 Escludi tutti i contratti chiusi
-df_ct["Stato"] = df_ct["Stato"].astype(str).str.strip().str.lower()
-df_ct = df_ct[df_ct["Stato"] != "chiuso"]
+    # 🔹 Escludi tutti i contratti chiusi
+    df_ct["Stato"] = df_ct["Stato"].astype(str).str.strip().str.lower()
+    df_ct = df_ct[df_ct["Stato"] != "chiuso"]
 
-# 🔹 Conversione date in formato italiano (gg/mm/aaaa)
-df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
-df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+    # 🔹 Conversione date in formato italiano (gg/mm/aaaa)
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
 
-
-    # Calcola la prima scadenza per ogni cliente
+    # === CALCOLA LA PRIMA SCADENZA PER OGNI CLIENTE (solo contratti attivi) ===
     prime_scadenze = (
         df_ct[df_ct["DataFine"].notna()]
         .groupby("ClienteID")["DataFine"]
@@ -1164,13 +1163,15 @@ df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfi
     merged = df_cli.merge(prime_scadenze, on="ClienteID", how="left")
     merged["GiorniMancanti"] = (merged["PrimaScadenza"] - oggi).dt.days
 
-    # === CREA BADGE COLORATI ===
+    # === CREA BADGE COLORATI SCADENZA ===
     def badge_scadenza(row):
         if pd.isna(row["PrimaScadenza"]):
             return "<span style='color:#999;'>⚪ Nessuna</span>"
         giorni = row["GiorniMancanti"]
         data_fmt = fmt_date(row["PrimaScadenza"])
-        if giorni <= 30:
+        if giorni < 0:
+            return f"<span style='color:#757575;font-weight:600;'>⚫ Scaduto ({data_fmt})</span>"
+        elif giorni <= 30:
             return f"<span style='color:#d32f2f;font-weight:600;'>🔴 {data_fmt}</span>"
         elif giorni <= 90:
             return f"<span style='color:#f9a825;font-weight:600;'>🟡 {data_fmt}</span>"
@@ -1180,6 +1181,13 @@ df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfi
     merged["ScadenzaBadge"] = merged.apply(badge_scadenza, axis=1)
 
     # === FILTRI ===
+    st.markdown("### 🔍 Filtri")
+    col1, col2, col3, col4 = st.columns([1.5, 1.5, 1.5, 1.5])
+    filtro_nome = col1.text_input("Cerca per nome cliente")
+    filtro_citta = col2.text_input("Cerca per città")
+    data_da = col3.date_input("Da data scadenza:", value=None, format="DD/MM/YYYY")
+    data_a = col4.date_input("A data scadenza:", value=None, format="DD/MM/YYYY")
+
     if filtro_nome:
         merged = merged[merged["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
     if filtro_citta:
@@ -1189,16 +1197,18 @@ df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfi
     if data_a:
         merged = merged[merged["PrimaScadenza"] <= pd.Timestamp(data_a)]
 
-    # === RIEPILOGO ===
+    # === RIEPILOGO NUMERICO ===
     total_clienti = len(merged)
     entro_30 = (merged["GiorniMancanti"] <= 30).sum()
     entro_90 = ((merged["GiorniMancanti"] > 30) & (merged["GiorniMancanti"] <= 90)).sum()
     oltre_90 = (merged["GiorniMancanti"] > 90).sum()
+    scaduti = (merged["GiorniMancanti"] < 0).sum()
     senza_scadenza = merged["PrimaScadenza"].isna().sum()
 
     st.markdown(f"""
     **Totale Clienti:** {total_clienti}  
-    🔴 **Scadenze entro 30 giorni:** {entro_30}  
+    ⚫ **Scaduti:** {scaduti}  
+    🔴 **Entro 30 giorni:** {entro_30}  
     🟡 **Entro 90 giorni:** {entro_90}  
     🟢 **Oltre 90 giorni:** {oltre_90}  
     ⚪ **Senza scadenza:** {senza_scadenza}
@@ -1210,7 +1220,8 @@ df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfi
     sort_mode = ord_col1.radio(
         "Ordina per:",
         ["Nome Cliente (A → Z)", "Nome Cliente (Z → A)", "Data Scadenza (più vicina)", "Data Scadenza (più lontana)"],
-        horizontal=True
+        horizontal=True,
+        key="sort_lista_clienti"
     )
 
     if sort_mode == "Nome Cliente (A → Z)":
@@ -1252,17 +1263,7 @@ df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfi
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown(
-        "<table class='tbl-clienti'>"
-        "<thead><tr>"
-        "<th>Cliente</th>"
-        "<th>Città</th>"
-        "<th>Prima Scadenza</th>"
-        "<th style='text-align:center;width:120px;'>Azione</th>"
-        "</tr></thead><tbody>",
-        unsafe_allow_html=True
-    )
-
+    # === RIGHE CLIENTI ===
     for i, r in merged.iterrows():
         c1, c2, c3, c4 = st.columns([2, 1.5, 1.2, 0.7])
         with c1:
@@ -1275,17 +1276,14 @@ df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfi
             if st.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
                 st.session_state["selected_cliente"] = r["ClienteID"]
                 st.session_state["nav_target"] = "Clienti"
-
-                # 🔹 Scroll automatico all’inizio della pagina (smooth)
                 st.markdown("""
                     <script>
-                        window.scrollTo({top: 0, behavior: 'smooth'});
+                        setTimeout(function() {
+                            window.scrollTo({top: 0, behavior: 'smooth'});
+                        }, 100);
                     </script>
                 """, unsafe_allow_html=True)
-
                 st.rerun()
-
-    st.markdown("</tbody></table>", unsafe_allow_html=True)
 
 
 # =====================================

@@ -1198,8 +1198,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             for i, h in enumerate(headers):
                 pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
             pdf.ln(8)
-
-                                   # === Righe dati (altezza uniforme, 2 righe massime per cella) ===
+            # === Righe dati (altezza uniforme, 3 righe per cella) ===
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Arial", "", 8)
 
@@ -1212,15 +1211,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 descrizione_txt = safe_pdf_text(row.get("DescrizioneProdotto", ""))
                 tot_rata = safe_pdf_text(row.get("TotRata", ""))
 
-                # 🔹 Spezza la descrizione su massimo 2 righe
-                desc_lines = wrap(descrizione_txt, 95)[:2]
-                descrizione_txt = "\n".join(desc_lines)
-
-                # 🔹 Spezza la durata su massimo 2 righe (se necessario)
-                durata_lines = durata_txt.split("\n")[:2]
+                # 🔹 Limita durata a max 3 righe
+                durata_lines = durata_txt.split("\n")[:3]
                 durata_txt = "\n".join(durata_lines)
 
-                # 🔹 Crea la lista finale dei valori
+                # 🔹 Limita descrizione a max 3 righe
+                desc_lines = wrap(descrizione_txt, 95)[:3]
+                descrizione_txt = "\n".join(desc_lines)
+
+                # 🔹 Lista finale dei valori
                 values = [
                     num_contr,
                     data_in,
@@ -1230,22 +1229,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     tot_rata,
                 ]
 
-                # 🔹 Altezza uniforme: 2 righe x 5mm = 10mm totali
+                # 🔹 Altezza uniforme (3 righe x 5 mm = 15 mm)
                 line_height = 5
-                row_height = 10
+                row_height = 15
 
                 x_table = x_start_table
                 y_top = pdf.get_y()
 
-                # 🔹 Disegna ogni cella con altezza fissa
+                # Disegna celle con altezza fissa
                 for i, text in enumerate(values):
                     align = "L" if i == 4 else "C"
                     pdf.set_xy(x_table, y_top)
                     pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
                     x_table += widths[i]
 
-                # 🔹 Mantieni le righe allineate orizzontalmente
+                # Mantiene l’allineamento orizzontale perfetto
                 pdf.set_y(y_top + row_height)
+
 
 
 

@@ -533,15 +533,19 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col_header1:
         st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
         st.caption(f"ClienteID: {sel_id}")
-    with col_header2:
+       with col_header2:
         st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
- if st.button("📄 Vai ai Contratti", use_container_width=True):
-    st.session_state["selected_cliente"] = sel_id
-    st.session_state["nav_target"] = "Contratti"
 
-    # 🔹 Segnala cambio pagina immediato per il main()
-    st.session_state["_go_contratti_now"] = True
-    st.rerun()
+        if st.button("📄 Vai ai Contratti", use_container_width=True):
+            st.session_state["selected_cliente"] = sel_id
+            st.session_state["nav_target"] = "Contratti"
+            st.session_state["_go_contratti_now"] = True
+            st.rerun()
+
+        st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+        if st.button("✏️ Modifica Anagrafica", key=f"btn_anag_{sel_id}", use_container_width=True, type="secondary"):
+            st.session_state[f"show_anagrafica_{sel_id}"] = not st.session_state.get(f"show_anagrafica_{sel_id}", False)
+            st.rerun()
 
 
         st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)

@@ -1128,7 +1128,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
-           # === ESPORTAZIONE PDF A PAGINA UNICA (layout uniforme e centrato) ===
+         # === ESPORTAZIONE PDF A PAGINA UNICA (layout uniforme e centrato) ===
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
@@ -1146,14 +1146,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.add_page()
             pdf.set_auto_page_break(auto=False, margin=0)
 
-            # === Imposta larghezze e stile ===
             headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
                        "Descrizione Prodotto", "Tot Rata"]
             widths = [35, 25, 25, 25, 135, 25]
             line_height = 6
             row_height = 18
 
-            # === Intestazioni ===
             pdf.set_font("Arial", "B", 9)
             pdf.set_fill_color(37, 99, 235)
             pdf.set_text_color(255, 255, 255)
@@ -1161,7 +1159,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(widths[i], line_height, h, border=1, align="C", fill=True)
             pdf.ln(line_height)
 
-            # === Righe contratti ===
             pdf.set_font("Arial", "", 8)
             pdf.set_text_color(0, 0, 0)
 
@@ -1202,7 +1199,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         except Exception as e:
             st.error(f"❌ Errore durante la creazione del PDF: {e}")
-
 
 # =====================================
 # 📅 PAGINA RICHIAMI E VISITE (stile Pulito Business)

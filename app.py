@@ -214,7 +214,83 @@ def save_contratti(df: pd.DataFrame):
     for c in ["DataInizio", "DataFine"]:
         out[c] = out[c].apply(fmt_date)
     out.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+# --- Helper: render contratti del cliente dentro la pagina Clienti ---
+def _render_contratti_cliente(sel_id: str):
+    st.divider()
+    st.markdown("### 📋 Elenco Contratti Cliente")
 
+    df_ct_local = load_contratti()
+
+    # Colonne richieste (gestisce CSV che non le hanno ancora)
+    required_cols = ["ClienteID","NumeroContratto","DataInizio","DataFine","Durata",
+                     "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato","Copie","Eccedenze"]
+    for c in required_cols:
+        if c not in df_ct_local.columns:
+            df_ct_local[c] = ""
+
+    contratti_cli = df_ct_local[df_ct_local["ClienteID"].astype(str) == str(sel_id)].copy()
+
+    if contratti_cli.empty:
+        st.info("Nessun contratto registrato per questo cliente.")
+        return
+
+    # Formatta
+    contratti_cli["DataInizio"] = contratti_cli["DataInizio"].apply(fmt_date)
+    contratti_cli["DataFine"]   = contratti_cli["DataFine"].apply(fmt_date)
+    contratti_cli["TotRata"]    = contratti_cli["TotRata"].apply(money)
+
+    st.markdown("""
+    <style>
+    .tbl-contratti {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .tbl-contratti th, .tbl-contratti td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 8px 10px;
+        text-align: left;
+    }
+    .tbl-contratti th { background-color: #f3f4f6; font-weight: 600; }
+    .tbl-contratti tr:hover td { background-color: #fef9c3; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Testatina
+    st.markdown(
+        "<table class='tbl-contratti'>"
+        "<thead><tr>"
+        "<th>Numero</th><th>Descrizione</th><th>Inizio</th><th>Fine</th><th>Durata</th>"
+        "<th>NOL FIN</th><th>NOL INT</th><th>Tot Rata</th><th>Copie</th><th>Eccedenze</th><th>Stato</th>"
+        "</tr></thead><tbody>",
+        unsafe_allow_html=True
+    )
+
+    # Righe
+    for _, r in contratti_cli.iterrows():
+        stato = str(r.get("Stato", "")).lower().strip()
+        bg = "#e8f5e9" if ("aperto" in stato or "attivo" in stato) else ("#fffde7" if "scad" in stato else "#ffebee")
+        tx = "#1b5e20" if ("aperto" in stato or "attivo" in stato) else ("#b45309" if "scad" in stato else "#b71c1c")
+        st.markdown(
+            f"""
+            <tr style="background:{bg}; color:{tx};">
+                <td>{r.get("NumeroContratto","")}</td>
+                <td>{r.get("DescrizioneProdotto","")}</td>
+                <td>{r.get("DataInizio","")}</td>
+                <td>{r.get("DataFine","")}</td>
+                <td>{r.get("Durata","")}</td>
+                <td>{r.get("NOL_FIN","")}</td>
+                <td>{r.get("NOL_INT","")}</td>
+                <td>{r.get("TotRata","")}</td>
+                <td>{r.get("Copie","")}</td>
+                <td>{r.get("Eccedenze","")}</td>
+                <td style="font-weight:600;">{r.get("Stato","")}</td>
+            </tr>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.markdown("</tbody></table>", unsafe_allow_html=True)
 # =====================================
 # LOGIN FULLSCREEN
 # =====================================
@@ -670,82 +746,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.success("✅ Date aggiornate.")
         st.rerun()
 
-    # === 📋 ELENCO CONTRATTI DEL CLIENTE ===
-    st.divider()
-    st.markdown("### 📋 Elenco Contratti Cliente")
-
-    df_ct_local = load_contratti()
-    required_cols = {"ClienteID","NumeroContratto","DataInizio","DataFine","Durata",
-                     "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","Stato"}
-    missing = [c for c in required_cols if c not in df_ct_local.columns]
-    if missing:
-        st.error(f"Nel CSV mancano queste colonne obbligatorie: {', '.join(missing)}")
-        return
-
-    contratti_cli = df_ct_local[df_ct_local["ClienteID"].astype(str) == str(sel_id)].copy()
-
-    if contratti_cli.empty:
-        st.info("Nessun contratto registrato per questo cliente.")
-    else:
-        contratti_cli["DataInizio"] = contratti_cli["DataInizio"].apply(fmt_date)
-        contratti_cli["DataFine"]   = contratti_cli["DataFine"].apply(fmt_date)
-        contratti_cli["TotRata"]    = contratti_cli["TotRata"].apply(money)
-
-        st.markdown("""
-        <style>
-        .tbl-contratti {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        .tbl-contratti th, .tbl-contratti td {
-            border-bottom: 1px solid #e5e7eb;
-            padding: 8px 10px;
-            text-align: left;
-        }
-        .tbl-contratti th {
-            background-color: #f3f4f6;
-            font-weight: 600;
-        }
-        .tbl-contratti tr:hover td { background-color: #fef9c3; }
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown(
-            "<table class='tbl-contratti'>"
-            "<thead><tr>"
-            "<th>Numero</th><th>Descrizione</th><th>Inizio</th><th>Fine</th><th>Durata</th>"
-            "<th>NOL FIN</th><th>NOL INT</th><th>Tot Rata</th><th>Copie</th><th>Eccedenze</th><th>Stato</th>"
-            "</tr></thead><tbody>",
-            unsafe_allow_html=True
-        )
-
-        for _, r in contratti_cli.iterrows():
-            stato = str(r.get("Stato", "")).lower().strip()
-            bg = "#e8f5e9" if ("aperto" in stato or "attivo" in stato) else ("#fffde7" if "scad" in stato else "#ffebee")
-            tx = "#1b5e20" if ("aperto" in stato or "attivo" in stato) else ("#b45309" if "scad" in stato else "#b71c1c")
-
-            st.markdown(
-                f"""
-                <tr style="background:{bg}; color:{tx};">
-                    <td>{r.get("NumeroContratto","")}</td>
-                    <td>{r.get("DescrizioneProdotto","")}</td>
-                    <td>{r.get("DataInizio","")}</td>
-                    <td>{r.get("DataFine","")}</td>
-                    <td>{r.get("Durata","")}</td>
-                    <td>{r.get("NOL_FIN","")}</td>
-                    <td>{r.get("NOL_INT","")}</td>
-                    <td>{r.get("TotRata","")}</td>
-                    <td>{r.get("Copie","")}</td>
-                    <td>{r.get("Eccedenze","")}</td>
-                    <td style="font-weight:600;">{r.get("Stato","")}</td>
-                </tr>
-                """,
-                unsafe_allow_html=True
-            )
-
-        st.markdown("</tbody></table>", unsafe_allow_html=True)
-
+  
 
 
     # =======================================================

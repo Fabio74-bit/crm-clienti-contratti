@@ -608,9 +608,15 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"❌ Errore durante il salvataggio delle note: {e}")
 
 
-    # === DATE RECALL E VISITE ===
+       # === DATE RECALL E VISITE ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
+
+    import locale
+    try:
+        locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
+    except:
+        pass  # fallback se non disponibile nel sistema
 
     def _safe_date(val):
         try:
@@ -619,11 +625,24 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception:
             return None
 
+    # 🔹 Conversione date esistenti
+    ur_val = _safe_date(cliente.get("UltimoRecall"))
+    pr_val = _safe_date(cliente.get("ProssimoRecall"))
+    uv_val = _safe_date(cliente.get("UltimaVisita"))
+    pv_val = _safe_date(cliente.get("ProssimaVisita"))
+
+    # 🔹 Calcolo automatico se vuoti
+    if ur_val and not pr_val:
+        pr_val = (pd.Timestamp(ur_val) + pd.DateOffset(months=3)).date()
+    if uv_val and not pv_val:
+        pv_val = (pd.Timestamp(uv_val) + pd.DateOffset(months=6)).date()
+
+    # 🔹 Campi data (formato italiano)
     col1, col2, col3, col4 = st.columns(4)
-    ur = col1.date_input("⏰ Ultimo Recall", value=_safe_date(cliente.get("UltimoRecall")), format="DD/MM/YYYY")
-    pr = col2.date_input("📅 Prossimo Recall", value=_safe_date(cliente.get("ProssimoRecall")), format="DD/MM/YYYY")
-    uv = col3.date_input("👣 Ultima Visita", value=_safe_date(cliente.get("UltimaVisita")), format="DD/MM/YYYY")
-    pv = col4.date_input("🗓️ Prossima Visita", value=_safe_date(cliente.get("ProssimaVisita")), format="DD/MM/YYYY")
+    ur = col1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{sel_id}", locale="it")
+    pr = col2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{sel_id}", locale="it")
+    uv = col3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{sel_id}", locale="it")
+    pv = col4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{sel_id}", locale="it")
 
     if st.button("💾 Salva Aggiornamenti", use_container_width=True):
         idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
@@ -632,8 +651,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         df_cli.loc[idx, "UltimaVisita"] = fmt_date(uv)
         df_cli.loc[idx, "ProssimaVisita"] = fmt_date(pv)
         save_clienti(df_cli)
-        st.success("✅ Date aggiornate.")
+        st.success("✅ Date aggiornate correttamente!")
         st.rerun()
+
 
 
     # === MODIFICA ANAGRAFICA COMPLETA ===

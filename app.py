@@ -441,20 +441,21 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.session_state["selected_cliente"] = r["ClienteID"]
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
-# =====================================
-# PAGINA CLIENTI (completa con anagrafica + preventivi)
-# =====================================
+
 # =====================================
 # PAGINA CLIENTI (corretta — selezione diretta + scroll top)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+        # 🔝 Forza lo scroll all'inizio ogni volta che la pagina viene aperta o ricaricata
+    st.markdown("""
+        <script>
+        window.addEventListener('load', function() {
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        });
+        window.scrollTo({top: 0, behavior: 'smooth'});
+        </script>
+    """, unsafe_allow_html=True)
     st.subheader("📋 Clienti")
-
-    # 🔝 Forza scroll in alto all'apertura della pagina
-    st.markdown(
-        "<script>window.scrollTo({top: 0, behavior: 'smooth'});</script>",
-        unsafe_allow_html=True,
-    )
 
     # 🔗 Arrivo da "Apri" in Lista Clienti o Dashboard: pre-seleziona cliente giusto
     if "selected_cliente" in st.session_state:

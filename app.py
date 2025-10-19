@@ -608,7 +608,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"❌ Errore durante il salvataggio delle note: {e}")
 
 
-       # === DATE RECALL E VISITE ===
+              # === DATE RECALL E VISITE ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
 
@@ -639,10 +639,11 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # 🔹 Campi data (formato italiano)
     col1, col2, col3, col4 = st.columns(4)
-    ur = col1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{sel_id}", locale="it")
-    pr = col2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{sel_id}", locale="it")
-    uv = col3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{sel_id}", locale="it")
-    pv = col4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{sel_id}", locale="it")
+    ur = col1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{sel_id}")
+    pr = col2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{sel_id}")
+    uv = col3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{sel_id}")
+    pv = col4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{sel_id}")
+
 
     if st.button("💾 Salva Aggiornamenti", use_container_width=True):
         idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]

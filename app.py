@@ -1129,7 +1129,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         )
 
            # === ESPORTAZIONE PDF A PAGINA UNICA (layout uniforme e centrato) ===
-with c2:
+    with c2:
     from fpdf import FPDF
     from textwrap import wrap
 

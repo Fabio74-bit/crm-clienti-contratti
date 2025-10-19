@@ -1128,7 +1128,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
-        # === ESPORTAZIONE PDF MIGLIORATA ===
+            # === ESPORTAZIONE PDF (senza colonna Stato) ===
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
@@ -1155,11 +1155,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.set_font("Arial", size=9)
 
-            # === Definizione colonne (usa tutta la larghezza A4) ===
+            # === Definizione colonne (usa tutta la larghezza A4, senza "Stato") ===
             page_width = 297 - 20  # 10 mm margine per lato
-            widths = [30, 25, 25, 20, 140, 30, 27]  # proporzioni corrette
+            widths = [35, 25, 25, 20, 160, 32]  # redistribuite senza l'ultima colonna
             headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                       "Descrizione Prodotto", "Tot Rata", "Stato"]
+                       "Descrizione Prodotto", "Tot Rata"]
 
             # === Intestazioni ===
             pdf.set_fill_color(37, 99, 235)
@@ -1174,7 +1174,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.set_font("Arial", "", 8)
 
             for _, row in disp.iterrows():
-                # Estrai campi
                 values = [
                     safe_pdf_text(row.get("NumeroContratto", "")),
                     safe_pdf_text(row.get("DataInizio", "")),
@@ -1182,16 +1181,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     safe_pdf_text(row.get("Durata", "")),
                     safe_pdf_text(row.get("DescrizioneProdotto", "")),
                     safe_pdf_text(row.get("TotRata", "")),
-                    safe_pdf_text(row.get("Stato", "")),
                 ]
 
-                # Calcola l’altezza della riga in base alla descrizione
                 desc_lines = wrap(values[4], 110)
                 max_lines = max(len(desc_lines), 1)
                 line_height = 4
                 row_height = line_height * max_lines
 
-                # Stampa la riga con celle allineate
                 x_start = pdf.get_x()
                 y_start = pdf.get_y()
 
@@ -1206,7 +1202,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             # === Esporta PDF ===
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
-                "📗 Esporta PDF",
+                "📗 Esporta PDF (senza Stato)",
                 data=pdf_bytes,
                 file_name=f"contratti_{rag_soc}.pdf",
                 mime="application/pdf",
@@ -1215,6 +1211,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         except Exception as e:
             st.error(f"❌ Errore PDF: {e}")
+
 
 
 

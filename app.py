@@ -596,7 +596,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         key=f"note_{sel_id}_{int(time.time()*1000)}"
     )
 
-    if st.button("💾 Salva Note Cliente", use_container_width=True):
+    if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}_{int(time.time()*1000)}", use_container_width=True):
+
         try:
             idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
             df_cli.loc[idx_row, "NoteCliente"] = nuove_note

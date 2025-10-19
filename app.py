@@ -446,16 +446,22 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CLIENTI (corretta — selezione diretta + scroll top)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-        # 🔝 Forza lo scroll all'inizio ogni volta che la pagina viene aperta o ricaricata
+    # 🔝 Scroll automatico in cima (anche dopo rerun), con leggero ritardo per compatibilità
     st.markdown("""
         <script>
-        window.addEventListener('load', function() {
+        setTimeout(function() {
             window.scrollTo({top: 0, behavior: 'smooth'});
+        }, 100);
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }, 100);
         });
-        window.scrollTo({top: 0, behavior: 'smooth'});
         </script>
     """, unsafe_allow_html=True)
+
     st.subheader("📋 Clienti")
+
 
     # 🔗 Arrivo da "Apri" in Lista Clienti o Dashboard: pre-seleziona cliente giusto
     if "selected_cliente" in st.session_state:
@@ -1132,13 +1138,19 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     data_da = col3.date_input("📅 Da Data Scadenza", format="DD/MM/YYYY", value=None)
     data_a = col4.date_input("📅 A Data Scadenza", format="DD/MM/YYYY", value=None)
 
-    # === PREPARA DATI CLIENTI ===
-    df_cli = df_cli.copy()
-    df_ct = df_ct.copy()
-    oggi = pd.Timestamp.now().normalize()
+# === PREPARA DATI CLIENTI ===
+df_cli = df_cli.copy()
+df_ct = df_ct.copy()
+oggi = pd.Timestamp.now().normalize()
 
-    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
-    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+# 🔹 Escludi tutti i contratti chiusi
+df_ct["Stato"] = df_ct["Stato"].astype(str).str.strip().str.lower()
+df_ct = df_ct[df_ct["Stato"] != "chiuso"]
+
+# 🔹 Conversione date in formato italiano (gg/mm/aaaa)
+df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+
 
     # Calcola la prima scadenza per ogni cliente
     prime_scadenze = (

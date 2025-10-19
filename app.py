@@ -800,7 +800,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 st.divider()
 st.markdown("### 📋 Elenco Contratti Cliente")
 
-contratti_cli = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+df_ct_local = load_contratti()
+contratti_cli = df_ct_local[df_ct_local["ClienteID"].astype(str) == str(sel_id)].copy()
+
 
 if contratti_cli.empty:
     st.info("Nessun contratto registrato per questo cliente.")

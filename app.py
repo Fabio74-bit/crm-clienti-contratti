@@ -1199,46 +1199,54 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
             pdf.ln(8)
 
-                       # === Righe dati (uniformi a 2 righe) ===
+                                   # === Righe dati (altezza uniforme, 2 righe massime per cella) ===
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Arial", "", 8)
 
             for _, row in disp.iterrows():
+                # Pulisci e adatta i testi
+                num_contr = safe_pdf_text(row.get("NumeroContratto", ""))
+                data_in = safe_pdf_text(row.get("DataInizio", ""))
+                data_fin = safe_pdf_text(row.get("DataFine", ""))
+                durata_txt = fit_text(row.get("Durata", ""), max_len=18)
+                descrizione_txt = safe_pdf_text(row.get("DescrizioneProdotto", ""))
+                tot_rata = safe_pdf_text(row.get("TotRata", ""))
+
+                # 🔹 Spezza la descrizione su massimo 2 righe
+                desc_lines = wrap(descrizione_txt, 95)[:2]
+                descrizione_txt = "\n".join(desc_lines)
+
+                # 🔹 Spezza la durata su massimo 2 righe (se necessario)
+                durata_lines = durata_txt.split("\n")[:2]
+                durata_txt = "\n".join(durata_lines)
+
+                # 🔹 Crea la lista finale dei valori
                 values = [
-                    safe_pdf_text(row.get("NumeroContratto", "")),
-                    safe_pdf_text(row.get("DataInizio", "")),
-                    safe_pdf_text(row.get("DataFine", "")),
-                    safe_pdf_text(fit_text(row.get("Durata", ""), max_len=18)),
-                    safe_pdf_text(row.get("DescrizioneProdotto", "")),
-                    safe_pdf_text(row.get("TotRata", "")),
+                    num_contr,
+                    data_in,
+                    data_fin,
+                    durata_txt,
+                    descrizione_txt,
+                    tot_rata,
                 ]
 
-                # 🔹 Forza Durata su massimo 2 righe
-                durata_lines = values[3].split("\n")[:2]
-                durata_text = "\n".join(durata_lines)
-
-                # 🔹 Limita descrizione a massimo 2 righe leggibili
-                desc_lines = wrap(values[4], 90)[:2]
-                descrizione_text = "\n".join(desc_lines)
-
-                # 🔹 Aggiorna i valori modificati
-                values[3] = durata_text
-                values[4] = descrizione_text
-
-                # 🔹 Altezza uniforme (2 righe x 4mm = 8mm)
-                line_height = 4
-                row_height = 8
+                # 🔹 Altezza uniforme: 2 righe x 5mm = 10mm totali
+                line_height = 5
+                row_height = 10
 
                 x_table = x_start_table
                 y_top = pdf.get_y()
 
+                # 🔹 Disegna ogni cella con altezza fissa
                 for i, text in enumerate(values):
                     align = "L" if i == 4 else "C"
                     pdf.set_xy(x_table, y_top)
                     pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
                     x_table += widths[i]
 
+                # 🔹 Mantieni le righe allineate orizzontalmente
                 pdf.set_y(y_top + row_height)
+
 
 
             # === Esporta PDF ===

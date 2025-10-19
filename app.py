@@ -1128,77 +1128,82 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             use_container_width=True
         )
 
-         # === ESPORTAZIONE PDF A PAGINA UNICA (layout uniforme e centrato) ===
-        with c2:
-            from fpdf import FPDF
-            from textwrap import wrap
-    
-            try:
-                class PDF(FPDF):
-                    def header(self):
-                        # Logo e titolo centrato
-                        self.image("https://www.shtsrl.com/template/images/logo.png", 10, 8, 25)
-                        self.set_font("Arial", "B", 12)
-                        self.cell(0, 10, f"Contratti - {rag_soc}", ln=1, align="C")
-                        self.ln(8)
-    
-                pdf = PDF(orientation="L", unit="mm", format="A4")
-                pdf.add_page()
-                pdf.set_auto_page_break(auto=False, margin=0)
-    
-                headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata",
-                           "Descrizione Prodotto", "Tot Rata"]
-                widths = [35, 25, 25, 25, 135, 25]
-                line_height = 6
-                row_height = 18
-    
-                pdf.set_font("Arial", "B", 9)
-                pdf.set_fill_color(37, 99, 235)
-                pdf.set_text_color(255, 255, 255)
-                for i, h in enumerate(headers):
-                    pdf.cell(widths[i], line_height, h, border=1, align="C", fill=True)
-                pdf.ln(line_height)
-    
-                pdf.set_font("Arial", "", 8)
-                pdf.set_text_color(0, 0, 0)
-    
-                for _, row in disp.iterrows():
-                    descrizione = str(row.get("DescrizioneProdotto", "")).strip()
-                    descr_lines = wrap(descrizione, 110)[:3]
-                    descr_text = "\n".join(descr_lines)
-    
-                    values = [
-                        str(row.get("NumeroContratto", "") or ""),
-                        str(row.get("DataInizio", "") or ""),
-                        str(row.get("DataFine", "") or ""),
-                        str(row.get("Durata", "") or ""),
-                        descr_text,
-                        str(row.get("TotRata", "") or ""),
-                    ]
-    
-                    y_top = pdf.get_y()
-                    x_pos = pdf.l_margin
-    
-                    for i, text in enumerate(values):
-                        align = "L" if i == 4 else "C"
-                        pdf.multi_cell(widths[i], 6, text, border=1, align=align)
-                        pdf.set_xy(x_pos + widths[i], y_top)
-                        x_pos += widths[i]
-    
-                    pdf.set_y(y_top + row_height)
-    
-                pdf.output("contratti_temp.pdf")
-                with open("contratti_temp.pdf", "rb") as f:
-                    st.download_button(
-                        "📗 Esporta PDF",
-                        f.read(),
-                        file_name=f"contratti_{rag_soc}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
-    
-            except Exception as e:
-                st.error(f"❌ Errore durante la creazione del PDF: {e}")
+        # === ESPORTAZIONE PDF A PAGINA UNICA (layout uniforme e centrato) ===
+with c2:
+    from fpdf import FPDF
+    from textwrap import wrap
+
+    try:
+        class PDF(FPDF):
+            def header(self):
+                # Logo e titolo centrato
+                self.image("https://www.shtsrl.com/template/images/logo.png", 10, 8, 25)
+                self.set_font("Arial", "B", 12)
+                self.cell(0, 10, f"Contratti - {rag_soc}", ln=1, align="C")
+                self.ln(8)
+
+        pdf = PDF(orientation="L", unit="mm", format="A4")
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=False, margin=0)
+
+        headers = [
+            "Numero Contratto", "Data Inizio", "Data Fine",
+            "Durata", "Descrizione Prodotto", "Tot Rata"
+        ]
+        widths = [35, 25, 25, 25, 135, 25]
+        line_height = 6
+        row_height = 18
+
+        pdf.set_font("Arial", "B", 9)
+        pdf.set_fill_color(37, 99, 235)
+        pdf.set_text_color(255, 255, 255)
+
+        for i, h in enumerate(headers):
+            pdf.cell(widths[i], line_height, h, border=1, align="C", fill=True)
+        pdf.ln(line_height)
+
+        pdf.set_font("Arial", "", 8)
+        pdf.set_text_color(0, 0, 0)
+
+        for _, row in disp.iterrows():
+            descrizione = str(row.get("DescrizioneProdotto", "")).strip()
+            descr_lines = wrap(descrizione, 110)[:3]
+            descr_text = "\n".join(descr_lines)
+
+            values = [
+                str(row.get("NumeroContratto", "") or ""),
+                str(row.get("DataInizio", "") or ""),
+                str(row.get("DataFine", "") or ""),
+                str(row.get("Durata", "") or ""),
+                descr_text,
+                str(row.get("TotRata", "") or ""),
+            ]
+
+            y_top = pdf.get_y()
+            x_pos = pdf.l_margin
+
+            for i, text in enumerate(values):
+                align = "L" if i == 4 else "C"
+                pdf.multi_cell(widths[i], 6, text, border=1, align=align)
+                pdf.set_xy(x_pos + widths[i], y_top)
+                x_pos += widths[i]
+
+            pdf.set_y(y_top + row_height)
+
+        pdf.output("contratti_temp.pdf")
+
+        with open("contratti_temp.pdf", "rb") as f:
+            st.download_button(
+                "📗 Esporta PDF",
+                f.read(),
+                file_name=f"contratti_{rag_soc}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+
+    except Exception as e:
+        st.error(f"❌ Errore durante la creazione del PDF: {e}")
+
 
 # =====================================
 # 📅 PAGINA RICHIAMI E VISITE (stile Pulito Business)

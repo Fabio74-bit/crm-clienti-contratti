@@ -535,10 +535,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.caption(f"ClienteID: {sel_id}")
     with col_header2:
         st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
-        if st.button("📄 Vai ai Contratti", use_container_width=True):
-            st.session_state["selected_cliente"] = sel_id
-            st.session_state["nav_target"] = "Contratti"
-            st.rerun()
+    if st.button("📄 Vai ai Contratti", use_container_width=True):
+        st.session_state["selected_cliente"] = sel_id
+        st.session_state["nav_target"] = "Contratti"
+        # 🔹 Forza subito il cambio pagina prima del rerun
+        st.experimental_set_query_params(page="Contratti")
+        st.rerun()
+
 
         st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
         if st.button("✏️ Modifica Anagrafica", key=f"btn_anag_{sel_id}", use_container_width=True, type="secondary"):

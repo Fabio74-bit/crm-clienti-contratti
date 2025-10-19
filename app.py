@@ -270,8 +270,8 @@ def page_dashboard(df_cli, df_ct, role):
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
 
-    # =====================================
-    # 🚫 CLIENTI SENZA DATA FINE
+        # =====================================
+    # 🚫 CLIENTI SENZA DATA FINE (filtrata)
     # =====================================
     with st.container():
         st.markdown("<hr>", unsafe_allow_html=True)
@@ -281,26 +281,44 @@ def page_dashboard(df_cli, df_ct, role):
         df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
         df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
 
+        # 🔹 Filtra solo contratti senza Data Fine
         senza_datafine = df_ct[df_ct["DataFine"].isna() | (df_ct["DataFine"] == "")]
+        # 🔹 Considera solo contratti recenti (dal 2025 in poi)
         senza_datafine = senza_datafine[senza_datafine["DataInizio"] >= pd.Timestamp("2025-01-01")]
+
+        # 🔹 Escludi contratti di vendita, rinnovo, rinnovo automatico, annuale
+        exclude_keywords = ["vendita", "rinnovo", "rinnovo automatico", "annuale"]
+        mask_exclude = senza_datafine["DescrizioneProdotto"].astype(str).str.lower().apply(
+            lambda x: any(k in x for k in exclude_keywords)
+        )
+        senza_datafine = senza_datafine[~mask_exclude]
 
         if senza_datafine.empty:
             st.success("✅ Tutti i nuovi contratti hanno una Data Fine impostata.")
         else:
-            senza_datafine = senza_datafine.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+            senza_datafine = senza_datafine.merge(
+                df_cli[["ClienteID", "RagioneSociale"]],
+                on="ClienteID", how="left"
+            )
             senza_datafine = senza_datafine.sort_values("DataInizio", ascending=True)
             st.markdown(f"**🔹 {len(senza_datafine)} clienti hanno contratti senza Data Fine:**")
 
             for i, r in senza_datafine.iterrows():
                 c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 0.8])
-                c1.markdown(f"**{r['RagioneSociale']}**")
-                c2.markdown(r["NumeroContratto"] or "—")
-                c3.markdown(fmt_date(r["DataInizio"]) or "—")
-                c4.markdown(r["Durata"] or "—")
-                if c5.button("Apri", key=f"open_nofine_{i}", use_container_width=True):
-                    st.session_state["selected_cliente"] = r["ClienteID"]
-                    st.session_state["nav_target"] = "Contratti"
-                    st.rerun()
+                with c1:
+                    st.markdown(f"**{r['RagioneSociale']}**")
+                with c2:
+                    st.markdown(r["NumeroContratto"] or "—")
+                with c3:
+                    st.markdown(fmt_date(r["DataInizio"]) or "—")
+                with c4:
+                    st.markdown(r["Durata"] or "—")
+                with c5:
+                    if st.button("Apri", key=f"open_nofine_{i}", use_container_width=True):
+                        st.session_state["selected_cliente"] = r["ClienteID"]
+                        st.session_state["nav_target"] = "Contratti"
+                        st.rerun()
+
 
 
 # =====================================

@@ -120,7 +120,7 @@ def kpi_card(label, value, icon, color):
     """
 
 # =====================================
-# DASHBOARD CON NUOVO BLOCCO
+# DASHBOARD COMPLETA (KPI + NUOVO CLIENTE + SCADENZE + SENZA DATA FINE)
 # =====================================
 def page_dashboard(df_cli, df_ct, role):
     st.image(LOGO_URL, width=120)
@@ -145,7 +145,7 @@ def page_dashboard(df_cli, df_ct, role):
     c4.markdown(kpi_card("Nuovi contratti anno", count_new, "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-       # =====================================
+    # =====================================
     # ➕ CREA NUOVO CLIENTE + CONTRATTO (aggiornato)
     # =====================================
     with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
@@ -217,7 +217,7 @@ def page_dashboard(df_cli, df_ct, role):
                         "ClienteID": new_id,
                         "NumeroContratto": num,
                         "DataInizio": data_inizio,
-                        "DataFine": data_fine,
+                        "DataFine": data_fine if data_fine else "",
                         "Durata": durata,
                         "DescrizioneProdotto": desc,
                         "NOL_FIN": nf,
@@ -252,12 +252,13 @@ def page_dashboard(df_cli, df_ct, role):
         ].copy()
 
         if scadenze.empty:
-            st.success("✅ Nessun contratto in scadenza entro 6 mesi.")
+            st.success("✅ Nessun contratto in scadenza nei prossimi 6 mesi.")
         else:
             scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
             scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
-            scadenze = scadenze.sort_values("DataFine")
-            st.markdown(f"**🔢 {len(scadenze)} contratti attivi in scadenza:**")
+            scadenze = scadenze.sort_values("DataFine", ascending=True)
+            st.markdown(f"**🔢 {len(scadenze)} contratti in scadenza entro 6 mesi:**")
+
             for i, r in scadenze.iterrows():
                 c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 0.8])
                 c1.markdown(f"**{r['RagioneSociale']}**")
@@ -268,6 +269,39 @@ def page_dashboard(df_cli, df_ct, role):
                     st.session_state["selected_cliente"] = r["ClienteID"]
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
+
+    # =====================================
+    # 🚫 CLIENTI SENZA DATA FINE
+    # =====================================
+    with st.container():
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.markdown("### 🚫 Clienti con contratti senza Data Fine")
+
+        oggi = pd.Timestamp.now().normalize()
+        df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+        df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+
+        senza_datafine = df_ct[df_ct["DataFine"].isna() | (df_ct["DataFine"] == "")]
+        senza_datafine = senza_datafine[senza_datafine["DataInizio"] >= pd.Timestamp("2025-01-01")]
+
+        if senza_datafine.empty:
+            st.success("✅ Tutti i nuovi contratti hanno una Data Fine impostata.")
+        else:
+            senza_datafine = senza_datafine.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+            senza_datafine = senza_datafine.sort_values("DataInizio", ascending=True)
+            st.markdown(f"**🔹 {len(senza_datafine)} clienti hanno contratti senza Data Fine:**")
+
+            for i, r in senza_datafine.iterrows():
+                c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 0.8])
+                c1.markdown(f"**{r['RagioneSociale']}**")
+                c2.markdown(r["NumeroContratto"] or "—")
+                c3.markdown(fmt_date(r["DataInizio"]) or "—")
+                c4.markdown(r["Durata"] or "—")
+                if c5.button("Apri", key=f"open_nofine_{i}", use_container_width=True):
+                    st.session_state["selected_cliente"] = r["ClienteID"]
+                    st.session_state["nav_target"] = "Contratti"
+                    st.rerun()
+
 
 # =====================================
 # PAGINA CLIENTI

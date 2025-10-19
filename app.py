@@ -740,64 +740,193 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA RECALL & VISITE
+# 📅 PAGINA RECALL E VISITE (stile originale migliorato)
 # =====================================
 def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    st.image(LOGO_URL, width=120)
-    st.subheader("📅 Gestione Recall e Visite")
-    st.divider()
-    oggi = pd.Timestamp.now().normalize()
-    df_cli["ProssimoRecall"] = pd.to_datetime(df_cli["ProssimoRecall"], errors="coerce")
-    df_cli["ProssimaVisita"] = pd.to_datetime(df_cli["ProssimaVisita"], errors="coerce")
+    # --- Stile coerente e pulito ---
+    st.markdown("""
+    <style>
+    .section-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.2rem 1.5rem;
+        margin-bottom: 1.4rem;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+    .section-title {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #2563eb;
+        margin-bottom: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .section-title span {
+        font-size: 1.3rem;
+    }
+    .tbl {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .tbl th, .tbl td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 6px 10px;
+        text-align: left;
+    }
+    .tbl th {
+        background-color: #f3f4f6;
+        font-weight: 600;
+    }
+    .tbl tr:hover td {
+        background-color: #fef9c3;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    imminenti = df_cli[
-        (df_cli["ProssimoRecall"].between(oggi, oggi + pd.DateOffset(days=30))) |
-        (df_cli["ProssimaVisita"].between(oggi, oggi + pd.DateOffset(days=30)))
+    # --- Intestazione ---
+    st.image(LOGO_URL, width=120)
+    st.markdown("<h2>📅 Gestione Recall e Visite</h2>", unsafe_allow_html=True)
+    st.divider()
+
+    # --- FILTRO RICERCA ---
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'><span>🔍</span>Filtra clienti</div>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([0.4, 0.4, 0.2])
+    with col1:
+        filtro_nome = st.text_input("Cerca per nome cliente")
+    with col2:
+        filtro_citta = st.text_input("Cerca per città")
+    with col3:
+        if st.button("🔄 Pulisci filtri"):
+            st.rerun()
+
+    filtrato = df_cli.copy()
+    if filtro_nome:
+        filtrato = filtrato[filtrato["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
+    if filtro_citta:
+        filtrato = filtrato[filtrato["Citta"].str.contains(filtro_citta, case=False, na=False)]
+
+    if filtrato.empty:
+        st.warning("❌ Nessun cliente trovato con i criteri di ricerca.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- Conversione date con formato italiano ---
+    for col in ["UltimoRecall", "UltimaVisita", "ProssimoRecall", "ProssimaVisita"]:
+        filtrato[col] = pd.to_datetime(filtrato[col], errors="coerce", dayfirst=True)
+
+    oggi = pd.Timestamp.now().normalize()
+
+    # =====================================
+    # 🔁 RECALL E VISITE IMMINENTI (entro 30 giorni)
+    # =====================================
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'><span>🔁</span>Recall e Visite imminenti (entro 30 giorni)</div>", unsafe_allow_html=True)
+
+    imminenti = filtrato[
+        (filtrato["ProssimoRecall"].between(oggi, oggi + pd.DateOffset(days=30))) |
+        (filtrato["ProssimaVisita"].between(oggi, oggi + pd.DateOffset(days=30)))
     ].copy()
 
     if imminenti.empty:
         st.success("✅ Nessun richiamo o visita imminente.")
     else:
-        st.markdown("### 🔁 Recall e Visite imminenti (entro 30 giorni)")
+        st.markdown("<table class='tbl'><thead><tr>"
+                    "<th>Cliente</th><th>Prossimo Recall</th><th>Prossima Visita</th><th style='text-align:center'>Azione</th>"
+                    "</tr></thead><tbody>", unsafe_allow_html=True)
         for i, r in imminenti.iterrows():
-            col1, col2, col3, col4 = st.columns([2, 1, 1, 0.5])
-            col1.write(f"**{r['RagioneSociale']}**")
-            col2.write(fmt_date(r["ProssimoRecall"]))
-            col3.write(fmt_date(r["ProssimaVisita"]))
-            if col4.button("Apri", key=f"imm_{i}"):
-                st.session_state["selected_cliente"] = r["ClienteID"]
-                st.session_state["nav_target"] = "Clienti"
-                st.rerun()
+            cols = st.columns([2.5, 1.2, 1.2, 0.8])
+            with cols[0]:
+                st.markdown(f"**{r['RagioneSociale']}**")
+            with cols[1]:
+                st.markdown(fmt_date(r["ProssimoRecall"]))
+            with cols[2]:
+                st.markdown(fmt_date(r["ProssimaVisita"]))
+            with cols[3]:
+                if st.button("Apri", key=f"imm_{i}", use_container_width=True):
+                    st.session_state["selected_cliente"] = r["ClienteID"]
+                    st.session_state["nav_target"] = "Clienti"
+                    st.rerun()
+        st.markdown("</tbody></table>", unsafe_allow_html=True)
 
-    st.divider()
-    st.markdown("### ⚠️ Recall o Visite in ritardo")
-    recall_vecchi = df_cli[
-        df_cli["UltimoRecall"].notna() & (pd.to_datetime(df_cli["UltimoRecall"], errors="coerce") < oggi - pd.DateOffset(months=3))
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # =====================================
+    # ⚠️ RECALL E VISITE IN RITARDO
+    # =====================================
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'><span>⚠️</span>Recall e Visite in ritardo</div>", unsafe_allow_html=True)
+
+    recall_vecchi = filtrato[
+        filtrato["UltimoRecall"].notna() & (filtrato["UltimoRecall"] < oggi - pd.DateOffset(months=3))
     ]
-    visite_vecchie = df_cli[
-        df_cli["UltimaVisita"].notna() & (pd.to_datetime(df_cli["UltimaVisita"], errors="coerce") < oggi - pd.DateOffset(months=6))
+    visite_vecchie = filtrato[
+        filtrato["UltimaVisita"].notna() & (filtrato["UltimaVisita"] < oggi - pd.DateOffset(months=6))
     ]
+
     col1, col2 = st.columns(2)
+
     with col1:
-        st.markdown("#### 📞 Recall > 3 mesi")
+        st.markdown("### 📞 Recall > 3 mesi")
         if recall_vecchi.empty:
             st.info("✅ Nessun recall scaduto.")
         else:
+            st.markdown("<table class='tbl'><thead><tr><th>Cliente</th><th>Ultimo Recall</th><th style='text-align:center'>Azione</th></tr></thead><tbody>", unsafe_allow_html=True)
             for i, r in recall_vecchi.iterrows():
-                if st.button(f"Apri {r['RagioneSociale']}", key=f"r_{i}"):
-                    st.session_state["selected_cliente"] = r["ClienteID"]
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
+                cols = st.columns([2.5, 1.2, 0.8])
+                with cols[0]:
+                    st.markdown(f"**{r['RagioneSociale']}**")
+                with cols[1]:
+                    st.markdown(fmt_date(r["UltimoRecall"]))
+                with cols[2]:
+                    if st.button("Apri", key=f"recold_{i}", use_container_width=True):
+                        st.session_state["selected_cliente"] = r["ClienteID"]
+                        st.session_state["nav_target"] = "Clienti"
+                        st.rerun()
+            st.markdown("</tbody></table>", unsafe_allow_html=True)
+
     with col2:
-        st.markdown("#### 👣 Visite > 6 mesi")
+        st.markdown("### 👣 Visite > 6 mesi")
         if visite_vecchie.empty:
             st.info("✅ Nessuna visita scaduta.")
         else:
+            st.markdown("<table class='tbl'><thead><tr><th>Cliente</th><th>Ultima Visita</th><th style='text-align:center'>Azione</th></tr></thead><tbody>", unsafe_allow_html=True)
             for i, r in visite_vecchie.iterrows():
-                if st.button(f"Apri {r['RagioneSociale']}", key=f"v_{i}"):
-                    st.session_state["selected_cliente"] = r["ClienteID"]
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
+                cols = st.columns([2.5, 1.2, 0.8])
+                with cols[0]:
+                    st.markdown(f"**{r['RagioneSociale']}**")
+                with cols[1]:
+                    st.markdown(fmt_date(r["UltimaVisita"]))
+                with cols[2]:
+                    if st.button("Apri", key=f"visold_{i}", use_container_width=True):
+                        st.session_state["selected_cliente"] = r["ClienteID"]
+                        st.session_state["nav_target"] = "Clienti"
+                        st.rerun()
+            st.markdown("</tbody></table>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # =====================================
+    # 🧾 STORICO COMPLETO
+    # =====================================
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'><span>🧾</span>Storico completo</div>", unsafe_allow_html=True)
+
+    tabella = filtrato[[
+        "RagioneSociale", "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"
+    ]].copy()
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        tabella[c] = tabella[c].apply(fmt_date)
+
+    st.dataframe(tabella, use_container_width=True, hide_index=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 # =====================================
 # LISTA COMPLETA CLIENTI E CONTRATTI

@@ -1,4 +1,4 @@
-# =====================================
+page_lista_clienti# =====================================
 # app.py — Gestionale Clienti SHT (FULL 2025 ITA)
 # =====================================
 from __future__ import annotations
@@ -1157,11 +1157,9 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         tabella[c] = tabella[c].apply(fmt_date)
     st.dataframe(tabella, use_container_width=True, hide_index=True)
 
+
 # =====================================
-# LISTA COMPLETA CLIENTI E CONTRATTI
-# =====================================
-# =====================================
-# LISTA COMPLETA CLIENTI E CONTRATTI — VERSIONE ESTESA
+# LISTA COMPLETA CLIENTI E CONTRATTI — CON BADGE, RIEPILOGO E ORDINAMENTO
 # =====================================
 def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.title("📋 Lista Completa Clienti e Scadenze Contratti")
@@ -1177,8 +1175,8 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === PREPARA DATI CLIENTI ===
     df_cli = df_cli.copy()
     df_ct = df_ct.copy()
+    oggi = pd.Timestamp.now().normalize()
 
-    # Conversione date
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
 
@@ -1192,7 +1190,22 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     )
 
     merged = df_cli.merge(prime_scadenze, on="ClienteID", how="left")
-    merged["PrimaScadenza_fmt"] = merged["PrimaScadenza"].apply(fmt_date)
+    merged["GiorniMancanti"] = (merged["PrimaScadenza"] - oggi).dt.days
+
+    # === CREA BADGE COLORATI ===
+    def badge_scadenza(row):
+        if pd.isna(row["PrimaScadenza"]):
+            return "<span style='color:#999;'>⚪ Nessuna</span>"
+        giorni = row["GiorniMancanti"]
+        data_fmt = fmt_date(row["PrimaScadenza"])
+        if giorni <= 30:
+            return f"<span style='color:#d32f2f;font-weight:600;'>🔴 {data_fmt}</span>"
+        elif giorni <= 90:
+            return f"<span style='color:#f9a825;font-weight:600;'>🟡 {data_fmt}</span>"
+        else:
+            return f"<span style='color:#388e3c;font-weight:600;'>🟢 {data_fmt}</span>"
+
+    merged["ScadenzaBadge"] = merged.apply(badge_scadenza, axis=1)
 
     # === FILTRI ===
     if filtro_nome:
@@ -1204,14 +1217,45 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if data_a:
         merged = merged[merged["PrimaScadenza"] <= pd.Timestamp(data_a)]
 
-    # Ordina alfabeticamente per cliente
-    merged = merged.sort_values("RagioneSociale", ascending=True)
+    # === RIEPILOGO ===
+    total_clienti = len(merged)
+    entro_30 = (merged["GiorniMancanti"] <= 30).sum()
+    entro_90 = ((merged["GiorniMancanti"] > 30) & (merged["GiorniMancanti"] <= 90)).sum()
+    oltre_90 = (merged["GiorniMancanti"] > 90).sum()
+    senza_scadenza = merged["PrimaScadenza"].isna().sum()
+
+    st.markdown(f"""
+    **Totale Clienti:** {total_clienti}  
+    🔴 **Scadenze entro 30 giorni:** {entro_30}  
+    🟡 **Entro 90 giorni:** {entro_90}  
+    🟢 **Oltre 90 giorni:** {oltre_90}  
+    ⚪ **Senza scadenza:** {senza_scadenza}
+    """)
+
+    # === ORDINAMENTO ===
+    st.markdown("### ↕️ Ordinamento elenco")
+    ord_col1, ord_col2 = st.columns(2)
+    sort_mode = ord_col1.radio(
+        "Ordina per:",
+        ["Nome Cliente (A → Z)", "Nome Cliente (Z → A)", "Data Scadenza (più vicina)", "Data Scadenza (più lontana)"],
+        horizontal=True
+    )
+
+    if sort_mode == "Nome Cliente (A → Z)":
+        merged = merged.sort_values("RagioneSociale", ascending=True)
+    elif sort_mode == "Nome Cliente (Z → A)":
+        merged = merged.sort_values("RagioneSociale", ascending=False)
+    elif sort_mode == "Data Scadenza (più vicina)":
+        merged = merged.sort_values("PrimaScadenza", ascending=True, na_position="last")
+    elif sort_mode == "Data Scadenza (più lontana)":
+        merged = merged.sort_values("PrimaScadenza", ascending=False, na_position="last")
 
     # === VISUALIZZAZIONE ===
     if merged.empty:
         st.warning("❌ Nessun cliente trovato con i criteri selezionati.")
         return
 
+    st.divider()
     st.markdown("### 📇 Elenco Clienti e Scadenze")
 
     st.markdown("""
@@ -1254,7 +1298,7 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with c2:
             st.markdown(r.get("Citta", "") or "—")
         with c3:
-            st.markdown(r["PrimaScadenza_fmt"] or "—")
+            st.markdown(r["ScadenzaBadge"], unsafe_allow_html=True)
         with c4:
             if st.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
                 st.session_state["selected_cliente"] = r["ClienteID"]

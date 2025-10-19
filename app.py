@@ -228,7 +228,7 @@ def _render_contratti_cliente(sel_id: str):
         if c not in df_ct_local.columns:
             df_ct_local[c] = ""
 
-    contratti_cli = df_ct_local[df_ct_local["ClienteID"].astype(str) == str(sel_id)].copy()
+   
 
     if contratti_cli.empty:
         st.info("Nessun contratto registrato per questo cliente.")
@@ -746,7 +746,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.success("✅ Date aggiornate.")
         st.rerun()
 
-  
+      # === 📋 ELENCO CONTRATTI DEL CLIENTE ===
+    _render_contratti_cliente(sel_id)
 
 
     # =======================================================

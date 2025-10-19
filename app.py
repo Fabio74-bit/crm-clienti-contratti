@@ -635,27 +635,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.success("✅ Date aggiornate.")
         st.rerun()
 
-        # === NOTE CLIENTE (blocco indipendente) ===
-    st.divider()
-    st.markdown("### 📝 Note Cliente")
 
-    note_attuali = cliente.get("NoteCliente", "")
-    nuove_note = st.text_area(
-        "Modifica note cliente:",
-        note_attuali,
-        height=160,
-        key=f"note_{sel_id}"
-    )
-
-    if st.button("💾 Salva Note Cliente", use_container_width=True):
-        try:
-            idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-            df_cli.loc[idx_row, "NoteCliente"] = nuove_note
-            save_clienti(df_cli)
-            st.success("✅ Note aggiornate correttamente!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Errore durante il salvataggio delle note: {e}")
     # === MODIFICA ANAGRAFICA COMPLETA ===
     st.divider()
     with st.expander("✏️ Modifica Anagrafica Completa"):

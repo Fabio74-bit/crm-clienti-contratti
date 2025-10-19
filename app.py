@@ -444,13 +444,29 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # PAGINA CLIENTI (completa con anagrafica + preventivi)
 # =====================================
+# =====================================
+# PAGINA CLIENTI (corretta — selezione diretta + scroll top)
+# =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Clienti")
+
+    # 🔝 Forza scroll in alto all'apertura della pagina
+    st.markdown(
+        "<script>window.scrollTo({top: 0, behavior: 'smooth'});</script>",
+        unsafe_allow_html=True,
+    )
+
+    # 🔗 Arrivo da "Apri" in Lista Clienti o Dashboard: pre-seleziona cliente giusto
+    if "selected_cliente" in st.session_state:
+        selected_id = str(st.session_state.pop("selected_cliente"))
+        cli_ids = df_cli["ClienteID"].astype(str)
+        if selected_id in set(cli_ids.values):
+            riga = df_cli.loc[cli_ids == selected_id].iloc[0]
+            st.session_state["cliente_selezionato"] = riga["RagioneSociale"]
 
     # === STILE PERSONALIZZATO ===
     st.markdown("""
     <style>
-    /* 🔹 Campo di ricerca con bordo blu */
     input[data-baseweb="input"] {
         border: 2px solid #2563eb !important;
         border-radius: 8px !important;
@@ -464,8 +480,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         box-shadow: 0 0 0 2px rgba(37,99,235,0.2) !important;
         outline: none !important;
     }
-
-    /* 🔹 Pulsante Modifica Anagrafica */
     div[data-testid="stButton"] > button[kind="secondary"] {
         background-color: #2563eb !important;
         color: white !important;
@@ -543,7 +557,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         unsafe_allow_html=True
     )
 
-    # === BLOCCO ANAGRAFICA MOSTRATO SOLO SE ATTIVO ===
+    # === BLOCCO ANAGRAFICA MODIFICA ===
     if st.session_state.get(f"show_anagrafica_{sel_id}", False):
         st.divider()
         st.markdown("### ✏️ Modifica Anagrafica Cliente")
@@ -562,8 +576,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
                 iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
                 sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
-               
-
             salva_btn = st.form_submit_button("💾 Salva Modifiche")
             if salva_btn:
                 idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
@@ -577,13 +589,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 df_cli.loc[idx, "PartitaIVA"] = piva
                 df_cli.loc[idx, "IBAN"] = iban
                 df_cli.loc[idx, "SDI"] = sdi
-                df_cli.loc[idx, "NoteCliente"] = note
                 save_clienti(df_cli)
                 st.success("✅ Anagrafica aggiornata.")
                 st.session_state[f"show_anagrafica_{sel_id}"] = False
                 st.rerun()
 
-    # === NOTE CLIENTE (sezione indipendente) ===
+    # === NOTE CLIENTE ===
     st.divider()
     st.markdown("### 📝 Note Cliente")
 
@@ -597,7 +608,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     )
 
     if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}_{int(time.time()*1000)}", use_container_width=True):
-
         try:
             idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
             df_cli.loc[idx_row, "NoteCliente"] = nuove_note
@@ -607,16 +617,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"❌ Errore durante il salvataggio delle note: {e}")
 
-
-              # === DATE RECALL E VISITE ===
+    # === RECALL E VISITE ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
-
-    import locale
-    try:
-        locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
-    except:
-        pass  # fallback se non disponibile nel sistema
 
     def _safe_date(val):
         try:
@@ -625,25 +628,22 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception:
             return None
 
-    # 🔹 Conversione date esistenti
     ur_val = _safe_date(cliente.get("UltimoRecall"))
     pr_val = _safe_date(cliente.get("ProssimoRecall"))
     uv_val = _safe_date(cliente.get("UltimaVisita"))
     pv_val = _safe_date(cliente.get("ProssimaVisita"))
 
-    # 🔹 Calcolo automatico se vuoti
+    # Calcolo automatico se vuoti
     if ur_val and not pr_val:
         pr_val = (pd.Timestamp(ur_val) + pd.DateOffset(months=3)).date()
     if uv_val and not pv_val:
         pv_val = (pd.Timestamp(uv_val) + pd.DateOffset(months=6)).date()
 
-    # 🔹 Campi data (formato italiano)
     col1, col2, col3, col4 = st.columns(4)
     ur = col1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{sel_id}")
     pr = col2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{sel_id}")
     uv = col3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{sel_id}")
     pv = col4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{sel_id}")
-
 
     if st.button("💾 Salva Aggiornamenti", use_container_width=True):
         idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
@@ -652,49 +652,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         df_cli.loc[idx, "UltimaVisita"] = fmt_date(uv)
         df_cli.loc[idx, "ProssimaVisita"] = fmt_date(pv)
         save_clienti(df_cli)
-        st.success("✅ Date aggiornate correttamente!")
+        st.success("✅ Date aggiornate.")
         st.rerun()
-
-
-
-    # === MODIFICA ANAGRAFICA COMPLETA ===
-    st.divider()
-    with st.expander("✏️ Modifica Anagrafica Completa"):
-        with st.form(f"frm_anagrafica_{sel_id}"):
-            col1, col2 = st.columns(2)
-            with col1:
-                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
-                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
-                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
-                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
-                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
-                email = st.text_input("✉️ Email", cliente.get("Email", ""))
-                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-            with col2:
-                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
-                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
-                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
-                note = st.text_area("📝 Note Cliente", cliente.get("NoteCliente", ""), height=110)
-
-            salva_btn = st.form_submit_button("💾 Salva Modifiche")
-            if salva_btn:
-                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                df_cli.loc[idx, "Indirizzo"] = indirizzo
-                df_cli.loc[idx, "Citta"] = citta
-                df_cli.loc[idx, "CAP"] = cap
-                df_cli.loc[idx, "Telefono"] = telefono
-                df_cli.loc[idx, "Cell"] = cell
-                df_cli.loc[idx, "Email"] = email
-                df_cli.loc[idx, "PersonaRiferimento"] = persona
-                df_cli.loc[idx, "PartitaIVA"] = piva
-                df_cli.loc[idx, "IBAN"] = iban
-                df_cli.loc[idx, "SDI"] = sdi
-                df_cli.loc[idx, "NoteCliente"] = note
-                save_clienti(df_cli)
-                st.success("✅ Anagrafica aggiornata.")
-                st.rerun()
-
-    st.divider()
 
     # =======================================================
     # 🧾 GESTIONE PREVENTIVI INTEGRATA

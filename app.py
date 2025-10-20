@@ -383,8 +383,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col1:
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
         st.caption(f"ID Cliente: {sel_id}")
-            # === IMPORTA NOTE DA FILE EXCEL (solo per amministratori) ===
+              # === IMPORTA NOTE DA FILE EXCEL (solo per amministratori) ===
     if role == "admin":
+        import openpyxl
         st.divider()
         st.markdown("### 📥 Importa Note Cliente da file Excel (.xlsm)")
 
@@ -396,55 +397,63 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         if uploaded_file:
             try:
-                import openpyxl
-
-                xls = pd.ExcelFile(uploaded_file, engine="openpyxl")
-                st.info(f"📘 Trovati {len(xls.sheet_names)} fogli: {', '.join(xls.sheet_names[:8])}...")
-
+                wb = openpyxl.load_workbook(uploaded_file, data_only=True)
+                sheets = wb.sheetnames
+                st.info(f"📘 Trovati {len(sheets)} fogli: {', '.join(sheets[:6])}...")
                 df_cli_updated = df_cli.copy()
+
                 if "NoteCliente" not in df_cli_updated.columns:
                     df_cli_updated["NoteCliente"] = ""
 
-                count = 0
+                progress = st.progress(0)
+                log_area = st.empty()
+                count, skipped = 0, 0
 
-                for sheet in xls.sheet_names:
-                    wb = openpyxl.load_workbook(uploaded_file, data_only=True)
-                    ws = wb[sheet]
-
-                    # cerca cella con "NOTE CLIENTI"
-                    note_row = None
-                    for row in ws.iter_rows(values_only=True):
-                        if not any(row):
-                            continue
-                        for cell in row:
-                            if cell and "note" in str(cell).lower():
-                                note_row = row
-                                break
-                        if note_row:
-                            break
+                for idx, sheet_name in enumerate(sheets):
+                    ws = wb[sheet_name]
+                    log_area.info(f"🔎 Analizzo foglio: **{sheet_name}** ({idx+1}/{len(sheets)})")
 
                     note_text = ""
-                    if note_row:
-                        # cerca riga dopo "NOTE CLIENTI"
-                        for r in ws.iter_rows(min_row=ws.iter_rows(values_only=True).index(note_row) + 2, values_only=True):
-                            # concateno righe successive se non vuote
-                            row_text = " ".join([str(c) for c in r if c]).strip()
-                            if row_text:
-                                note_text += row_text + " "
+                    found_line = False
+                    rows = list(ws.iter_rows(values_only=True))
 
-                    if note_text.strip():
-                        # matcha foglio con cliente nel CSV
-                        mask = df_cli_updated["RagioneSociale"].astype(str).str.lower().str.strip() == sheet.lower().strip()
+                    for i, row in enumerate(rows):
+                        if any(cell and "note" in str(cell).lower() for cell in row):
+                            # Riga trovata — prendo tutte le righe successive non vuote
+                            found_line = True
+                            for next_row in rows[i + 1:]:
+                                row_text = " ".join([str(c) for c in next_row if c]).strip()
+                                if row_text:
+                                    note_text += row_text + " "
+                            break
+
+                    if found_line and note_text.strip():
+                        mask = (
+                            df_cli_updated["RagioneSociale"]
+                            .astype(str)
+                            .str.lower()
+                            .str.strip()
+                            == sheet_name.lower().strip()
+                        )
                         if mask.any():
                             df_cli_updated.loc[mask, "NoteCliente"] = note_text.strip()
                             count += 1
+                        else:
+                            skipped += 1
+                            log_area.warning(f"⚠️ Nessuna corrispondenza per: {sheet_name}")
+                    else:
+                        skipped += 1
+                        log_area.warning(f"⚠️ Nessuna nota trovata in: {sheet_name}")
+
+                    progress.progress((idx + 1) / len(sheets))
 
                 save_clienti(df_cli_updated)
-                st.success(f"✅ Importazione completata! Note trovate e salvate per {count} clienti.")
+                st.success(f"✅ Importazione completata! Note importate per {count} clienti. ({skipped} non corrispondenti)")
                 st.rerun()
 
             except Exception as e:
                 st.error(f"❌ Errore durante l'importazione delle note: {e}")
+
 
     with col2:
         if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):

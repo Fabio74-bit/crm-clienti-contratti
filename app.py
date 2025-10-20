@@ -747,6 +747,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
 
+    # === FORM CREAZIONE PREVENTIVO ===
     with st.form(unique_form_key):
         anno = datetime.now().year
         nome_cliente = cliente.get("RagioneSociale", "")
@@ -780,11 +781,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     }
                     for p in doc.paragraphs:
                         for k, v in mappa.items():
-                            p.text = p.text.replace(f"<<{k}>>", str(v))
-                            for run in p.runs:
-                                run.font.size = Pt(10)
+                            if f"<<{k}>>" in p.text:
+                                p.text = p.text.replace(f"<<{k}>>", str(v))
+                                for run in p.runs:
+                                    run.font.size = Pt(10)
                     out = PREVENTIVI_DIR / nome_file
                     doc.save(out)
+
                     nuova_riga = {
                         "ClienteID": sel_id,
                         "NumeroOfferta": num_off,
@@ -800,10 +803,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             except Exception as e:
                 st.error(f"❌ Errore durante la creazione: {e}")
 
-       st.divider()
+    # === ELENCO PREVENTIVI CLIENTE ===
+    st.divider()
     st.markdown("### 📂 Elenco Preventivi Cliente")
 
-    import time
     unique_suffix = f"_{sel_id}_{int(time.time()*1000)}"
 
     prev_cli = df_prev[df_prev["ClienteID"] == sel_id]
@@ -841,6 +844,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
+
 
 
     # === INFO RAPIDE ===

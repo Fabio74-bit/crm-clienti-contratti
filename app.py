@@ -800,8 +800,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             except Exception as e:
                 st.error(f"❌ Errore durante la creazione: {e}")
 
-    st.divider()
+       st.divider()
     st.markdown("### 📂 Elenco Preventivi Cliente")
+
+    import time
+    unique_suffix = f"_{sel_id}_{int(time.time()*1000)}"
+
     prev_cli = df_prev[df_prev["ClienteID"] == sel_id]
     if prev_cli.empty:
         st.info("Nessun preventivo per questo cliente.")
@@ -820,11 +824,14 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             f.read(),
                             file_name=file_path.name,
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key=f"dl_{r['NumeroOfferta']}"
+                            key=f"dl_{r['NumeroOfferta']}_{sel_id}_{i}_{int(time.time()*1000)}"
                         )
             with col3:
                 if role == "admin":
-                    if st.button("🗑 Elimina", key=f"del_{r['NumeroOfferta']}_{i}"):
+                    if st.button(
+                        "🗑 Elimina",
+                        key=f"del_{r['NumeroOfferta']}_{sel_id}_{i}_{int(time.time()*1000)}"
+                    ):
                         try:
                             if file_path.exists():
                                 file_path.unlink()

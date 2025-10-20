@@ -680,29 +680,40 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"❌ Errore durante il salvataggio delle note: {e}")
 
-    # === RECALL E VISITE ===
+        # === RECALL E VISITE ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
+
+    import time
+    unique_suffix = f"_{sel_id}_{int(time.time()*1000)}"  # genera chiavi uniche ad ogni refresh
+
     def _safe_date(val):
         try:
             d = pd.to_datetime(val, dayfirst=True)
             return None if pd.isna(d) else d.date()
         except Exception:
             return None
+
     ur_val = _safe_date(cliente.get("UltimoRecall"))
     pr_val = _safe_date(cliente.get("ProssimoRecall"))
     uv_val = _safe_date(cliente.get("UltimaVisita"))
     pv_val = _safe_date(cliente.get("ProssimaVisita"))
+
+    # Calcolo automatico se vuoti
     if ur_val and not pr_val:
         pr_val = (pd.Timestamp(ur_val) + pd.DateOffset(months=3)).date()
     if uv_val and not pv_val:
         pv_val = (pd.Timestamp(uv_val) + pd.DateOffset(months=6)).date()
+
+    # === WIDGET INPUT ===
     col1, col2, col3, col4 = st.columns(4)
-    ur = col1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{sel_id}")
-    pr = col2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{sel_id}")
-    uv = col3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{sel_id}")
-    pv = col4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{sel_id}")
-    if st.button("💾 Salva Aggiornamenti", use_container_width=True):
+    ur = col1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur{unique_suffix}")
+    pr = col2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr{unique_suffix}")
+    uv = col3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv{unique_suffix}")
+    pv = col4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv{unique_suffix}")
+
+    # === SALVATAGGIO ===
+    if st.button("💾 Salva Aggiornamenti", use_container_width=True, key=f"save_dates{unique_suffix}"):
         idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
         df_cli.loc[idx, "UltimoRecall"] = fmt_date(ur)
         df_cli.loc[idx, "ProssimoRecall"] = fmt_date(pr)

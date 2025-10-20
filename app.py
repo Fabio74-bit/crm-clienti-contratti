@@ -744,37 +744,61 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"❌ Errore export Excel: {e}")
 
-    # === EXPORT PDF ===
-    with c2:
-        try:
-            pdf = FPDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 10, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-            pdf.set_font("Arial", "", 8)
-            headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata",
-                       "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
-            widths = [25, 25, 25, 15, 90, 20, 20, 25, 25]
-            pdf.set_fill_color(37, 99, 235)
-            pdf.set_text_color(255)
-            for i, h in enumerate(headers):
-                pdf.cell(widths[i], 6, safe_text(h), border=1, align="C", fill=True)
+   # === EXPORT PDF ===
+with c2:
+    try:
+        pdf = FPDF(orientation="L", unit="mm", format="A4")
+        pdf.add_page()
+
+        # Titolo
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+        pdf.ln(3)
+
+        # Intestazioni tabella
+        pdf.set_font("Arial", "B", 9)
+        headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata",
+                   "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
+        widths = [25, 25, 25, 15, 90, 20, 20, 25, 25]
+        pdf.set_fill_color(37, 99, 235)
+        pdf.set_text_color(255)
+
+        for i, h in enumerate(headers):
+            pdf.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
+        pdf.ln()
+        pdf.set_text_color(0)
+        pdf.set_font("Arial", "", 8)
+
+        # Righe dati
+        for _, row in disp.iterrows():
+            vals = [safe_text(str(row.get(h, ""))) for h in headers]
+            y_start = pdf.get_y()
+            x_start = pdf.get_x()
+
+            for i, v in enumerate(vals):
+                align = "L" if headers[i] == "DescrizioneProdotto" else "C"
+                # Se è la descrizione, usa multi_cell per andare a capo
+                if headers[i] == "DescrizioneProdotto":
+                    pdf.multi_cell(widths[i], 5, v, border=1, align=align)
+                    x_start += widths[i]
+                    pdf.set_xy(x_start, y_start)
+                else:
+                    pdf.cell(widths[i], 5, v, border=1, align=align)
+                    x_start += widths[i]
+                    pdf.set_xy(x_start, y_start)
             pdf.ln()
-            pdf.set_text_color(0)
-            for _, row in disp.iterrows():
-                vals = [safe_text(row.get(h, "")) for h in headers]
-                for i, v in enumerate(vals):
-                    align = "L" if headers[i] == "DescrizioneProdotto" else "C"
-                    pdf.multi_cell(widths[i], 5, v, border=1, align=align, max_line_height=4)
-                pdf.ln()
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-            st.download_button(
-                "📗 Esporta PDF", pdf_bytes,
-                file_name=f"contratti_{rag_soc}.pdf",
-                mime="application/pdf", use_container_width=True, key=f"pdf_{sel_id}_{int(time.time()*1000)}"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore export PDF: {e}")
+
+        pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+        st.download_button(
+            "📗 Esporta PDF",
+            data=pdf_bytes,
+            file_name=f"contratti_{rag_soc}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key=f"pdf_{sel_id}_{int(time.time()*1000)}"
+        )
+    except Exception as e:
+        st.error(f"❌ Errore export PDF: {e}")
 
 
 

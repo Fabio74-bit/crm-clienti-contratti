@@ -610,11 +610,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 
+
 # =====================================
 # PAGINA CONTRATTI
 # =====================================
 # =====================================
-# PAGINA CONTRATTI
+# PAGINA CONTRATTI (VERSIONE STABILE E COMPLETA)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
@@ -623,13 +624,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
+    # === SELEZIONE CLIENTE ===
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     cliente_ids = df_cli["ClienteID"].astype(str).tolist()
 
     selected_cliente_id = st.session_state.pop("selected_cliente", None)
-    sel_index = cliente_ids.index(str(selected_cliente_id)) if selected_cliente_id and str(selected_cliente_id) in cliente_ids else 0
+    if selected_cliente_id and str(selected_cliente_id) in cliente_ids:
+        sel_index = cliente_ids.index(str(selected_cliente_id))
+    else:
+        sel_index = 0
 
-    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index, key=f"sel_cliente_contratti")
+    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index, key="sel_cliente_contratti")
     sel_id = cliente_ids[labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
@@ -637,12 +642,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === NUOVO CONTRATTO ===
     with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
-        with st.form(f"frm_new_contract_{sel_id}_{int(time.time()*1000)}"):
+        with st.form(f"frm_new_contract_{sel_id}"):
             c1, c2, c3 = st.columns(3)
             num = c1.text_input("Numero Contratto")
             din = c2.date_input("Data inizio", format="DD/MM/YYYY")
             durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
             desc = st.text_area("Descrizione prodotto", height=100)
+
             col_nf, col_ni, col_tot = st.columns(3)
             nf = col_nf.text_input("NOL_FIN")
             ni = col_ni.text_input("NOL_INT")
@@ -652,10 +658,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 try:
                     data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
                     new_row = {
-                        "ClienteID": sel_id, "RagioneSociale": rag_soc, "NumeroContratto": num,
-                        "DataInizio": fmt_date(din), "DataFine": fmt_date(data_fine),
-                        "Durata": durata, "DescrizioneProdotto": desc,
-                        "NOL_FIN": nf, "NOL_INT": ni, "TotRata": tot, "Stato": "aperto"
+                        "ClienteID": sel_id,
+                        "RagioneSociale": rag_soc,
+                        "NumeroContratto": num,
+                        "DataInizio": fmt_date(din),
+                        "DataFine": fmt_date(data_fine),
+                        "Durata": durata,
+                        "DescrizioneProdotto": desc,
+                        "NOL_FIN": nf,
+                        "NOL_INT": ni,
+                        "TotRata": tot,
+                        "Stato": "aperto"
                     }
                     df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
                     save_contratti(df_ct)
@@ -683,69 +696,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     gb.configure_column("TotRata", width=110)
     gb.configure_column("DataInizio", width=110)
     gb.configure_column("DataFine", width=110)
-    gb.configure_grid_options(getRowStyle=JsCode("""
+
+    js_code = JsCode("""
         function(params) {
             if (!params.data.Stato) return {};
             const s = params.data.Stato.toLowerCase();
             if (s === 'chiuso') return {'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'};
             if (s === 'aperto' || s === 'attivo') return {'backgroundColor': '#e8f5e9', 'color': '#1b5e20'};
             return {};
-        }"""))
+        }
+    """)
+    gb.configure_grid_options(getRowStyle=js_code)
+
     st.markdown("### 📑 Elenco Contratti")
     AgGrid(disp, gridOptions=gb.build(), theme="balham", height=400, allow_unsafe_jscode=True)
 
+    # === SEZIONE ESPORTAZIONI ===
     st.divider()
-    c1, c2 = st.columns(2)
-
-    # === EXPORT EXCEL ===
-    with c1:
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
-        from openpyxl.utils import get_column_letter
-        from io import BytesIO
-        try:
-            wb = Workbook()
-            ws = wb.active
-            ws.title = f"Contratti {rag_soc}"
-            ws.merge_cells("A1:M1")
-            title = ws["A1"]
-            title.value = f"Contratti - {rag_soc}"
-            title.font = Font(size=12, bold=True, color="2563EB")
-            title.alignment = Alignment(horizontal="center", vertical="center")
-            ws.append([])
-
-            headers = list(disp.columns)
-            ws.append(headers)
-            bold = Font(bold=True, color="FFFFFF")
-            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            thin = Border(left=Side(style="thin"), right=Side(style="thin"),
-                          top=Side(style="thin"), bottom=Side(style="thin"))
-            fill = PatternFill("solid", fgColor="2563EB")
-
-            for i, h in enumerate(headers, 1):
-                c = ws.cell(row=2, column=i)
-                c.font, c.fill, c.alignment, c.border = bold, fill, center, thin
-
-            for _, r in disp.iterrows():
-                ws.append([str(r.get(h, "")) for h in headers])
-
-            for i in range(1, ws.max_column + 1):
-                width = max(len(str(ws.cell(row=j, column=i).value)) for j in range(1, ws.max_row + 1)) + 2
-                ws.column_dimensions[get_column_letter(i)].width = min(width, 50)
-
-            bio = BytesIO()
-            wb.save(bio)
-            st.download_button(
-                "📘 Esporta Excel", bio.getvalue(),
-                file_name=f"contratti_{rag_soc}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True, key=f"xlsx_{sel_id}_{int(time.time()*1000)}"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore export Excel: {e}")
-
-     st.divider()
-    # === EXPORT EXCEL / PDF ===
     c1, c2 = st.columns(2)
 
     # === EXPORT EXCEL ===
@@ -799,6 +766,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === EXPORT PDF ===
     with c2:
+        from io import BytesIO
         try:
             pdf = FPDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
@@ -822,7 +790,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 vals = [safe_text(str(row.get(h, ""))) for h in headers]
                 y_start = pdf.get_y()
                 x_start = pdf.get_x()
-
                 for i, v in enumerate(vals):
                     align = "L" if headers[i] == "DescrizioneProdotto" else "C"
                     if headers[i] == "DescrizioneProdotto":
@@ -846,6 +813,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             )
         except Exception as e:
             st.error(f"❌ Errore export PDF: {e}")
+
 
 
 # =====================================

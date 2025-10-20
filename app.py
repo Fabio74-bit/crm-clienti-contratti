@@ -588,6 +588,31 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.session_state[f"show_anagrafica_{sel_id}"] = not st.session_state.get(f"show_anagrafica_{sel_id}", False)
             st.rerun()
 
+        # 🔴 Pulsante cancella cliente — solo per amministratori
+        if role == "admin":
+            st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
+            if st.button("🗑️ Cancella Cliente", key=f"del_cli_{sel_id}", use_container_width=True):
+                st.warning(f"⚠️ Sei sicuro di voler eliminare il cliente **{cliente['RagioneSociale']}** e tutti i suoi contratti?")
+                conferma = st.button(
+                    "❌ Conferma Eliminazione",
+                    key=f"conf_{sel_id}",
+                    type="primary",
+                    use_container_width=True
+                )
+                if conferma:
+                    try:
+                        # Elimina cliente da df_cli
+                        df_cli = df_cli[df_cli["ClienteID"] != sel_id]
+                        save_clienti(df_cli)
+                        # Elimina eventuali contratti associati
+                        df_ct = df_ct[df_ct["ClienteID"] != sel_id]
+                        save_contratti(df_ct)
+                        st.success(f"✅ Cliente '{cliente['RagioneSociale']}' eliminato correttamente.")
+                        st.session_state.pop("cliente_selezionato", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore durante l'eliminazione: {e}")
+
     # === INFO RAPIDE ===
     indirizzo = cliente.get("Indirizzo", "")
     citta = cliente.get("Citta", "")
@@ -960,6 +985,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     )
 
 
+    st.divider()
+    c1, c2 = st.columns(2)
+
     # === ESPORTAZIONE EXCEL ===
     with c1:
         from openpyxl import Workbook
@@ -981,10 +1009,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             ws.append([])
 
             # === PULIZIA COLONNE ===
-            # (rimuove eventuali colonne spurie o non previste)
             disp = disp.loc[:, ~disp.columns.str.lower().isin(["i", "j"])]
 
-            # === DEFINIZIONE COLONNE IN ORDINE CHIARO ===
+            # === COLONNE IN ORDINE CHIARO ===
             ordine_colonne = [
                 "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
                 "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
@@ -997,10 +1024,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             center = Alignment(horizontal="center", vertical="center", wrap_text=True)
             left = Alignment(horizontal="left", vertical="top", wrap_text=True)
             bold = Font(bold=True, color="FFFFFF")
-            thin_border = Border(
-                left=Side(style="thin"), right=Side(style="thin"),
-                top=Side(style="thin"), bottom=Side(style="thin")
-            )
+            thin_border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                                 top=Side(style="thin"), bottom=Side(style="thin"))
             header_fill = PatternFill("solid", fgColor="2563EB")
 
             # === INTESTAZIONI ===
@@ -1029,7 +1054,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         max_length = max(max_length, len(str(val)))
                 ws.column_dimensions[get_column_letter(col_idx)].width = min(max_length + 4, 60)
 
-            # === ESPORTAZIONE IN MEMORIA ===
             bio = BytesIO()
             wb.save(bio)
             bio.seek(0)
@@ -1071,7 +1095,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.add_page()
             pdf.set_font("Arial", size=9)
 
-            # Colonne aggiornate
             headers = [
                 "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine",
                 "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
@@ -1079,7 +1102,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             ]
             widths = [35, 28, 25, 25, 18, 70, 20, 20, 22, 18, 18, 18, 18, 20]
 
-            # Intestazione tabella
+            # Intestazione
             pdf.set_fill_color(37, 99, 235)
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Arial", "B", 8)
@@ -1087,7 +1110,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(widths[i], 7, safe_pdf_text(h), border=1, align="C", fill=True)
             pdf.ln(7)
 
-            # Dati tabella
+            # Dati
             pdf.set_text_color(0, 0, 0)
             pdf.set_font("Arial", "", 7)
             for _, row in disp.iterrows():
@@ -1105,14 +1128,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     pdf.set_xy(x_start + sum(widths[:i+1]), y_start)
                 pdf.ln(row_height)
 
-            # 🔹 Generazione sicura del PDF in memoria
-            pdf_buffer = BytesIO()
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-            pdf_buffer.write(pdf_bytes)
-
             st.download_button(
-                label="📗 Esporta PDF",
-                data=pdf_buffer.getvalue(),
+                "📗 Esporta PDF",
+                data=pdf_bytes,
                 file_name=f"contratti_{rag_soc}.pdf",
                 mime="application/pdf",
                 use_container_width=True,
@@ -1120,7 +1139,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             )
 
         except Exception as e:
-            st.error(f"❌ Errore durante la generazione PDF: {e}")
+            st.error(f"❌ Errore durante l'esportazione PDF: {e}")
 
 
 

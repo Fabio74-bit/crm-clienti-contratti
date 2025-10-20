@@ -1071,11 +1071,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"❌ Errore durante l'esportazione Excel: {e}")
 
 
-        # === ESPORTAZIONE PDF ===
+           # === ESPORTAZIONE PDF ===
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
         from io import BytesIO
+
+        LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
 
         def safe_pdf_text(txt):
             if pd.isna(txt) or txt is None:
@@ -1086,24 +1088,40 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         try:
             class PDF(FPDF):
                 def header(self):
-                    self.set_font("Arial", "B", 12)
+                    # === Logo SHT in alto a sinistra ===
+                    try:
+                        self.image(LOGO_URL, x=10, y=6, w=25)
+                    except:
+                        pass
+
+                    # === Titolo centrato ===
+                    self.set_font("Arial", "B", 13)
                     titolo = safe_pdf_text(f"Contratti - {rag_soc}")
                     self.cell(0, 10, titolo, ln=1, align="C")
-                    self.ln(4)
+                    self.ln(6)
+
+                def footer(self):
+                    # === Piè di pagina con numero di pagina e data ===
+                    from datetime import datetime
+                    self.set_y(-12)
+                    self.set_font("Arial", "I", 7)
+                    data = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    self.cell(0, 5, f"Generato il {data} — Pagina {self.page_no()}", align="C")
 
             pdf = PDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
             pdf.set_font("Arial", size=8)
 
-            # === COLONNE ===
+            # === COLONNE (senza RagioneSociale) ===
             headers = [
-                "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine",
-                "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+                "NumeroContratto", "DataInizio", "DataFine", "Durata",
+                "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
                 "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
             ]
-            widths = [35, 25, 25, 25, 15, 85, 20, 20, 22, 18, 18, 18, 18, 20]
+            # Larghezze ottimizzate per stare dentro A4 orizzontale
+            widths = [28, 25, 25, 15, 95, 20, 20, 22, 18, 18, 18, 18, 20]
 
-            # === INTESTAZIONE TABELLA ===
+            # === INTESTAZIONE ===
             pdf.set_fill_color(37, 99, 235)
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Arial", "B", 8)
@@ -1118,9 +1136,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             for _, row in disp.iterrows():
                 values = [safe_pdf_text(row.get(h, "")) for h in headers]
 
-                # Gestione “DescrizioneProdotto” — calcola righe e altezza
-                desc = values[5]
-                desc_lines = pdf.multi_cell(widths[5], 4, desc, border=0, align="L", split_only=True)
+                # Calcola altezza in base alla lunghezza della descrizione
+                desc = values[4]
+                desc_lines = pdf.multi_cell(widths[4], 4, desc, border=0, align="L", split_only=True)
                 max_lines = max(1, len(desc_lines))
                 line_height = 4
                 row_height = line_height * max_lines
@@ -1136,12 +1154,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     if headers[i] == "DescrizioneProdotto":
                         pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
                     else:
-                        pdf.multi_cell(widths[i], row_height, text, border=1, align=align)
+                        # Centra verticalmente le altre celle
+                        y_offset = (row_height - line_height) / 2
+                        pdf.set_y(y_cell + y_offset)
+                        pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
+                        pdf.set_y(y_cell)
 
-                    # Riposiziona a destra della cella per continuare la riga
-                    pdf.set_xy(x_cell + widths[i], y_cell)
+                    pdf.set_xy(x_cell + widths[i], y_start)
 
-                # Sposta il cursore alla riga successiva
                 pdf.set_y(y_start + row_height)
 
             # === ESPORTAZIONE ===

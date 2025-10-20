@@ -343,10 +343,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.rerun()
 
 
-
-# =====================================
-# PAGINA CLIENTI (OTTIMIZZATA E ROBUSTA)
-# =====================================
 # =====================================
 # PAGINA CLIENTI (COMPLETA E STABILE)
 # =====================================
@@ -387,7 +383,56 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col1:
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
         st.caption(f"ID Cliente: {sel_id}")
+        # === IMPORTA NOTE DA FILE EXCEL (solo per amministratori) ===
+    if role == "admin":
+        st.divider()
+        st.markdown("### 📥 Importa Note Cliente da file Excel (.xlsm)")
 
+        uploaded_file = st.file_uploader(
+            "📂 Carica file GESTIONE_CLIENTI.xlsm per importare automaticamente le note",
+            type=["xlsm", "xlsx"],
+            key=f"upload_notes_{int(time.time()*1000)}"
+        )
+
+        if uploaded_file:
+            try:
+                xls = pd.ExcelFile(uploaded_file)
+                st.info(f"📘 Trovati {len(xls.sheet_names)} fogli: {', '.join(xls.sheet_names[:8])}...")
+
+                # Copia df_cli in memoria
+                df_cli_updated = df_cli.copy()
+                if "NoteCliente" not in df_cli_updated.columns:
+                    df_cli_updated["NoteCliente"] = ""
+
+                count = 0
+                for sheet in xls.sheet_names:
+                    try:
+                        df_sheet = pd.read_excel(xls, sheet_name=sheet, dtype=str).fillna("")
+                        # Trova colonne con la parola "note"
+                        note_cols = [c for c in df_sheet.columns if "note" in c.lower()]
+                        if not note_cols:
+                            continue
+
+                        # Prende il testo note
+                        note_text = " ".join(df_sheet[note_cols[0]].dropna().astype(str).tolist()).strip()
+                        if not note_text:
+                            continue
+
+                        # Associa al cliente in base al nome del foglio
+                        mask = df_cli_updated["RagioneSociale"].astype(str).str.lower().str.strip() == sheet.lower().strip()
+                        if mask.any():
+                            df_cli_updated.loc[mask, "NoteCliente"] = note_text
+                            count += 1
+                    except Exception as sub_e:
+                        st.warning(f"⚠️ Errore nel foglio {sheet}: {sub_e}")
+
+                # Salva aggiornamento
+                save_clienti(df_cli_updated)
+                st.success(f"✅ Importazione completata! Note aggiornate per {count} clienti.")
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"❌ Errore durante l'importazione: {e}")
     with col2:
         if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
             st.session_state.update({"selected_cliente": sel_id, "nav_target": "Contratti", "_go_contratti_now": True})

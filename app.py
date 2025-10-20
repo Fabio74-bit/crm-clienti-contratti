@@ -383,7 +383,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col1:
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
         st.caption(f"ID Cliente: {sel_id}")
-        # === IMPORTA NOTE DA FILE EXCEL (solo per amministratori) ===
+            # === IMPORTA NOTE DA FILE EXCEL (solo per amministratori) ===
     if role == "admin":
         st.divider()
         st.markdown("### 📥 Importa Note Cliente da file Excel (.xlsm)")
@@ -396,43 +396,56 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         if uploaded_file:
             try:
-                xls = pd.ExcelFile(uploaded_file)
+                import openpyxl
+
+                xls = pd.ExcelFile(uploaded_file, engine="openpyxl")
                 st.info(f"📘 Trovati {len(xls.sheet_names)} fogli: {', '.join(xls.sheet_names[:8])}...")
 
-                # Copia df_cli in memoria
                 df_cli_updated = df_cli.copy()
                 if "NoteCliente" not in df_cli_updated.columns:
                     df_cli_updated["NoteCliente"] = ""
 
                 count = 0
+
                 for sheet in xls.sheet_names:
-                    try:
-                        df_sheet = pd.read_excel(xls, sheet_name=sheet, dtype=str).fillna("")
-                        # Trova colonne con la parola "note"
-                        note_cols = [c for c in df_sheet.columns if "note" in c.lower()]
-                        if not note_cols:
-                            continue
+                    wb = openpyxl.load_workbook(uploaded_file, data_only=True)
+                    ws = wb[sheet]
 
-                        # Prende il testo note
-                        note_text = " ".join(df_sheet[note_cols[0]].dropna().astype(str).tolist()).strip()
-                        if not note_text:
+                    # cerca cella con "NOTE CLIENTI"
+                    note_row = None
+                    for row in ws.iter_rows(values_only=True):
+                        if not any(row):
                             continue
+                        for cell in row:
+                            if cell and "note" in str(cell).lower():
+                                note_row = row
+                                break
+                        if note_row:
+                            break
 
-                        # Associa al cliente in base al nome del foglio
+                    note_text = ""
+                    if note_row:
+                        # cerca riga dopo "NOTE CLIENTI"
+                        for r in ws.iter_rows(min_row=ws.iter_rows(values_only=True).index(note_row) + 2, values_only=True):
+                            # concateno righe successive se non vuote
+                            row_text = " ".join([str(c) for c in r if c]).strip()
+                            if row_text:
+                                note_text += row_text + " "
+
+                    if note_text.strip():
+                        # matcha foglio con cliente nel CSV
                         mask = df_cli_updated["RagioneSociale"].astype(str).str.lower().str.strip() == sheet.lower().strip()
                         if mask.any():
-                            df_cli_updated.loc[mask, "NoteCliente"] = note_text
+                            df_cli_updated.loc[mask, "NoteCliente"] = note_text.strip()
                             count += 1
-                    except Exception as sub_e:
-                        st.warning(f"⚠️ Errore nel foglio {sheet}: {sub_e}")
 
-                # Salva aggiornamento
                 save_clienti(df_cli_updated)
-                st.success(f"✅ Importazione completata! Note aggiornate per {count} clienti.")
+                st.success(f"✅ Importazione completata! Note trovate e salvate per {count} clienti.")
                 st.rerun()
 
             except Exception as e:
-                st.error(f"❌ Errore durante l'importazione: {e}")
+                st.error(f"❌ Errore durante l'importazione delle note: {e}")
+
     with col2:
         if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
             st.session_state.update({"selected_cliente": sel_id, "nav_target": "Contratti", "_go_contratti_now": True})

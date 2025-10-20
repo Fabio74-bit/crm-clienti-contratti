@@ -1071,29 +1071,37 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"❌ Errore durante l'esportazione Excel: {e}")
 
 
-           # === ESPORTAZIONE PDF ===
+              # === ESPORTAZIONE PDF ===
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
         from io import BytesIO
+        from datetime import datetime
 
         LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
 
+        # --- testo compatibile latin-1 ---
         def safe_pdf_text(txt):
             if pd.isna(txt) or txt is None:
                 return ""
-            txt = str(txt).replace("€", "EUR").replace("–", "-").replace("—", "-")
-            return txt.encode("latin-1", "replace").decode("latin-1")
+            s = str(txt)
+            replacements = {
+                "€": "EUR", "–": "-", "—": "-",  # dash e euro
+                "“": '"', "”": '"', "‘": "'", "’": "'",  # virgolette tipografiche
+                "\u00A0": " ", "\u2022": "*",  # NBSP e bullet
+            }
+            for k, v in replacements.items():
+                s = s.replace(k, v)
+            return s.encode("latin-1", "replace").decode("latin-1")
 
         try:
             class PDF(FPDF):
                 def header(self):
-                    # === Logo SHT in alto a sinistra ===
+                    # === Logo SHT ===
                     try:
                         self.image(LOGO_URL, x=10, y=6, w=25)
                     except:
                         pass
-
                     # === Titolo centrato ===
                     self.set_font("Arial", "B", 13)
                     titolo = safe_pdf_text(f"Contratti - {rag_soc}")
@@ -1101,14 +1109,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     self.ln(6)
 
                 def footer(self):
-                    # === Piè di pagina con numero di pagina e data ===
-                    from datetime import datetime
+                    # === Piè di pagina con data e numero pagina ===
                     self.set_y(-12)
                     self.set_font("Arial", "I", 7)
                     data = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    self.cell(0, 5, f"Generato il {data} — Pagina {self.page_no()}", align="C")
+                    msg = safe_pdf_text(f"Generato il {data} - Pagina {self.page_no()}")
+                    self.cell(0, 5, msg, align="C")
 
             pdf = PDF(orientation="L", unit="mm", format="A4")
+            pdf.set_auto_page_break(auto=True, margin=12)
             pdf.add_page()
             pdf.set_font("Arial", size=8)
 
@@ -1118,7 +1127,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
                 "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
             ]
-            # Larghezze ottimizzate per stare dentro A4 orizzontale
             widths = [28, 25, 25, 15, 95, 20, 20, 22, 18, 18, 18, 18, 20]
 
             # === INTESTAZIONE ===
@@ -1136,7 +1144,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             for _, row in disp.iterrows():
                 values = [safe_pdf_text(row.get(h, "")) for h in headers]
 
-                # Calcola altezza in base alla lunghezza della descrizione
+                # Calcola altezza riga in base alla descrizione
                 desc = values[4]
                 desc_lines = pdf.multi_cell(widths[4], 4, desc, border=0, align="L", split_only=True)
                 max_lines = max(1, len(desc_lines))
@@ -1154,7 +1162,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     if headers[i] == "DescrizioneProdotto":
                         pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
                     else:
-                        # Centra verticalmente le altre celle
                         y_offset = (row_height - line_height) / 2
                         pdf.set_y(y_cell + y_offset)
                         pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
@@ -1372,7 +1379,7 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     elif sort_mode == "Data Scadenza (più lontana)":
         merged = merged.sort_values("PrimaScadenza", ascending=False, na_position="last")
 
-    # === VISUALIZZAZIONE ===
+       # === VISUALIZZAZIONE ===
     if merged.empty:
         st.warning("❌ Nessun cliente trovato con i criteri selezionati.")
         return
@@ -1413,16 +1420,18 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.markdown(r["ScadenzaBadge"], unsafe_allow_html=True)
         with c4:
             if st.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
-                st.session_state["selected_cliente"] = r["ClienteID"]
-                st.session_state["nav_target"] = "Clienti"
-                st.markdown("""
-                    <script>
-                        setTimeout(function() {
-                            window.scrollTo({top: 0, behavior: 'smooth'});
-                        }, 100);
-                    </script>
-                """, unsafe_allow_html=True)
-                st.rerun()
+                try:
+                    # memorizza il cliente selezionato
+                    st.session_state["selected_cliente"] = str(r["ClienteID"])
+                    # forza la navigazione alla pagina "Clienti"
+                    st.session_state["nav_target"] = "Clienti"
+                    st.session_state["_go_clienti_now"] = True
+                    st.session_state["_force_scroll_top"] = True  # forza scroll in cima
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore apertura cliente: {e}")
+
+
 
 
 # =====================================
@@ -1446,7 +1455,7 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
-     # === SELEZIONE PAGINA ===
+        # === SELEZIONE PAGINA ===
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio(
         "📂 Menu principale",
@@ -1459,9 +1468,16 @@ def main():
         st.session_state["_go_contratti_now"] = False
         page = "Contratti"
 
+    # 🔹 Se viene impostato un cambio pagina verso "Clienti" (es. da Elenco Clienti)
+    if st.session_state.get("_go_clienti_now"):
+        st.session_state["_go_clienti_now"] = False
+        st.session_state["_force_scroll_top"] = True  # forza lo scroll in cima
+        page = "Clienti"
+
     # === CARICAMENTO DATI ===
     df_cli = load_clienti()
     df_ct = load_contratti()
+
 
     # === ESECUZIONE PAGINA SELEZIONATA ===
     if page in PAGES:

@@ -346,6 +346,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # PAGINA CLIENTI (OTTIMIZZATA)
 # =====================================
+# =====================================
+# PAGINA CLIENTI (OTTIMIZZATA E ROBUSTA)
+# =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
 
@@ -357,11 +360,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             riga = df_cli.loc[cli_ids == sel_id].iloc[0]
             st.session_state["cliente_selezionato"] = riga["RagioneSociale"]
 
+    # 🔍 Ricerca
     search_query = st.text_input("🔍 Cerca cliente per nome o ID", key="search_cli")
     if search_query:
         filtered = df_cli[
-            df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False) |
-            df_cli["ClienteID"].astype(str).str.contains(search_query, na=False)
+            df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)
+            | df_cli["ClienteID"].astype(str).str.contains(search_query, na=False)
         ]
     else:
         filtered = df_cli
@@ -370,6 +374,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.warning("❌ Nessun cliente trovato.")
         return
 
+    # Selezione cliente
     options = filtered["RagioneSociale"].tolist()
     selected_name = st.session_state.get("cliente_selezionato", options[0])
     sel_rag = st.selectbox("Seleziona Cliente", options, index=options.index(selected_name), key="sel_cli_box")
@@ -377,25 +382,32 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
+    st.markdown(f"## 🏢 {cliente.get('RagioneSociale','')}")
     st.caption(f"ID Cliente: {sel_id}")
 
     c1, c2 = st.columns([4, 1])
     with c2:
-        if st.button("📄 Contratti", use_container_width=True):
+        if st.button("📄 Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
             st.session_state.update({"selected_cliente": sel_id, "nav_target": "Contratti", "_go_contratti_now": True})
             st.rerun()
+
         if st.button("✏️ Modifica", use_container_width=True, key=f"edit_{sel_id}"):
             st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
             st.rerun()
-        if role == "admin" and st.button("🗑️ Elimina", use_container_width=True, key=f"del_cli_{sel_id}"):
-            st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}**?")
-            if st.button("❌ Conferma", use_container_width=True, key=f"conf_del_{sel_id}"):
-                df_cli = df_cli[df_cli["ClienteID"] != sel_id]
-                df_ct = df_ct[df_ct["ClienteID"] != sel_id]
-                save_clienti(df_cli); save_contratti(df_ct)
-                st.success("✅ Cliente eliminato.")
-                st.rerun()
+
+        # 🔴 Elimina cliente (solo admin)
+        if role == "admin":
+            if st.button("🗑️ Elimina", use_container_width=True, key=f"del_cli_{sel_id}"):
+                st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}**?")
+                if st.button("❌ Conferma Eliminazione", use_container_width=True, key=f"conf_del_{sel_id}"):
+                    df_cli = df_cli[df_cli["ClienteID"] != sel_id]
+                    df_ct = df_ct[df_ct["ClienteID"] != sel_id]
+                    save_clienti(df_cli)
+                    save_contratti(df_ct)
+                    st.success("✅ Cliente eliminato.")
+                    st.rerun()
+
+
 # =====================================
 # PAGINA CONTRATTI
 # =====================================
@@ -415,7 +427,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         sel_index = 0
 
-    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index)
+    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index, key="sel_cliente_contratti")
     sel_id = cliente_ids[labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
@@ -429,10 +441,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             din = c2.date_input("Data inizio", format="DD/MM/YYYY")
             durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
             desc = st.text_area("Descrizione prodotto", height=100)
-            nf, ni, tot = st.columns(3)
-            nf = nf.text_input("NOL_FIN")
-            ni = ni.text_input("NOL_INT")
-            tot = tot.text_input("TotRata")
+            col_nf, col_ni, col_tot = st.columns(3)
+            nf = col_nf.text_input("NOL_FIN")
+            ni = col_ni.text_input("NOL_INT")
+            tot = col_tot.text_input("TotRata")
+
             if st.form_submit_button("💾 Crea contratto"):
                 try:
                     data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
@@ -498,21 +511,28 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             title.font = Font(size=12, bold=True, color="2563EB")
             title.alignment = Alignment(horizontal="center", vertical="center")
             ws.append([])
+
             headers = list(disp.columns)
             ws.append(headers)
             bold = Font(bold=True, color="FFFFFF")
             center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            thin = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+            thin = Border(left=Side(style="thin"), right=Side(style="thin"),
+                          top=Side(style="thin"), bottom=Side(style="thin"))
             fill = PatternFill("solid", fgColor="2563EB")
+
             for i, h in enumerate(headers, 1):
                 c = ws.cell(row=2, column=i)
                 c.font, c.fill, c.alignment, c.border = bold, fill, center, thin
+
             for _, r in disp.iterrows():
                 ws.append([str(r.get(h, "")) for h in headers])
+
             for i in range(1, ws.max_column + 1):
                 width = max(len(str(ws.cell(row=j, column=i).value)) for j in range(1, ws.max_row + 1)) + 2
                 ws.column_dimensions[get_column_letter(i)].width = min(width, 50)
-            bio = BytesIO(); wb.save(bio)
+
+            bio = BytesIO()
+            wb.save(bio)
             st.download_button("📘 Esporta Excel", bio.getvalue(),
                                file_name=f"contratti_{rag_soc}.xlsx",
                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -550,6 +570,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                                mime="application/pdf", use_container_width=True, key=f"pdf_{sel_id}")
         except Exception as e:
             st.error(f"❌ Errore export PDF: {e}")
+
 
 # =====================================
 # PAGINA RECALL E VISITE

@@ -208,6 +208,9 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
 # =====================================
 # PAGINA DASHBOARD
 # =====================================
+# =====================================
+# PAGINA DASHBOARD
+# =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
     st.markdown("<h2>📊 Dashboard Gestionale</h2>", unsafe_allow_html=True)
@@ -219,6 +222,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     active_contracts = int((stato != "chiuso").sum())
     closed_contracts = int((stato == "chiuso").sum())
     now = pd.Timestamp.now().normalize()
+
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
     new_contracts = df_ct[(df_ct["DataInizio"].notna()) & (df_ct["DataInizio"] >= pd.Timestamp(year=now.year, month=1, day=1))]
 
@@ -229,7 +233,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c4.markdown(kpi_card("Nuovi contratti anno", len(new_contracts), "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-    # === CREA NUOVO CLIENTE + CONTRATTO ===
+    # === CREAZIONE NUOVO CLIENTE + CONTRATTO ===
     with st.expander("➕ Crea Nuovo Cliente + Contratto"):
         with st.form("frm_new_cliente"):
             st.markdown("#### 📇 Dati Cliente")
@@ -265,9 +269,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     new_id = str(len(df_cli) + 1)
                     nuovo_cliente = {
                         "ClienteID": new_id, "RagioneSociale": ragione, "PersonaRiferimento": persona,
-                        "Indirizzo": indirizzo, "Citta": citta, "CAP": cap, "Telefono": telefono, "Cell": cell,
-                        "Email": email, "PartitaIVA": piva, "IBAN": iban, "SDI": sdi,
-                        "UltimoRecall": "", "ProssimoRecall": "", "UltimaVisita": "", "ProssimaVisita": "", "NoteCliente": note
+                        "Indirizzo": indirizzo, "Citta": citta, "CAP": cap,
+                        "Telefono": telefono, "Cell": cell, "Email": email,
+                        "PartitaIVA": piva, "IBAN": iban, "SDI": sdi,
+                        "UltimoRecall": "", "ProssimoRecall": "", "UltimaVisita": "",
+                        "ProssimaVisita": "", "NoteCliente": note
                     }
                     df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
                     save_clienti(df_cli)
@@ -276,44 +282,52 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     nuovo_contratto = {
                         "ClienteID": new_id, "RagioneSociale": ragione, "NumeroContratto": num,
                         "DataInizio": fmt_date(data_inizio), "DataFine": fmt_date(data_fine),
-                        "Durata": durata, "DescrizioneProdotto": desc, "NOL_FIN": nf,
-                        "NOL_INT": ni, "TotRata": tot, "Stato": "aperto"
+                        "Durata": durata, "DescrizioneProdotto": desc,
+                        "NOL_FIN": nf, "NOL_INT": ni, "TotRata": tot, "Stato": "aperto"
                     }
                     df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
                     save_contratti(df_ct)
 
                     st.success(f"✅ Cliente '{ragione}' e contratto creati correttamente!")
-                    st.session_state["selected_cliente"] = new_id
-                    st.session_state["nav_target"] = "Contratti"
+                    st.session_state.update({"selected_cliente": new_id, "nav_target": "Contratti", "_go_contratti_now": True})
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Errore creazione cliente: {e}")
 
     st.divider()
 
-    # === CONTRATTI IN SCADENZA ===
+    # === CONTRATTI IN SCADENZA ENTRO 6 MESI ===
     st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")
+
     oggi = pd.Timestamp.now().normalize()
     entro_6_mesi = oggi + pd.DateOffset(months=6)
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+
     scadenze = df_ct[
-        (df_ct["DataFine"].notna()) & (df_ct["DataFine"] >= oggi) & (df_ct["DataFine"] <= entro_6_mesi) &
-        (df_ct["Stato"].str.lower() != "chiuso")
+        (df_ct["DataFine"].notna()) &
+        (df_ct["DataFine"] >= oggi) &
+        (df_ct["DataFine"] <= entro_6_mesi) &
+        (df_ct["Stato"].astype(str).str.lower() != "chiuso")
     ].copy()
+
+    # Se manca RagioneSociale nei contratti, la aggiunge dal CSV clienti
+    if "RagioneSociale" not in scadenze.columns:
+        scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
     if scadenze.empty:
         st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
     else:
-        scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
         scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
         scadenze = scadenze.sort_values("DataFine")
+
+        st.markdown(f"**🔢 {len(scadenze)} contratti in scadenza entro 6 mesi:**")
 
         for i, r in scadenze.iterrows():
             rag = r.get("RagioneSociale", "—")
             num = r.get("NumeroContratto", "—")
             fine = r.get("DataFine", "—")
             stato = r.get("Stato", "—")
-        
+
             col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
             with col1: st.markdown(f"**{rag}**")
             with col2: st.markdown(num or "—")

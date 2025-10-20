@@ -383,86 +383,92 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col1:
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
         st.caption(f"ID Cliente: {sel_id}")
-                 # === IMPORTA NOTE DA FILE EXCEL (solo per amministratori) ===
+                    # === IMPORTA NOTE DA FILE EXCEL (DIAGNOSTICA, solo admin) ===
     if role == "admin":
-        import openpyxl
-        import time
+        import openpyxl, time, difflib
 
         st.divider()
-        st.markdown("### 📥 Importa Note Cliente da file Excel (.xlsm)")
+        st.markdown("### 🧭 Importa Note Cliente da file Excel (.xlsm) con log dettagliato")
 
         uploaded_file = st.file_uploader(
-            "📂 Carica file GESTIONE_CLIENTI.xlsm per importare automaticamente le note",
+            "📂 Carica file GESTIONE_CLIENTI.xlsm",
             type=["xlsm", "xlsx"],
             key=f"upload_notes_{int(time.time()*1000)}"
         )
 
         if uploaded_file:
             try:
-                # Carica workbook Excel
                 wb = openpyxl.load_workbook(uploaded_file, data_only=True)
                 sheets = wb.sheetnames
-                st.info(f"📘 Trovati {len(sheets)} fogli nel file Excel.")
+                st.info(f"📘 File caricato — {len(sheets)} fogli trovati.")
 
                 df_cli_updated = df_cli.copy()
                 if "NoteCliente" not in df_cli_updated.columns:
                     df_cli_updated["NoteCliente"] = ""
 
-                progress_bar = st.progress(0)
-                log_box = st.empty()
+                progress = st.progress(0)
+                log = st.empty()
 
-                count_imported = 0
-                count_missing = 0
+                count_ok, count_fail = 0, 0
 
-                for idx, sheet_name in enumerate(sheets):
+                for i, sheet_name in enumerate(sheets):
                     ws = wb[sheet_name]
-                    log_box.info(f"🔎 Analizzando foglio: **{sheet_name}** ({idx + 1}/{len(sheets)})...")
-
                     note_text = ""
-                    note_found = False
+                    found = False
 
-                    # Legge tutte le righe come lista
+                    # Leggi tutte le righe
                     rows = list(ws.iter_rows(values_only=True))
 
-                    # Cerca riga che contiene "NOTE CLIENTI"
-                    start_idx = None
-                    for i, row in enumerate(rows):
+                    for ridx, row in enumerate(rows):
                         if any(cell and "note" in str(cell).lower() for cell in row):
-                            start_idx = i
-                            note_found = True
+                            # Riga "NOTE CLIENTI" trovata — prendi tutto sotto
+                            for next_row in rows[ridx + 1:]:
+                                txt = " ".join(str(c) for c in next_row if c).strip()
+                                if txt:
+                                    note_text += txt + " "
+                            found = True
                             break
 
-                    if note_found and start_idx is not None:
-                        # Legge tutte le righe successive come testo note
-                        for next_row in rows[start_idx + 1:]:
-                            row_text = " ".join(str(c) for c in next_row if c).strip()
-                            if row_text:
-                                note_text += row_text + " "
-
-                    if note_text.strip():
-                        # Cerca match tra nome foglio e RagioneSociale
-                        mask = df_cli_updated["RagioneSociale"].astype(str).str.lower().str.strip() == sheet_name.lower().strip()
-                        if mask.any():
-                            df_cli_updated.loc[mask, "NoteCliente"] = note_text.strip()
-                            count_imported += 1
-                        else:
-                            count_missing += 1
-                            log_box.warning(f"⚠️ Nessun cliente trovato con nome '{sheet_name}' nel CSV.")
+                    # Mostra log in tempo reale
+                    if found:
+                        snippet = note_text[:150] + ("..." if len(note_text) > 150 else "")
+                        log.info(f"📄 {sheet_name} → ✅ trovate note:\n> {snippet}")
                     else:
-                        count_missing += 1
-                        log_box.warning(f"⚠️ Nessuna nota trovata in foglio '{sheet_name}'.")
+                        log.warning(f"⚠️ Nessuna sezione NOTE CLIENTI trovata in: {sheet_name}")
 
-                    # Aggiorna barra
-                    progress_bar.progress((idx + 1) / len(sheets))
-                    time.sleep(0.1)  # per farla avanzare visibilmente
+                    # Se ha trovato testo, prova a matchare col cliente
+                    if found and note_text.strip():
+                        # Match “intelligente” con similarità
+                        def normalize(s): 
+                            return "".join(ch.lower() for ch in str(s) if ch.isalnum())
+                        normalized_sheet = normalize(sheet_name)
+                        df_cli_updated["__norm__"] = df_cli_updated["RagioneSociale"].apply(normalize)
+
+                        match_row = df_cli_updated.iloc[
+                            [difflib.get_close_matches(normalized_sheet, df_cli_updated["__norm__"].tolist(), n=1, cutoff=0.6)]
+                        ] if difflib.get_close_matches(normalized_sheet, df_cli_updated["__norm__"].tolist(), n=1, cutoff=0.6) else None
+
+                        if match_row is not None and not match_row.empty:
+                            cid = match_row.iloc[0]["ClienteID"]
+                            df_cli_updated.loc[df_cli_updated["ClienteID"] == cid, "NoteCliente"] = note_text.strip()
+                            count_ok += 1
+                        else:
+                            count_fail += 1
+                            log.warning(f"⚠️ Nessuna corrispondenza trovata per '{sheet_name}' nel CSV.")
+
+                    progress.progress((i + 1) / len(sheets))
+                    time.sleep(0.1)
+
+                if "__norm__" in df_cli_updated.columns:
+                    df_cli_updated.drop(columns=["__norm__"], inplace=True, errors="ignore")
 
                 save_clienti(df_cli_updated)
-
-                st.success(f"✅ Importazione completata: {count_imported} clienti aggiornati, {count_missing} saltati.")
+                st.success(f"✅ Importazione completata. Note salvate per {count_ok} clienti, {count_fail} non abbinati.")
                 st.balloons()
 
             except Exception as e:
-                st.error(f"❌ Errore durante l'importazione delle note: {e}")
+                st.error(f"❌ Errore durante l'importazione: {e}")
+
 
 
 

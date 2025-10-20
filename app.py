@@ -744,62 +744,108 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"❌ Errore export Excel: {e}")
 
-   # === EXPORT PDF ===
-with c2:
-    try:
-        pdf = FPDF(orientation="L", unit="mm", format="A4")
-        pdf.add_page()
+     st.divider()
+    # === EXPORT EXCEL / PDF ===
+    c1, c2 = st.columns(2)
 
-        # Titolo
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-        pdf.ln(3)
+    # === EXPORT EXCEL ===
+    with c1:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+        from openpyxl.utils import get_column_letter
+        from io import BytesIO
+        try:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = f"Contratti {rag_soc}"
+            ws.merge_cells("A1:M1")
+            title = ws["A1"]
+            title.value = f"Contratti - {rag_soc}"
+            title.font = Font(size=12, bold=True, color="2563EB")
+            title.alignment = Alignment(horizontal="center", vertical="center")
+            ws.append([])
 
-        # Intestazioni tabella
-        pdf.set_font("Arial", "B", 9)
-        headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata",
-                   "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
-        widths = [25, 25, 25, 15, 90, 20, 20, 25, 25]
-        pdf.set_fill_color(37, 99, 235)
-        pdf.set_text_color(255)
+            headers = list(disp.columns)
+            ws.append(headers)
+            bold = Font(bold=True, color="FFFFFF")
+            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            thin = Border(left=Side(style="thin"), right=Side(style="thin"),
+                          top=Side(style="thin"), bottom=Side(style="thin"))
+            fill = PatternFill("solid", fgColor="2563EB")
 
-        for i, h in enumerate(headers):
-            pdf.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
-        pdf.ln()
-        pdf.set_text_color(0)
-        pdf.set_font("Arial", "", 8)
+            for i, h in enumerate(headers, 1):
+                c = ws.cell(row=2, column=i)
+                c.font, c.fill, c.alignment, c.border = bold, fill, center, thin
 
-        # Righe dati
-        for _, row in disp.iterrows():
-            vals = [safe_text(str(row.get(h, ""))) for h in headers]
-            y_start = pdf.get_y()
-            x_start = pdf.get_x()
+            for _, r in disp.iterrows():
+                ws.append([str(r.get(h, "")) for h in headers])
 
-            for i, v in enumerate(vals):
-                align = "L" if headers[i] == "DescrizioneProdotto" else "C"
-                # Se è la descrizione, usa multi_cell per andare a capo
-                if headers[i] == "DescrizioneProdotto":
-                    pdf.multi_cell(widths[i], 5, v, border=1, align=align)
-                    x_start += widths[i]
-                    pdf.set_xy(x_start, y_start)
-                else:
-                    pdf.cell(widths[i], 5, v, border=1, align=align)
-                    x_start += widths[i]
-                    pdf.set_xy(x_start, y_start)
+            for i in range(1, ws.max_column + 1):
+                width = max(len(str(ws.cell(row=j, column=i).value)) for j in range(1, ws.max_row + 1)) + 2
+                ws.column_dimensions[get_column_letter(i)].width = min(width, 50)
+
+            bio = BytesIO()
+            wb.save(bio)
+            st.download_button(
+                "📘 Esporta Excel",
+                bio.getvalue(),
+                file_name=f"contratti_{rag_soc}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key=f"xlsx_{sel_id}_{int(time.time()*1000)}"
+            )
+        except Exception as e:
+            st.error(f"❌ Errore export Excel: {e}")
+
+    # === EXPORT PDF ===
+    with c2:
+        try:
+            pdf = FPDF(orientation="L", unit="mm", format="A4")
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 10, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
+            pdf.ln(3)
+
+            pdf.set_font("Arial", "B", 9)
+            headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata",
+                       "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
+            widths = [25, 25, 25, 15, 90, 20, 20, 25, 25]
+            pdf.set_fill_color(37, 99, 235)
+            pdf.set_text_color(255)
+            for i, h in enumerate(headers):
+                pdf.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
             pdf.ln()
+            pdf.set_text_color(0)
+            pdf.set_font("Arial", "", 8)
 
-        pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-        st.download_button(
-            "📗 Esporta PDF",
-            data=pdf_bytes,
-            file_name=f"contratti_{rag_soc}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            key=f"pdf_{sel_id}_{int(time.time()*1000)}"
-        )
-    except Exception as e:
-        st.error(f"❌ Errore export PDF: {e}")
+            for _, row in disp.iterrows():
+                vals = [safe_text(str(row.get(h, ""))) for h in headers]
+                y_start = pdf.get_y()
+                x_start = pdf.get_x()
 
+                for i, v in enumerate(vals):
+                    align = "L" if headers[i] == "DescrizioneProdotto" else "C"
+                    if headers[i] == "DescrizioneProdotto":
+                        pdf.multi_cell(widths[i], 5, v, border=1, align=align)
+                        x_start += widths[i]
+                        pdf.set_xy(x_start, y_start)
+                    else:
+                        pdf.cell(widths[i], 5, v, border=1, align=align)
+                        x_start += widths[i]
+                        pdf.set_xy(x_start, y_start)
+                pdf.ln()
+
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+            st.download_button(
+                "📗 Esporta PDF",
+                data=pdf_bytes,
+                file_name=f"contratti_{rag_soc}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key=f"pdf_{sel_id}_{int(time.time()*1000)}"
+            )
+        except Exception as e:
+            st.error(f"❌ Errore export PDF: {e}")
 
 
 # =====================================

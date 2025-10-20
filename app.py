@@ -1071,7 +1071,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"❌ Errore durante l'esportazione Excel: {e}")
 
 
-    # === ESPORTAZIONE PDF ===
+        # === ESPORTAZIONE PDF ===
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
@@ -1093,16 +1093,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             pdf = PDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
-            pdf.set_font("Arial", size=9)
+            pdf.set_font("Arial", size=8)
 
+            # === COLONNE ===
             headers = [
                 "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine",
                 "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
                 "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
             ]
-            widths = [35, 28, 25, 25, 18, 70, 20, 20, 22, 18, 18, 18, 18, 20]
+            widths = [35, 25, 25, 25, 15, 85, 20, 20, 22, 18, 18, 18, 18, 20]
 
-            # Intestazione
+            # === INTESTAZIONE TABELLA ===
             pdf.set_fill_color(37, 99, 235)
             pdf.set_text_color(255, 255, 255)
             pdf.set_font("Arial", "B", 8)
@@ -1110,24 +1111,40 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(widths[i], 7, safe_pdf_text(h), border=1, align="C", fill=True)
             pdf.ln(7)
 
-            # Dati
-            pdf.set_text_color(0, 0, 0)
+            # === CONTENUTO ===
             pdf.set_font("Arial", "", 7)
+            pdf.set_text_color(0, 0, 0)
+
             for _, row in disp.iterrows():
                 values = [safe_pdf_text(row.get(h, "")) for h in headers]
-                desc_lines = wrap(values[5], 60)
-                max_lines = max(len(desc_lines), 1)
+
+                # Gestione “DescrizioneProdotto” — calcola righe e altezza
+                desc = values[5]
+                desc_lines = pdf.multi_cell(widths[5], 4, desc, border=0, align="L", split_only=True)
+                max_lines = max(1, len(desc_lines))
                 line_height = 4
                 row_height = line_height * max_lines
+
                 y_start = pdf.get_y()
                 x_start = pdf.get_x()
 
                 for i, text in enumerate(values):
                     align = "L" if headers[i] == "DescrizioneProdotto" else "C"
-                    pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
-                    pdf.set_xy(x_start + sum(widths[:i+1]), y_start)
-                pdf.ln(row_height)
+                    x_cell = pdf.get_x()
+                    y_cell = pdf.get_y()
 
+                    if headers[i] == "DescrizioneProdotto":
+                        pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
+                    else:
+                        pdf.multi_cell(widths[i], row_height, text, border=1, align=align)
+
+                    # Riposiziona a destra della cella per continuare la riga
+                    pdf.set_xy(x_cell + widths[i], y_cell)
+
+                # Sposta il cursore alla riga successiva
+                pdf.set_y(y_start + row_height)
+
+            # === ESPORTAZIONE ===
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
                 "📗 Esporta PDF",
@@ -1139,7 +1156,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             )
 
         except Exception as e:
-            st.error(f"❌ Errore durante l'esportazione PDF: {e}")
+            st.error(f"❌ Errore durante la generazione PDF: {e}")
 
 
 

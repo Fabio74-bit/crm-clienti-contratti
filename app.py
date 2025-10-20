@@ -405,21 +405,35 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if scadenze.empty:
         st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
     else:
+           # 🔹 Se la colonna RagioneSociale è già nel CSV, evita duplicati
+    if "RagioneSociale" not in scadenze.columns:
         scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-        scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
-        scadenze = scadenze.sort_values("DataFine")
-        st.markdown(f"**🔢 {len(scadenze)} contratti in scadenza entro 6 mesi:**")
-        for i, r in scadenze.iterrows():
-            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
-            with col1: st.markdown(f"**{r['RagioneSociale']}**")
-            with col2: st.markdown(r["NumeroContratto"] or "—")
-            with col3: st.markdown(r["DataFine"] or "—")
-            with col4: st.markdown(r["Stato"] or "—")
-            with col5:
-                if st.button("Apri", key=f"open_scad_{i}", use_container_width=True):
-                    st.session_state["selected_cliente"] = r["ClienteID"]
-                    st.session_state["nav_target"] = "Contratti"
-                    st.rerun()
+
+    # Se invece c’è doppione (RagioneSociale_x / _y), risolvi automaticamente
+    if "RagioneSociale_x" in scadenze.columns:
+        scadenze["RagioneSociale"] = scadenze["RagioneSociale_x"].fillna(scadenze.get("RagioneSociale_y", ""))
+        scadenze = scadenze.drop(columns=[c for c in scadenze.columns if c.endswith(("_x", "_y"))], errors="ignore")
+
+    scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
+    scadenze = scadenze.sort_values("DataFine")
+
+    st.markdown(f"**🔢 {len(scadenze)} contratti in scadenza entro 6 mesi:**")
+    for i, r in scadenze.iterrows():
+        rag = r.get("RagioneSociale", "")
+        num = r.get("NumeroContratto", "")
+        fine = r.get("DataFine", "")
+        stato = r.get("Stato", "")
+        col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
+        with col1: st.markdown(f"**{rag}**" if rag else "—")
+        with col2: st.markdown(num or "—")
+        with col3: st.markdown(fine or "—")
+        with col4: st.markdown(stato or "—")
+        with col5:
+            if st.button("Apri", key=f"open_scad_{i}", use_container_width=True):
+                st.session_state["selected_cliente"] = r["ClienteID"]
+                st.session_state["nav_target"] = "Contratti"
+                st.rerun()
+
 
     st.divider()
 

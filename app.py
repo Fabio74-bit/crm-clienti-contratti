@@ -549,15 +549,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === SELEZIONE CLIENTE ===
     options = filtered["RagioneSociale"].tolist()
-
-    # recupera ultimo cliente selezionato (se esiste)
     selected_name = st.session_state.get("cliente_selezionato")
-
-    # se non è nella lista filtrata, resetta alla prima voce disponibile
     if selected_name not in options:
         selected_name = options[0] if options else None
 
-    # mostra la selectbox in modo sicuro
     sel_rag = st.selectbox(
         "Seleziona Cliente",
         options,
@@ -569,13 +564,11 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if search_query:
         st.session_state["search_cliente"] = ""
 
-    # recupera il cliente selezionato
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    # === HEADER CON NOME CLIENTE E PULSANTI ===
+    # === HEADER CLIENTE ===
     col_header1, col_header2 = st.columns([4, 1])
-
     with col_header1:
         st.markdown(f"## 🏢 {cliente.get('RagioneSociale', '')}")
         st.caption(f"ClienteID: {sel_id}")
@@ -595,7 +588,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.session_state[f"show_anagrafica_{sel_id}"] = not st.session_state.get(f"show_anagrafica_{sel_id}", False)
             st.rerun()
 
-        # 🔴 Pulsante cancella cliente — solo per amministratori
+        # 🔴 Pulsante cancella cliente — solo per admin
         if role == "admin":
             st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
             if st.button("🗑️ Cancella Cliente", key=f"del_cli_{sel_id}", use_container_width=True):
@@ -608,10 +601,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 )
                 if conferma:
                     try:
-                        # Elimina cliente da df_cli
                         df_cli = df_cli[df_cli["ClienteID"] != sel_id]
                         save_clienti(df_cli)
-                        # Elimina eventuali contratti associati
                         df_ct = df_ct[df_ct["ClienteID"] != sel_id]
                         save_contratti(df_ct)
                         st.success(f"✅ Cliente '{cliente['RagioneSociale']}' eliminato correttamente.")
@@ -619,6 +610,211 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Errore durante l'eliminazione: {e}")
+
+    # === INFO RAPIDE ===
+    indirizzo = cliente.get("Indirizzo", "")
+    citta = cliente.get("Citta", "")
+    cap = cliente.get("CAP", "")
+    persona = cliente.get("PersonaRiferimento", "")
+    telefono = cliente.get("Telefono", "")
+    cell = cliente.get("Cell", "")
+    st.markdown(
+        f"""
+        <div style='font-size:15px; line-height:1.7;'>
+            <b>📍 Indirizzo:</b> {indirizzo} – {citta} {cap}<br>
+            <b>🧑‍💼 Referente:</b> {persona}<br>
+            <b>📞 Telefono:</b> {telefono} — <b>📱 Cell:</b> {cell}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # === BLOCCO ANAGRAFICA MODIFICA ===
+    if st.session_state.get(f"show_anagrafica_{sel_id}", False):
+        st.divider()
+        st.markdown("### ✏️ Modifica Anagrafica Cliente")
+        with st.form(f"frm_anagrafica_{sel_id}"):
+            col1, col2 = st.columns(2)
+            with col1:
+                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
+                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+                email = st.text_input("✉️ Email", cliente.get("Email", ""))
+                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+            with col2:
+                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
+            salva_btn = st.form_submit_button("💾 Salva Modifiche")
+            if salva_btn:
+                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                df_cli.loc[idx, "Indirizzo"] = indirizzo
+                df_cli.loc[idx, "Citta"] = citta
+                df_cli.loc[idx, "CAP"] = cap
+                df_cli.loc[idx, "Telefono"] = telefono
+                df_cli.loc[idx, "Cell"] = cell
+                df_cli.loc[idx, "Email"] = email
+                df_cli.loc[idx, "PersonaRiferimento"] = persona
+                df_cli.loc[idx, "PartitaIVA"] = piva
+                df_cli.loc[idx, "IBAN"] = iban
+                df_cli.loc[idx, "SDI"] = sdi
+                save_clienti(df_cli)
+                st.success("✅ Anagrafica aggiornata.")
+                st.session_state[f"show_anagrafica_{sel_id}"] = False
+                st.rerun()
+
+    # === NOTE CLIENTE ===
+    st.divider()
+    st.markdown("### 📝 Note Cliente")
+    note_attuali = cliente.get("NoteCliente", "")
+    nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=160, key=f"note_{sel_id}")
+    if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}", use_container_width=True):
+        try:
+            idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+            df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+            save_clienti(df_cli)
+            st.success("✅ Note aggiornate correttamente!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Errore durante il salvataggio delle note: {e}")
+
+    # === RECALL E VISITE ===
+    st.divider()
+    st.markdown("### ⚡ Recall e Visite")
+    def _safe_date(val):
+        try:
+            d = pd.to_datetime(val, dayfirst=True)
+            return None if pd.isna(d) else d.date()
+        except Exception:
+            return None
+    ur_val = _safe_date(cliente.get("UltimoRecall"))
+    pr_val = _safe_date(cliente.get("ProssimoRecall"))
+    uv_val = _safe_date(cliente.get("UltimaVisita"))
+    pv_val = _safe_date(cliente.get("ProssimaVisita"))
+    if ur_val and not pr_val:
+        pr_val = (pd.Timestamp(ur_val) + pd.DateOffset(months=3)).date()
+    if uv_val and not pv_val:
+        pv_val = (pd.Timestamp(uv_val) + pd.DateOffset(months=6)).date()
+    col1, col2, col3, col4 = st.columns(4)
+    ur = col1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{sel_id}")
+    pr = col2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{sel_id}")
+    uv = col3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{sel_id}")
+    pv = col4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{sel_id}")
+    if st.button("💾 Salva Aggiornamenti", use_container_width=True):
+        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+        df_cli.loc[idx, "UltimoRecall"] = fmt_date(ur)
+        df_cli.loc[idx, "ProssimoRecall"] = fmt_date(pr)
+        df_cli.loc[idx, "UltimaVisita"] = fmt_date(uv)
+        df_cli.loc[idx, "ProssimaVisita"] = fmt_date(pv)
+        save_clienti(df_cli)
+        st.success("✅ Date aggiornate.")
+        st.rerun()
+
+    # === PREVENTIVI ===
+    st.divider()
+    st.markdown("### 🧾 Gestione Preventivi Cliente")
+    TEMPLATES_DIR = STORAGE_DIR / "templates"
+    PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
+    PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
+    prev_csv = STORAGE_DIR / "preventivi.csv"
+    TEMPLATE_OPTIONS = {
+        "Offerta A4": "Offerte_A4.docx",
+        "Offerta A3": "Offerte_A3.docx",
+        "Centralino": "Offerta_Centralino.docx",
+        "Varie": "Offerta_Varie.docx",
+    }
+    if prev_csv.exists():
+        df_prev = pd.read_csv(prev_csv, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
+    else:
+        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
+    with st.form("frm_new_prev"):
+        anno = datetime.now().year
+        nome_cliente = cliente.get("RagioneSociale", "")
+        nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
+        num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev[df_prev['ClienteID'] == sel_id]) + 1:03d}"
+        st.text_input("Numero Offerta", num_off, disabled=True)
+        nome_file = st.text_input("Nome File", f"{num_off}.docx")
+        template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
+        submit = st.form_submit_button("💾 Genera Preventivo")
+        if submit:
+            try:
+                tpl = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
+                if not tpl.exists():
+                    st.error(f"❌ Template non trovato: {tpl}")
+                else:
+                    from docx import Document
+                    from docx.shared import Pt
+                    doc = Document(tpl)
+                    mappa = {
+                        "CLIENTE": cliente.get("RagioneSociale", ""),
+                        "INDIRIZZO": cliente.get("Indirizzo", ""),
+                        "CITTA": cliente.get("Citta", ""),
+                        "NUMERO_OFFERTA": num_off,
+                        "DATA": datetime.now().strftime("%d/%m/%Y"),
+                        "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
+                        "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
+                        "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
+                        "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
+                    }
+                    for p in doc.paragraphs:
+                        for k, v in mappa.items():
+                            p.text = p.text.replace(f"<<{k}>>", str(v))
+                            for run in p.runs:
+                                run.font.size = Pt(10)
+                    out = PREVENTIVI_DIR / nome_file
+                    doc.save(out)
+                    nuova_riga = {
+                        "ClienteID": sel_id,
+                        "NumeroOfferta": num_off,
+                        "Template": TEMPLATE_OPTIONS[template],
+                        "NomeFile": nome_file,
+                        "Percorso": str(out),
+                        "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    }
+                    df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
+                    df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+                    st.success(f"✅ Preventivo generato: {out.name}")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"❌ Errore durante la creazione: {e}")
+
+    st.divider()
+    st.markdown("### 📂 Elenco Preventivi Cliente")
+    prev_cli = df_prev[df_prev["ClienteID"] == sel_id]
+    if prev_cli.empty:
+        st.info("Nessun preventivo per questo cliente.")
+    else:
+        prev_cli = prev_cli.sort_values("DataCreazione", ascending=False)
+        for i, r in prev_cli.iterrows():
+            file_path = Path(r["Percorso"])
+            col1, col2, col3 = st.columns([0.6, 0.25, 0.15])
+            with col1:
+                st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}  \n📅 {r['DataCreazione']}")
+            with col2:
+                if file_path.exists():
+                    with open(file_path, "rb") as f:
+                        st.download_button(
+                            "⬇️ Scarica",
+                            f.read(),
+                            file_name=file_path.name,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"dl_{r['NumeroOfferta']}"
+                        )
+            with col3:
+                if role == "admin":
+                    if st.button("🗑 Elimina", key=f"del_{r['NumeroOfferta']}_{i}"):
+                        try:
+                            if file_path.exists():
+                                file_path.unlink()
+                            df_prev = df_prev.drop(i)
+                            df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+                            st.success(f"🗑 Preventivo '{r['NumeroOfferta']}' eliminato.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Errore eliminazione: {e}")
+
 
     # === INFO RAPIDE ===
     indirizzo = cliente.get("Indirizzo", "")

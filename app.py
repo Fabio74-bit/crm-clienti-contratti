@@ -575,12 +575,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # PAGINA RECALL E VISITE
 # =====================================
+# =====================================
+# PAGINA RECALL E VISITE (aggiornata e coerente)
+# =====================================
 def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
-    st.markdown("<h2>📅 Recall e Visite</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>📅 Gestione Recall e Visite</h2>", unsafe_allow_html=True)
     st.divider()
-    filtro_nome = st.text_input("🔍 Cerca per nome cliente")
-    filtro_citta = st.text_input("🏙️ Cerca per città")
+
+    col1, col2 = st.columns(2)
+    filtro_nome = col1.text_input("🔍 Cerca per nome cliente")
+    filtro_citta = col2.text_input("🏙️ Cerca per città")
+
     df = df_cli.copy()
     if filtro_nome:
         df = df[df["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
@@ -589,16 +595,18 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if df.empty:
         st.warning("❌ Nessun cliente trovato.")
         return
+
     oggi = pd.Timestamp.now().normalize()
-    df["UltimoRecall"] = pd.to_datetime(df["UltimoRecall"], errors="coerce", dayfirst=True)
-    df["ProssimoRecall"] = pd.to_datetime(df["ProssimoRecall"], errors="coerce", dayfirst=True)
-    df["UltimaVisita"] = pd.to_datetime(df["UltimaVisita"], errors="coerce", dayfirst=True)
-    df["ProssimaVisita"] = pd.to_datetime(df["ProssimaVisita"], errors="coerce", dayfirst=True)
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
+
+    # === Imminenti (entro 30 giorni) ===
+    st.markdown("### 🔔 Recall e Visite imminenti (entro 30 giorni)")
     imminenti = df[
         (df["ProssimoRecall"].between(oggi, oggi + pd.DateOffset(days=30))) |
         (df["ProssimaVisita"].between(oggi, oggi + pd.DateOffset(days=30)))
     ]
-    st.markdown("### 🔔 Imminenti (entro 30 giorni)")
+
     if imminenti.empty:
         st.success("✅ Nessun richiamo o visita imminente.")
     else:
@@ -607,38 +615,124 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             c1.markdown(f"**{r['RagioneSociale']}**")
             c2.markdown(fmt_date(r["ProssimoRecall"]))
             c3.markdown(fmt_date(r["ProssimaVisita"]))
-            if c4.button("Apri", key=f"imm_{i}", use_container_width=True):
-                st.session_state.update({"selected_cliente": r["ClienteID"], "nav_target": "Clienti", "_go_clienti_now": True})
+            if c4.button("📂 Apri", key=f"imm_{i}", use_container_width=True):
+                st.session_state.update({
+                    "selected_cliente": r["ClienteID"],
+                    "nav_target": "Clienti",
+                    "_go_clienti_now": True
+                })
                 st.rerun()
 
+    st.divider()
+
+    # === Recall e visite in ritardo ===
+    st.markdown("### ⚠️ Recall e Visite scaduti")
+    recall_vecchi = df[
+        df["UltimoRecall"].notna() & (df["UltimoRecall"] < oggi - pd.DateOffset(months=3))
+    ]
+    visite_vecchie = df[
+        df["UltimaVisita"].notna() & (df["UltimaVisita"] < oggi - pd.DateOffset(months=6))
+    ]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### 📞 Recall > 3 mesi fa")
+        if recall_vecchi.empty:
+            st.info("✅ Nessun recall scaduto.")
+        else:
+            for i, r in recall_vecchi.iterrows():
+                c1, c2, c3 = st.columns([2.5, 1.2, 0.8])
+                c1.markdown(f"**{r['RagioneSociale']}**")
+                c2.markdown(fmt_date(r["UltimoRecall"]))
+                if c3.button("📂 Apri", key=f"rec_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": r["ClienteID"],
+                        "nav_target": "Clienti",
+                        "_go_clienti_now": True
+                    })
+                    st.rerun()
+
+    with col2:
+        st.markdown("#### 👣 Visite > 6 mesi fa")
+        if visite_vecchie.empty:
+            st.info("✅ Nessuna visita scaduta.")
+        else:
+            for i, r in visite_vecchie.iterrows():
+                c1, c2, c3 = st.columns([2.5, 1.2, 0.8])
+                c1.markdown(f"**{r['RagioneSociale']}**")
+                c2.markdown(fmt_date(r["UltimaVisita"]))
+                if c3.button("📂 Apri", key=f"vis_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": r["ClienteID"],
+                        "nav_target": "Clienti",
+                        "_go_clienti_now": True
+                    })
+                    st.rerun()
+
+    st.divider()
+    st.markdown("### 🧾 Storico Recall e Visite")
+    tabella = df[["RagioneSociale", "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]].copy()
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        tabella[c] = tabella[c].apply(fmt_date)
+    st.dataframe(tabella, use_container_width=True, hide_index=True)
+
+
+
 # =====================================
-# LISTA COMPLETA CLIENTI
+# PAGINA LISTA COMPLETA CLIENTI E SCADENZE
 # =====================================
 def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    st.title("📋 Lista Completa Clienti e Scadenze")
+    st.title("📋 Lista Completa Clienti e Scadenze Contratti")
     oggi = pd.Timestamp.now().normalize()
+
     df_ct = df_ct.copy()
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
     attivi = df_ct[df_ct["Stato"].astype(str).str.lower() != "chiuso"]
-    prime_scadenze = attivi.groupby("ClienteID")["DataFine"].min().reset_index().rename(columns={"DataFine": "PrimaScadenza"})
+
+    prime_scadenze = (
+        attivi.groupby("ClienteID")["DataFine"]
+        .min()
+        .reset_index()
+        .rename(columns={"DataFine": "PrimaScadenza"})
+    )
+
     merged = df_cli.merge(prime_scadenze, on="ClienteID", how="left")
     merged["GiorniMancanti"] = (merged["PrimaScadenza"] - oggi).dt.days
+
     def badge(row):
-        if pd.isna(row["PrimaScadenza"]): return "⚪ Nessuna"
+        if pd.isna(row["PrimaScadenza"]):
+            return "<span style='color:#999;'>⚪ Nessuna</span>"
         g, d = row["GiorniMancanti"], fmt_date(row["PrimaScadenza"])
-        if g < 0: return f"⚫ Scaduto ({d})"
-        if g <= 30: return f"🔴 {d}"
-        if g <= 90: return f"🟡 {d}"
-        return f"🟢 {d}"
+        if g < 0:
+            return f"<span style='color:#757575;'>⚫ Scaduto ({d})</span>"
+        if g <= 30:
+            return f"<span style='color:#d32f2f;font-weight:600;'>🔴 {d}</span>"
+        if g <= 90:
+            return f"<span style='color:#f9a825;font-weight:600;'>🟡 {d}</span>"
+        return f"<span style='color:#388e3c;font-weight:600;'>🟢 {d}</span>"
+
     merged["ScadenzaBadge"] = merged.apply(badge, axis=1)
+
+    st.divider()
+    st.markdown("### 📇 Elenco Clienti e Scadenze")
+
     for i, r in merged.iterrows():
         c1, c2, c3, c4 = st.columns([2, 1.5, 1.2, 0.7])
-        c1.markdown(f"**{r['RagioneSociale']}**")
-        c2.markdown(r.get("Citta", "") or "—")
-        c3.markdown(r["ScadenzaBadge"])
-        if c4.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
-            st.session_state.update({"selected_cliente": r["ClienteID"], "nav_target": "Clienti", "_go_clienti_now": True})
-            st.rerun()
+        with c1:
+            st.markdown(f"**{r['RagioneSociale']}**")
+        with c2:
+            st.markdown(r.get("Citta", "") or "—")
+        with c3:
+            st.markdown(r["ScadenzaBadge"], unsafe_allow_html=True)
+        with c4:
+            if st.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
+                st.session_state.update({
+                    "selected_cliente": r["ClienteID"],
+                    "nav_target": "Clienti",
+                    "_go_clienti_now": True
+                })
+                st.rerun()
+
 
 # =====================================
 # MAIN APP

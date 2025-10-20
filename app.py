@@ -309,19 +309,25 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scadenze = scadenze.sort_values("DataFine")
 
         for i, r in scadenze.iterrows():
+            rag = r.get("RagioneSociale", "—")
+            num = r.get("NumeroContratto", "—")
+            fine = r.get("DataFine", "—")
+            stato = r.get("Stato", "—")
+        
             col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
-            with col1: st.markdown(f"**{r['RagioneSociale']}**")
-            with col2: st.markdown(r["NumeroContratto"] or "—")
-            with col3: st.markdown(r["DataFine"] or "—")
-            with col4: st.markdown(r["Stato"] or "—")
+            with col1: st.markdown(f"**{rag}**")
+            with col2: st.markdown(num or "—")
+            with col3: st.markdown(fine or "—")
+            with col4: st.markdown(stato or "—")
             with col5:
                 if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
                     st.session_state.update({
-                        "selected_cliente": r["ClienteID"],
+                        "selected_cliente": r.get("ClienteID"),
                         "nav_target": "Contratti",
                         "_go_contratti_now": True
                     })
                     st.rerun()
+
 
 # =====================================
 # PAGINA CLIENTI (OTTIMIZZATA)

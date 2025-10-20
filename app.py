@@ -388,13 +388,14 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # =====================================
+       # =====================================
     # ⚠️ CONTRATTI IN SCADENZA ENTRO 6 MESI
     # =====================================
     st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")
     oggi = pd.Timestamp.now().normalize()
     entro_6_mesi = oggi + pd.DateOffset(months=6)
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+
     scadenze = df_ct[
         (df_ct["DataFine"].notna()) &
         (df_ct["DataFine"] >= oggi) &
@@ -404,7 +405,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     if scadenze.empty:
         st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
-        else:
+    else:
         # 🔹 Se la colonna RagioneSociale è già nel CSV, evita duplicati
         if "RagioneSociale" not in scadenze.columns:
             scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
@@ -419,25 +420,30 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scadenze = scadenze.sort_values("DataFine")
 
         st.markdown(f"**🔢 {len(scadenze)} contratti in scadenza entro 6 mesi:**")
+
         for i, r in scadenze.iterrows():
             rag = r.get("RagioneSociale", "")
             num = r.get("NumeroContratto", "")
             fine = r.get("DataFine", "")
             stato = r.get("Stato", "")
+
             col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
-            with col1: st.markdown(f"**{rag}**" if rag else "—")
-            with col2: st.markdown(num or "—")
-            with col3: st.markdown(fine or "—")
-            with col4: st.markdown(stato or "—")
+            with col1:
+                st.markdown(f"**{rag}**" if rag else "—")
+            with col2:
+                st.markdown(num or "—")
+            with col3:
+                st.markdown(fine or "—")
+            with col4:
+                st.markdown(stato or "—")
             with col5:
                 if st.button("Apri", key=f"open_scad_{i}", use_container_width=True):
                     st.session_state["selected_cliente"] = r["ClienteID"]
                     st.session_state["nav_target"] = "Contratti"
                     st.rerun()
 
-
-
     st.divider()
+
 
     # =====================================
     # 🚫 CLIENTI SENZA DATA FINE (DURATA 36-48-60-72 e NON CHIUSI)

@@ -484,22 +484,14 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CLIENTI (corretta — selezione diretta + scroll top)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    # 🔝 Scroll automatico in cima (anche dopo rerun), con leggero ritardo per compatibilità
-    st.markdown("""
-        <script>
-        setTimeout(function() {
-            window.scrollTo({top: 0, behavior: 'smooth'});
-        }, 100);
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                window.scrollTo({top: 0, behavior: 'smooth'});
-            }, 100);
-        });
-        </script>
-    """, unsafe_allow_html=True)
+    # 🔝 Scroll automatico quando si arriva da "Elenco Clienti e Scadenze"
+    if st.session_state.pop("_force_scroll_top", False):
+        st.markdown(
+            "<script>window.scrollTo({top: 0, behavior: 'smooth'});</script>",
+            unsafe_allow_html=True
+        )
 
     st.subheader("📋 Clienti")
-
 
     # 🔗 Arrivo da "Apri" in Lista Clienti o Dashboard: pre-seleziona cliente giusto
     if "selected_cliente" in st.session_state:
@@ -541,7 +533,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === RICERCA CLIENTE ===
     st.markdown("### 🔍 Cerca Cliente")
-    search_query = st.text_input("Cerca cliente per nome o ID:")
+    search_query = st.text_input("Cerca cliente per nome o ID:", key="search_cliente")
 
     if search_query:
         filtered = df_cli[
@@ -556,27 +548,32 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         return
 
     # === SELEZIONE CLIENTE ===
-   options = filtered["RagioneSociale"].tolist()
+    options = filtered["RagioneSociale"].tolist()
 
-# recupera ultimo cliente selezionato (se esiste)
-selected_name = st.session_state.get("cliente_selezionato")
+    # recupera ultimo cliente selezionato (se esiste)
+    selected_name = st.session_state.get("cliente_selezionato")
 
-# se non è nella lista filtrata, resetta alla prima voce disponibile
-if selected_name not in options:
-    selected_name = options[0] if options else None
+    # se non è nella lista filtrata, resetta alla prima voce disponibile
+    if selected_name not in options:
+        selected_name = options[0] if options else None
 
-# mostra la selectbox in modo sicuro
-sel_rag = st.selectbox(
-    "Seleziona Cliente",
-    options,
-    index=options.index(selected_name) if selected_name and options else 0
-)
+    # mostra la selectbox in modo sicuro
+    sel_rag = st.selectbox(
+        "Seleziona Cliente",
+        options,
+        index=options.index(selected_name) if selected_name and options else 0,
+        key="sel_cliente_box"
+    )
 
+    # reset automatico campo ricerca dopo selezione
+    if search_query:
+        st.session_state["search_cliente"] = ""
 
+    # recupera il cliente selezionato
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-        # === HEADER CON NOME CLIENTE E PULSANTI ===
+    # === HEADER CON NOME CLIENTE E PULSANTI ===
     col_header1, col_header2 = st.columns([4, 1])
 
     with col_header1:
@@ -641,6 +638,7 @@ sel_rag = st.selectbox(
         """,
         unsafe_allow_html=True
     )
+
 
     # === BLOCCO ANAGRAFICA MODIFICA ===
     if st.session_state.get(f"show_anagrafica_{sel_id}", False):

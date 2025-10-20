@@ -740,7 +740,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         df_prev = pd.read_csv(prev_csv, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
     else:
         df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
-    with st.form("frm_new_prev"):
+    import time
+unique_form_key = f"frm_new_prev_{sel_id}_{int(time.time()*1000)}"
+with st.form(unique_form_key):
+
         anno = datetime.now().year
         nome_cliente = cliente.get("RagioneSociale", "")
         nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()

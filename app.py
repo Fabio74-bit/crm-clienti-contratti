@@ -556,12 +556,22 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         return
 
     # === SELEZIONE CLIENTE ===
-    options = filtered["RagioneSociale"].tolist()
-    sel_rag = st.selectbox(
-        "Seleziona Cliente",
-        options,
-        index=options.index(st.session_state.get("cliente_selezionato", options[0])) if options else 0
-    )
+   options = filtered["RagioneSociale"].tolist()
+
+# recupera ultimo cliente selezionato (se esiste)
+selected_name = st.session_state.get("cliente_selezionato")
+
+# se non è nella lista filtrata, resetta alla prima voce disponibile
+if selected_name not in options:
+    selected_name = options[0] if options else None
+
+# mostra la selectbox in modo sicuro
+sel_rag = st.selectbox(
+    "Seleziona Cliente",
+    options,
+    index=options.index(selected_name) if selected_name and options else 0
+)
+
 
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]

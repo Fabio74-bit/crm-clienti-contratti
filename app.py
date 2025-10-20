@@ -726,32 +726,38 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === PREVENTIVI ===
     st.divider()
     st.markdown("### 🧾 Gestione Preventivi Cliente")
+
+    import time
+    unique_form_key = f"frm_new_prev_{sel_id}_{int(time.time()*1000)}"
+
     TEMPLATES_DIR = STORAGE_DIR / "templates"
     PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
     PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
     prev_csv = STORAGE_DIR / "preventivi.csv"
+
     TEMPLATE_OPTIONS = {
         "Offerta A4": "Offerte_A4.docx",
         "Offerta A3": "Offerte_A3.docx",
         "Centralino": "Offerta_Centralino.docx",
         "Varie": "Offerta_Varie.docx",
     }
+
     if prev_csv.exists():
         df_prev = pd.read_csv(prev_csv, dtype=str, sep=",", encoding="utf-8-sig").fillna("")
     else:
         df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
-    import time
-unique_form_key = f"frm_new_prev_{sel_id}_{int(time.time()*1000)}"
-with st.form(unique_form_key):
 
+    with st.form(unique_form_key):
         anno = datetime.now().year
         nome_cliente = cliente.get("RagioneSociale", "")
         nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
         num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev[df_prev['ClienteID'] == sel_id]) + 1:03d}"
+
         st.text_input("Numero Offerta", num_off, disabled=True)
         nome_file = st.text_input("Nome File", f"{num_off}.docx")
         template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
         submit = st.form_submit_button("💾 Genera Preventivo")
+
         if submit:
             try:
                 tpl = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]

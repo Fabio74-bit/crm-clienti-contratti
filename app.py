@@ -967,72 +967,84 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         from openpyxl.utils import get_column_letter
         from io import BytesIO
 
-        wb = Workbook()
-        ws = wb.active
-        ws.title = f"Contratti {rag_soc}"
+        try:
+            wb = Workbook()
+            ws = wb.active
+            ws.title = f"Contratti {rag_soc}"
 
-        # === TITOLO CLIENTE ===
-        ws.merge_cells("A1:G1")
-        title = ws["A1"]
-        title.value = f"Contratti - {rag_soc}"
-        title.font = Font(size=12, bold=True, color="2563EB")
-        title.alignment = Alignment(horizontal="center", vertical="center")
-        ws.append([])
+            # === TITOLO CLIENTE ===
+            ws.merge_cells("A1:N1")
+            title = ws["A1"]
+            title.value = f"Contratti - {rag_soc}"
+            title.font = Font(size=12, bold=True, color="2563EB")
+            title.alignment = Alignment(horizontal="center", vertical="center")
+            ws.append([])
 
-        # === PULIZIA COLONNE ===
-        # rimuove eventuali colonne "I" e "J" (indipendentemente dal nome)
-        if len(disp.columns) >= 9:
-            disp = disp.drop(disp.columns[[8, 9]], axis=1, errors="ignore")
+            # === PULIZIA COLONNE ===
+            # (rimuove eventuali colonne spurie o non previste)
+            disp = disp.loc[:, ~disp.columns.str.lower().isin(["i", "j"])]
 
-        # oppure, se vuoi eliminare colonne specifiche per nome:
-        disp = disp.loc[:, ~disp.columns.str.lower().isin(["i", "j"])]
+            # === DEFINIZIONE COLONNE IN ORDINE CHIARO ===
+            ordine_colonne = [
+                "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+                "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+                "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+            ]
+            headers = [c for c in ordine_colonne if c in disp.columns]
+            disp = disp[headers]
 
-        headers = list(disp.columns)
+            # === STILI ===
+            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            left = Alignment(horizontal="left", vertical="top", wrap_text=True)
+            bold = Font(bold=True, color="FFFFFF")
+            thin_border = Border(
+                left=Side(style="thin"), right=Side(style="thin"),
+                top=Side(style="thin"), bottom=Side(style="thin")
+            )
+            header_fill = PatternFill("solid", fgColor="2563EB")
 
-        center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        left = Alignment(horizontal="left", vertical="top", wrap_text=True)
-        bold = Font(bold=True, color="FFFFFF")
-        thin_border = Border(
-            left=Side(style="thin"), right=Side(style="thin"),
-            top=Side(style="thin"), bottom=Side(style="thin")
-        )
-        header_fill = PatternFill("solid", fgColor="2563EB")
-
-        # === INTESTAZIONI ===
-        ws.append(headers)
-        for i, h in enumerate(headers, 1):
-            cell = ws.cell(row=ws.max_row, column=i)
-            cell.font = bold
-            cell.fill = header_fill
-            cell.alignment = center
-            cell.border = thin_border
-
-        # === RIGHE DATI ===
-        for _, riga in disp.iterrows():
-            ws.append(list(riga))
-            for col_idx, col_name in enumerate(headers, 1):
-                cell = ws.cell(row=ws.max_row, column=col_idx)
+            # === INTESTAZIONI ===
+            ws.append(headers)
+            for i, h in enumerate(headers, 1):
+                cell = ws.cell(row=ws.max_row, column=i)
+                cell.font = bold
+                cell.fill = header_fill
+                cell.alignment = center
                 cell.border = thin_border
-                cell.alignment = left if "descrizione" in col_name.lower() else center
 
-        # === ADATTA LARGHEZZA ===
-        for col_idx in range(1, ws.max_column + 1):
-            max_length = 0
-            for row in range(1, ws.max_row + 1):
-                val = ws.cell(row=row, column=col_idx).value
-                if val:
-                    max_length = max(max_length, len(str(val)))
-            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_length + 4, 60)
+            # === RIGHE DATI ===
+            for _, riga in disp.iterrows():
+                ws.append([str(riga.get(c, "")) for c in headers])
+                for col_idx, col_name in enumerate(headers, 1):
+                    cell = ws.cell(row=ws.max_row, column=col_idx)
+                    cell.border = thin_border
+                    cell.alignment = left if "descrizione" in col_name.lower() else center
 
-        bio = BytesIO()
-        wb.save(bio)
-        st.download_button(
-            "📘 Esporta Excel",
-            data=bio.getvalue(),
-            file_name=f"contratti_{rag_soc}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
+            # === ADATTA LARGHEZZA ===
+            for col_idx in range(1, ws.max_column + 1):
+                max_length = 0
+                for row in range(1, ws.max_row + 1):
+                    val = ws.cell(row=row, column=col_idx).value
+                    if val:
+                        max_length = max(max_length, len(str(val)))
+                ws.column_dimensions[get_column_letter(col_idx)].width = min(max_length + 4, 60)
+
+            # === ESPORTAZIONE IN MEMORIA ===
+            bio = BytesIO()
+            wb.save(bio)
+            bio.seek(0)
+
+            st.download_button(
+                "📘 Esporta Excel",
+                data=bio.getvalue(),
+                file_name=f"contratti_{rag_soc}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key=f"xlsx_{sel_id}"
+            )
+
+        except Exception as e:
+            st.error(f"❌ Errore durante l'esportazione Excel: {e}")
 
 
     # === ESPORTAZIONE PDF ===

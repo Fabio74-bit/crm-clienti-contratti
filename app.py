@@ -1039,6 +1039,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with c2:
         from fpdf import FPDF
         from textwrap import wrap
+        from io import BytesIO
 
         def safe_pdf_text(txt):
             if pd.isna(txt) or txt is None:
@@ -1052,62 +1053,63 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     self.set_font("Arial", "B", 12)
                     titolo = safe_pdf_text(f"Contratti - {rag_soc}")
                     self.cell(0, 10, titolo, ln=1, align="C")
-                    self.ln(3)
+                    self.ln(4)
 
             pdf = PDF(orientation="L", unit="mm", format="A4")
             pdf.add_page()
             pdf.set_font("Arial", size=9)
 
-            widths = [35, 25, 25, 20, 140, 32]
-            headers = ["Numero Contratto", "Data Inizio", "Data Fine", "Durata", "Descrizione Prodotto", "Tot Rata"]
+            # Colonne aggiornate
+            headers = [
+                "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine",
+                "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+                "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+            ]
+            widths = [35, 28, 25, 25, 18, 70, 20, 20, 22, 18, 18, 18, 18, 20]
 
             # Intestazione tabella
             pdf.set_fill_color(37, 99, 235)
             pdf.set_text_color(255, 255, 255)
-            pdf.set_font("Arial", "B", 9)
+            pdf.set_font("Arial", "B", 8)
             for i, h in enumerate(headers):
-                pdf.cell(widths[i], 8, safe_pdf_text(h), border=1, align="C", fill=True)
-            pdf.ln(8)
+                pdf.cell(widths[i], 7, safe_pdf_text(h), border=1, align="C", fill=True)
+            pdf.ln(7)
 
             # Dati tabella
             pdf.set_text_color(0, 0, 0)
-            pdf.set_font("Arial", "", 8)
+            pdf.set_font("Arial", "", 7)
             for _, row in disp.iterrows():
-                values = [
-                    safe_pdf_text(row.get("NumeroContratto", "")),
-                    safe_pdf_text(row.get("DataInizio", "")),
-                    safe_pdf_text(row.get("DataFine", "")),
-                    safe_pdf_text(row.get("Durata", "")),
-                    safe_pdf_text(row.get("DescrizioneProdotto", "")),
-                    safe_pdf_text(row.get("TotRata", "")),
-                ]
-                # Calcolo altezza dinamica
-                desc_lines = wrap(values[4], 110)
+                values = [safe_pdf_text(row.get(h, "")) for h in headers]
+                desc_lines = wrap(values[5], 60)
                 max_lines = max(len(desc_lines), 1)
                 line_height = 4
                 row_height = line_height * max_lines
-                x_start = pdf.get_x()
                 y_start = pdf.get_y()
+                x_start = pdf.get_x()
 
                 for i, text in enumerate(values):
-                    align = "L" if i == 4 else "C"
-                    x = pdf.get_x()
+                    align = "L" if headers[i] == "DescrizioneProdotto" else "C"
                     pdf.multi_cell(widths[i], line_height, text, border=1, align=align)
-                    pdf.set_xy(x + widths[i], y_start)
-
+                    pdf.set_xy(x_start + sum(widths[:i+1]), y_start)
                 pdf.ln(row_height)
 
+            # 🔹 Generazione sicura del PDF in memoria
+            pdf_buffer = BytesIO()
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+            pdf_buffer.write(pdf_bytes)
+
             st.download_button(
-                "📗 Esporta PDF",
-                data=pdf_bytes,
+                label="📗 Esporta PDF",
+                data=pdf_buffer.getvalue(),
                 file_name=f"contratti_{rag_soc}.pdf",
                 mime="application/pdf",
-                use_container_width=True
+                use_container_width=True,
+                key=f"pdf_{sel_id}"
             )
 
         except Exception as e:
-            st.error(f"❌ Errore PDF: {e}")
+            st.error(f"❌ Errore durante la generazione PDF: {e}")
+
 
 
 # =====================================

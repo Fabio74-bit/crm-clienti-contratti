@@ -1,107 +1,98 @@
+# ==========================================
+# import_xlsm_to_csv.py
+# Ricostruisce storage/clienti.csv dal file GESTIONE_CLIENTI.xlsm
+# Estrae anche le NOTE CLIENTI dai singoli fogli
+# ==========================================
 import pandas as pd
+import openpyxl
 from pathlib import Path
-import datetime
 
-# ==========================
-# CONFIGURAZIONE
-# ==========================
-FILE_XLSM = "GESTIONE_CLIENTI.xlsm"
-OUTPUT_DIR = Path("storage")
-OUTPUT_DIR.mkdir(exist_ok=True)
+# === Percorsi ===
+BASE_DIR = Path(__file__).resolve().parent
+SRC_FILE = BASE_DIR / "GESTIONE_CLIENTI.xlsm"
+OUT_DIR = BASE_DIR / "storage"
+OUT_DIR.mkdir(exist_ok=True)
+OUT_CSV = OUT_DIR / "clienti.csv"
 
-CLIENTI_CSV = OUTPUT_DIR / "clienti.csv"
-CONTRATTI_CSV = OUTPUT_DIR / "contratti_clienti.csv"
+print("📘 Caricamento file:", SRC_FILE)
 
-print(f"📘 Lettura del file: {FILE_XLSM}")
-xls = pd.ExcelFile(FILE_XLSM)
+# === Carica workbook ===
+wb = openpyxl.load_workbook(SRC_FILE, data_only=True)
+sheets = wb.sheetnames
+print(f"🔍 Trovati {len(sheets)} fogli da elaborare...")
 
-clienti_data = []
-contratti_data = []
+records = []
 
-# ==========================
-# ELABORAZIONE FOGLI
-# ==========================
-for sheet in xls.sheet_names:
-    if sheet.strip().lower() in ["indice", "statistiche", "cap_lista", "nuovocontratto", "log_aggiornamenti"]:
-        continue
+# === Loop per ogni foglio ===
+for sheet_name in sheets:
+    ws = wb[sheet_name]
+    rows = list(ws.iter_rows(values_only=True))
+    record = {
+        "ClienteID": "",
+        "RagioneSociale": sheet_name.strip(),
+        "PersonaRiferimento": "",
+        "Indirizzo": "",
+        "Citta": "",
+        "CAP": "",
+        "Telefono": "",
+        "Cell": "",
+        "Email": "",
+        "PartitaIVA": "",
+        "IBAN": "",
+        "SDI": "",
+        "UltimoRecall": "",
+        "ProssimoRecall": "",
+        "UltimaVisita": "",
+        "ProssimaVisita": "",
+        "NoteCliente": "",
+    }
 
-    print(f"➡️ Elaboro foglio cliente: {sheet}")
-    try:
-        # 🔹 Legge saltando le prime 20 righe, senza header
-        df = pd.read_excel(FILE_XLSM, sheet_name=sheet, skiprows=20, header=None)
-        print("   ➕ Prime 5 righe:", df.head(5).to_string(index=False))
+    # Cerca campi standard
+    for row in rows:
+        r = [str(c).strip() if c else "" for c in row]
+        line = " ".join(r).lower()
 
-        # Verifica che ci siano abbastanza colonne per la tabella contratti
-        if df.shape[1] < 6:
-            print("   ⚠️ Troppe poche colonne, salto.")
-            continue
+        if "nome cliente" in line and len(r) > 1:
+            record["RagioneSociale"] = r[1]
+        elif "indirizzo" in line and len(r) > 1:
+            record["Indirizzo"] = r[1]
+        elif "citt" in line and len(r) > 1:
+            record["Citta"] = r[1]
+        elif "cap" in line and len(r) > 1:
+            record["CAP"] = r[1]
+        elif "telefono" in line and len(r) > 1:
+            record["Telefono"] = r[1]
+        elif "mail" in line and len(r) > 1:
+            record["Email"] = r[1]
+        elif "rif" in line and len(r) > 1 and not record["PersonaRiferimento"]:
+            record["PersonaRiferimento"] = r[1]
+        elif "partita iva" in line and len(r) > 1:
+            record["PartitaIVA"] = r[1]
+        elif "sdi" in line and len(r) > 1:
+            record["SDI"] = r[1]
+        elif "ultimo recall" in line and len(r) > 1:
+            record["UltimoRecall"] = r[1]
+        elif "ultima visita" in line and len(r) > 1:
+            record["UltimaVisita"] = r[1]
 
-        # Imposta i nomi colonna standard
-        df.columns = [
-            "DataInizio", "DataFine", "Durata", "DescrizioneProdotto", "NOL_FIN",
-            "NumeroContratto", "NOL_INT", "TotRata", "CopieBN", "EccBN",
-            "CopieCol", "EccCol", "Stampa", "CTRChiuso"
-        ][:df.shape[1]]
+        # Trova sezione NOTE CLIENTI
+        if "note clienti" in line:
+            notes = []
+            for nxt in rows[rows.index(row) + 1:]:
+                txt = " ".join(str(x) for x in nxt if x).strip()
+                if txt:
+                    notes.append(txt)
+            record["NoteCliente"] = " ".join(notes)
+            break
 
-        # ✅ Conversione sicura
-        def safe_str(x):
-            if pd.isna(x) or x == pd.NaT:
-                return ""
-            if isinstance(x, (datetime.date, datetime.datetime)):
-                return x.strftime("%d/%m/%Y")
-            return str(x).strip()
+    records.append(record)
 
-        df = df.applymap(safe_str)
+# === Assegna ID progressivo ===
+for i, r in enumerate(records, start=1):
+    r["ClienteID"] = str(i)
 
-        # Filtra righe che sembrano contratti reali
-        df_valid = df[
-            (df["DescrizioneProdotto"].str.strip() != "") |
-            (df["DataInizio"].str.contains("VENDITA", case=False, na=False))
-        ].copy()
-
-        if df_valid.empty:
-            print("   ⚠️ Nessun contratto valido, salto.")
-            continue
-
-        clienti_data.append({"ClienteID": sheet.strip(), "RagioneSociale": sheet.strip()})
-
-        for _, row in df_valid.iterrows():
-            stato = "aperto"
-            if "vendita" in row["DescrizioneProdotto"].lower():
-                stato = "vendita"
-            elif row.get("CTRChiuso", "").lower() in ["x", "chiuso", "si", "yes"]:
-                stato = "chiuso"
-
-            contratti_data.append({
-                "ClienteID": sheet.strip(),
-                "NumeroContratto": row.get("NumeroContratto", ""),
-                "DataInizio": row.get("DataInizio", ""),
-                "DataFine": row.get("DataFine", ""),
-                "Durata": row.get("Durata", ""),
-                "DescrizioneProdotto": row.get("DescrizioneProdotto", ""),
-                "NOL_FIN": row.get("NOL_FIN", ""),
-                "NOL_INT": row.get("NOL_INT", ""),
-                "TotRata": row.get("TotRata", ""),
-                "Stato": stato
-            })
-
-    except Exception as e:
-        print(f"⚠️ Errore nel foglio {sheet}: {e}")
-
-# ==========================
-# SALVATAGGIO CSV
-# ==========================
-df_cli = pd.DataFrame(clienti_data).drop_duplicates(subset=["ClienteID"])
-df_ct = pd.DataFrame(contratti_data)
-
-if not df_ct.empty:
-    df_ct = df_ct[df_ct["DescrizioneProdotto"].str.strip() != ""].copy()
-    df_ct = df_ct.drop_duplicates(subset=["ClienteID", "NumeroContratto", "DescrizioneProdotto"])
-
-df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-
-print("\n✅ Esportazione completata:")
-print(f"- Clienti: {len(df_cli)} -> {CLIENTI_CSV}")
-print(f"- Contratti validi: {len(df_ct)} -> {CONTRATTI_CSV}")
-
+# === Esporta CSV ===
+df = pd.DataFrame(records)
+df.to_csv(OUT_CSV, index=False, encoding="utf-8-sig")
+print(f"✅ File esportato con successo: {OUT_CSV}")
+print(f"💾 {len(df)} clienti importati.")

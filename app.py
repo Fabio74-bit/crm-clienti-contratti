@@ -730,7 +730,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import time
     unique_form_key = f"frm_new_prev_{sel_id}_{int(time.time()*1000)}"
 
-    TEMPLATES_DIR = STORAGE_DIR / "templates"
+    TEMPLATES_DIR = Path("templates")
     PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
     PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
     prev_csv = STORAGE_DIR / "preventivi.csv"
@@ -759,15 +759,15 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
         submit = st.form_submit_button("💾 Genera Preventivo")
 
-        if submit:
+                if submit:
             try:
                 tpl = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
                 if not tpl.exists():
                     st.error(f"❌ Template non trovato: {tpl}")
                 else:
-                    from docx import Document
-                    from docx.shared import Pt
+                    # usa gli import già presenti a livello modulo
                     doc = Document(tpl)
+
                     mappa = {
                         "CLIENTE": cliente.get("RagioneSociale", ""),
                         "INDIRIZZO": cliente.get("Indirizzo", ""),
@@ -779,12 +779,16 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
                         "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
                     }
+
+                    # sostituzione sicura nei RUN (evita di perdere la formattazione)
                     for p in doc.paragraphs:
                         for k, v in mappa.items():
-                            if f"<<{k}>>" in p.text:
-                                p.text = p.text.replace(f"<<{k}>>", str(v))
+                            placeholder = f"<<{k}>>"
+                            if placeholder in p.text:
                                 for run in p.runs:
+                                    run.text = run.text.replace(placeholder, str(v))
                                     run.font.size = Pt(10)
+
                     out = PREVENTIVI_DIR / nome_file
                     doc.save(out)
 
@@ -802,6 +806,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.rerun()
             except Exception as e:
                 st.error(f"❌ Errore durante la creazione: {e}")
+
 
     # === ELENCO PREVENTIVI CLIENTE ===
     st.divider()

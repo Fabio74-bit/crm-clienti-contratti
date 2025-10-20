@@ -748,6 +748,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
 
     # === FORM CREAZIONE PREVENTIVO ===
+       # === FORM CREAZIONE PREVENTIVO ===
     with st.form(unique_form_key):
         anno = datetime.now().year
         nome_cliente = cliente.get("RagioneSociale", "")
@@ -759,13 +760,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
         submit = st.form_submit_button("💾 Genera Preventivo")
 
-                if submit:
+        if submit:
             try:
                 tpl = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
                 if not tpl.exists():
                     st.error(f"❌ Template non trovato: {tpl}")
                 else:
-                    # usa gli import già presenti a livello modulo
                     doc = Document(tpl)
 
                     mappa = {
@@ -780,7 +780,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
                     }
 
-                    # sostituzione sicura nei RUN (evita di perdere la formattazione)
                     for p in doc.paragraphs:
                         for k, v in mappa.items():
                             placeholder = f"<<{k}>>"

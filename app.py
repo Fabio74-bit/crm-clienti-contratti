@@ -640,35 +640,37 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         # === CANCELLA CLIENTE (versione stabile) ===
         if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
-            st.session_state[f"ask_del_{sel_id}"] = True
-            st.rerun()
+            st.session_state["confirm_delete_cliente"] = str(sel_id)
+            st.experimental_rerun()
+    
 
     # === BLOCCO CONFERMA CANCELLAZIONE ===
-    if st.session_state.get(f"ask_del_{sel_id}", False):
-        st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) e tutti i contratti associati?")
-        cdel1, cdel2 = st.columns(2)
+if st.session_state.get("confirm_delete_cliente") == str(sel_id):
+    st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) e tutti i contratti associati?")
+    cdel1, cdel2 = st.columns(2)
 
-        with cdel1:
-            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
-                try:
-                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
-                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
+    with cdel1:
+        if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
+            try:
+                df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
+                df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
 
-                    save_clienti(df_cli_new)
-                    save_contratti(df_ct_new)
+                save_clienti(df_cli_new)
+                save_contratti(df_ct_new)
 
-                    st.session_state.pop(f"ask_del_{sel_id}", None)
-                    st.success("🗑️ Cliente e contratti eliminati con successo!")
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+                st.session_state.pop("confirm_delete_cliente", None)
+                st.success("🗑️ Cliente e contratti eliminati con successo!")
+                st.session_state["nav_target"] = "Clienti"
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"❌ Errore durante l'eliminazione: {e}")
 
-        with cdel2:
-            if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
-                st.session_state.pop(f"ask_del_{sel_id}", None)
-                st.info("Annullato.")
-                st.rerun()
+    with cdel2:
+        if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
+            st.session_state.pop("confirm_delete_cliente", None)
+            st.info("Annullato.")
+            st.experimental_rerun()
+
 
     # === INFO RAPIDE ===
     st.markdown(

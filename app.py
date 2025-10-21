@@ -54,8 +54,8 @@ PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
 
 TEMPLATES_DIR = Path("templates")
 TEMPLATE_OPTIONS = {
-    "Offerta A4": "Offerte_A4.docx",
-    "Offerta A3": "Offerte_A3.docx",
+    "Offerta A4": "Offerta_A4.docx",
+    "Offerta A3": "Offerta_A3.docx",
     "Centralino": "Offerta_Centralino.docx",
     "Varie": "Offerta_Varie.docx",
 }

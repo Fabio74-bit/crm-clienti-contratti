@@ -493,37 +493,39 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         (df_ct["Stato"].astype(str).str.lower() != "chiuso")
     ].copy()
 
-    # Se manca RagioneSociale nei contratti, la aggiunge dal CSV clienti
-    if "RagioneSociale" not in scadenze.columns:
-        scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+# Se manca RagioneSociale nei contratti, la aggiunge dal CSV clienti
+if "RagioneSociale" not in scadenze.columns:
+    scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
-    if scadenze.empty:
-        st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
-    else:
-        scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
-        scadenze = scadenze.sort_values("DataFine")
+if scadenze.empty:
+    st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
+else:
+    scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
+    scadenze = scadenze.sort_values("DataFine")
 
-        st.markdown(f"**🔢 {len(scadenze)} contratti in scadenza entro 6 mesi:**")
+    st.markdown(f"**🔢 {len(scadenze)} contratti in scadenza entro 6 mesi:**")
 
-        for i, r in scadenze.iterrows():
-            rag = r.get("RagioneSociale", "—")
-            num = r.get("NumeroContratto", "—")
-            fine = r.get("DataFine", "—")
-            stato = r.get("Stato", "—")
+    for i, r in scadenze.iterrows():
+        rag = r.get("RagioneSociale", "—")
+        num = r.get("NumeroContratto", "—")
+        fine = r.get("DataFine", "—")
+        stato = r.get("Stato", "—")
 
-            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
-            with col1: st.markdown(f"**{rag}**")
-            with col2: st.markdown(num or "—")
-            with col3: st.markdown(fine or "—")
-            with col4: st.markdown(stato or "—")
-            with col5:
-                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                    st.session_state.update({
-                        "selected_cliente": r.get("ClienteID"),
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
-                    st.rerun()
+        col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
+        with col1: st.markdown(f"**{rag}**")
+        with col2: st.markdown(num or "—")
+        with col3: st.markdown(fine or "—")
+        with col4: st.markdown(stato or "—")
+        with col5:
+            if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                st.session_state.update({
+                    "selected_cliente": r.get("ClienteID"),
+                    "selected_contract": r.get("NumeroContratto"),  # 🔸 memorizza contratto selezionato
+                    "nav_target": "Contratti",
+                    "_go_contratti_now": True
+                })
+                st.rerun()  # ✅ deve stare qui dentro
+
 
         # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
     st.divider()
@@ -976,7 +978,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-
+    # === Evidenzia contratto selezionato (se presente in sessione) ===
+    highlighted_contract = st.session_state.pop("selected_contract", None)
+    if highlighted_contract:
+        highlighted_contract = str(highlighted_contract).strip()
     # === NUOVO CONTRATTO ===
     with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
         with st.form(f"frm_new_contract_{sel_id}"):
@@ -1034,16 +1039,27 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     gb.configure_column("DataInizio", width=110)
     gb.configure_column("DataFine", width=110)
 
-    js_code = JsCode("""
-        function(params) {
-            if (!params.data.Stato) return {};
-            const s = params.data.Stato.toLowerCase();
-            if (s === 'chiuso') return {'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'};
-            if (s === 'aperto' || s === 'attivo') return {'backgroundColor': '#e8f5e9', 'color': '#1b5e20'};
-            return {};
-        }
-    """)
-    gb.configure_grid_options(getRowStyle=js_code)
+   # Evidenzia riga contratto selezionato (se presente)
+highlighted_contract = st.session_state.pop("selected_contract", None)
+if highlighted_contract:
+    highlighted_contract = str(highlighted_contract).strip()
+
+js_code = JsCode(f"""
+    function(params) {{
+        if (!params.data.Stato) return {{}};
+        const s = params.data.Stato.toLowerCase();
+        if (s === 'chiuso') return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
+        if (s === 'aperto' || s === 'attivo') return {{'backgroundColor': '#e8f5e9', 'color': '#1b5e20'}};
+        // Evidenzia contratto selezionato
+        if (params.data.NumeroContratto && params.data.NumeroContratto.toString().trim() === "{highlighted_contract}") {{
+            return {{'backgroundColor': '#fff9c4', 'fontWeight': 'bold', 'border': '2px solid #fbc02d'}};
+        }}
+        return {{}};
+    }}
+""")
+
+gb.configure_grid_options(getRowStyle=js_code)
+
 
     st.markdown("### 📑 Elenco Contratti")
     AgGrid(disp, gridOptions=gb.build(), theme="balham", height=400, allow_unsafe_jscode=True)

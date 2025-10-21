@@ -699,7 +699,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     
     if genera_btn:
         try:
-            tpl_path = Path(__file__).parent / "templates" / TEMPLATE_OPTIONS[template]
+            tpl_path = Path.cwd() / "templates" / TEMPLATE_OPTIONS[template]
             st.write("📄 Template:", tpl_path, " → ", tpl_path.exists())
             if not tpl_path.exists():
                 st.error(f"❌ Template non trovato: {tpl_path}")

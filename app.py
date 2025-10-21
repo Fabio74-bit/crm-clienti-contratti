@@ -114,24 +114,48 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
             out[c] = out[c].apply(fmt_date)
     out.to_csv(path, index=False, encoding="utf-8-sig")
 
-def load_clienti():
-    cols = [
-        "ClienteID","RagioneSociale","PersonaRiferimento","Indirizzo","Citta","CAP",
-        "Telefono","Cell","Email","PartitaIVA","IBAN","SDI",
-        "UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita","NoteCliente"
-    ]
-    return load_csv(CLIENTI_CSV, cols)
+# =====================================
+# I/O DATI — VERSIONE PULITA (NO NAN) + DATE ITA
+# =====================================
+def load_clienti() -> pd.DataFrame:
+    """Carica i dati dei clienti dal file CSV (separatore ';')."""
+    if CLIENTI_CSV.exists():
+        df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=";", encoding="utf-8-sig")
+    else:
+        df = pd.DataFrame(columns=CLIENTI_COLS)
+        df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
 
-def load_contratti():
-    cols = [
-        "ClienteID","RagioneSociale","NumeroContratto","DataInizio","DataFine","Durata",
-        "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata","CopieBN","EccBN",
-        "CopieCol","EccCol","Stato"
-    ]
-    return load_csv(CONTRATTI_CSV, cols)
+    # Pulizia valori nulli o stringhe tipo "nan"
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+    df = ensure_columns(df, CLIENTI_COLS)
 
-def save_clienti(df): save_csv(df, CLIENTI_CSV, ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"])
-def save_contratti(df): save_csv(df, CONTRATTI_CSV, ["DataInizio","DataFine"])
+    # Conversione date
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        df[c] = to_date_series(df[c])
+    return df
+
+
+def load_contratti() -> pd.DataFrame:
+    """Carica i dati dei contratti dal file CSV (separatore ';')."""
+    if CONTRATTI_CSV.exists():
+        df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=";", encoding="utf-8-sig")
+    else:
+        df = pd.DataFrame(columns=CONTRATTI_COLS)
+        df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+
+    # Pulizia e formattazione
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+    df = ensure_columns(df, CONTRATTI_COLS)
+
+    for c in ["DataInizio", "DataFine"]:
+        df[c] = to_date_series(df[c])
+    return df
 
 # =====================================
 # LOGIN FULLSCREEN
@@ -205,9 +229,6 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
     </div>
     """
 
-# =====================================
-# PAGINA DASHBOARD
-# =====================================
 # =====================================
 # PAGINA DASHBOARD
 # =====================================
@@ -708,10 +729,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 
-
-# =====================================
-# PAGINA CONTRATTI
-# =====================================
 # =====================================
 # PAGINA CONTRATTI (VERSIONE STABILE E COMPLETA)
 # =====================================
@@ -1017,9 +1034,6 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 
-# =====================================
-# PAGINA LISTA COMPLETA CLIENTI E SCADENZE
-# =====================================
 # =====================================
 # 📇 PAGINA LISTA COMPLETA CLIENTI E SCADENZE (CON FILTRI)
 # =====================================

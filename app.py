@@ -229,7 +229,94 @@ def load_contratti() -> pd.DataFrame:
 
     return df
 
+# =====================================
+# FUNZIONI DI CARICAMENTO DATI (VERSIONE DEFINITIVA 2025)
+# =====================================
 
+def normalize_cliente_id(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalizza la colonna ClienteID rimuovendo zeri iniziali e spazi."""
+    if "ClienteID" not in df.columns:
+        return df
+    df["ClienteID"] = (
+        df["ClienteID"]
+        .astype(str)
+        .str.strip()
+        .str.replace(r"^0+", "", regex=True)
+        .replace({"": None})
+    )
+    return df
+
+
+def load_clienti() -> pd.DataFrame:
+    """Carica i dati dei clienti dal file CSV (auto-rilevamento separatore e formattazione coerente)."""
+    import pandas as pd
+
+    if CLIENTI_CSV.exists():
+        try:
+            df = pd.read_csv(
+                CLIENTI_CSV,
+                dtype=str,
+                sep=None,              # autodetect ; or ,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            )
+        except Exception as e:
+            st.error(f"❌ Errore durante la lettura dei clienti: {e}")
+            df = pd.DataFrame(columns=CLIENTI_COLS)
+    else:
+        df = pd.DataFrame(columns=CLIENTI_COLS)
+        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
+
+    # Pulizia e normalizzazione
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+    df = ensure_columns(df, CLIENTI_COLS)
+    df = normalize_cliente_id(df)
+
+    # Conversione date coerente
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        df[c] = to_date_series(df[c])
+
+    return df
+
+
+def load_contratti() -> pd.DataFrame:
+    """Carica i dati dei contratti dal file CSV (auto-rilevamento separatore e correzione formato)."""
+    import pandas as pd
+
+    if CONTRATTI_CSV.exists():
+        try:
+            df = pd.read_csv(
+                CONTRATTI_CSV,
+                dtype=str,
+                sep=None,              # autodetect ; or ,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            )
+        except Exception as e:
+            st.error(f"❌ Errore durante la lettura dei contratti: {e}")
+            df = pd.DataFrame(columns=CONTRATTI_COLS)
+    else:
+        df = pd.DataFrame(columns=CONTRATTI_COLS)
+        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
+
+    # Pulizia e normalizzazione
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+    df = ensure_columns(df, CONTRATTI_COLS)
+    df = normalize_cliente_id(df)
+
+    # Conversione date coerente
+    for c in ["DataInizio", "DataFine"]:
+        df[c] = to_date_series(df[c])
+
+    return df
 
 
 # =====================================

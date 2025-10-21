@@ -120,7 +120,14 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
 def load_clienti() -> pd.DataFrame:
     """Carica i dati dei clienti dal file CSV (separatore ';')."""
     if CLIENTI_CSV.exists():
-        df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=";", encoding="utf-8-sig")
+        df = pd.read_csv(
+            CLIENTI_CSV,
+            dtype=str,
+            sep=";",
+            encoding="utf-8-sig",
+            quotechar='"',
+            on_bad_lines="skip"
+        )
     else:
         df = pd.DataFrame(columns=CLIENTI_COLS)
         df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
@@ -136,6 +143,7 @@ def load_clienti() -> pd.DataFrame:
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         df[c] = to_date_series(df[c])
     return df
+
 
 
 def load_contratti() -> pd.DataFrame:

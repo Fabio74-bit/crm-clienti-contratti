@@ -525,7 +525,52 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     })
                     st.rerun()
 
+        # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
+    st.divider()
+    st.markdown("### ⚠️ Contratti recenti senza data di fine")
 
+    oggi = pd.Timestamp.now().normalize()
+
+    # Converte date e filtra
+    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+
+    contratti_senza_fine = df_ct[
+        (df_ct["DataFine"].isna()) &
+        (df_ct["DataInizio"].notna()) &
+        (df_ct["DataInizio"] >= oggi)
+    ].copy()
+
+    if contratti_senza_fine.empty:
+        st.success("✅ Tutti i contratti recenti hanno una data di fine.")
+    else:
+        st.warning(f"⚠️ {len(contratti_senza_fine)} contratti inseriti da oggi non hanno ancora la data di fine:")
+
+        # Aggiungi info cliente se mancante
+        if "RagioneSociale" not in contratti_senza_fine.columns or contratti_senza_fine["RagioneSociale"].eq("").any():
+            contratti_senza_fine = contratti_senza_fine.merge(
+                df_cli[["ClienteID", "RagioneSociale"]],
+                on="ClienteID", how="left"
+            )
+
+        contratti_senza_fine["DataInizio"] = contratti_senza_fine["DataInizio"].apply(fmt_date)
+        contratti_senza_fine = contratti_senza_fine.sort_values("DataInizio", ascending=False)
+
+        # Mostra tabella con apertura rapida
+        for i, r in contratti_senza_fine.iterrows():
+            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 2, 0.8])
+            with col1: st.markdown(f"**{r.get('RagioneSociale','')}**")
+            with col2: st.markdown(r.get("NumeroContratto","—"))
+            with col3: st.markdown(r.get("DataInizio","—"))
+            with col4: st.markdown(r.get("DescrizioneProdotto","")[:50] + "…")
+            with col5:
+                if st.button("📂 Apri", key=f"open_ndf_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": r.get("ClienteID"),
+                        "nav_target": "Contratti",
+                        "_go_contratti_now": True
+                    })
+                    st.rerun()
 # =====================================
 # PAGINA CLIENTI (COMPLETA E STABILE)
 # =====================================

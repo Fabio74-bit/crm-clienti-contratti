@@ -182,32 +182,42 @@ def load_clienti() -> pd.DataFrame:
 
 
 def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (auto-rilevamento separatore)."""
+    """Carica i dati dei contratti dal file CSV (auto-rilevamento separatore e correzione formato)."""
+    import pandas as pd
+
     if CONTRATTI_CSV.exists():
         try:
+            # Auto-rilevamento delimitatore (funziona per ; , | \t)
             df = pd.read_csv(
                 CONTRATTI_CSV,
                 dtype=str,
-                sep=None,  # auto-detects ; or ,
-                engine="python",
+                sep=None,              # autodetect ; or ,
+                engine="python",       # necessario per sep=None
                 encoding="utf-8-sig",
-                on_bad_lines="skip"
+                on_bad_lines="skip"    # ignora eventuali righe errate
             )
         except Exception as e:
-            st.error(f"❌ Errore lettura contratti: {e}")
+            st.error(f"❌ Errore durante la lettura dei contratti: {e}")
             df = pd.DataFrame(columns=CONTRATTI_COLS)
     else:
         df = pd.DataFrame(columns=CONTRATTI_COLS)
         df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
 
-    # Pulizia base
-    df = df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True).fillna("")
+    # Pulisce i valori testuali
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+
+    # Forza la presenza di tutte le colonne standard
     df = ensure_columns(df, CONTRATTI_COLS)
 
     # Conversione date coerente
     for c in ["DataInizio", "DataFine"]:
         df[c] = to_date_series(df[c])
+
     return df
+
 
 
 

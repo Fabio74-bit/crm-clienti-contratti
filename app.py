@@ -620,7 +620,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     selected_name = st.session_state.get("cliente_selezionato", options[0])
     sel_rag = st.selectbox("Seleziona Cliente", options, index=options.index(selected_name), key="sel_cliente_box")
 
-    cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
+      cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
     # === HEADER ===
@@ -631,12 +631,51 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     with col2:
         if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
-            st.session_state.update({"selected_cliente": sel_id, "nav_target": "Contratti", "_go_contratti_now": True})
-            st.experimental_rerun()
+            st.session_state.update({
+                "selected_cliente": sel_id,
+                "nav_target": "Contratti",
+                "_go_contratti_now": True
+            })
+            st.rerun()
 
         if st.button("✏️ Modifica Anagrafica", use_container_width=True, key=f"edit_{sel_id}"):
             st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
-            st.experimental_rerun()
+            st.rerun()
+
+        # === CANCELLA CLIENTE (versione stabile aggiornata) ===
+        if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
+            st.session_state["confirm_delete_cliente"] = str(sel_id)
+            st.rerun()
+
+    # === BLOCCO CONFERMA CANCELLAZIONE ===
+    if st.session_state.get("confirm_delete_cliente") == str(sel_id):
+        st.warning(
+            f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) "
+            f"e tutti i contratti associati?"
+        )
+        cdel1, cdel2 = st.columns(2)
+
+        with cdel1:
+            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
+                try:
+                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
+                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
+
+                    save_clienti(df_cli_new)
+                    save_contratti(df_ct_new)
+
+                    st.session_state.pop("confirm_delete_cliente", None)
+                    st.success("🗑️ Cliente e contratti eliminati con successo!")
+                    st.session_state["nav_target"] = "Clienti"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+
+        with cdel2:
+            if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
+                st.session_state.pop("confirm_delete_cliente", None)
+                st.info("Operazione annullata.")
+                st.rerun()
 
         # === CANCELLA CLIENTE (versione stabile) ===
         if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):

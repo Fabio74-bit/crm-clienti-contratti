@@ -120,11 +120,6 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
 def load_clienti() -> pd.DataFrame:
     """Carica i dati dei clienti dal file CSV (separatore ';')."""
     if CLIENTI_CSV.exists():
-        import csv
-with open(CLIENTI_CSV, "r", encoding="utf-8-sig") as f:
-    preview = f.read().splitlines()[:5]
-    st.text("ANTEPRIMA CSV:")
-    st.text("\n".join(preview))
         df = pd.read_csv(CLIENTI_CSV, dtype=str, sep=";", encoding="utf-8-sig")
     else:
         df = pd.DataFrame(columns=CLIENTI_COLS)

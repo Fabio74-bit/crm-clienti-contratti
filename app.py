@@ -130,6 +130,19 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
 # =====================================
 # I/O DATI — VERSIONE PULITA (NO NAN) + DATE ITA
 # =====================================
+# =====================================
+# CONVERSIONE SICURA DATE ITALIANE
+# =====================================
+def to_date_series(series: pd.Series) -> pd.Series:
+    """Converte una colonna di date in formato pandas, accettando diversi formati."""
+    def parse_date(val):
+        if pd.isna(val) or str(val).strip() == "":
+            return ""
+        try:
+            return pd.to_datetime(str(val), errors="coerce", dayfirst=True)
+        except Exception:
+            return ""
+    return series.apply(parse_date)
 def load_clienti() -> pd.DataFrame:
     """Carica i dati dei clienti dal file CSV (separatore ';')."""
     if CLIENTI_CSV.exists():

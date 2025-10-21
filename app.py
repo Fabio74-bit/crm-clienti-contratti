@@ -153,31 +153,42 @@ def to_date_series(series: pd.Series) -> pd.Series:
             return ""
     return series.apply(parse_date)
 def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (separatore ';')."""
+    """Carica i dati dei clienti dal file CSV (auto-rilevamento separatore e formattazione coerente)."""
+    import pandas as pd
+
     if CLIENTI_CSV.exists():
-        df = pd.read_csv(
-            CLIENTI_CSV,
-            dtype=str,
-            sep=";",
-            encoding="utf-8-sig",
-            quotechar='"',
-            on_bad_lines="skip"
-        )
+        try:
+            # Rileva automaticamente ; , | o tab
+            df = pd.read_csv(
+                CLIENTI_CSV,
+                dtype=str,
+                sep=None,              # autodetect ; or ,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"    # ignora eventuali righe danneggiate
+            )
+        except Exception as e:
+            st.error(f"❌ Errore durante la lettura dei clienti: {e}")
+            df = pd.DataFrame(columns=CLIENTI_COLS)
     else:
         df = pd.DataFrame(columns=CLIENTI_COLS)
-        df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
 
-    # Pulizia valori nulli o stringhe tipo "nan"
+    # Normalizza valori vuoti o errati
     df = (
         df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
         .fillna("")
     )
+
+    # Garantisce che tutte le colonne standard esistano
     df = ensure_columns(df, CLIENTI_COLS)
 
-    # Conversione date
+    # Conversione sicura delle date
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         df[c] = to_date_series(df[c])
+
     return df
+
 
 
 

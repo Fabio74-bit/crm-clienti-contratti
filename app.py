@@ -670,11 +670,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("### 🧾 Genera Nuovo Preventivo")
     
     TEMPLATE_OPTIONS = {
-        "Offerta A4": "Offerta A4.docx",
-        "Offerta A3": "Offerta A3.docx",
-        "Centralino": "Offerta Centralino.docx",
-        "Varie": "Offerta Varie.docx",
+        "Offerta A4": "Offerta_A4.docx",
+        "Offerta A3": "Offerta_A3.docx",
+        "Centralino": "Offerta_Centralino.docx",
+        "Varie": "Offerta_Varie.docx",
     }
+
     
     PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
     PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)

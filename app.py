@@ -185,23 +185,30 @@ def load_contratti() -> pd.DataFrame:
     """Carica i dati dei contratti dal file CSV (auto-rilevamento separatore)."""
     if CONTRATTI_CSV.exists():
         try:
-            df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=";", encoding="utf-8-sig")
-        except pd.errors.ParserError:
-            df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig")
+            df = pd.read_csv(
+                CONTRATTI_CSV,
+                dtype=str,
+                sep=None,  # auto-detects ; or ,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            )
+        except Exception as e:
+            st.error(f"❌ Errore lettura contratti: {e}")
+            df = pd.DataFrame(columns=CONTRATTI_COLS)
     else:
         df = pd.DataFrame(columns=CONTRATTI_COLS)
-        df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
 
-    # Pulizia e formattazione
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
+    # Pulizia base
+    df = df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True).fillna("")
     df = ensure_columns(df, CONTRATTI_COLS)
 
+    # Conversione date coerente
     for c in ["DataInizio", "DataFine"]:
         df[c] = to_date_series(df[c])
     return df
+
 
 
 # =====================================

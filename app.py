@@ -136,9 +136,7 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
             out[c] = out[c].apply(fmt_date)
     out.to_csv(path, index=False, encoding="utf-8-sig")
 
-# =====================================
-# I/O DATI — VERSIONE PULITA (NO NAN) + DATE ITA
-# =====================================
+
 # =====================================
 # CONVERSIONE SICURA DATE ITALIANE
 # =====================================

@@ -699,7 +699,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     if submit:
         try:
-            tpl = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
+            tpl = Path(__file__).parent / "templates" / TEMPLATE_OPTIONS[template]
+
             if not tpl.exists():
                 st.error(f"❌ Template non trovato: {tpl}")
             else:

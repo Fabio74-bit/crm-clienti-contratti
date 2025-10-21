@@ -1029,19 +1029,42 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
        # === TABELLA CONTRATTI ===
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     disp = ct.copy()
+        # === MARCATURA CONTRATTO SELEZIONATO (versione stabile) ===
+    highlighted_contract = (st.session_state.get("selected_contract", "") or "").strip().lower()
+    highlighted_descr = (st.session_state.get("selected_descrizione", "") or "").strip().lower()
+
+    # Aggiunge una colonna di evidenziazione
+    disp["Evidenziato"] = ""
+    if highlighted_contract or highlighted_descr:
+        mask = (
+            disp["NumeroContratto"].astype(str).str.lower().str.strip().eq(highlighted_contract)
+            | disp["DescrizioneProdotto"].astype(str).str.lower().str.strip().eq(highlighted_descr)
+        )
+        disp.loc[mask, "Evidenziato"] = "⭐ Contratto selezionato"
+
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
     for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
         disp[c] = disp[c].apply(money)
 
-    # === CONFIGURAZIONE AGGRID ===
+    # === CONFIGURAZIONE AGGRID (CON EVIDENZIAZIONE) ===
     gb = GridOptionsBuilder.from_dataframe(disp)
     gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
+
+    # Colonna evidenziazione — colore giallo acceso
+    gb.configure_column("Evidenziato", width=180, cellStyle={
+        "backgroundColor": "#fff176",
+        "fontWeight": "bold",
+        "color": "#000"
+    })
+
+    # Altre colonne principali
     gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True, width=300)
     gb.configure_column("Stato", width=100)
     gb.configure_column("TotRata", width=110)
     gb.configure_column("DataInizio", width=110)
     gb.configure_column("DataFine", width=110)
+
 
     # === EVIDENZIAZIONE CONTRATTO SELEZIONATO ===
     highlighted_contract = (st.session_state.pop("selected_contract", "") or "").strip().lower()

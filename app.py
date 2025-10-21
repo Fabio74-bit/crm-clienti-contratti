@@ -993,10 +993,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    # === Evidenzia contratto selezionato (se presente in sessione) ===
-    highlighted_contract = st.session_state.pop("selected_contract", None)
-    if highlighted_contract:
-        highlighted_contract = str(highlighted_contract).strip()
+
     # === NUOVO CONTRATTO ===
     with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
         with st.form(f"frm_new_contract_{sel_id}"):
@@ -1034,13 +1031,19 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 except Exception as e:
                     st.error(f"❌ Errore creazione contratto: {e}")
 
+    # === SE NON CI SONO CONTRATTI ===
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
         return
 
-       # === TABELLA CONTRATTI ===
-    ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
-       # === FORMATTAZIONE E STILE TABELLA ===
+    # === FORMATTAZIONE E STILE TABELLA ===
+    disp = ct.copy()
+    disp["Stato"] = disp["Stato"].replace("", "aperto").fillna("aperto")
+    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+    for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
+        disp[c] = disp[c].apply(money)
+
     # === CONFIGURAZIONE AGGRID ===
     gb = GridOptionsBuilder.from_dataframe(disp)
     gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
@@ -1050,65 +1053,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     gb.configure_column("DataInizio", width=110)
     gb.configure_column("DataFine", width=110)
 
-    st.markdown("### 📑 Elenco Contratti")
-    AgGrid(disp, gridOptions=gb.build(), theme="balham", height=400, allow_unsafe_jscode=True)
-
-
-
-    # === EVIDENZIAZIONE CONTRATTO SELEZIONATO ===
-    highlighted_contract = (st.session_state.pop("selected_contract", "") or "").strip().lower()
-    highlighted_descr = (st.session_state.pop("selected_descrizione", "") or "").strip().lower()
-
-    # === EVIDENZIAZIONE CONTRATTO SELEZIONATO (VERSIONE CORRETTA) ===
-    highlighted_contract = (st.session_state.get("selected_contract", "") or "").strip().lower()
-    highlighted_descr = (st.session_state.get("selected_descrizione", "") or "").strip().lower()
-
+    # Colori per stato contratto
     js_code = JsCode("""
         function(params) {
-            const stato = (params.data.Stato || "").toLowerCase();
-            const num = (params.data.NumeroContratto || "").toLowerCase().trim();
-            const descr = (params.data.DescrizioneProdotto || "").toLowerCase().trim();
-
-            const highlighted_contract = params.context.highlighted_contract || "";
-            const highlighted_descr = params.context.highlighted_descr || "";
-
-            // evidenzia solo se c'è selezione e corrisponde
-            if (
-                (highlighted_contract && num === highlighted_contract) ||
-                (highlighted_descr && descr === highlighted_descr)
-            ) {
-                return {
-                    'backgroundColor': '#fff176',
-                    'fontWeight': 'bold',
-                    'border': '2px solid #fbc02d'
-                };
-            }
-
-            // rosso per contratti chiusi
-            if (stato === 'chiuso')
-                return {'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'};
-
-            // nessun colore per altri
+            if (!params.data.Stato) return {};
+            const s = params.data.Stato.toLowerCase();
+            if (s === 'chiuso') return {'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'};
+            if (s === 'aperto' || s === 'attivo') return {'backgroundColor': '#e8f5e9', 'color': '#1b5e20'};
             return {};
         }
     """)
-
-    gb.configure_grid_options(
-        getRowStyle=js_code,
-        context={"highlighted_contract": highlighted_contract, "highlighted_descr": highlighted_descr}
-    )
-
-
-
-
-
     gb.configure_grid_options(getRowStyle=js_code)
 
+    # === VISUALIZZAZIONE TABELLA ===
     st.markdown("### 📑 Elenco Contratti")
     AgGrid(disp, gridOptions=gb.build(), theme="balham", height=400, allow_unsafe_jscode=True)
 
-
-    # === SEZIONE ESPORTAZIONI ===
+    # === ESPORTAZIONE FILE ===
     st.divider()
     c1, c2 = st.columns(2)
 
@@ -1210,6 +1171,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             )
         except Exception as e:
             st.error(f"❌ Errore export PDF: {e}")
+
 
 
 

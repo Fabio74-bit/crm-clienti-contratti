@@ -510,21 +510,24 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             stato = r.get("Stato", "—")
 
             col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
-            with col1: st.markdown(f"**{rag}**")
-            with col2: st.markdown(num or "—")
-            with col3: st.markdown(fine or "—")
-            with col4: st.markdown(stato or "—")
+            with col1:
+                st.markdown(f"**{rag}**")
+            with col2:
+                st.markdown(num or "—")
+            with col3:
+                st.markdown(fine or "—")
+            with col4:
+                st.markdown(stato or "—")
             with col5:
-            if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                st.session_state.update({
-                    "selected_cliente": str(r.get("ClienteID")),
-                    "selected_contract": str(r.get("NumeroContratto") or "").strip().lower(),
-                    "selected_descrizione": str(r.get("DescrizioneProdotto") or "").strip().lower(),
-                    "nav_target": "Contratti",
-                    "_go_contratti_now": True
-                })
-                st.rerun()
-
+                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": str(r.get("ClienteID")),
+                        "selected_contract": str(r.get("NumeroContratto") or "").strip().lower(),
+                        "selected_descrizione": str(r.get("DescrizioneProdotto") or "").strip().lower(),
+                        "nav_target": "Contratti",
+                        "_go_contratti_now": True
+                    })
+                    st.rerun()
 
 
         # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===

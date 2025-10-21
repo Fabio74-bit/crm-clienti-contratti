@@ -52,7 +52,14 @@ CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
 PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
 PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
 
-TEMPLATES_DIR = Path("templates")  # <- cartella accanto ad app.py
+TEMPLATES_DIR = Path("templates")
+TEMPLATE_OPTIONS = {
+    "Offerta A4": "Offerte_A4.docx",
+    "Offerta A3": "Offerte_A3.docx",
+    "Centralino": "Offerta_Centralino.docx",
+    "Varie": "Offerta_Varie.docx",
+}
+
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 # =====================================
 # COLONNE STANDARD CSV

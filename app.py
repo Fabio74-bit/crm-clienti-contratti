@@ -1029,7 +1029,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
         disp[c] = disp[c].apply(money)
 
-    # Evidenzia riga contratto selezionato (se presente)
+     # Evidenzia riga contratto selezionato (se presente)
     highlighted_contract = st.session_state.pop("selected_contract", None)
     if highlighted_contract:
         highlighted_contract = str(highlighted_contract).strip().lower()
@@ -1060,8 +1060,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     """)
 
     gb.configure_grid_options(getRowStyle=js_code)
-
-
 
 
     st.markdown("### 📑 Elenco Contratti")

@@ -512,7 +512,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
             with col1:
                 st.markdown(f"**{rag}**")
-            with col2:
+            
                 st.markdown(num or "—")
             with col3:
                 st.markdown(fine or "—")
@@ -570,7 +570,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
             with col1:
                 st.markdown(f"**{r.get('RagioneSociale', '—')}**")
-            with col2:
+            
                 st.markdown(r.get("NumeroContratto", "—"))
             with col3:
                 st.markdown(r.get("DataInizio", "—"))
@@ -594,7 +594,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
 
-    # === PRE-SELEZIONE CLIENTE (arrivo da altre pagine) ===
+    # === PRE-SELEZIONE CLIENTE ===
     if "selected_cliente" in st.session_state:
         sel_id = str(st.session_state.pop("selected_cliente"))
         cli_ids = df_cli["ClienteID"].astype(str)
@@ -628,94 +628,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with col1:
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
         st.caption(f"ID Cliente: {sel_id}")
-                    # === IMPORTA NOTE DA FILE EXCEL (DIAGNOSTICA, solo admin) ===
-    if role == "admin":
-        import openpyxl, time, difflib
-
-        st.divider()
-        st.markdown("### 🧭 Importa Note Cliente da file Excel (.xlsm) con log dettagliato")
-
-        uploaded_file = st.file_uploader(
-            "📂 Carica file GESTIONE_CLIENTI.xlsm",
-            type=["xlsm", "xlsx"],
-            key=f"upload_notes_{int(time.time()*1000)}"
-        )
-
-        if uploaded_file:
-            try:
-                wb = openpyxl.load_workbook(uploaded_file, data_only=True)
-                sheets = wb.sheetnames
-                st.info(f"📘 File caricato — {len(sheets)} fogli trovati.")
-
-                df_cli_updated = df_cli.copy()
-                if "NoteCliente" not in df_cli_updated.columns:
-                    df_cli_updated["NoteCliente"] = ""
-
-                progress = st.progress(0)
-                log = st.empty()
-
-                count_ok, count_fail = 0, 0
-
-                for i, sheet_name in enumerate(sheets):
-                    ws = wb[sheet_name]
-                    note_text = ""
-                    found = False
-
-                    # Leggi tutte le righe
-                    rows = list(ws.iter_rows(values_only=True))
-
-                    for ridx, row in enumerate(rows):
-                        if any(cell and "note" in str(cell).lower() for cell in row):
-                            # Riga "NOTE CLIENTI" trovata — prendi tutto sotto
-                            for next_row in rows[ridx + 1:]:
-                                txt = " ".join(str(c) for c in next_row if c).strip()
-                                if txt:
-                                    note_text += txt + " "
-                            found = True
-                            break
-
-                    # Mostra log in tempo reale
-                    if found:
-                        snippet = note_text[:150] + ("..." if len(note_text) > 150 else "")
-                        log.info(f"📄 {sheet_name} → ✅ trovate note:\n> {snippet}")
-                    else:
-                        log.warning(f"⚠️ Nessuna sezione NOTE CLIENTI trovata in: {sheet_name}")
-
-                    # Se ha trovato testo, prova a matchare col cliente
-                    if found and note_text.strip():
-                        # Match “intelligente” con similarità
-                        def normalize(s): 
-                            return "".join(ch.lower() for ch in str(s) if ch.isalnum())
-                        normalized_sheet = normalize(sheet_name)
-                        df_cli_updated["__norm__"] = df_cli_updated["RagioneSociale"].apply(normalize)
-
-                        match_row = df_cli_updated.iloc[
-                            [difflib.get_close_matches(normalized_sheet, df_cli_updated["__norm__"].tolist(), n=1, cutoff=0.6)]
-                        ] if difflib.get_close_matches(normalized_sheet, df_cli_updated["__norm__"].tolist(), n=1, cutoff=0.6) else None
-
-                        if match_row is not None and not match_row.empty:
-                            cid = match_row.iloc[0]["ClienteID"]
-                            df_cli_updated.loc[df_cli_updated["ClienteID"] == cid, "NoteCliente"] = note_text.strip()
-                            count_ok += 1
-                        else:
-                            count_fail += 1
-                            log.warning(f"⚠️ Nessuna corrispondenza trovata per '{sheet_name}' nel CSV.")
-
-                    progress.progress((i + 1) / len(sheets))
-                    time.sleep(0.1)
-
-                if "__norm__" in df_cli_updated.columns:
-                    df_cli_updated.drop(columns=["__norm__"], inplace=True, errors="ignore")
-
-                save_clienti(df_cli_updated)
-                st.success(f"✅ Importazione completata. Note salvate per {count_ok} clienti, {count_fail} non abbinati.")
-                st.balloons()
-
-            except Exception as e:
-                st.error(f"❌ Errore durante l'importazione: {e}")
-
-
-
 
     with col2:
         if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
@@ -726,17 +638,37 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
             st.rerun()
 
-        if role == "admin":
-            st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-            if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"del_cli_{sel_id}"):
-                st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** e i relativi contratti?")
-                if st.button("❌ Conferma Eliminazione", use_container_width=True, key=f"conf_del_{sel_id}"):
-                    df_cli = df_cli[df_cli["ClienteID"] != sel_id]
-                    df_ct = df_ct[df_ct["ClienteID"] != sel_id]
-                    save_clienti(df_cli)
-                    save_contratti(df_ct)
-                    st.success("✅ Cliente eliminato con successo.")
+        # === CANCELLA CLIENTE (versione stabile) ===
+        if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
+            st.session_state[f"ask_del_{sel_id}"] = True
+            st.rerun()
+
+    # === BLOCCO CONFERMA CANCELLAZIONE ===
+    if st.session_state.get(f"ask_del_{sel_id}", False):
+        st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) e tutti i contratti associati?")
+        cdel1, cdel2 = st.columns(2)
+
+        with cdel1:
+            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
+                try:
+                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
+                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
+
+                    save_clienti(df_cli_new)
+                    save_contratti(df_ct_new)
+
+                    st.session_state.pop(f"ask_del_{sel_id}", None)
+                    st.success("🗑️ Cliente e contratti eliminati con successo!")
+                    st.session_state["nav_target"] = "Clienti"
                     st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+
+        with cdel2:
+            if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
+                st.session_state.pop(f"ask_del_{sel_id}", None)
+                st.info("Annullato.")
+                st.rerun()
 
     # === INFO RAPIDE ===
     st.markdown(
@@ -750,7 +682,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         unsafe_allow_html=True
     )
 
-    # === BLOCCO ANAGRAFICA ===
+    # === MODIFICA ANAGRAFICA ===
     if st.session_state.get(f"edit_cli_{sel_id}", False):
         st.divider()
         st.markdown("### ✏️ Modifica Anagrafica Cliente")
@@ -781,21 +713,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state[f"edit_cli_{sel_id}"] = False
                 st.rerun()
 
-   
     # === NOTE CLIENTE ===
     st.divider()
     st.markdown("### 📝 Note Cliente")
-
-    # Mostra le note attuali (campo NoteCliente)
     note_attuali = cliente.get("NoteCliente", "")
-    nuove_note = st.text_area(
-        "Modifica note cliente:",
-        note_attuali,
-        height=160,
-        key=f"note_{sel_id}_{int(time.time()*1000)}"
-    )
+    nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=160, key=f"note_{sel_id}_{int(time.time()*1000)}")
 
-    # Salvataggio note aggiornate
     if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}_{int(time.time()*1000)}", use_container_width=True):
         try:
             idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
@@ -842,6 +765,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         save_clienti(df_cli)
         st.success("✅ Date aggiornate.")
         st.rerun()
+
 
     # === GENERA PREVENTIVO (VERSIONE PULITA E STABILE) ===
     st.divider()

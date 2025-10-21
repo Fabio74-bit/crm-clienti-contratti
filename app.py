@@ -520,14 +520,19 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.markdown(stato or "—")
             with col5:
                 if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                    # 🔑 crea un identificatore univoco per il contratto
+                    unique_id = f"{r.get('ClienteID')}_{r.get('NumeroContratto')}_{fmt_date(r.get('DataInizio'))}".lower().strip()
+                    
+                    # Salva nello stato la chiave univoca del contratto selezionato
                     st.session_state.update({
                         "selected_cliente": str(r.get("ClienteID")),
-                        "selected_contract": str(r.get("NumeroContratto") or "").strip().lower(),
-                        "selected_descrizione": str(r.get("DescrizioneProdotto") or "").strip().lower(),
+                        "selected_contract_uid": unique_id,
                         "nav_target": "Contratti",
                         "_go_contratti_now": True
                     })
                     st.rerun()
+
+
 
 
         # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
@@ -1029,23 +1034,28 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
        # === TABELLA CONTRATTI ===
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     disp = ct.copy()
-        # === MARCATURA CONTRATTO SELEZIONATO (versione stabile) ===
-    highlighted_contract = (st.session_state.get("selected_contract", "") or "").strip().lower()
-    highlighted_descr = (st.session_state.get("selected_descrizione", "") or "").strip().lower()
 
-    # Aggiunge una colonna di evidenziazione
+    # === MARCATURA CONTRATTO SELEZIONATO (chiave univoca sicura) ===
+    selected_uid = (st.session_state.get("selected_contract_uid", "") or "").strip().lower()
+
+    # Crea una chiave univoca per ogni contratto (ClienteID + NumeroContratto + DataInizio)
+    disp["uid"] = (
+        disp["ClienteID"].astype(str) + "_" +
+        disp["NumeroContratto"].astype(str) + "_" +
+        disp["DataInizio"].apply(fmt_date)
+    ).str.lower().str.strip()
+
+    # Colonna per evidenziare solo il contratto selezionato
     disp["Evidenziato"] = ""
-    if highlighted_contract or highlighted_descr:
-        mask = (
-            disp["NumeroContratto"].astype(str).str.lower().str.strip().eq(highlighted_contract)
-            | disp["DescrizioneProdotto"].astype(str).str.lower().str.strip().eq(highlighted_descr)
-        )
-        disp.loc[mask, "Evidenziato"] = "⭐ Contratto selezionato"
+    if selected_uid:
+        disp.loc[disp["uid"] == selected_uid, "Evidenziato"] = "⭐ Contratto selezionato"
 
+    # === FORMATTAZIONE E STILE TABELLA ===
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
     for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
         disp[c] = disp[c].apply(money)
+
 
     # === CONFIGURAZIONE AGGRID (CON EVIDENZIAZIONE) ===
     gb = GridOptionsBuilder.from_dataframe(disp)

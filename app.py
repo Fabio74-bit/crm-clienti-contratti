@@ -666,85 +666,85 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.rerun()
 
     # === GENERA PREVENTIVO ===
-st.divider()
-st.markdown("### 🧾 Genera Nuovo Preventivo")
-
-TEMPLATE_OPTIONS = {
-    "Offerta A4": "Offerta_A4.docx",
-    "Offerta A3": "Offerta_A3.docx",
-    "Centralino": "Offerta_Centralino.docx",
-    "Varie": "Offerta_Varie.docx",
-}
-
-PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
-PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
-prev_csv = STORAGE_DIR / "preventivi.csv"
-
-if prev_csv.exists():
-    df_prev = pd.read_csv(prev_csv, dtype=str).fillna("")
-else:
-    df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
-
-anno = datetime.now().year
-nome_cliente = cliente.get("RagioneSociale", "")
-nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
-num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev[df_prev['ClienteID'] == sel_id]) + 1:03d}"
-
-with st.form(f"frm_prev_{sel_id}"):
-    st.text_input("Numero Offerta", num_off, disabled=True)
-    nome_file = st.text_input("Nome File", f"{num_off}.docx")
-    template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
-    genera_btn = st.form_submit_button("💾 Genera Preventivo")
-
-if genera_btn:
-    try:
-        tpl_path = Path(__file__).parent / "templates" / TEMPLATE_OPTIONS[template]
-        st.write("📄 Template:", tpl_path, " → ", tpl_path.exists())
-        if not tpl_path.exists():
-            st.error(f"❌ Template non trovato: {tpl_path}")
-            st.stop()
-
-        from docx import Document
-        doc = Document(tpl_path)
-        st.write("📑 Documento aperto correttamente")
-
-        # Sostituzione segnaposti
-        mappa = {
-            "CLIENTE": nome_cliente,
-            "INDIRIZZO": cliente.get("Indirizzo", ""),
-            "CITTA": cliente.get("Citta", ""),
-            "NUMERO_OFFERTA": num_off,
-            "DATA": datetime.now().strftime("%d/%m/%Y"),
-        }
-        for p in doc.paragraphs:
-            for k, v in mappa.items():
-                if f"<<{k}>>" in p.text:
-                    for run in p.runs:
-                        run.text = run.text.replace(f"<<{k}>>", str(v))
-
-        out_path = PREVENTIVI_DIR / nome_file
-        doc.save(out_path)
-        st.write("💾 Salvato in:", out_path, " → Esiste?", out_path.exists())
-
-        if out_path.exists():
-            nuova_riga = {
-                "ClienteID": sel_id,
-                "NumeroOfferta": num_off,
-                "Template": TEMPLATE_OPTIONS[template],
-                "NomeFile": nome_file,
-                "Percorso": str(out_path),
-                "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
+    st.divider()
+    st.markdown("### 🧾 Genera Nuovo Preventivo")
+    
+    TEMPLATE_OPTIONS = {
+        "Offerta A4": "Offerta_A4.docx",
+        "Offerta A3": "Offerta_A3.docx",
+        "Centralino": "Offerta_Centralino.docx",
+        "Varie": "Offerta_Varie.docx",
+    }
+    
+    PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
+    PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
+    prev_csv = STORAGE_DIR / "preventivi.csv"
+    
+    if prev_csv.exists():
+        df_prev = pd.read_csv(prev_csv, dtype=str).fillna("")
+    else:
+        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
+    
+    anno = datetime.now().year
+    nome_cliente = cliente.get("RagioneSociale", "")
+    nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
+    num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev[df_prev['ClienteID'] == sel_id]) + 1:03d}"
+    
+    with st.form(f"frm_prev_{sel_id}"):
+        st.text_input("Numero Offerta", num_off, disabled=True)
+        nome_file = st.text_input("Nome File", f"{num_off}.docx")
+        template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
+        genera_btn = st.form_submit_button("💾 Genera Preventivo")
+    
+    if genera_btn:
+        try:
+            tpl_path = Path(__file__).parent / "templates" / TEMPLATE_OPTIONS[template]
+            st.write("📄 Template:", tpl_path, " → ", tpl_path.exists())
+            if not tpl_path.exists():
+                st.error(f"❌ Template non trovato: {tpl_path}")
+                st.stop()
+    
+            from docx import Document
+            doc = Document(tpl_path)
+            st.write("📑 Documento aperto correttamente")
+    
+            # Sostituzione segnaposti
+            mappa = {
+                "CLIENTE": nome_cliente,
+                "INDIRIZZO": cliente.get("Indirizzo", ""),
+                "CITTA": cliente.get("Citta", ""),
+                "NUMERO_OFFERTA": num_off,
+                "DATA": datetime.now().strftime("%d/%m/%Y"),
             }
-            df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
-            df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
-            st.success(f"✅ Preventivo generato: {out_path.name}")
-            st.rerun()
-        else:
-            st.error("❌ Il file non è stato creato!")
-
-    except Exception as e:
-        import traceback
-        st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
+            for p in doc.paragraphs:
+                for k, v in mappa.items():
+                    if f"<<{k}>>" in p.text:
+                        for run in p.runs:
+                            run.text = run.text.replace(f"<<{k}>>", str(v))
+    
+            out_path = PREVENTIVI_DIR / nome_file
+            doc.save(out_path)
+            st.write("💾 Salvato in:", out_path, " → Esiste?", out_path.exists())
+    
+            if out_path.exists():
+                nuova_riga = {
+                    "ClienteID": sel_id,
+                    "NumeroOfferta": num_off,
+                    "Template": TEMPLATE_OPTIONS[template],
+                    "NomeFile": nome_file,
+                    "Percorso": str(out_path),
+                    "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                }
+                df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
+                df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+                st.success(f"✅ Preventivo generato: {out_path.name}")
+                st.rerun()
+            else:
+                st.error("❌ Il file non è stato creato!")
+    
+        except Exception as e:
+            import traceback
+            st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
 
 
 

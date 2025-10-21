@@ -1031,34 +1031,38 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
         disp[c] = disp[c].apply(money)
 
-    gb = GridOptionsBuilder.from_dataframe(disp)
-    gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
-    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True, width=300)
-    gb.configure_column("Stato", width=100)
-    gb.configure_column("TotRata", width=110)
-    gb.configure_column("DataInizio", width=110)
-    gb.configure_column("DataFine", width=110)
-
     # Evidenzia riga contratto selezionato (se presente)
     highlighted_contract = st.session_state.pop("selected_contract", None)
     if highlighted_contract:
-        highlighted_contract = str(highlighted_contract).strip()
+        highlighted_contract = str(highlighted_contract).strip().lower()
 
     js_code = JsCode(f"""
         function(params) {{
             if (!params.data.Stato) return {{}};
-            const s = params.data.Stato.toLowerCase();
-            if (s === 'chiuso') return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
-            if (s === 'aperto' || s === 'attivo') return {{'backgroundColor': '#e8f5e9', 'color': '#1b5e20'}};
-            // Evidenzia contratto selezionato
-            if (params.data.NumeroContratto && params.data.NumeroContratto.toString().trim() === "{highlighted_contract}") {{
-                return {{'backgroundColor': '#fff9c4', 'fontWeight': 'bold', 'border': '2px solid #fbc02d'}};
+            const stato = params.data.Stato.toLowerCase();
+            const numContratto = params.data.NumeroContratto ? params.data.NumeroContratto.toString().toLowerCase().trim() : "";
+
+            // Evidenzia riga se è quella selezionata
+            if (numContratto === "{highlighted_contract}") {{
+                return {{
+                    'backgroundColor': '#fff176',  // 💛 giallo acceso
+                    'fontWeight': 'bold',
+                    'border': '2px solid #fdd835'
+                }};
             }}
+
+            // Colori di stato
+            if (stato === 'chiuso')
+                return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
+            if (stato === 'aperto' || stato === 'attivo')
+                return {{'backgroundColor': '#e8f5e9', 'color': '#1b5e20'}};
+
             return {{}};
         }}
     """)
 
     gb.configure_grid_options(getRowStyle=js_code)
+
 
 
 

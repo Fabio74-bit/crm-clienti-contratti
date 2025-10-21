@@ -515,14 +515,16 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with col3: st.markdown(fine or "—")
             with col4: st.markdown(stato or "—")
             with col5:
-                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                    st.session_state.update({
-                        "selected_cliente": r.get("ClienteID"),
-                        "selected_contract": r.get("NumeroContratto"),  # 🔸 evidenzia contratto
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
-                    st.rerun()
+            if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                st.session_state.update({
+                    "selected_cliente": str(r.get("ClienteID")),
+                    "selected_contract": str(r.get("NumeroContratto") or "").strip().lower(),
+                    "selected_descrizione": str(r.get("DescrizioneProdotto") or "").strip().lower(),
+                    "nav_target": "Contratti",
+                    "_go_contratti_now": True
+                })
+                st.rerun()
+
 
 
         # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
@@ -1043,31 +1045,32 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if highlighted_contract:
         highlighted_contract = str(highlighted_contract).strip().lower()
 
+    highlighted_contract = (st.session_state.pop("selected_contract", "") or "").strip().lower()
+    highlighted_descr = (st.session_state.pop("selected_descrizione", "") or "").strip().lower()
+
     js_code = JsCode(f"""
         function(params) {{
-            if (!params.data.Stato) return {{}};
-            const stato = params.data.Stato.toLowerCase();
-            const numContratto = params.data.NumeroContratto
-                ? params.data.NumeroContratto.toString().toLowerCase().trim()
-                : "";
+            const stato = (params.data.Stato || "").toLowerCase();
+            const num = (params.data.NumeroContratto || "").toLowerCase().trim();
+            const descr = (params.data.DescrizioneProdotto || "").toLowerCase().trim();
 
-            // Evidenzia riga selezionata (giallo acceso)
-            if (numContratto === "{highlighted_contract}") {{
+            // Evidenzia riga se corrisponde per NumeroContratto o DescrizioneProdotto
+            if (num === "{highlighted_contract}" || descr === "{highlighted_descr}") {{
                 return {{
-                    'backgroundColor': '#fff176',  // 💛 giallo evidenziato
+                    'backgroundColor': '#fff176',
                     'fontWeight': 'bold',
-                    'border': '2px solid #fdd835'
+                    'border': '2px solid #fbc02d'
                 }};
             }}
 
-            // Solo rosso per contratti chiusi
+            // Rosso per contratti chiusi
             if (stato === 'chiuso')
                 return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
 
-            // Nessun colore per contratti aperti
             return {{}};
         }}
     """)
+
 
 
     gb.configure_grid_options(getRowStyle=js_code)

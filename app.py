@@ -1054,21 +1054,21 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             // Evidenzia riga selezionata (giallo acceso)
             if (numContratto === "{highlighted_contract}") {{
                 return {{
-                    'backgroundColor': '#fff176',  // giallo evidenziato
+                    'backgroundColor': '#fff176',  // 💛 giallo evidenziato
                     'fontWeight': 'bold',
                     'border': '2px solid #fdd835'
                 }};
             }}
 
-            // Colori di stato
+            // Solo rosso per contratti chiusi
             if (stato === 'chiuso')
                 return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
-            if (stato === 'aperto' || stato === 'attivo')
-                return {{'backgroundColor': '#e8f5e9', 'color': '#1b5e20'}};
 
+            // Nessun colore per contratti aperti
             return {{}};
         }}
     """)
+
 
     gb.configure_grid_options(getRowStyle=js_code)
 

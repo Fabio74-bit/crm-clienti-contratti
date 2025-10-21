@@ -1047,32 +1047,45 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     highlighted_contract = (st.session_state.pop("selected_contract", "") or "").strip().lower()
     highlighted_descr = (st.session_state.pop("selected_descrizione", "") or "").strip().lower()
 
-    # 🔒 Evita di evidenziare tutto se non c'è un contratto selezionato
-    js_code = JsCode(f"""
-        function(params) {{
+    # === EVIDENZIAZIONE CONTRATTO SELEZIONATO (VERSIONE CORRETTA) ===
+    highlighted_contract = (st.session_state.get("selected_contract", "") or "").strip().lower()
+    highlighted_descr = (st.session_state.get("selected_descrizione", "") or "").strip().lower()
+
+    js_code = JsCode("""
+        function(params) {
             const stato = (params.data.Stato || "").toLowerCase();
             const num = (params.data.NumeroContratto || "").toLowerCase().trim();
             const descr = (params.data.DescrizioneProdotto || "").toLowerCase().trim();
 
-            const hasSelection = "{highlighted_contract}" !== "" || "{highlighted_descr}" !== "";
+            const highlighted_contract = params.context.highlighted_contract || "";
+            const highlighted_descr = params.context.highlighted_descr || "";
 
-            // ✅ evidenzia solo la riga che corrisponde
-            if (hasSelection && (num === "{highlighted_contract}" || descr === "{highlighted_descr}")) {{
-                return {{
+            // evidenzia solo se c'è selezione e corrisponde
+            if (
+                (highlighted_contract && num === highlighted_contract) ||
+                (highlighted_descr && descr === highlighted_descr)
+            ) {
+                return {
                     'backgroundColor': '#fff176',
                     'fontWeight': 'bold',
                     'border': '2px solid #fbc02d'
-                }};
-            }}
+                };
+            }
 
-            // 🔴 rosso per chiusi
+            // rosso per contratti chiusi
             if (stato === 'chiuso')
-                return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
+                return {'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'};
 
-            // ⚪ nessun colore per altri
-            return {{}};
-        }}
+            // nessun colore per altri
+            return {};
+        }
     """)
+
+    gb.configure_grid_options(
+        getRowStyle=js_code,
+        context={"highlighted_contract": highlighted_contract, "highlighted_descr": highlighted_descr}
+    )
+
 
 
 

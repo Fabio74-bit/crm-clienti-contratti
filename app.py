@@ -54,7 +54,20 @@ PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
 
 TEMPLATES_DIR = Path("templates")  # <- cartella accanto ad app.py
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
+# =====================================
+# COLONNE STANDARD CSV
+# =====================================
+CLIENTI_COLS = [
+    "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
+    "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
+    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita", "NoteCliente"
+]
 
+CONTRATTI_COLS = [
+    "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+    "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+]
 # =====================================
 # FUNZIONI UTILITY
 # =====================================

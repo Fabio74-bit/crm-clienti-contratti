@@ -136,7 +136,16 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
             out[c] = out[c].apply(fmt_date)
     out.to_csv(path, index=False, encoding="utf-8-sig")
 
+# =====================================
+# FUNZIONI DI SALVATAGGIO DEDICATE
+# =====================================
+def save_clienti(df: pd.DataFrame):
+    """Salva il CSV clienti con formattazione coerente."""
+    save_csv(df, CLIENTI_CSV, date_cols=["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"])
 
+def save_contratti(df: pd.DataFrame):
+    """Salva il CSV contratti con formattazione coerente."""
+    save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
 # =====================================
 # CONVERSIONE SICURA DATE ITALIANE
 # =====================================

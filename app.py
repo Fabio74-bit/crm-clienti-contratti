@@ -1044,21 +1044,20 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     gb.configure_column("DataFine", width=110)
 
     # === EVIDENZIAZIONE CONTRATTO SELEZIONATO ===
-    highlighted_contract = st.session_state.pop("selected_contract", None)
-    if highlighted_contract:
-        highlighted_contract = str(highlighted_contract).strip().lower()
-
     highlighted_contract = (st.session_state.pop("selected_contract", "") or "").strip().lower()
     highlighted_descr = (st.session_state.pop("selected_descrizione", "") or "").strip().lower()
 
+    # 🔒 Evita di evidenziare tutto se non c'è un contratto selezionato
     js_code = JsCode(f"""
         function(params) {{
             const stato = (params.data.Stato || "").toLowerCase();
             const num = (params.data.NumeroContratto || "").toLowerCase().trim();
             const descr = (params.data.DescrizioneProdotto || "").toLowerCase().trim();
 
-            // Evidenzia riga se corrisponde per NumeroContratto o DescrizioneProdotto
-            if (num === "{highlighted_contract}" || descr === "{highlighted_descr}") {{
+            const hasSelection = "{highlighted_contract}" !== "" || "{highlighted_descr}" !== "";
+
+            // ✅ evidenzia solo la riga che corrisponde
+            if (hasSelection && (num === "{highlighted_contract}" || descr === "{highlighted_descr}")) {{
                 return {{
                     'backgroundColor': '#fff176',
                     'fontWeight': 'bold',
@@ -1066,13 +1065,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 }};
             }}
 
-            // Rosso per contratti chiusi
+            // 🔴 rosso per chiusi
             if (stato === 'chiuso')
                 return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
 
+            // ⚪ nessun colore per altri
             return {{}};
         }}
     """)
+
 
 
 

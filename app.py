@@ -1008,7 +1008,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             ni = col_ni.text_input("NOL_INT")
             tot = col_tot.text_input("TotRata")
 
-            if st.form_submit_button("💾 Crea contratto"):
+            salva_new = st.form_submit_button("💾 Crea contratto")
+            if salva_new:
                 try:
                     data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
                     new_row = {
@@ -1036,7 +1037,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto per questo cliente.")
         return
 
-    # === MODIFICA O ELIMINA CONTRATTI ESISTENTI ===
+    # === FUNZIONE PER GESTIRE DATE VUOTE ===
+    def safe_date(value):
+        try:
+            val = pd.to_datetime(value, errors="coerce")
+            if pd.isna(val):
+                return datetime.now().date()  # fallback
+            return val.date()
+        except Exception:
+            return datetime.now().date()
+
+    # === MODIFICA CONTRATTI ===
     st.divider()
     st.markdown("### ✏️ Gestione Contratti Esistenti")
 
@@ -1059,16 +1070,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with st.expander("✏️ Modifica contratto selezionato", expanded=True):
         with st.form(f"frm_edit_cont_{sel_id}_{contr_sel_label}"):
             col1, col2, col3 = st.columns(3)
-            din = col1.date_input(
-                "Data Inizio",
-                value=pd.to_datetime(selected_row.get("DataInizio"), errors="coerce"),
-                format="DD/MM/YYYY"
-            )
-            dfi = col2.date_input(
-                "Data Fine",
-                value=pd.to_datetime(selected_row.get("DataFine"), errors="coerce"),
-                format="DD/MM/YYYY"
-            )
+            din = col1.date_input("Data Inizio", value=safe_date(selected_row.get("DataInizio")), format="DD/MM/YYYY")
+            dfi = col2.date_input("Data Fine", value=safe_date(selected_row.get("DataFine")), format="DD/MM/YYYY")
             durata = col3.text_input("Durata", value=selected_row.get("Durata", ""))
 
             desc = st.text_area("Descrizione Prodotto", value=selected_row.get("DescrizioneProdotto", ""), height=100)
@@ -1084,8 +1087,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 index=0 if selected_row.get("Stato", "").lower() != "chiuso" else 1
             )
 
-            salva = st.form_submit_button("💾 Aggiorna contratto")
-            if salva:
+            salva_edit = st.form_submit_button("💾 Aggiorna contratto")
+            if salva_edit:
                 try:
                     idx = df_ct.index[
                         (df_ct["ClienteID"].astype(str) == str(sel_id)) &
@@ -1104,8 +1107,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 except Exception as e:
                     st.error(f"❌ Errore durante l'aggiornamento: {e}")
 
+    # === ELIMINAZIONE ===
     with st.expander("🗑️ Elimina contratto selezionato"):
-        st.warning(f"⚠️ Stai per eliminare definitivamente il contratto selezionato per il cliente **{rag_soc}**.")
+        st.warning(f"⚠️ Eliminare definitivamente il contratto selezionato per il cliente **{rag_soc}**?")
         conferma = st.checkbox("Confermo l'eliminazione definitiva", key=f"chk_del_{sel_id}_{contr_sel_label}")
         if st.button("❌ Elimina contratto", use_container_width=True, key=f"btn_del_{sel_id}_{contr_sel_label}") and conferma:
             try:
@@ -1116,7 +1120,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             except Exception as e:
                 st.error(f"❌ Errore durante l'eliminazione: {e}")
 
-    # === FORMATTAZIONE E STILE TABELLA ===
+    # === VISUALIZZAZIONE TABELLA ===
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
@@ -1145,6 +1149,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.markdown("### 📑 Elenco Contratti")
     AgGrid(disp, gridOptions=gb.build(), theme="balham", height=400, allow_unsafe_jscode=True)
+
 
     # === ESPORTAZIONE ===
     st.divider()

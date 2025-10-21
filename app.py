@@ -1021,7 +1021,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto per questo cliente.")
         return
 
-    # === TABELLA CONTRATTI ===
+       # === TABELLA CONTRATTI ===
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
     disp = ct.copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
@@ -1029,7 +1029,16 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
         disp[c] = disp[c].apply(money)
 
-     # Evidenzia riga contratto selezionato (se presente)
+    # === CONFIGURAZIONE AGGRID ===
+    gb = GridOptionsBuilder.from_dataframe(disp)
+    gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
+    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True, width=300)
+    gb.configure_column("Stato", width=100)
+    gb.configure_column("TotRata", width=110)
+    gb.configure_column("DataInizio", width=110)
+    gb.configure_column("DataFine", width=110)
+
+    # === EVIDENZIAZIONE CONTRATTO SELEZIONATO ===
     highlighted_contract = st.session_state.pop("selected_contract", None)
     if highlighted_contract:
         highlighted_contract = str(highlighted_contract).strip().lower()
@@ -1038,12 +1047,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         function(params) {{
             if (!params.data.Stato) return {{}};
             const stato = params.data.Stato.toLowerCase();
-            const numContratto = params.data.NumeroContratto ? params.data.NumeroContratto.toString().toLowerCase().trim() : "";
+            const numContratto = params.data.NumeroContratto
+                ? params.data.NumeroContratto.toString().toLowerCase().trim()
+                : "";
 
-            // Evidenzia riga se è quella selezionata
+            // Evidenzia riga selezionata (giallo acceso)
             if (numContratto === "{highlighted_contract}") {{
                 return {{
-                    'backgroundColor': '#fff176',  // 💛 giallo acceso
+                    'backgroundColor': '#fff176',  // giallo evidenziato
                     'fontWeight': 'bold',
                     'border': '2px solid #fdd835'
                 }};
@@ -1061,9 +1072,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     gb.configure_grid_options(getRowStyle=js_code)
 
-
     st.markdown("### 📑 Elenco Contratti")
     AgGrid(disp, gridOptions=gb.build(), theme="balham", height=400, allow_unsafe_jscode=True)
+
 
     # === SEZIONE ESPORTAZIONI ===
     st.divider()

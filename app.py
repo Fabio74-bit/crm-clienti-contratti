@@ -696,45 +696,58 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
         submit = st.form_submit_button("💾 Genera Preventivo")
 
-        if submit:
-            try:
-                tpl = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
-                if not tpl.exists():
-                    st.error(f"❌ Template non trovato: {tpl}")
-                else:
-                    doc = Document(tpl)
-                    mappa = {
-                        "CLIENTE": cliente.get("RagioneSociale", ""),
-                        "INDIRIZZO": cliente.get("Indirizzo", ""),
-                        "CITTA": cliente.get("Citta", ""),
-                        "NUMERO_OFFERTA": num_off,
-                        "DATA": datetime.now().strftime("%d/%m/%Y"),
-                        "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
-                        "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
-                        "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
-                        "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
-                    }
-                    for p in doc.paragraphs:
-                        for k, v in mappa.items():
-                            if f"<<{k}>>" in p.text:
-                                for run in p.runs:
-                                    run.text = run.text.replace(f"<<{k}>>", str(v))
-                                    run.font.size = Pt(10)
+if submit:
+    try:
+        tpl = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
+        if not tpl.exists():
+            st.error(f"❌ Template non trovato: {tpl}")
+        else:
+            # Apre e sostituisce i segnaposto
+            from docx import Document
+            doc = Document(tpl)
+            mappa = {
+                "CLIENTE": cliente.get("RagioneSociale", ""),
+                "INDIRIZZO": cliente.get("Indirizzo", ""),
+                "CITTA": cliente.get("Citta", ""),
+                "NUMERO_OFFERTA": num_off,
+                "DATA": datetime.now().strftime("%d/%m/%Y"),
+                "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
+                "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
+                "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
+                "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
+            }
 
-                    out = PREVENTIVI_DIR / nome_file
-                    doc.save(out)
-                    nuova_riga = {
-                        "ClienteID": sel_id, "NumeroOfferta": num_off,
-                        "Template": TEMPLATE_OPTIONS[template],
-                        "NomeFile": nome_file, "Percorso": str(out),
-                        "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    }
-                    df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
-                    df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
-                    st.success(f"✅ Preventivo creato: {out.name}")
-                    st.rerun()
-            except Exception as e:
-                st.error(f"❌ Errore durante la creazione: {e}")
+            for p in doc.paragraphs:
+                for k, v in mappa.items():
+                    if f"<<{k}>>" in p.text:
+                        inline = p.runs
+                        for run in inline:
+                            if f"<<{k}>>" in run.text:
+                                run.text = run.text.replace(f"<<{k}>>", str(v))
+
+            # Salva il file nella cartella preventivi
+            out = PREVENTIVI_DIR / nome_file
+            doc.save(out)
+
+            # Aggiorna il CSV
+            nuova_riga = {
+                "ClienteID": sel_id,
+                "NumeroOfferta": num_off,
+                "Template": TEMPLATE_OPTIONS[template],
+                "NomeFile": nome_file,
+                "Percorso": str(out),
+                "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            }
+            df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
+            df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+
+            st.success(f"✅ Preventivo creato: {out.name}")
+            st.rerun()
+
+    except Exception as e:
+        import traceback
+        st.error(f"❌ Errore durante la creazione del preventivo:\n\n{traceback.format_exc()}")
+
 
     # === ELENCO PREVENTIVI ===
     st.divider()

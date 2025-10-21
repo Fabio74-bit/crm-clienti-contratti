@@ -1035,7 +1035,51 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
         return
+        # === MODIFICA CONTRATTI ESISTENTI ===
+    st.divider()
+    st.markdown("### ✏️ Modifica Contratti Esistenti")
 
+    # Seleziona contratto da modificare
+    options = ct["NumeroContratto"].fillna("—").tolist()
+    contr_sel = st.selectbox("Seleziona contratto da modificare:", options, index=0, key=f"sel_cont_{sel_id}")
+
+    if contr_sel:
+        row = ct.loc[ct["NumeroContratto"] == contr_sel].iloc[0]
+
+        with st.form(f"frm_edit_cont_{sel_id}_{contr_sel}"):
+            col1, col2, col3 = st.columns(3)
+            din = col1.date_input("Data Inizio", value=pd.to_datetime(row.get("DataInizio"), errors="coerce"), format="DD/MM/YYYY")
+            dfi = col2.date_input("Data Fine", value=pd.to_datetime(row.get("DataFine"), errors="coerce"), format="DD/MM/YYYY")
+            durata = col3.text_input("Durata", value=row.get("Durata", ""))
+
+            desc = st.text_area("Descrizione Prodotto", value=row.get("DescrizioneProdotto", ""), height=100)
+
+            col4, col5, col6 = st.columns(3)
+            nf = col4.text_input("NOL_FIN", value=row.get("NOL_FIN", ""))
+            ni = col5.text_input("NOL_INT", value=row.get("NOL_INT", ""))
+            tot = col6.text_input("TotRata", value=row.get("TotRata", ""))
+
+            stato = st.selectbox("Stato", ["aperto", "chiuso"], index=0 if row.get("Stato", "").lower() != "chiuso" else 1)
+
+            salva = st.form_submit_button("💾 Aggiorna contratto")
+            if salva:
+                try:
+                    idx = df_ct.index[
+                        (df_ct["ClienteID"].astype(str) == str(sel_id)) &
+                        (df_ct["NumeroContratto"] == contr_sel)
+                    ][0]
+                    df_ct.loc[idx, [
+                        "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
+                        "NOL_FIN", "NOL_INT", "TotRata", "Stato"
+                    ]] = [
+                        fmt_date(din), fmt_date(dfi), durata, desc,
+                        nf, ni, tot, stato
+                    ]
+                    save_contratti(df_ct)
+                    st.success("✅ Contratto aggiornato con successo!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore durante l'aggiornamento: {e}")
     # === FORMATTAZIONE E STILE TABELLA ===
     disp = ct.copy()
     disp["Stato"] = disp["Stato"].replace("", "aperto").fillna("aperto")

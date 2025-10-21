@@ -1033,47 +1033,19 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
        # === TABELLA CONTRATTI ===
     ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
-    disp = ct.copy()
-
-    # === MARCATURA CONTRATTO SELEZIONATO (chiave univoca sicura) ===
-    selected_uid = (st.session_state.get("selected_contract_uid", "") or "").strip().lower()
-
-    # Crea una chiave univoca per ogni contratto (ClienteID + NumeroContratto + DataInizio)
-    disp["uid"] = (
-        disp["ClienteID"].astype(str) + "_" +
-        disp["NumeroContratto"].astype(str) + "_" +
-        disp["DataInizio"].apply(fmt_date)
-    ).str.lower().str.strip()
-
-    # Colonna per evidenziare solo il contratto selezionato
-    disp["Evidenziato"] = ""
-    if selected_uid:
-        disp.loc[disp["uid"] == selected_uid, "Evidenziato"] = "⭐ Contratto selezionato"
-
-    # === FORMATTAZIONE E STILE TABELLA ===
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-    for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
-        disp[c] = disp[c].apply(money)
-
-
-    # === CONFIGURAZIONE AGGRID (CON EVIDENZIAZIONE) ===
+       # === FORMATTAZIONE E STILE TABELLA ===
+    # === CONFIGURAZIONE AGGRID ===
     gb = GridOptionsBuilder.from_dataframe(disp)
     gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
-
-    # Colonna evidenziazione — colore giallo acceso
-    gb.configure_column("Evidenziato", width=180, cellStyle={
-        "backgroundColor": "#fff176",
-        "fontWeight": "bold",
-        "color": "#000"
-    })
-
-    # Altre colonne principali
     gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True, width=300)
     gb.configure_column("Stato", width=100)
     gb.configure_column("TotRata", width=110)
     gb.configure_column("DataInizio", width=110)
     gb.configure_column("DataFine", width=110)
+
+    st.markdown("### 📑 Elenco Contratti")
+    AgGrid(disp, gridOptions=gb.build(), theme="balham", height=400, allow_unsafe_jscode=True)
+
 
 
     # === EVIDENZIAZIONE CONTRATTO SELEZIONATO ===

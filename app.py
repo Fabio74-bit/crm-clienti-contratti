@@ -173,9 +173,12 @@ def load_clienti() -> pd.DataFrame:
 
 
 def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (separatore ';')."""
+    """Carica i dati dei contratti dal file CSV (auto-rilevamento separatore)."""
     if CONTRATTI_CSV.exists():
-        df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=";", encoding="utf-8-sig")
+        try:
+            df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=";", encoding="utf-8-sig")
+        except pd.errors.ParserError:
+            df = pd.read_csv(CONTRATTI_CSV, dtype=str, sep=",", encoding="utf-8-sig")
     else:
         df = pd.DataFrame(columns=CONTRATTI_COLS)
         df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
@@ -190,6 +193,7 @@ def load_contratti() -> pd.DataFrame:
     for c in ["DataInizio", "DataFine"]:
         df[c] = to_date_series(df[c])
     return df
+
 
 # =====================================
 # LOGIN FULLSCREEN

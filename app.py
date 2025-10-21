@@ -1039,26 +1039,27 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     gb.configure_column("DataInizio", width=110)
     gb.configure_column("DataFine", width=110)
 
-   # Evidenzia riga contratto selezionato (se presente)
-highlighted_contract = st.session_state.pop("selected_contract", None)
-if highlighted_contract:
-    highlighted_contract = str(highlighted_contract).strip()
+    # Evidenzia riga contratto selezionato (se presente)
+    highlighted_contract = st.session_state.pop("selected_contract", None)
+    if highlighted_contract:
+        highlighted_contract = str(highlighted_contract).strip()
 
-js_code = JsCode(f"""
-    function(params) {{
-        if (!params.data.Stato) return {{}};
-        const s = params.data.Stato.toLowerCase();
-        if (s === 'chiuso') return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
-        if (s === 'aperto' || s === 'attivo') return {{'backgroundColor': '#e8f5e9', 'color': '#1b5e20'}};
-        // Evidenzia contratto selezionato
-        if (params.data.NumeroContratto && params.data.NumeroContratto.toString().trim() === "{highlighted_contract}") {{
-            return {{'backgroundColor': '#fff9c4', 'fontWeight': 'bold', 'border': '2px solid #fbc02d'}};
+    js_code = JsCode(f"""
+        function(params) {{
+            if (!params.data.Stato) return {{}};
+            const s = params.data.Stato.toLowerCase();
+            if (s === 'chiuso') return {{'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'}};
+            if (s === 'aperto' || s === 'attivo') return {{'backgroundColor': '#e8f5e9', 'color': '#1b5e20'}};
+            // Evidenzia contratto selezionato
+            if (params.data.NumeroContratto && params.data.NumeroContratto.toString().trim() === "{highlighted_contract}") {{
+                return {{'backgroundColor': '#fff9c4', 'fontWeight': 'bold', 'border': '2px solid #fbc02d'}};
+            }}
+            return {{}};
         }}
-        return {{}};
-    }}
-""")
+    """)
 
-gb.configure_grid_options(getRowStyle=js_code)
+    gb.configure_grid_options(getRowStyle=js_code)
+
 
 
     st.markdown("### 📑 Elenco Contratti")

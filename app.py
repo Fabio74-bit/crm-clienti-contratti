@@ -1251,7 +1251,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         # === RIGHE CONTRATTI (con evidenza visiva contratti chiusi) ===
     for i, r in ct.reset_index().iterrows():
     # Chiave univoca sicura
-    rid = f"{r['ClienteID']}_{r['NumeroContratto']}_{i}".replace("/", "_").replace(" ", "_")
+        rid = f"{r['ClienteID']}_{r['NumeroContratto']}_{i}".replace("/", "_").replace(" ", "_")
 
     # Colore riga: rosso chiaro se chiuso, altrimenti alternato
     stato = str(r.get("Stato", "")).lower()

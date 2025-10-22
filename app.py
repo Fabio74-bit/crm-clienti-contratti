@@ -1517,9 +1517,41 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     "_force_scroll_top": True
                 })
                 st.rerun()
+# =====================================
+# FIX DATE: ESEGUILO UNA SOLA VOLTA
+# =====================================
+def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Corregge le date solo una volta per sessione.
+    NON usa variabili globali, evita NameError.
+    Ritorna SEMPRE (df_cli, df_ct) aggiornati.
+    """
+    if st.session_state.get("_date_fix_done", False):
+        return df_cli, df_ct
 
+    try:
+        # Clienti
+        if not df_cli.empty:
+            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+                if c in df_cli.columns:
+                    df_cli[c] = fix_inverted_dates(df_cli[c], col_name=c)
 
+        # Contratti
+        if not df_ct.empty:
+            for c in ["DataInizio", "DataFine"]:
+                if c in df_ct.columns:
+                    df_ct[c] = fix_inverted_dates(df_ct[c], col_name=c)
 
+        # Salva una sola volta
+        df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+        df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+
+        st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
+        st.session_state["_date_fix_done"] = True
+    except Exception as e:
+        st.warning(f"⚠️ Correzione automatica date non completata: {e}")
+
+    return df_cli, df_ct
 # =====================================
 # MAIN APP
 # =====================================
@@ -1530,24 +1562,21 @@ def main():
 
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
 
-    # --- Mappa pagine ---
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
         "Contratti": page_contratti,
         "📅 Recall e Visite": page_richiami_visite,
-        "📋 Lista Clienti": page_lista_clienti
+        "📋 Lista Clienti": page_lista_clienti,
     }
 
-    # --- Pagina di default ---
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio(
         "📂 Menu principale",
         list(PAGES.keys()),
-        index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
+        index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0,
     )
 
-    # --- Gestione redirect ---
     if st.session_state.get("_go_contratti_now"):
         st.session_state["_go_contratti_now"] = False
         page = "Contratti"
@@ -1556,31 +1585,13 @@ def main():
         st.session_state["_go_clienti_now"] = False
         page = "Clienti"
 
-    # --- CARICAMENTO CSV ---
+    # 1) Carica SEMPRE prima i CSV
     df_cli, df_ct = load_clienti(), load_contratti()
 
-    # --- CORREZIONE AUTOMATICA DATE (una sola volta per sessione) ---
-    if not st.session_state.get("_date_fix_done", False):
-        try:
-            if not df_cli.empty:
-                for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-                    if c in df_cli.columns:
-                        df_cli[c] = fix_inverted_dates(df_cli[c])
+    # 2) Corregge date UNA VOLTA SOLA (e salva), poi continua
+    df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
-            if not df_ct.empty:
-                for c in ["DataInizio", "DataFine"]:
-                    if c in df_ct.columns:
-                        df_ct[c] = fix_inverted_dates(df_ct[c])
-
-            # Salvataggio solo se serve
-            df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-            df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-
-            st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
-            st.session_state["_date_fix_done"] = True
-        except Exception as e:
-            st.warning(f"⚠️ Correzione automatica date non completata: {e}")
-
-    # --- ESEGUI LA PAGINA SCELTA ---
+    # 3) Apri la pagina scelta
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
+

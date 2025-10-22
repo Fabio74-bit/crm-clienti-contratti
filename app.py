@@ -791,135 +791,42 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    # === HEADER ===
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
-        st.caption(f"ID Cliente: {sel_id}")
-
-    with col2:
-        if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
-            st.session_state.update({
-                "selected_cliente": sel_id,
-                "nav_target": "Contratti",
-                "_go_contratti_now": True
-            })
-            st.rerun()
-
-        if st.button("✏️ Modifica Anagrafica", use_container_width=True, key=f"edit_{sel_id}"):
-            st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
-            st.rerun()
-
-        # === CANCELLA CLIENTE (chiede conferma) ===
-        if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
-            st.session_state["confirm_delete_cliente"] = str(sel_id)
-            st.rerun()
-
-    # === BLOCCO CONFERMA CANCELLAZIONE ===
-    if st.session_state.get("confirm_delete_cliente") == str(sel_id):
-        st.warning(
-            f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) "
-            f"e tutti i contratti associati?"
-        )
-        cdel1, cdel2 = st.columns(2)
-
-        # --- CONFERMA ELIMINAZIONE ---
-        with cdel1:
-            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
-                try:
-                    # 1️⃣ Crea nuovi DataFrame SENZA il cliente
-                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
-                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
-
-                    # 2️⃣ 💾 Salvataggio forzato nei CSV
-                    df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-                    df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-
-                    # 3️⃣ 🔄 Flush + pulizia cache
-                    import io
-                    io.open(CLIENTI_CSV, "r").close()
-                    io.open(CONTRATTI_CSV, "r").close()
-                    try:
-                        st.cache_data.clear()
-                    except Exception:
-                        pass
-
-                    # 4️⃣ Aggiorna stato interfaccia e ricarica
-                    st.session_state.pop("confirm_delete_cliente", None)
-                    st.session_state["nav_target"] = "Clienti"
-                    st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
-                    time.sleep(0.5)
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"❌ Errore durante l'eliminazione: {e}")
-
-        # --- ANNULLA ELIMINAZIONE ---
-        with cdel2:
-            if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
-                st.session_state.pop("confirm_delete_cliente", None)
-                st.info("Operazione annullata.")
-                st.rerun()
-
-
-# === INFO RAPIDE (NUOVO LAYOUT CON PULSANTI COLORATI + CARD) ===
+    # === INTESTAZIONE CLIENTE + PULSANTI COLORATI ===
 st.markdown("""
 <style>
-/* --- Card contenitore --- */
-.info-box {
-    background-color: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.06);
-    padding: 1.3rem 1.6rem;
-    margin-top: 0.8rem;
-    margin-bottom: 1.5rem;
-    font-size: 15px;
-    line-height: 1.7;
-    border-left: 5px solid #2563eb;
-}
-/* --- Titolo e label --- */
-.info-title {
-    color: #2563eb;
-    font-size: 17px;
-    font-weight: 600;
-    margin-bottom: 0.6rem;
-}
-.info-item { margin-bottom: 0.3rem; }
-.info-label { font-weight: 600; color: #0d1117; }
-
-/* --- Pulsanti personalizzati --- */
+/* Pulsanti pastello */
 .btn-blue > button {
-    background-color: #e3f2fd !important;
-    color: #0d47a1 !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
+    background-color:#e3f2fd !important; color:#0d47a1 !important;
+    border:none !important; border-radius:6px !important; font-weight:500 !important;
 }
 .btn-yellow > button {
-    background-color: #fff8e1 !important;
-    color: #ef6c00 !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
+    background-color:#fff8e1 !important; color:#ef6c00 !important;
+    border:none !important; border-radius:6px !important; font-weight:500 !important;
 }
 .btn-red > button {
-    background-color: #ffebee !important;
-    color: #b71c1c !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
+    background-color:#ffebee !important; color:#b71c1c !important;
+    border:none !important; border-radius:6px !important; font-weight:500 !important;
 }
+/* Card info rapide */
+.info-box{
+    background:#fff; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,0.06);
+    padding:1.3rem 1.6rem; margin-top:0.8rem; margin-bottom:1.5rem;
+    font-size:15px; line-height:1.7; border-left:5px solid #2563eb;
+}
+.info-title{ color:#2563eb; font-size:17px; font-weight:600; margin-bottom:0.6rem; }
+.info-item{ margin-bottom:0.3rem; }
+.info-label{ font-weight:600; color:#0d1117; }
 </style>
 """, unsafe_allow_html=True)
 
-# === INTESTAZIONE CLIENTE + PULSANTI ===
+# Header + pulsanti
 col1, col2 = st.columns([4, 1])
 with col1:
     st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
     st.caption(f"ID Cliente: {sel_id}")
 
 with col2:
-    # --- Pulsante blu: Vai ai contratti ---
+    # Blu: Vai ai contratti
     st.markdown('<div class="btn-blue">', unsafe_allow_html=True)
     if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
         st.session_state.update({
@@ -930,21 +837,21 @@ with col2:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- Pulsante giallo: Modifica anagrafica ---
+    # Giallo: Modifica anagrafica
     st.markdown('<div class="btn-yellow">', unsafe_allow_html=True)
     if st.button("✏️ Modifica Anagrafica", use_container_width=True, key=f"edit_{sel_id}"):
         st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- Pulsante rosso: Cancella cliente ---
+    # Rosso: Cancella cliente
     st.markdown('<div class="btn-red">', unsafe_allow_html=True)
     if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
         st.session_state["confirm_delete_cliente"] = str(sel_id)
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# === CARD INFO RAPIDE ===
+# === INFO RAPIDE (nuovo layout a due card) ===
 infoA, infoB = st.columns(2)
 with infoA:
     st.markdown(f"""

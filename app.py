@@ -1250,7 +1250,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         # === RIGHE CONTRATTI ===
     for i, r in ct.reset_index().iterrows():
-        # Chiave univoca sicura (senza caratteri speciali)
+        # Chiave univoca sicura
         rid = f"{r['ClienteID']}_{r['NumeroContratto']}_{i}".replace("/", "_").replace(" ", "_")
 
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 0.9, 0.9, 0.6, 1.2, 0.8, 2.0, 0.9])
@@ -1259,7 +1259,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with c3: st.markdown(f"<div class='tbl-row'>{r.get('DataFine','')}</div>", unsafe_allow_html=True)
         with c4: st.markdown(f"<div class='tbl-row'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
         with c5: st.markdown(f"<div class='tbl-row'>{r.get('TotRata','')}</div>", unsafe_allow_html=True)
-
         stato_tag = (
             "<span class='pill-open'>Aperto</span>"
             if str(r.get("Stato", "")).lower() != "chiuso"
@@ -1280,7 +1279,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with c8:
             colE, colD = st.columns(2)
             if colE.button("✏️", key=f"edit_{rid}", use_container_width=True):
-                st.session_state["edit_rowid"] = rid
                 st.session_state["edit_index"] = i
                 st.rerun()
 
@@ -1290,7 +1288,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
-        # === MODIFICA CONTRATTO SELEZIONATO ===
+
+    # === MODIFICA CONTRATTO SELEZIONATO ===
     if st.session_state.get("edit_index") is not None:
         idx = st.session_state["edit_index"]
         if idx in ct.index:
@@ -1301,9 +1300,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with st.form(f"frm_edit_ct_{idx}"):
                 c1, c2, c3, c4 = st.columns(4)
                 num = c1.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
-                din = c2.date_input("Data Inizio", value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce"))
+                din = c2.date_input(
+                    "Data Inizio",
+                    value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
+                    if contratto.get("DataInizio") else pd.Timestamp.now(),
+                    format="DD/MM/YYYY"
+                )
                 durata = c3.text_input("Durata (mesi)", contratto.get("Durata", ""))
-                stato = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if str(contratto.get("Stato","")).lower()!="chiuso" else 1)
+                stato = c4.selectbox("Stato", ["aperto", "chiuso"],
+                    index=0 if str(contratto.get("Stato","")).lower()!="chiuso" else 1)
 
                 desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
 
@@ -1321,10 +1326,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 salva = st.form_submit_button("💾 Salva Modifiche")
                 if salva:
                     try:
-                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-                        # Aggiorna i valori nel DataFrame completo df_ct
-                        idx_global = df_ct.index[(df_ct["ClienteID"] == sel_id) & (df_ct["NumeroContratto"] == contratto["NumeroContratto"])].tolist()
-                        if idx_global:
+                        # Se durata non è un numero, default 12
+                        durata_val = int(durata) if str(durata).isdigit() else 12
+                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=durata_val)
+
+                        idx_global = df_ct.index[
+                            (df_ct["ClienteID"].astype(str) == str(sel_id)) &
+                            (df_ct["NumeroContratto"].astype(str) == str(contratto.get("NumeroContratto")))
+                        ]
+                        if not idx_global.empty:
                             i_df = idx_global[0]
                             df_ct.loc[i_df, [
                                 "NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
@@ -1343,6 +1353,42 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             if st.button("❌ Annulla Modifica", key=f"cancel_edit_{idx}", use_container_width=True):
                 st.session_state.pop("edit_index", None)
                 st.rerun()
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    # === CONFERMA ELIMINAZIONE CONTRATTO ===
+    if st.session_state.get("ask_delete_now") and st.session_state.get("delete_index") is not None:
+        idx = st.session_state["delete_index"]
+        if idx in ct.index:
+            contratto = ct.loc[idx]
+            numero = contratto.get("NumeroContratto", "Senza numero")
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown(f"### 🗑️ Eliminazione Contratto {numero}", unsafe_allow_html=True)
+            st.warning(f"Sei sicuro di voler eliminare definitivamente il contratto **{numero}** del cliente **{rag_soc}**?")
+
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ Sì, elimina", use_container_width=True, key=f"confirm_del_{idx}"):
+                    try:
+                        df_ct = df_ct.drop(
+                            df_ct[
+                                (df_ct["ClienteID"].astype(str) == str(sel_id)) &
+                                (df_ct["NumeroContratto"].astype(str) == str(contratto.get("NumeroContratto")))
+                            ].index
+                        ).copy()
+                        save_contratti(df_ct)
+                        st.success("🗑️ Contratto eliminato con successo.")
+                        st.session_state.pop("ask_delete_now", None)
+                        st.session_state.pop("delete_index", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore durante l'eliminazione: {e}")
+            with c2:
+                if st.button("❌ Annulla", use_container_width=True, key=f"cancel_del_{idx}"):
+                    st.session_state.pop("ask_delete_now", None)
+                    st.session_state.pop("delete_index", None)
+                    st.info("Eliminazione annullata.")
+                    st.rerun()
 
             st.markdown('</div>', unsafe_allow_html=True)
 

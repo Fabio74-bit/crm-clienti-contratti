@@ -119,7 +119,7 @@ def ensure_columns(df, cols):
 def fix_inverted_dates(series: pd.Series) -> pd.Series:
     """Corregge le date invertite (MM/DD/YYYY ↔ DD/MM/YYYY) in automatico."""
     fixed = []
-    for val in series:
+    for val in series: 
         if pd.isna(val) or str(val).strip() == "":
             fixed.append("")
             continue

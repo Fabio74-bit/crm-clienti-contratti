@@ -633,7 +633,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         (df_ct["Stato"].astype(str).str.lower() != "chiuso")
     ].copy()
 
-    # Se manca RagioneSociale nei contratti, la aggiunge dal CSV clienti
     if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
         scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
@@ -666,61 +665,64 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         .scadenze-table tr:hover {
             background-color: #f2f8ff;
         }
-        .open-btn {
-            background: #f0f0f0;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            padding: 4px 10px;
-            cursor: pointer;
-            font-size: 14px;
-        }
         </style>
         """, unsafe_allow_html=True)
 
-        # --- Generazione tabella HTML ---
-        rows_html = ""
+        # --- Tabella HTML senza pulsanti HTML ---
+        table_html = """
+        <table class="scadenze-table">
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Contratto</th>
+                    <th>Scadenza</th>
+                    <th>Stato</th>
+                    <th>Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+
         for i, r in scadenze.iterrows():
             rag = r.get("RagioneSociale", "—")
             num = r.get("NumeroContratto", "—")
             fine = r.get("DataFine", "—")
             stato = r.get("Stato", "—")
 
-            # Crea una chiave univoca
-            uid = f"{r.get('ClienteID')}_{r.get('NumeroContratto')}_{fmt_date(r.get('DataInizio'))}".lower().strip()
-
-            # Righe HTML
-            rows_html += f"""
-            <tr>
-                <td><b>{rag}</b></td>
-                <td>{num or "—"}</td>
-                <td>{fine or "—"}</td>
-                <td>{stato or "—"}</td>
-                <td>
-                    <button class="open-btn" onClick="window.location.reload()">📂 Apri</button>
-                </td>
-            </tr>
+            table_html += f"""
+                <tr>
+                    <td><b>{rag}</b></td>
+                    <td>{num or "—"}</td>
+                    <td>{fine or "—"}</td>
+                    <td>{stato or "—"}</td>
+                    <td>📂 Apri</td>
+                </tr>
             """
 
-        # --- Mostra tabella ---
-        st.markdown(
-            f"""
-            <table class="scadenze-table">
-                <thead>
-                    <tr>
-                        <th>Cliente</th>
-                        <th>Contratto</th>
-                        <th>Scadenza</th>
-                        <th>Stato</th>
-                        <th>Azioni</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows_html}
-                </tbody>
-            </table>
-            """,
-            unsafe_allow_html=True
-        )
+        table_html += "</tbody></table>"
+
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        # --- Pulsanti "Apri" funzionanti (Streamlit) ---
+        for i, r in scadenze.iterrows():
+            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.7])
+            with col1:
+                st.markdown(f"**{r.get('RagioneSociale', '—')}**")
+            with col2:
+                st.markdown(r.get("NumeroContratto", "—") or "—")
+            with col3:
+                st.markdown(fmt_date(r.get("DataFine")))
+            with col4:
+                st.markdown(r.get("Stato", "—"))
+            with col5:
+                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": str(r.get("ClienteID")),
+                        "nav_target": "Contratti",
+                        "_go_contratti_now": True
+                    })
+                    st.rerun()
+
 
         # --- Gestione pulsanti Apri (uno per volta) ---
         for i, r in scadenze.iterrows():

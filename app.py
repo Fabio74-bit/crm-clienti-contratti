@@ -329,11 +329,11 @@ def normalize_cliente_id(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (auto-rilevamento separatore e formattazione coerente)."""
+    """Carica i dati dei clienti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
     import pandas as pd
 
-    if CLIENTI_CSV.exists():
-        try:
+    try:
+        if CLIENTI_CSV.exists():
             df = pd.read_csv(
                 CLIENTI_CSV,
                 dtype=str,
@@ -342,12 +342,11 @@ def load_clienti() -> pd.DataFrame:
                 encoding="utf-8-sig",
                 on_bad_lines="skip"
             )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei clienti: {e}")
+        else:
             df = pd.DataFrame(columns=CLIENTI_COLS)
-    else:
+    except Exception as e:
+        st.error(f"❌ Errore durante la lettura dei clienti: {e}")
         df = pd.DataFrame(columns=CLIENTI_COLS)
-        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
 
     # Pulizia e normalizzazione
     df = (
@@ -359,17 +358,18 @@ def load_clienti() -> pd.DataFrame:
 
     # Conversione date coerente
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        df[c] = to_date_series(df[c])
+        if c in df.columns:
+            df[c] = to_date_series(df[c])
 
     return df
 
 
 def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (auto-rilevamento separatore e correzione formato)."""
+    """Carica i dati dei contratti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
     import pandas as pd
 
-    if CONTRATTI_CSV.exists():
-        try:
+    try:
+        if CONTRATTI_CSV.exists():
             df = pd.read_csv(
                 CONTRATTI_CSV,
                 dtype=str,
@@ -378,12 +378,11 @@ def load_contratti() -> pd.DataFrame:
                 encoding="utf-8-sig",
                 on_bad_lines="skip"
             )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei contratti: {e}")
+        else:
             df = pd.DataFrame(columns=CONTRATTI_COLS)
-    else:
+    except Exception as e:
+        st.error(f"❌ Errore durante la lettura dei contratti: {e}")
         df = pd.DataFrame(columns=CONTRATTI_COLS)
-        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
 
     # Pulizia e normalizzazione
     df = (
@@ -395,8 +394,8 @@ def load_contratti() -> pd.DataFrame:
 
     # Conversione date coerente
     for c in ["DataInizio", "DataFine"]:
-        df[c] = to_date_series(df[c])
-    save_contratti(df)
+        if c in df.columns:
+            df[c] = to_date_series(df[c])
 
     return df
 

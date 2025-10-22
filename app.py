@@ -1117,234 +1117,148 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI (VERSIONE STABILE E COMPLETA)
+# PAGINA CONTRATTI — DASHBOARD ELEGANTE 2025
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-        # 🔹 Reset automatico: chiude eventuali schede di modifica contratti
-    for k in list(st.session_state.keys()):
-        if k.startswith("edit_ct_"):
-            del st.session_state[k]
-            
-    st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+    .card {
+        background-color: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        padding: 1.5rem 1.8rem;
+        margin-bottom: 1.5rem;
+    }
+    .card h3 {
+        color: #2563eb;
+        margin-bottom: 1rem;
+    }
+    .stButton>button {
+        border-radius: 6px;
+        font-weight: 500;
+        padding: 0.4rem 0.8rem;
+    }
+    .btn-blue>button { background-color:#e3f2fd !important; color:#0d47a1 !important; border:none !important; }
+    .btn-green>button { background-color:#e8f5e9 !important; color:#1b5e20 !important; border:none !important; }
+    .btn-red>button { background-color:#ffebee !important; color:#b71c1c !important; border:none !important; }
+    .status-open { background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:8px; font-weight:600; }
+    .status-closed { background:#ffebee; color:#b71c1c; padding:2px 8px; border-radius:8px; font-weight:600; }
+    </style>
+    """, unsafe_allow_html=True)
 
+    st.markdown("<h2>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
+
+    # === SELEZIONE CLIENTE ===
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
 
-    # === SELEZIONE CLIENTE ===
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     cliente_ids = df_cli["ClienteID"].astype(str).tolist()
-
-    selected_cliente_id = st.session_state.pop("selected_cliente", None)
-    if selected_cliente_id and str(selected_cliente_id) in cliente_ids:
-        sel_index = cliente_ids.index(str(selected_cliente_id))
-    else:
-        sel_index = 0
-
-    sel_label = st.selectbox("Cliente", labels.tolist(), index=sel_index, key="sel_cliente_contratti")
+    sel_label = st.selectbox("Seleziona Cliente", labels.tolist())
     sel_id = cliente_ids[labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
-
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
 
-    # === NUOVO CONTRATTO ===
-    with st.expander(f"➕ Nuovo contratto per «{rag_soc}»"):
-        with st.form(f"frm_new_contract_{sel_id}"):
-            c1, c2, c3 = st.columns(3)
-            num = c1.text_input("Numero Contratto")
-            din = c2.date_input("Data inizio", format="DD/MM/YYYY")
-            durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-            desc = st.text_area("Descrizione prodotto", height=100)
+    # === CARD NUOVO CONTRATTO ===
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>➕ Nuovo Contratto</h3>", unsafe_allow_html=True)
+    with st.form(f"frm_new_contract_{sel_id}"):
+        c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+        num = c1.text_input("📄 Numero Contratto")
+        din = c2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
+        durata = c3.selectbox("📆 Durata (mesi)", ["12", "24", "36", "48", "60", "72"], index=2)
+        stato = c4.selectbox("📌 Stato", ["aperto", "chiuso"], index=0)
 
-            col_nf, col_ni, col_tot = st.columns(3)
-            nf = col_nf.text_input("NOL_FIN")
-            ni = col_ni.text_input("NOL_INT")
-            tot = col_tot.text_input("TotRata")
+        desc = st.text_area("🧾 Descrizione Prodotto / Servizio", height=80)
 
-            salva_new = st.form_submit_button("💾 Crea contratto")
-            if salva_new:
-                try:
-                    data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-                    new_row = {
-                        "ClienteID": sel_id,
-                        "RagioneSociale": rag_soc,
-                        "NumeroContratto": num,
-                        "DataInizio": fmt_date(din),
-                        "DataFine": fmt_date(data_fine),
-                        "Durata": durata,
-                        "DescrizioneProdotto": desc,
-                        "NOL_FIN": nf,
-                        "NOL_INT": ni,
-                        "TotRata": tot,
-                        "Stato": "aperto"
-                    }
-                    df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto creato con successo.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore creazione contratto: {e}")
+        c5, c6, c7 = st.columns(3)
+        nf = c5.text_input("🏦 NOL_FIN (€)")
+        ni = c6.text_input("🏢 NOL_INT (€)")
+        tot = c7.text_input("💰 Tot Rata (€)")
 
-    # === SE NON CI SONO CONTRATTI ===
-    if ct.empty:
-        st.info("Nessun contratto per questo cliente.")
-        return
-
-    # === FUNZIONE PER GESTIRE DATE VUOTE ===
-    def safe_date(value):
-        try:
-            val = pd.to_datetime(value, errors="coerce")
-            if pd.isna(val):
-                return datetime.now().date()  # fallback
-            return val.date()
-        except Exception:
-            return datetime.now().date()
-
-    # === MODIFICA CONTRATTI ===
-    st.divider()
-    st.markdown("### ✏️ Gestione Contratti Esistenti")
-
-    def make_label(row):
-        num = str(row.get("NumeroContratto") or "").strip()
-        desc = str(row.get("DescrizioneProdotto") or "").strip()
-        if num:
-            return f"{num} — {desc[:40]}..."
-        else:
-            return f"(Senza numero) — {desc[:40]}..."
-
-    options = ct.apply(make_label, axis=1).tolist()
-    if not options:
-        st.info("Nessun contratto modificabile per questo cliente.")
-        return
-
-    contr_sel_label = st.selectbox("Seleziona contratto:", options, index=0, key=f"sel_cont_{sel_id}")
-    selected_row = ct.iloc[options.index(contr_sel_label)]
-
-    with st.expander("✏️ Modifica Contratto", expanded=st.session_state.get(f"edit_ct_{id}", False)):
-
-        with st.form(f"frm_edit_cont_{sel_id}_{contr_sel_label}"):
-            col1, col2, col3 = st.columns(3)
-            din = col1.date_input("Data Inizio", value=safe_date(selected_row.get("DataInizio")), format="DD/MM/YYYY")
-            dfi = col2.date_input("Data Fine", value=safe_date(selected_row.get("DataFine")), format="DD/MM/YYYY")
-            durata = col3.text_input("Durata", value=selected_row.get("Durata", ""))
-
-            desc = st.text_area("Descrizione Prodotto", value=selected_row.get("DescrizioneProdotto", ""), height=100)
-
-            col4, col5, col6 = st.columns(3)
-            nf = col4.text_input("NOL_FIN", value=selected_row.get("NOL_FIN", ""))
-            ni = col5.text_input("NOL_INT", value=selected_row.get("NOL_INT", ""))
-            tot = col6.text_input("TotRata", value=selected_row.get("TotRata", ""))
-
-            stato = st.selectbox(
-                "Stato contratto",
-                ["aperto", "chiuso"],
-                index=0 if selected_row.get("Stato", "").lower() != "chiuso" else 1
-            )
-
-            salva_edit = st.form_submit_button("💾 Aggiorna contratto")
-            if salva_edit:
-                try:
-                    idx = df_ct.index[
-                        (df_ct["ClienteID"].astype(str) == str(sel_id)) &
-                        (df_ct["NumeroContratto"].astype(str).fillna("") == str(selected_row.get("NumeroContratto") or ""))
-                    ][0]
-                    df_ct.loc[idx, [
-                        "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
-                        "NOL_FIN", "NOL_INT", "TotRata", "Stato"
-                    ]] = [
-                        fmt_date(din), fmt_date(dfi), durata, desc,
-                        nf, ni, tot, stato
-                    ]
-                    save_contratti(df_ct)
-                    st.success("✅ Contratto aggiornato con successo!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore durante l'aggiornamento: {e}")
-
-    # === ELIMINAZIONE ===
-    with st.expander("🗑️ Elimina contratto selezionato"):
-        st.warning(f"⚠️ Eliminare definitivamente il contratto selezionato per il cliente **{rag_soc}**?")
-        conferma = st.checkbox("Confermo l'eliminazione definitiva", key=f"chk_del_{sel_id}_{contr_sel_label}")
-        if st.button("❌ Elimina contratto", use_container_width=True, key=f"btn_del_{sel_id}_{contr_sel_label}") and conferma:
+        salva_new = st.form_submit_button("💾 Crea Contratto")
+        if salva_new:
             try:
-                df_ct = df_ct.drop(selected_row.name)
+                data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                new_row = {
+                    "ClienteID": sel_id,
+                    "RagioneSociale": rag_soc,
+                    "NumeroContratto": num,
+                    "DataInizio": fmt_date(din),
+                    "DataFine": fmt_date(data_fine),
+                    "Durata": durata,
+                    "DescrizioneProdotto": desc,
+                    "NOL_FIN": nf,
+                    "NOL_INT": ni,
+                    "TotRata": tot,
+                    "Stato": stato,
+                }
+                df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
                 save_contratti(df_ct)
-                st.success("🗑️ Contratto eliminato con successo!")
+                st.success("✅ Contratto creato con successo.")
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Errore durante l'eliminazione: {e}")
+                st.error(f"❌ Errore creazione contratto: {e}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # === VISUALIZZAZIONE TABELLA ===
-    ct["Stato"] = ct["Stato"].replace("", "aperto").fillna("aperto")
-    disp = ct.copy()
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-    for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
-        disp[c] = disp[c].apply(money)
+    # === CARD CONTRATTI ESISTENTI ===
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>📋 Contratti Esistenti</h3>", unsafe_allow_html=True)
 
-    gb = GridOptionsBuilder.from_dataframe(disp)
-    gb.configure_default_column(resizable=True, sortable=True, filter=True, wrapText=True, autoHeight=True)
-    gb.configure_column("DescrizioneProdotto", wrapText=True, autoHeight=True, width=300)
-    gb.configure_column("Stato", width=100)
-    gb.configure_column("TotRata", width=110)
-    gb.configure_column("DataInizio", width=110)
-    gb.configure_column("DataFine", width=110)
+    if ct.empty:
+        st.info("Nessun contratto per questo cliente.")
+    else:
+        disp = ct.copy()
+        disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+        disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+        disp["TotRata"] = disp["TotRata"].apply(money)
 
-    js_code = JsCode("""
-        function(params) {
-            if (!params.data.Stato) return {};
-            const s = params.data.Stato.toLowerCase();
-            if (s === 'chiuso') return {'backgroundColor': '#ffebee', 'color': '#b71c1c', 'fontWeight': 'bold'};
-            if (s === 'aperto' || s === 'attivo') return {'backgroundColor': '#e8f5e9', 'color': '#1b5e20'};
-            return {};
-        }
-    """)
-    gb.configure_grid_options(getRowStyle=js_code)
+        # Crea tabella elegante
+        styled_rows = []
+        for _, r in disp.iterrows():
+            stato_tag = (
+                f"<span class='status-open'>Aperto</span>"
+                if str(r.get('Stato', '')).lower() != "chiuso"
+                else f"<span class='status-closed'>Chiuso</span>"
+            )
+            styled_rows.append({
+                "Numero": r.get("NumeroContratto", ""),
+                "Data Inizio": r.get("DataInizio", ""),
+                "Data Fine": r.get("DataFine", ""),
+                "Durata": r.get("Durata", ""),
+                "Totale Rata": r.get("TotRata", ""),
+                "Stato": stato_tag,
+                "Descrizione": r.get("DescrizioneProdotto", ""),
+                "Azioni": f"<a style='text-decoration:none;' href='#'>(✏️ Modifica / 🗑️ Elimina)</a>"
+            })
 
-    st.markdown("### 📑 Elenco Contratti")
-    AgGrid(disp, gridOptions=gb.build(), theme="balham", height=400, allow_unsafe_jscode=True)
+        st.markdown(
+            pd.DataFrame(styled_rows)
+            .to_html(escape=False, index=False)
+            .replace("dataframe", "dataframe style='width:100%; border-collapse:collapse;'"),
+            unsafe_allow_html=True,
+        )
 
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # === ESPORTAZIONE ===
-    st.divider()
+    # === CARD ESPORTAZIONI ===
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>📤 Esportazioni</h3>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-
-    # === EXPORT EXCEL ===
     with c1:
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
-        from openpyxl.utils import get_column_letter
-        from io import BytesIO
         try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+            from openpyxl.utils import get_column_letter
+            from io import BytesIO
+
             wb = Workbook()
             ws = wb.active
             ws.title = f"Contratti {rag_soc}"
-            ws.merge_cells("A1:M1")
-            title = ws["A1"]
-            title.value = f"Contratti - {rag_soc}"
-            title.font = Font(size=12, bold=True, color="2563EB")
-            title.alignment = Alignment(horizontal="center", vertical="center")
-            ws.append([])
-
-            headers = list(disp.columns)
-            ws.append(headers)
-            bold = Font(bold=True, color="FFFFFF")
-            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            thin = Border(left=Side(style="thin"), right=Side(style="thin"),
-                          top=Side(style="thin"), bottom=Side(style="thin"))
-            fill = PatternFill("solid", fgColor="2563EB")
-
-            for i, h in enumerate(headers, 1):
-                c = ws.cell(row=2, column=i)
-                c.font, c.fill, c.alignment, c.border = bold, fill, center, thin
-
-            for _, r in disp.iterrows():
-                ws.append([str(r.get(h, "")) for h in headers])
-
-            for i in range(1, ws.max_column + 1):
-                width = max(len(str(ws.cell(row=j, column=i).value)) for j in range(1, ws.max_row + 1)) + 2
-                ws.column_dimensions[get_column_letter(i)].width = min(width, 50)
-
+            ws.append(list(ct.columns))
+            for _, row in ct.iterrows():
+                ws.append(list(row.values))
             bio = BytesIO()
             wb.save(bio)
             st.download_button(
@@ -1353,49 +1267,26 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 file_name=f"contratti_{rag_soc}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
-                key=f"xlsx_{sel_id}_{int(time.time()*1000)}"
             )
         except Exception as e:
-            st.error(f"❌ Errore export Excel: {e}")
+            st.error(f"Errore export Excel: {e}")
 
-    # === EXPORT PDF ===
     with c2:
-        from io import BytesIO
         try:
-            pdf = FPDF(orientation="L", unit="mm", format="A4")
+            from fpdf import FPDF
+            pdf = FPDF("L", "mm", "A4")
             pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 10, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-            pdf.ln(3)
-
-            pdf.set_font("Arial", "B", 9)
-            headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata",
-                       "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
-            widths = [25, 25, 25, 15, 90, 20, 20, 25, 25]
-            pdf.set_fill_color(37, 99, 235)
-            pdf.set_text_color(255)
-            for i, h in enumerate(headers):
-                pdf.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
-            pdf.ln()
-            pdf.set_text_color(0)
-            pdf.set_font("Arial", "", 8)
-
-            for _, row in disp.iterrows():
-                vals = [safe_text(str(row.get(h, ""))) for h in headers]
-                y_start = pdf.get_y()
-                x_start = pdf.get_x()
-                for i, v in enumerate(vals):
-                    align = "L" if headers[i] == "DescrizioneProdotto" else "C"
-                    if headers[i] == "DescrizioneProdotto":
-                        pdf.multi_cell(widths[i], 5, v, border=1, align=align)
-                        x_start += widths[i]
-                        pdf.set_xy(x_start, y_start)
-                    else:
-                        pdf.cell(widths[i], 5, v, border=1, align=align)
-                        x_start += widths[i]
-                        pdf.set_xy(x_start, y_start)
-                pdf.ln()
-
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(0, 10, f"Contratti - {rag_soc}", ln=1, align="C")
+            pdf.set_font("Arial", "", 9)
+            for _, r in ct.iterrows():
+                pdf.cell(40, 6, str(r.get("NumeroContratto", "")), 1)
+                pdf.cell(25, 6, fmt_date(r.get("DataInizio")), 1)
+                pdf.cell(25, 6, fmt_date(r.get("DataFine")), 1)
+                pdf.cell(15, 6, str(r.get("Durata", "")), 1)
+                pdf.cell(25, 6, str(r.get("TotRata", "")), 1)
+                pdf.cell(25, 6, str(r.get("Stato", "")), 1)
+                pdf.cell(100, 6, safe_text(str(r.get("DescrizioneProdotto", "")))[:60], 1, ln=1)
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
                 "📗 Esporta PDF",
@@ -1403,12 +1294,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 file_name=f"contratti_{rag_soc}.pdf",
                 mime="application/pdf",
                 use_container_width=True,
-                key=f"pdf_{sel_id}_{int(time.time()*1000)}"
             )
         except Exception as e:
-            st.error(f"❌ Errore export PDF: {e}")
+            st.error(f"Errore export PDF: {e}")
 
-
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =====================================

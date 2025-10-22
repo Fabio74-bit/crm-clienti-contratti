@@ -1119,7 +1119,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # PAGINA CONTRATTI — DASHBOARD ELEGANTE DEFINITIVA 2025
 # =====================================
-ddef page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # 🔹 Reset automatico
     for k in list(st.session_state.keys()):
         if k.startswith("edit_ct_"):

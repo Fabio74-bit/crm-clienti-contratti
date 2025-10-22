@@ -607,7 +607,7 @@ with st.expander("➕ Crea Nuovo Cliente + Contratto"):
             except Exception as e:
                 st.error(f"❌ Errore creazione cliente: {e}")
 
-st.divider()
+    st.divider()
 
     # === CONTRATTI IN SCADENZA ENTRO 6 MESI ===
     st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")

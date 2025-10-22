@@ -185,6 +185,19 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
             out[c] = out[c].apply(fmt_date)
     out.to_csv(path, index=False, encoding="utf-8-sig")
 
+
+def save_if_changed(df_new, path: Path, original_df):
+    \"\"\"Salva solo se i dati sono effettivamente cambiati.\"\"\"
+    import pandas as pd
+    try:
+        if not original_df.equals(df_new):
+            df_new.to_csv(path, index=False, encoding='utf-8-sig')
+            return True
+        return False
+    except Exception:
+        df_new.to_csv(path, index=False, encoding='utf-8-sig')
+        return True
+
 # =====================================
 # FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
 # =====================================
@@ -732,8 +745,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
                     df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
         
-                    save_clienti(df_cli_new)
-                    save_contratti(df_ct_new)
+                    changed_cli = save_if_changed(df_cli_new, CLIENTI_CSV, df_cli)
+                    changed_ct = save_if_changed(df_ct_new, CONTRATTI_CSV, df_ct)
         
                     # 🔄 Forza aggiornamento immediato e pulizia cache
                     import os, io
@@ -1529,33 +1542,28 @@ def main():
     # === CARICA I CSV ===
     df_cli, df_ct = load_clienti(), load_contratti()
 
-    # === CORREGGE DATE E SALVA ===
-    try:
-        if not df_cli.empty:
-            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-                if c in df_cli.columns:
-                    df_cli[c] = fix_inverted_dates(df_cli[c])
+    # === CORREGGE DATE E SALVA (eseguito solo una volta per sessione) ===
+    if not st.session_state.get("_date_fix_done", False):
+        try:
+            if not df_cli.empty:
+                for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+                    if c in df_cli.columns:
+                        df_cli[c] = fix_inverted_dates(df_cli[c])
 
-        if not df_ct.empty:
-            for c in ["DataInizio", "DataFine"]:
-                if c in df_ct.columns:
-                    df_ct[c] = fix_inverted_dates(df_ct[c])
+            if not df_ct.empty:
+                for c in ["DataInizio", "DataFine"]:
+                    if c in df_ct.columns:
+                        df_ct[c] = fix_inverted_dates(df_ct[c])
 
-        save_clienti(df_cli)
-        save_contratti(df_ct)
+            save_if_changed(df_cli, CLIENTI_CSV, load_clienti())
+            save_if_changed(df_ct, CONTRATTI_CSV, load_contratti())
 
-        # ✅ Mostra il messaggio solo la prima volta
-        if not st.session_state.get("_date_fix_done", False):
-            try:
-                st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
-            except Exception:
-                pass
+            st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
             st.session_state["_date_fix_done"] = True
+        except Exception as e:
+            st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
-    except Exception as _:
-        st.warning("⚠️ Correzione automatica date non completata. Puoi continuare a usare l'app.")
-
-    # === ESEGUI LA PAGINA SELEZIONATA ===
+# === ESEGUI LA PAGINA SELEZIONATA ===
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
 

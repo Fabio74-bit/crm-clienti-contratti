@@ -1539,76 +1539,141 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"❌ Errore export Excel: {e}")
 
-    # ======================================================
-    #  EXPORT PDF PROFESSIONALE (A4 landscape)
+     # ======================================================
+    #  EXPORT PDF PROFESSIONALE (A4 landscape, multipagina)
     # ======================================================
     with cex2:
         from fpdf import FPDF
         from io import BytesIO
+        import math
+
+        class TablePDF(FPDF):
+            def header_row(self, headers, widths):
+                self.set_fill_color(37, 99, 235)  # blu
+                self.set_text_color(255)
+                self.set_font("Arial", "B", 9)
+                for i, h in enumerate(headers):
+                    self.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
+                self.ln()
+                self.set_text_color(0)
+                self.set_font("Arial", "", 8)
+
+            def nb_lines(self, w, txt):
+                """
+                Stima quante linee servono a 'txt' in larghezza 'w' col font corrente.
+                Usa la stessa logica di FPDF per il wrapping.
+                """
+                if w == 0:
+                    w = self.w - self.r_margin - self.x
+                # larghezza massima in unità fpdf (simile a mm * font_size/…)
+                cw = self.get_string_width
+                if not txt:
+                    return 1
+                # Splitta per righe già presenti
+                lines = 0
+                for rawline in str(txt).split("\n"):
+                    line = ""
+                    for word in rawline.split(" "):
+                        test = f"{line} {word}".strip()
+                        if cw(test) <= w:
+                            line = test
+                        else:
+                            # nuova linea
+                            lines += 1
+                            line = word
+                    lines += 1  # ultima linea
+                return max(lines, 1)
+
+            def row(self, vals, widths, line_h=5, fill=False, align_desc="L"):
+                """
+                Disegna una riga tabellare calcolando prima l'altezza massima,
+                poi disegnando ogni cella con la stessa altezza.
+                - vals: lista valori (stringhe) in ordine dei widths
+                - widths: lista larghezze (mm) che DEVONO sommare l'area stampabile
+                - fill: se True, fondo colorato (contratti chiusi)
+                """
+                n_lines_per_cell = []
+                for i, v in enumerate(vals):
+                    txt = "" if v is None else str(v)
+                    # per tutte le colonne facciamo wrapping; il “peso” maggiore sarà la descrizione
+                    n = self.nb_lines(widths[i], txt)
+                    n_lines_per_cell.append(n)
+                row_h = line_h * max(n_lines_per_cell)
+
+                # se non c'è spazio nella pagina, vai a nuova pagina con intestazioni
+                if self.get_y() + row_h > (self.h - self.b_margin):
+                    self.add_page()
+                    self.header_row(headers, widths)
+
+                x0 = self.get_x()
+                y0 = self.get_y()
+
+                # riempi riga chiusa
+                if fill:
+                    self.set_fill_color(255, 205, 210)  # rosso chiaro
+
+                for i, v in enumerate(vals):
+                    w = widths[i]
+                    x = self.get_x()
+                    y = self.get_y()
+
+                    # bordo della cella
+                    self.rect(x, y, w, row_h)
+
+                    # contenuto con wrapping
+                    txt = "" if v is None else str(v)
+                    # allineamento: descrizione a sinistra, il resto centrato
+                    align = align_desc if headers[i] == "DescrizioneProdotto" else "C"
+
+                    # salva il cursore e scrivi il testo dentro il box
+                    self.multi_cell(w, line_h, safe_text(txt), border=0, align=align, fill=fill)
+                    # riposiziona a destra della cella
+                    self.set_xy(x + w, y)
+
+                # vai alla riga successiva
+                self.set_xy(x0, y0 + row_h)
 
         try:
             disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
             if disp.empty:
                 st.info("Nessun contratto da esportare.")
             else:
+                # normalizza date in stringa
                 disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-                disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+                disp["DataFine"]   = disp["DataFine"].apply(fmt_date)
 
-                pdf = FPDF(orientation="L", unit="mm", format="A4")
+                # Ordine e colonne come in Excel
+                headers = [
+                    "NumeroContratto","DataInizio","DataFine","Durata",
+                    "DescrizioneProdotto","NOL_FIN","NOL_INT","TotRata",
+                    "CopieBN","EccBN","CopieCol","EccCol","Stato",
+                ]
+
+                # A4 landscape: larghezza utile ≈ 277mm - (10+10 margini) = 257mm
+                # Larghezze che sommano a 257
+                widths = [18, 18, 18, 12, 70, 14, 14, 18, 14, 16, 14, 16, 15]  # somma = 257
+
+                pdf = TablePDF(orientation="L", unit="mm", format="A4")
+                pdf.set_auto_page_break(auto=False)  # gestiamo noi i break
                 pdf.add_page()
+                pdf.set_margins(10, 10, 10)
+
+                # Titolo
                 pdf.set_font("Arial", "B", 14)
                 pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
-                pdf.ln(3)
+                pdf.ln(2)
 
-                # === Intestazioni ===
-                headers = [
-                    "NumeroContratto",
-                    "DataInizio",
-                    "DataFine",
-                    "Durata",
-                    "DescrizioneProdotto",
-                    "NOL_FIN",
-                    "NOL_INT",
-                    "TotRata",
-                    "CopieBN",
-                    "EccBN",
-                    "CopieCol",
-                    "EccCol",
-                    "Stato",
-                ]
-                widths = [25, 25, 25, 15, 65, 18, 18, 22, 20, 22, 20, 22, 20]
+                # Intestazioni
+                pdf.header_row(headers, widths)
 
-                pdf.set_fill_color(37, 99, 235)
-                pdf.set_text_color(255)
-                pdf.set_font("Arial", "B", 9)
-                for i, h in enumerate(headers):
-                    pdf.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
-                pdf.ln()
-
-                # === Dati ===
+                # Dati
                 pdf.set_font("Arial", "", 8)
-                pdf.set_text_color(0)
-
                 for _, row in disp.iterrows():
-                    stato = str(row.get("Stato", "")).lower()
-                    if stato == "chiuso":
-                        pdf.set_fill_color(255, 205, 210)  # rosso chiaro per contratti chiusi
-                        fill = True
-                    else:
-                        fill = False
+                    vals = [row.get(h, "") for h in headers]
+                    stato_chiuso = str(row.get("Stato", "")).lower() == "chiuso"
+                    pdf.row(vals, widths, line_h=5, fill=stato_chiuso, align_desc="L")
 
-                    vals = [safe_text(str(row.get(h, ""))) for h in headers]
-                    y_start = pdf.get_y()
-                    x_start = pdf.get_x()
-
-                    for i, v in enumerate(vals):
-                        align = "L" if headers[i] == "DescrizioneProdotto" else "C"
-                        pdf.multi_cell(widths[i], 5, v, border=1, align=align, fill=fill)
-                        x_start += widths[i]
-                        pdf.set_xy(x_start, y_start)
-                    pdf.ln()
-
-                # === Output ===
+                # Output
                 pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
                 st.download_button(
                     "📗 Esporta PDF",
@@ -1620,6 +1685,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 )
         except Exception as e:
             st.error(f"❌ Errore export PDF: {e}")
+
 
     st.markdown('</div>', unsafe_allow_html=True)
 

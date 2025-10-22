@@ -995,43 +995,43 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if genera_btn:
         try:
             from docx import Document
-    
+
             tpl_path = Path.cwd() / "templates" / TEMPLATE_OPTIONS[template]
             if not tpl_path.exists():
                 st.error(f"❌ Template non trovato: {tpl_path}")
                 st.stop()
-    
+
             doc = Document(tpl_path)
-    
-# === Sostituzione segnaposti (versione robusta con gestione CITTA) ===
-mappa = {
-    "CLIENTE": nome_cliente,
-    "INDIRIZZO": str(cliente.get("Indirizzo", "")).strip(),
-    # Gestione robusta della città: accetta varianti, toglie spazi e mette in maiuscolo
-    "CITTA": str(
-        cliente.get("Citta", cliente.get("CITTÀ", cliente.get("Citta ", "")))
-    ).strip().upper(),
-    "NUMERO_OFFERTA": num_off,
-    "DATA": datetime.now().strftime("%d/%m/%Y"),
-    "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
-    "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
-    "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
-    "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
-}
 
-# Sostituzione più tollerante nei paragrafi (gestisce anche << CITTA >> con spazi)
-for p in doc.paragraphs:
-    for k, v in mappa.items():
-        if f"<<{k}>>" in p.text or f"<< {k} >>" in p.text:
-            for run in p.runs:
-                run.text = run.text.replace(f"<<{k}>>", str(v))
-                run.text = run.text.replace(f"<< {k} >>", str(v))
+            # === Sostituzione segnaposti (versione robusta con gestione CITTA) ===
+            mappa = {
+                "CLIENTE": nome_cliente,
+                "INDIRIZZO": str(cliente.get("Indirizzo", "")).strip(),
+                # Gestione robusta della città: accetta varianti, toglie spazi e mette in maiuscolo
+                "CITTA": str(
+                    cliente.get("Citta", cliente.get("CITTÀ", cliente.get("Citta ", "")))
+                ).strip().upper(),
+                "NUMERO_OFFERTA": num_off,
+                "DATA": datetime.now().strftime("%d/%m/%Y"),
+                "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
+                "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
+                "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
+                "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
+            }
 
+            # Sostituzione più tollerante nei paragrafi (gestisce anche << CITTA >> con spazi)
+            for p in doc.paragraphs:
+                for k, v in mappa.items():
+                    if f"<<{k}>>" in p.text or f"<< {k} >>" in p.text:
+                        for run in p.runs:
+                            run.text = run.text.replace(f"<<{k}>>", str(v))
+                            run.text = run.text.replace(f"<< {k} >>", str(v))
 
+            # === Salvataggio del documento ===
             out_path = PREVENTIVI_DIR / nome_file
             doc.save(out_path)
-    
-            # Aggiorna CSV
+
+            # === Aggiornamento registro CSV ===
             nuova_riga = {
                 "ClienteID": sel_id,
                 "NumeroOfferta": num_off,
@@ -1042,13 +1042,14 @@ for p in doc.paragraphs:
             }
             df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
             df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
-    
+
             st.success(f"✅ Preventivo generato: {out_path.name}")
             st.rerun()
-    
+
         except Exception as e:
             import traceback
             st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
+
 
 
 

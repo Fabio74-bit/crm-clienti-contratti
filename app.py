@@ -1159,20 +1159,21 @@ def main():
                 if c in df_ct.columns:
                     df_ct[c] = fix_inverted_dates(df_ct[c])
 
-    save_clienti(df_cli)
-    save_contratti(df_ct)
-    
-    # ✅ Mostra il messaggio solo la prima volta nella sessione
-    if not st.session_state.get("_date_fix_done", False):
-        try:
-            st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
-        except Exception:
-            pass
-        st.session_state["_date_fix_done"] = True
+        save_clienti(df_cli)
+        save_contratti(df_ct)
+
+        # ✅ Mostra il messaggio solo la prima volta nella sessione
+        if not st.session_state.get("_date_fix_done", False):
+            try:
+                st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
+            except Exception:
+                pass
+            st.session_state["_date_fix_done"] = True
 
     except Exception as _:
         # Se qualcosa va storto nella correzione, non bloccare la UI
         st.warning("⚠️ Correzione automatica date non completata. Puoi continuare a usare l'app.")
+
 
     # Esegui la pagina selezionata con i dataframe aggiornati
     if page in PAGES:

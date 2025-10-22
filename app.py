@@ -1144,10 +1144,10 @@ def main():
         st.session_state["_go_clienti_now"] = False
         page = "Clienti"
 
-    # Carica i CSV
+    # === CARICA I CSV ===
     df_cli, df_ct = load_clienti(), load_contratti()
 
-    # 🔄 Corregge e risalva eventuali date invertite PRIMA di passare alle pagine
+    # === CORREGGE DATE E SALVA ===
     try:
         if not df_cli.empty:
             for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
@@ -1162,7 +1162,7 @@ def main():
         save_clienti(df_cli)
         save_contratti(df_ct)
 
-        # ✅ Mostra il messaggio solo la prima volta nella sessione
+        # ✅ Mostra il messaggio solo la prima volta
         if not st.session_state.get("_date_fix_done", False):
             try:
                 st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
@@ -1171,16 +1171,8 @@ def main():
             st.session_state["_date_fix_done"] = True
 
     except Exception as _:
-        # Se qualcosa va storto nella correzione, non bloccare la UI
         st.warning("⚠️ Correzione automatica date non completata. Puoi continuare a usare l'app.")
 
-    # Esegui la pagina selezionata con i dataframe aggiornati
+    # === ESEGUI LA PAGINA SELEZIONATA ===
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
-
-
-# =====================================
-# AVVIO
-# =====================================
-if __name__ == "__main__":
-    main()

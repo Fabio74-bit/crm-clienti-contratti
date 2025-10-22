@@ -217,32 +217,44 @@ def save_contratti(df: pd.DataFrame):
     save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
 
 # =====================================
-# CONVERSIONE SICURA DATE ITALIANE
+# CONVERSIONE SICURA DATE ITALIANE (VERSIONE DEFINITIVA 2025)
 # =====================================
-def to_date_series(series: pd.Series) -> pd.Series:
-    """Converte una colonna di date in formato pandas, accettando diversi formati."""
-    def parse_date(val):
-        if pd.isna(val) or str(val).strip() == "":
-            return ""
+from datetime import datetime
+
+def parse_date_safe(val: str) -> str:
+    """Converte una data in formato coerente DD/MM/YYYY, accettando formati misti."""
+    if not val or str(val).strip() in ["nan", "NaN", "None", "NaT", ""]:
+        return ""
+    val = str(val).strip()
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"):
         try:
-            return pd.to_datetime(str(val), errors="coerce", dayfirst=True)
-        except Exception:
-            return ""
-    return series.apply(parse_date)
+            return datetime.strptime(val, fmt).strftime("%d/%m/%Y")
+        except ValueError:
+            continue
+    return val
+
+
+def to_date_series(series: pd.Series) -> pd.Series:
+    """Compatibilità retroattiva: applica parse_date_safe a una serie pandas."""
+    return series.apply(parse_date_safe)
+
+
+# =====================================
+# CARICAMENTO CLIENTI (senza salvataggio automatico)
+# =====================================
 def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (auto-rilevamento separatore e formattazione coerente)."""
+    """Carica i dati dei clienti dal file CSV (solo lettura, coerente con date italiane)."""
     import pandas as pd
 
     if CLIENTI_CSV.exists():
         try:
-            # Rileva automaticamente ; , | o tab
             df = pd.read_csv(
                 CLIENTI_CSV,
                 dtype=str,
                 sep=None,              # autodetect ; or ,
                 engine="python",
                 encoding="utf-8-sig",
-                on_bad_lines="skip"    # ignora eventuali righe danneggiate
+                on_bad_lines="skip"
             )
         except Exception as e:
             st.error(f"❌ Errore durante la lettura dei clienti: {e}")
@@ -260,31 +272,30 @@ def load_clienti() -> pd.DataFrame:
     # Garantisce che tutte le colonne standard esistano
     df = ensure_columns(df, CLIENTI_COLS)
 
-    # Conversione sicura delle date
+    # Conversione coerente delle date (senza salvarle)
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        df[c] = fix_inverted_dates(df[c], col_name=c)
-
-    save_clienti(df)
+        if c in df.columns:
+            df[c] = df[c].apply(parse_date_safe)
 
     return df
 
 
-
-
+# =====================================
+# CARICAMENTO CONTRATTI (senza salvataggio automatico)
+# =====================================
 def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (auto-rilevamento separatore e correzione formato)."""
+    """Carica i dati dei contratti dal file CSV (solo lettura, coerente con date italiane)."""
     import pandas as pd
 
     if CONTRATTI_CSV.exists():
         try:
-            # Auto-rilevamento delimitatore (funziona per ; , | \t)
             df = pd.read_csv(
                 CONTRATTI_CSV,
                 dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",       # necessario per sep=None
+                sep=None,
+                engine="python",
                 encoding="utf-8-sig",
-                on_bad_lines="skip"    # ignora eventuali righe errate
+                on_bad_lines="skip"
             )
         except Exception as e:
             st.error(f"❌ Errore durante la lettura dei contratti: {e}")
@@ -293,22 +304,20 @@ def load_contratti() -> pd.DataFrame:
         df = pd.DataFrame(columns=CONTRATTI_COLS)
         df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
 
-    # Pulisce i valori testuali
+    # Pulisce valori testuali e garantisce colonne
     df = (
         df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
         .fillna("")
     )
-
-    # Forza la presenza di tutte le colonne standard
     df = ensure_columns(df, CONTRATTI_COLS)
 
-    # Conversione date coerente
+    # Conversione coerente delle date
     for c in ["DataInizio", "DataFine"]:
-        df[c] = fix_inverted_dates(df[c], col_name=c)
-
-
+        if c in df.columns:
+            df[c] = df[c].apply(parse_date_safe)
 
     return df
+
 
 # =====================================
 # FUNZIONI DI CARICAMENTO DATI (VERSIONE DEFINITIVA 2025)

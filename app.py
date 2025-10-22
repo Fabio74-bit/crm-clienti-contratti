@@ -861,55 +861,43 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.info("Operazione annullata.")
                 st.rerun()
 
- # === INFO RAPIDE (NUOVO LAYOUT CON PULSANTI COLORATI + CARD) ===
+
+# === INFO RAPIDE (NUOVE CARD, nessuna dipendenza da col1/col2) ===
 st.markdown("""
 <style>
-/* --- Card contenitore --- */
 .info-box {
-    background-color: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.06);
-    padding: 1.3rem 1.6rem;
-    margin-top: 0.8rem;
-    margin-bottom: 1.5rem;
-    font-size: 15px;
-    line-height: 1.7;
-    border-left: 5px solid #2563eb;
+    background-color:#ffffff; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,0.06);
+    padding:1.3rem 1.6rem; margin-top:0.8rem; margin-bottom:1.5rem;
+    font-size:15px; line-height:1.7; border-left:5px solid #2563eb;
 }
-/* --- Titolo e label --- */
-.info-title {
-    color: #2563eb;
-    font-size: 17px;
-    font-weight: 600;
-    margin-bottom: 0.6rem;
-}
-.info-item { margin-bottom: 0.3rem; }
-.info-label { font-weight: 600; color: #0d1117; }
-
-/* --- Pulsanti personalizzati --- */
-.btn-blue > button {
-    background-color: #e3f2fd !important;
-    color: #0d47a1 !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
-}
-.btn-yellow > button {
-    background-color: #fff8e1 !important;
-    color: #ef6c00 !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
-}
-.btn-red > button {
-    background-color: #ffebee !important;
-    color: #b71c1c !important;
-    border: none !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
-}
+.info-title { color:#2563eb; font-size:17px; font-weight:600; margin-bottom:0.6rem; }
+.info-item { margin-bottom:0.3rem; }
+.info-label { font-weight:600; color:#0d1117; }
 </style>
 """, unsafe_allow_html=True)
+
+infoA, infoB = st.columns(2)
+with infoA:
+    st.markdown(f"""
+    <div class="info-box">
+        <div class="info-title">📇 Dati Principali</div>
+        <div class="info-item"><span class="info-label">👤 Referente:</span> {cliente.get('PersonaRiferimento','')}</div>
+        <div class="info-item"><span class="info-label">✉️ Email:</span> {cliente.get('Email','')}</div>
+        <div class="info-item"><span class="info-label">📞 Telefono:</span> {cliente.get('Telefono','')} — <span class="info-label">📱 Cell:</span> {cliente.get('Cell','')}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with infoB:
+    st.markdown(f"""
+    <div class="info-box">
+        <div class="info-title">📍 Indirizzo e Dati Fiscali</div>
+        <div class="info-item"><span class="info-label">📍 Indirizzo:</span> {cliente.get('Indirizzo','')} — {cliente.get('Citta','')} {cliente.get('CAP','')}</div>
+        <div class="info-item"><span class="info-label">💼 Partita IVA:</span> {cliente.get('PartitaIVA','')}</div>
+        <div class="info-item"><span class="info-label">🏦 IBAN:</span> {cliente.get('IBAN','')}</div>
+        <div class="info-item"><span class="info-label">📡 SDI:</span> {cliente.get('SDI','')}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # === HEADER CON PULSANTI COLORATI ===
 col1, col2, col3, col4 = st.columns([4, 1.1, 1.1, 1.1])

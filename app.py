@@ -642,84 +642,40 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
         scadenze = scadenze.sort_values("DataFine")
 
-        st.markdown(f"📅 <b>{len(scadenze)} contratti in scadenza entro 6 mesi:</b>", unsafe_allow_html=True)
+        st.markdown(f"📅 **{len(scadenze)} contratti in scadenza entro 6 mesi:**")
 
-        # --- STILE TABELLA ---
-        st.markdown("""
-        <style>
-        .scadenze-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 8px;
-        }
-        .scadenze-table th, .scadenze-table td {
-            padding: 8px 10px;
-            border-bottom: 1px solid #e0e0e0;
-            text-align: left;
-            font-size: 15px;
-        }
-        .scadenze-table th {
-            background-color: #f9f9f9;
-            font-weight: 600;
-        }
-        .scadenze-table tr:nth-child(even) {
-            background-color: #f5faff;
-        }
-        .scadenze-table tr:hover {
-            background-color: #eaf2ff;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        # --- intestazione ---
+        head_cols = st.columns([2, 1, 1, 1, 0.8])
+        head_cols[0].markdown("**Cliente**")
+        head_cols[1].markdown("**Contratto**")
+        head_cols[2].markdown("**Scadenza**")
+        head_cols[3].markdown("**Stato**")
+        head_cols[4].markdown("**Azioni**")
 
-        # --- CREA LA TABELLA HTML ---
-        table_html = """
-        <table class="scadenze-table">
-            <thead>
-                <tr>
-                    <th>Cliente</th>
-                    <th>Contratto</th>
-                    <th>Scadenza</th>
-                    <th>Stato</th>
-                    <th>Azioni</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
+        st.markdown("---")
 
+        # --- righe tabella ---
         for i, r in scadenze.iterrows():
-            rag = r.get("RagioneSociale", "—")
-            num = r.get("NumeroContratto", "—")
-            fine = r.get("DataFine", "—")
-            stato = r.get("Stato", "—")
-
-            table_html += f"""
-                <tr>
-                    <td><b>{rag}</b></td>
-                    <td>{num or "—"}</td>
-                    <td>{fine or "—"}</td>
-                    <td>{stato or "—"}</td>
-                    <td>
-                        <form>
-                            <input type='submit' value='📂 Apri' name='btn_{i}' style='background:#eee;border:1px solid #ccc;border-radius:6px;padding:3px 10px;cursor:pointer;'>
-                        </form>
-                    </td>
-                </tr>
-            """
-
-        table_html += "</tbody></table>"
-
-        # --- Mostra la tabella formattata ---
-        st.markdown(table_html, unsafe_allow_html=True)
-
-        # --- Pulsanti funzionali ---
-        for i, r in scadenze.iterrows():
-            if st.button(f"📂 Apri contratto {r.get('NumeroContratto','')}", key=f"open_scad_{i}", help=f"Apri {r.get('RagioneSociale','')}"):
-                st.session_state.update({
-                    "selected_cliente": str(r.get("ClienteID")),
-                    "nav_target": "Contratti",
-                    "_go_contratti_now": True
-                })
-                st.rerun()
+            bg_color = "#f8fbff" if i % 2 == 0 else "#ffffff"
+            row = st.container()
+            with row:
+                cols = st.columns([2, 1, 1, 1, 0.8])
+                with cols[0]:
+                    st.markdown(f"<div style='background:{bg_color};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
+                with cols[1]:
+                    st.markdown(f"<div style='background:{bg_color};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
+                with cols[2]:
+                    st.markdown(f"<div style='background:{bg_color};padding:6px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+                with cols[3]:
+                    st.markdown(f"<div style='background:{bg_color};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
+                with cols[4]:
+                    if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                        st.session_state.update({
+                            "selected_cliente": str(r.get("ClienteID")),
+                            "nav_target": "Contratti",
+                            "_go_contratti_now": True
+                        })
+                        st.rerun()
 
 
 

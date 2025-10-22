@@ -1530,6 +1530,7 @@ def main():
 
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
 
+    # --- Mappa pagine ---
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -1538,6 +1539,7 @@ def main():
         "📋 Lista Clienti": page_lista_clienti
     }
 
+    # --- Pagina di default ---
     default_page = st.session_state.pop("nav_target", "Dashboard")
     page = st.sidebar.radio(
         "📂 Menu principale",
@@ -1545,6 +1547,7 @@ def main():
         index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
     )
 
+    # --- Gestione redirect ---
     if st.session_state.get("_go_contratti_now"):
         st.session_state["_go_contratti_now"] = False
         page = "Contratti"
@@ -1553,37 +1556,31 @@ def main():
         st.session_state["_go_clienti_now"] = False
         page = "Clienti"
 
-    # === CARICA I CSV ===
+    # --- CARICAMENTO CSV ---
     df_cli, df_ct = load_clienti(), load_contratti()
 
-    # === CORREGGE DATE E SALVA (una volta per sessione) ===
-if not st.session_state.get("_date_fix_done", False):
-    try:
-        if not df_cli.empty:
-            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-                if c in df_cli.columns:
-                    df_cli[c] = fix_inverted_dates(df_cli[c])
+    # --- CORREZIONE AUTOMATICA DATE (una sola volta per sessione) ---
+    if not st.session_state.get("_date_fix_done", False):
+        try:
+            if not df_cli.empty:
+                for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+                    if c in df_cli.columns:
+                        df_cli[c] = fix_inverted_dates(df_cli[c])
 
-        if not df_ct.empty:
-            for c in ["DataInizio", "DataFine"]:
-                if c in df_ct.columns:
-                    df_ct[c] = fix_inverted_dates(df_ct[c])
+            if not df_ct.empty:
+                for c in ["DataInizio", "DataFine"]:
+                    if c in df_ct.columns:
+                        df_ct[c] = fix_inverted_dates(df_ct[c])
 
-        # Se vuoi, qui puoi salvare una volta sola (opzionale, ma va bene):
-        df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-        df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+            # Salvataggio solo se serve
+            df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+            df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
-        st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
-        st.session_state["_date_fix_done"] = True
-    except Exception as e:
-        st.warning(f"⚠️ Correzione automatica date non completata: {e}")
+            st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
+            st.session_state["_date_fix_done"] = True
+        except Exception as e:
+            st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
-# === ESEGUI LA PAGINA SELEZIONATA ===
+    # --- ESEGUI LA PAGINA SCELTA ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
-
-# =====================================
-# AVVIO
-# =====================================
-if __name__ == "__main__":
-    main()

@@ -1174,10 +1174,10 @@ def main():
         # Se qualcosa va storto nella correzione, non bloccare la UI
         st.warning("⚠️ Correzione automatica date non completata. Puoi continuare a usare l'app.")
 
-
     # Esegui la pagina selezionata con i dataframe aggiornati
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
+
 
 # =====================================
 # AVVIO

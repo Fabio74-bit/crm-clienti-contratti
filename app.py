@@ -702,7 +702,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     options = filtered["RagioneSociale"].tolist()
     selected_name = st.session_state.get("cliente_selezionato", options[0])
-    sel_rag = st.selectbox("Seleziona Cliente", options, index=options.index(selected_name), key="sel_cliente_box")
+    sel_rag = st.selectbox(
+        "Seleziona Cliente",
+        options,
+        index=options.index(selected_name),
+        key="sel_cliente_box"
+    )
 
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
@@ -726,7 +731,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
             st.rerun()
 
-        # === CANCELLA CLIENTE (versione stabile aggiornata) ===
+        # === CANCELLA CLIENTE ===
         if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
             st.session_state["confirm_delete_cliente"] = str(sel_id)
             st.rerun()
@@ -739,18 +744,19 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         )
         cdel1, cdel2 = st.columns(2)
 
-                with cdel1:
+        # --- CONFERMA ELIMINAZIONE ---
+        with cdel1:
             if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
                 try:
                     # 1️⃣ Crea i nuovi DataFrame SENZA il cliente
                     df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
-                    df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != str(sel_id)].copy()
+                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
 
-                    # 2️⃣ 💾 SALVATAGGIO FORZATO
+                    # 2️⃣ 💾 SALVATAGGIO FORZATO su disco (senza confronti)
                     df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
                     df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
-                    # 3️⃣ 🔄 Flush + pulizia cache
+                    # 3️⃣ 🔄 Flush + pulizia cache letture
                     import io
                     io.open(CLIENTI_CSV, "r").close()
                     io.open(CONTRATTI_CSV, "r").close()
@@ -759,7 +765,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     except Exception:
                         pass
 
-                    # 4️⃣ Aggiorna stato interfaccia
+                    # 4️⃣ Aggiorna stato UI
                     st.session_state.pop("confirm_delete_cliente", None)
                     st.session_state["nav_target"] = "Clienti"
 
@@ -770,12 +776,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 except Exception as e:
                     st.error(f"❌ Errore durante l'eliminazione: {e}")
 
+        # --- ANNULLA ELIMINAZIONE ---
         with cdel2:
             if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
                 st.session_state.pop("confirm_delete_cliente", None)
                 st.info("Operazione annullata.")
                 st.rerun()
-
 
     # === INFO RAPIDE ===
     st.markdown(
@@ -788,6 +794,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         """,
         unsafe_allow_html=True
     )
+
 
     # === MODIFICA ANAGRAFICA ===
     if st.session_state.get(f"edit_cli_{sel_id}", False):

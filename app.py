@@ -726,7 +726,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         )
         cdel1, cdel2 = st.columns(2)
 
-        with cdel1:
+    with cdel1:
     if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
         try:
             df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()

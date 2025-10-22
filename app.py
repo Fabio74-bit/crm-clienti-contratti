@@ -644,7 +644,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown(f"📅 **{len(scadenze)} contratti in scadenza entro 6 mesi:**")
 
-        # --- intestazione ---
+        # Intestazione tabella
         head_cols = st.columns([2, 1, 1, 1, 0.8])
         head_cols[0].markdown("**Cliente**")
         head_cols[1].markdown("**Contratto**")
@@ -654,28 +654,27 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown("---")
 
-        # --- righe tabella ---
+        # Righe con zebra e pulsanti integrati
         for i, r in scadenze.iterrows():
-            bg_color = "#f8fbff" if i % 2 == 0 else "#ffffff"
-            row = st.container()
-            with row:
-                cols = st.columns([2, 1, 1, 1, 0.8])
-                with cols[0]:
-                    st.markdown(f"<div style='background:{bg_color};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
-                with cols[1]:
-                    st.markdown(f"<div style='background:{bg_color};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
-                with cols[2]:
-                    st.markdown(f"<div style='background:{bg_color};padding:6px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-                with cols[3]:
-                    st.markdown(f"<div style='background:{bg_color};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
-                with cols[4]:
-                    if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                        st.session_state.update({
-                            "selected_cliente": str(r.get("ClienteID")),
-                            "nav_target": "Contratti",
-                            "_go_contratti_now": True
-                        })
-                        st.rerun()
+            bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
+            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
+            with col1:
+                st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+            with col4:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
+            with col5:
+                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": str(r.get("ClienteID")),
+                        "nav_target": "Contratti",
+                        "_go_contratti_now": True
+                    })
+                    st.rerun()
+
 
 
 

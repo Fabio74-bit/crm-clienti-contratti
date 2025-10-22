@@ -1685,7 +1685,7 @@ st.markdown('</div>', unsafe_allow_html=True)
                 for _, row in disp.iterrows():
                     vals = [row.get(h, "") for h in headers]
                     stato_chiuso = str(row.get("Stato", "")).lower() == "chiuso"
-                    pdf.row(vals, widths, line_h=6, fill=stato_chiuso, align_desc="L")
+                    pdf.row(vals, widths, line_h=7, fill=stato_chiuso, align_desc="L")
 
                 # Output
                 pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")

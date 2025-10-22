@@ -673,7 +673,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.rerun()
 
 # =====================================
-# PAGINA CLIENTI (COMPLETA E STABILE)
+# PAGINA CLIENTI (VERSIONE FINALE STABILE)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
@@ -731,7 +731,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
             st.rerun()
 
-        # === CANCELLA CLIENTE ===
+        # === CANCELLA CLIENTE (chiede conferma) ===
         if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
             st.session_state["confirm_delete_cliente"] = str(sel_id)
             st.rerun()
@@ -748,15 +748,15 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with cdel1:
             if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
                 try:
-                    # 1️⃣ Crea i nuovi DataFrame SENZA il cliente
+                    # 1️⃣ Crea nuovi DataFrame SENZA il cliente
                     df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
                     df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
 
-                    # 2️⃣ 💾 SALVATAGGIO FORZATO su disco (senza confronti)
+                    # 2️⃣ 💾 Salvataggio forzato nei CSV
                     df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
                     df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
-                    # 3️⃣ 🔄 Flush + pulizia cache letture
+                    # 3️⃣ 🔄 Flush + pulizia cache
                     import io
                     io.open(CLIENTI_CSV, "r").close()
                     io.open(CONTRATTI_CSV, "r").close()
@@ -765,10 +765,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     except Exception:
                         pass
 
-                    # 4️⃣ Aggiorna stato UI
+                    # 4️⃣ Aggiorna stato interfaccia e ricarica
                     st.session_state.pop("confirm_delete_cliente", None)
                     st.session_state["nav_target"] = "Clienti"
-
                     st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
                     time.sleep(0.5)
                     st.rerun()
@@ -794,6 +793,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         """,
         unsafe_allow_html=True
     )
+
 
 
     # === MODIFICA ANAGRAFICA ===

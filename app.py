@@ -1119,6 +1119,7 @@ else:
 
 
 
+
 # =====================================
 # PAGINA CONTRATTI (VERSIONE STABILE E COMPLETA)
 # =====================================

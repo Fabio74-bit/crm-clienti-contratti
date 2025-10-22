@@ -1089,6 +1089,11 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CONTRATTI (VERSIONE STABILE E COMPLETA)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+        # 🔹 Reset automatico: chiude eventuali schede di modifica contratti
+    for k in list(st.session_state.keys()):
+        if k.startswith("edit_ct_"):
+            del st.session_state[k]
+            
     st.markdown("<h2>📄 Contratti</h2>", unsafe_allow_html=True)
 
     if df_cli.empty:

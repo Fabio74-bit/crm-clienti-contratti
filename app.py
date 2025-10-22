@@ -1249,7 +1249,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     h8.markdown("<div class='tbl-head'>Azioni</div>", unsafe_allow_html=True)
 
         # === RIGHE CONTRATTI (con evidenza visiva contratti chiusi) ===
-for i, r in ct.reset_index().iterrows():
+    for i, r in ct.reset_index().iterrows():
     # Chiave univoca sicura
     rid = f"{r['ClienteID']}_{r['NumeroContratto']}_{i}".replace("/", "_").replace(" ", "_")
 

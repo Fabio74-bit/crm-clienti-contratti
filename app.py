@@ -1051,69 +1051,65 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
 
 
-
-
-
-
 # === ELENCO PREVENTIVI ===
-st.divider()
-st.markdown("### 📂 Elenco Preventivi Cliente")
-
-prev_cli = df_prev[df_prev["ClienteID"] == sel_id]
-if prev_cli.empty:
-    st.info("Nessun preventivo per questo cliente.")
-else:
-    # Ordino per data di creazione (stringa) in modo consistente
-    prev_cli = prev_cli.copy().sort_values("DataCreazione", ascending=False)
-
-    for _, r in prev_cli.iterrows():
-        file_path = Path(str(r.get("Percorso", "")))
-        num_offerta = r.get("NumeroOfferta", "")
-        nome_file_r = r.get("NomeFile", "")
-
-        col1, col2, col3 = st.columns([0.6, 0.25, 0.15])
-        with col1:
-            st.markdown(f"**{num_offerta}** — {r.get('Template','')}  \n📅 {r.get('DataCreazione','')}")
-        with col2:
-            if file_path.exists():
-                with open(file_path, "rb") as f:
-                    st.download_button(
-                        "⬇️ Scarica",
-                        f.read(),
-                        file_name=file_path.name,
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"dl_{sel_id}_{num_offerta}"
-                    )
-            else:
-                st.caption("File non trovato su disco")
-
-        with col3:
-            if role == "admin":
-                # Chiave stabile basata su NumeroOfferta
-                if st.button("🗑 Elimina", key=f"del_prev_{sel_id}_{num_offerta}", use_container_width=True):
-                    try:
-                        # 1) Rimuovi file dal disco (se c'è)
-                        try:
-                            if file_path.exists():
-                                file_path.unlink()
-                        except Exception as fe:
-                            st.warning(f"Impossibile cancellare il file dal disco: {fe}")
-
-                        # 2) Rimuovi la riga dal CSV in modo robusto (match per chiave)
-                        mask = (
-                            (df_prev["ClienteID"] == str(sel_id)) &
-                            (df_prev["NumeroOfferta"] == str(num_offerta)) &
-                            (df_prev["NomeFile"] == str(nome_file_r))
+    st.divider()
+    st.markdown("### 📂 Elenco Preventivi Cliente")
+    
+    prev_cli = df_prev[df_prev["ClienteID"] == sel_id]
+    if prev_cli.empty:
+        st.info("Nessun preventivo per questo cliente.")
+    else:
+        # Ordino per data di creazione (stringa) in modo consistente
+        prev_cli = prev_cli.copy().sort_values("DataCreazione", ascending=False)
+    
+        for _, r in prev_cli.iterrows():
+            file_path = Path(str(r.get("Percorso", "")))
+            num_offerta = r.get("NumeroOfferta", "")
+            nome_file_r = r.get("NomeFile", "")
+    
+            col1, col2, col3 = st.columns([0.6, 0.25, 0.15])
+            with col1:
+                st.markdown(f"**{num_offerta}** — {r.get('Template','')}  \n📅 {r.get('DataCreazione','')}")
+            with col2:
+                if file_path.exists():
+                    with open(file_path, "rb") as f:
+                        st.download_button(
+                            "⬇️ Scarica",
+                            f.read(),
+                            file_name=file_path.name,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"dl_{sel_id}_{num_offerta}"
                         )
-                        if mask.any():
-                            df_prev = df_prev[~mask].copy()
-                            df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
-                            st.success("🗑 Preventivo eliminato.")
-                            st.rerun()
-                        else:
-                            st.error("Riga non trovata nel CSV. Aggiorna la pagina e riprova.")
-                    except Exception as e:
-                        st.error(f"❌ Errore eliminazione: {e}")
+                else:
+                    st.caption("File non trovato su disco")
+    
+            with col3:
+                if role == "admin":
+                    # Chiave stabile basata su NumeroOfferta
+                    if st.button("🗑 Elimina", key=f"del_prev_{sel_id}_{num_offerta}", use_container_width=True):
+                        try:
+                            # 1) Rimuovi file dal disco (se c'è)
+                            try:
+                                if file_path.exists():
+                                    file_path.unlink()
+                            except Exception as fe:
+                                st.warning(f"Impossibile cancellare il file dal disco: {fe}")
+    
+                            # 2) Rimuovi la riga dal CSV in modo robusto (match per chiave)
+                            mask = (
+                                (df_prev["ClienteID"] == str(sel_id)) &
+                                (df_prev["NumeroOfferta"] == str(num_offerta)) &
+                                (df_prev["NomeFile"] == str(nome_file_r))
+                            )
+                            if mask.any():
+                                df_prev = df_prev[~mask].copy()
+                                df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+                                st.success("🗑 Preventivo eliminato.")
+                                st.rerun()
+                            else:
+                                st.error("Riga non trovata nel CSV. Aggiorna la pagina e riprova.")
+                        except Exception as e:
+                            st.error(f"❌ Errore eliminazione: {e}")
 
 
 

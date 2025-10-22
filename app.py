@@ -1547,26 +1547,27 @@ def main():
     # === CARICA I CSV ===
     df_cli, df_ct = load_clienti(), load_contratti()
 
-    # === CORREGGE DATE E SALVA (eseguito solo una volta per sessione) ===
-    if not st.session_state.get("_date_fix_done", False):
-        try:
-            if not df_cli.empty:
-                for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-                    if c in df_cli.columns:
-                        df_cli[c] = fix_inverted_dates(df_cli[c])
+    # === CORREGGE DATE E SALVA (una volta per sessione) ===
+if not st.session_state.get("_date_fix_done", False):
+    try:
+        if not df_cli.empty:
+            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+                if c in df_cli.columns:
+                    df_cli[c] = fix_inverted_dates(df_cli[c])
 
-            if not df_ct.empty:
-                for c in ["DataInizio", "DataFine"]:
-                    if c in df_ct.columns:
-                        df_ct[c] = fix_inverted_dates(df_ct[c])
+        if not df_ct.empty:
+            for c in ["DataInizio", "DataFine"]:
+                if c in df_ct.columns:
+                    df_ct[c] = fix_inverted_dates(df_ct[c])
 
-            save_if_changed(df_cli, CLIENTI_CSV, load_clienti())
-            save_if_changed(df_ct, CONTRATTI_CSV, load_contratti())
+        # Se vuoi, qui puoi salvare una volta sola (opzionale, ma va bene):
+        df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+        df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
 
-            st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
-            st.session_state["_date_fix_done"] = True
-        except Exception as e:
-            st.warning(f"⚠️ Correzione automatica date non completata: {e}")
+        st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
+        st.session_state["_date_fix_done"] = True
+    except Exception as e:
+        st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
 # === ESEGUI LA PAGINA SELEZIONATA ===
     if page in PAGES:

@@ -861,7 +861,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.info("Operazione annullata.")
                 st.rerun()
 
-   # === INFO RAPIDE (NUOVO LAYOUT CON PULSANTI COLORATI) ===
+         # === INFO RAPIDE (NUOVO LAYOUT CON PULSANTI COLORATI) ===
 st.markdown("""
 <style>
 /* --- Card contenitore --- */
@@ -970,7 +970,6 @@ with colB:
         <div class="info-item"><span class="info-label">📡 SDI:</span> {cliente.get('SDI','')}</div>
     </div>
     """, unsafe_allow_html=True)
-
 
 
 

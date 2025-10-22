@@ -633,6 +633,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         (df_ct["Stato"].astype(str).str.lower() != "chiuso")
     ].copy()
 
+    # Se manca RagioneSociale nei contratti, la aggiunge
     if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
         scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
@@ -654,7 +655,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown("---")
 
-        # Righe con zebra e pulsanti integrati
+        # Righe tabella (zebra + pulsante funzionante)
         for i, r in scadenze.iterrows():
             bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
             col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
@@ -675,31 +676,15 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     })
                     st.rerun()
 
-
-
-
-        # --- Gestione pulsanti Apri (uno per volta) ---
-        for i, r in scadenze.iterrows():
-            if st.button(f"Apri contratto {r.get('NumeroContratto')}", key=f"btn_open_{i}", help=f"Apri {r.get('RagioneSociale')}"):
-                st.session_state.update({
-                    "selected_cliente": str(r.get("ClienteID")),
-                    "nav_target": "Contratti",
-                    "_go_contratti_now": True
-                })
-                st.rerun()
-
-
     # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
     st.divider()
     st.markdown("### ⚠️ Contratti recenti senza data di fine")
 
     oggi = pd.Timestamp.now().normalize()
 
-    # Conversione date sicura
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
 
-    # Filtra contratti senza DataFine ma con DataInizio valida e >= oggi
     contratti_senza_fine = df_ct[
         (df_ct["DataFine"].isna()) &
         (df_ct["DataInizio"].notna()) &
@@ -711,39 +696,48 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         st.warning(f"⚠️ {len(contratti_senza_fine)} contratti inseriti da oggi non hanno ancora una data di fine:")
 
-        # Aggiunge info cliente se manca
         if "RagioneSociale" not in contratti_senza_fine.columns or contratti_senza_fine["RagioneSociale"].eq("").any():
             contratti_senza_fine = contratti_senza_fine.merge(
                 df_cli[["ClienteID", "RagioneSociale"]],
                 on="ClienteID", how="left"
             )
 
-        # Format date e ordina
         contratti_senza_fine["DataInizio"] = contratti_senza_fine["DataInizio"].apply(fmt_date)
         contratti_senza_fine = contratti_senza_fine.sort_values("DataInizio", ascending=False)
 
-        # === VISUALIZZAZIONE ===
+        # Visualizzazione
+        head_cols = st.columns([2.5, 1, 1.2, 2.5, 0.8])
+        head_cols[0].markdown("**Cliente**")
+        head_cols[1].markdown("**Contratto**")
+        head_cols[2].markdown("**Inizio**")
+        head_cols[3].markdown("**Descrizione**")
+        head_cols[4].markdown("**Azioni**")
+
+        st.markdown("---")
+
         for i, r in contratti_senza_fine.iterrows():
+            bg = "#fffdf5" if i % 2 == 0 else "#ffffff"
             col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
             with col1:
-                st.markdown(f"**{r.get('RagioneSociale', '—')}**")
-            
-                st.markdown(r.get("NumeroContratto", "—"))
+                st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
             with col3:
-                st.markdown(r.get("DataInizio", "—"))
+                st.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
             with col4:
-                desc = str(r.get("DescrizioneProdotto", "—"))
+                desc = str(r.get('DescrizioneProdotto', '—'))
                 if len(desc) > 60:
                     desc = desc[:60] + "…"
-                st.markdown(desc)
+                st.markdown(f"<div style='background:{bg};padding:6px'>{desc}</div>", unsafe_allow_html=True)
             with col5:
                 if st.button("📂 Apri", key=f"open_ndf_{i}", use_container_width=True):
                     st.session_state.update({
-                        "selected_cliente": r.get("ClienteID"),
+                        "selected_cliente": str(r.get("ClienteID")),
                         "nav_target": "Contratti",
                         "_go_contratti_now": True
                     })
                     st.rerun()
+
 
 # =====================================
 # PAGINA CLIENTI (VERSIONE FINALE STABILE)

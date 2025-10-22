@@ -1248,38 +1248,103 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     h7.markdown("<div class='tbl-head'>Descrizione</div>", unsafe_allow_html=True)
     h8.markdown("<div class='tbl-head'>Azioni</div>", unsafe_allow_html=True)
 
-    # righe
-    for _, r in ct.iterrows():
+        # === RIGHE CONTRATTI ===
+    for i, r in ct.reset_index().iterrows():
+        # Chiave univoca sicura (senza caratteri speciali)
+        rid = f"{r['ClienteID']}_{r['NumeroContratto']}_{i}".replace("/", "_").replace(" ", "_")
+
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 0.9, 0.9, 0.6, 1.2, 0.8, 2.0, 0.9])
         with c1: st.markdown(f"<div class='tbl-row'>{r.get('NumeroContratto','')}</div>", unsafe_allow_html=True)
         with c2: st.markdown(f"<div class='tbl-row'>{r.get('DataInizio','')}</div>", unsafe_allow_html=True)
         with c3: st.markdown(f"<div class='tbl-row'>{r.get('DataFine','')}</div>", unsafe_allow_html=True)
         with c4: st.markdown(f"<div class='tbl-row'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
         with c5: st.markdown(f"<div class='tbl-row'>{r.get('TotRata','')}</div>", unsafe_allow_html=True)
-        stato_tag = "<span class='pill-open'>Aperto</span>" if str(r.get("Stato","")).lower() != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
+
+        stato_tag = (
+            "<span class='pill-open'>Aperto</span>"
+            if str(r.get("Stato", "")).lower() != "chiuso"
+            else "<span class='pill-closed'>Chiuso</span>"
+        )
         with c6: st.markdown(f"<div class='tbl-row'>{stato_tag}</div>", unsafe_allow_html=True)
 
-        desc_short = str(r.get("DescrizioneProdotto",""))
+        desc_short = str(r.get("DescrizioneProdotto", "")) or "—"
         if len(desc_short) > 80:
             desc_short = desc_short[:80] + "…"
-        rid = r["_RowID"]
+
         with c7:
             if st.button(desc_short, key=f"desc_{rid}", use_container_width=True):
-                st.session_state["desc_popup"] = r.get("DescrizioneProdotto","")
-                st.session_state["desc_popup_title"] = r.get("NumeroContratto","")
+                st.session_state["desc_popup"] = r.get("DescrizioneProdotto", "")
+                st.session_state["desc_popup_title"] = r.get("NumeroContratto", "")
                 st.rerun()
 
         with c8:
             colE, colD = st.columns(2)
             if colE.button("✏️", key=f"edit_{rid}", use_container_width=True):
                 st.session_state["edit_rowid"] = rid
+                st.session_state["edit_index"] = i
                 st.rerun()
+
             if colD.button("🗑️", key=f"del_{rid}", use_container_width=True):
-                st.session_state["delete_rowid"] = rid
+                st.session_state["delete_index"] = i
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
+        # === MODIFICA CONTRATTO SELEZIONATO ===
+    if st.session_state.get("edit_index") is not None:
+        idx = st.session_state["edit_index"]
+        if idx in ct.index:
+            contratto = ct.loc[idx]
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}", unsafe_allow_html=True)
+
+            with st.form(f"frm_edit_ct_{idx}"):
+                c1, c2, c3, c4 = st.columns(4)
+                num = c1.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
+                din = c2.date_input("Data Inizio", value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce"))
+                durata = c3.text_input("Durata (mesi)", contratto.get("Durata", ""))
+                stato = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if str(contratto.get("Stato","")).lower()!="chiuso" else 1)
+
+                desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+
+                c5, c6, c7 = st.columns(3)
+                nf = c5.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
+                ni = c6.text_input("NOL_INT", contratto.get("NOL_INT", ""))
+                tot = c7.text_input("Tot Rata", contratto.get("TotRata", ""))
+
+                c8, c9, c10, c11 = st.columns(4)
+                copie_bn = c8.text_input("Copie incluse B/N", contratto.get("CopieBN", ""))
+                ecc_bn   = c9.text_input("Costo extra B/N (€)", contratto.get("EccBN", ""))
+                copie_col= c10.text_input("Copie incluse Colore", contratto.get("CopieCol", ""))
+                ecc_col  = c11.text_input("Costo extra Colore (€)", contratto.get("EccCol", ""))
+
+                salva = st.form_submit_button("💾 Salva Modifiche")
+                if salva:
+                    try:
+                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                        # Aggiorna i valori nel DataFrame completo df_ct
+                        idx_global = df_ct.index[(df_ct["ClienteID"] == sel_id) & (df_ct["NumeroContratto"] == contratto["NumeroContratto"])].tolist()
+                        if idx_global:
+                            i_df = idx_global[0]
+                            df_ct.loc[i_df, [
+                                "NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
+                                "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+                            ]] = [
+                                num, fmt_date(din), fmt_date(data_fine), durata, desc,
+                                nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
+                            ]
+                            save_contratti(df_ct)
+                            st.success("✅ Contratto aggiornato con successo.")
+                            st.session_state.pop("edit_index", None)
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore durante il salvataggio: {e}")
+
+            if st.button("❌ Annulla Modifica", key=f"cancel_edit_{idx}", use_container_width=True):
+                st.session_state.pop("edit_index", None)
+                st.rerun()
+
+            st.markdown('</div>', unsafe_allow_html=True)
 
     # === POPUP DESCRIZIONE ===
     if st.session_state.get("desc_popup"):
@@ -1421,8 +1486,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"❌ Errore export PDF: {e}")
 
     st.markdown('</div>', unsafe_allow_html=True)
-
-
 
 # =====================================
 # PAGINA RECALL E VISITE (aggiornata e coerente)
@@ -1746,7 +1809,6 @@ def main():
     # --- Esegui la pagina scelta ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
-
 
 # =====================================
 # AVVIO

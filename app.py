@@ -1003,25 +1003,30 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     
             doc = Document(tpl_path)
     
-            # Sostituzione segnaposti
-            mappa = {
-                "CLIENTE": nome_cliente,
-                "INDIRIZZO": cliente.get("Indirizzo", ""),
-                "CITTA": cliente.get("CITTA", ""),
-                "NUMERO_OFFERTA": num_off,
-                "DATA": datetime.now().strftime("%d/%m/%Y"),
-                "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
-                "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
-                "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
-                "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
-            }
-    
-            for p in doc.paragraphs:
-                for k, v in mappa.items():
-                    if f"<<{k}>>" in p.text:
-                        for run in p.runs:
-                            run.text = run.text.replace(f"<<{k}>>", str(v))
-    
+            # === Sostituzione segnaposti (versione robusta con gestione CITTA) ===
+mappa = {
+····"CLIENTE": nome_cliente,
+····"INDIRIZZO": str(cliente.get("Indirizzo", "")).strip(),
+····# Gestione robusta della città: accetta varianti, toglie spazi e mette in maiuscolo
+····"CITTA": str(
+········cliente.get("Citta", cliente.get("CITTÀ", cliente.get("Citta ", "")))
+····).strip().upper(),
+····"NUMERO_OFFERTA": num_off,
+····"DATA": datetime.now().strftime("%d/%m/%Y"),
+····"ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
+····"PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
+····"ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
+····"PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
+}
+
+# Sostituzione più tollerante nei paragrafi (gestisce anche << CITTA >> con spazi)
+for p in doc.paragraphs:
+····for k, v in mappa.items():
+········if f"<<{k}>>" in p.text or f"<< {k} >>" in p.text:
+············for run in p.runs:
+················run.text = run.text.replace(f"<<{k}>>", str(v))
+················run.text = run.text.replace(f"<< {k} >>", str(v))
+
             out_path = PREVENTIVI_DIR / nome_file
             doc.save(out_path)
     

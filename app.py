@@ -241,7 +241,9 @@ def load_clienti() -> pd.DataFrame:
 
     # Conversione sicura delle date
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        df[c] = to_date_series(df[c])
+        df[c] = fix_inverted_dates(df[c], col_name=c)
+
+    save_clienti(df)
 
     return df
 

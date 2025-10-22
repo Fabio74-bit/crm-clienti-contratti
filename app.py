@@ -1431,103 +1431,193 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # === CARD: ESPORTAZIONI ===
+        # === CARD: ESPORTAZIONI (Excel + PDF migliorati) ===
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("<h3>📤 Esportazioni</h3>", unsafe_allow_html=True)
     cex1, cex2 = st.columns(2)
 
+    # ======================================================
+    #  EXPORT EXCEL PROFESSIONALE (A4 landscape)
+    # ======================================================
     with cex1:
-        # Excel (come tua versione)
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
         from openpyxl.utils import get_column_letter
         from io import BytesIO
+
         try:
             disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-            disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-            disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+            if disp.empty:
+                st.info("Nessun contratto da esportare.")
+            else:
+                disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+                disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+                disp = disp[
+                    [
+                        "NumeroContratto",
+                        "DataInizio",
+                        "DataFine",
+                        "Durata",
+                        "DescrizioneProdotto",
+                        "NOL_FIN",
+                        "NOL_INT",
+                        "TotRata",
+                        "CopieBN",
+                        "EccBN",
+                        "CopieCol",
+                        "EccCol",
+                        "Stato",
+                    ]
+                ]
 
-            wb = Workbook()
-            ws = wb.active
-            ws.title = f"Contratti {rag_soc}"
-            ws.merge_cells("A1:M1")
-            title = ws["A1"]; title.value = f"Contratti - {rag_soc}"
-            title.font = Font(size=12, bold=True, color="2563EB")
-            title.alignment = Alignment(horizontal="center", vertical="center")
-            ws.append([])
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "Contratti"
 
-            headers = list(disp.columns)
-            ws.append(headers)
-            bold = Font(bold=True, color="FFFFFF")
-            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            thin = Border(left=Side(style="thin"), right=Side(style="thin"),
-                          top=Side(style="thin"), bottom=Side(style="thin"))
-            fill = PatternFill("solid", fgColor="2563EB")
-            for i_h, h in enumerate(headers, 1):
-                c = ws.cell(row=2, column=i_h); c.font, c.fill, c.alignment, c.border = bold, fill, center, thin
-            for _, rr in disp.iterrows():
-                ws.append([str(rr.get(h, "")) for h in headers])
-            for i_c in range(1, ws.max_column + 1):
-                width = max(len(str(ws.cell(row=j, column=i_c).value)) for j in range(1, ws.max_row + 1)) + 2
-                ws.column_dimensions[get_column_letter(i_c)].width = min(width, 50)
+                # Imposta orientamento orizzontale (landscape)
+                ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+                ws.page_setup.paperSize = ws.PAPERSIZE_A4
 
-            bio = BytesIO(); wb.save(bio)
-            st.download_button(
-                "📘 Esporta Excel",
-                bio.getvalue(),
-                file_name=f"contratti_{rag_soc}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key=f"xlsx_{sel_id}"
-            )
+                # === Titolo cliente ===
+                ws.merge_cells("A1:M1")
+                t = ws["A1"]
+                t.value = f"Contratti Cliente: {rag_soc}"
+                t.font = Font(bold=True, color="2563EB", size=14)
+                t.alignment = Alignment(horizontal="center", vertical="center")
+                ws.row_dimensions[1].height = 25
+                ws.append([])
+
+                # === Intestazioni ===
+                headers = list(disp.columns)
+                ws.append(headers)
+                head_font = Font(bold=True, color="FFFFFF", size=11)
+                head_fill = PatternFill("solid", fgColor="2563EB")
+                center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                thin = Border(
+                    left=Side(style="thin"),
+                    right=Side(style="thin"),
+                    top=Side(style="thin"),
+                    bottom=Side(style="thin"),
+                )
+
+                for col_num, h in enumerate(headers, 1):
+                    c = ws.cell(row=3, column=col_num)
+                    c.font = head_font
+                    c.fill = head_fill
+                    c.alignment = center
+                    c.border = thin
+
+                # === Dati contratti ===
+                for i, row in disp.iterrows():
+                    ws.append([str(row.get(h, "")) for h in headers])
+                    r_idx = ws.max_row
+                    stato = str(row.get("Stato", "")).lower()
+
+                    for col_idx in range(1, len(headers) + 1):
+                        c = ws.cell(row=r_idx, column=col_idx)
+                        c.alignment = center
+                        c.border = thin
+                        if stato == "chiuso":
+                            c.fill = PatternFill("solid", fgColor="FFCDD2")  # rosso chiaro
+
+                # === Larghezze colonne ===
+                for i, col in enumerate(headers, 1):
+                    max_len = max(len(str(ws.cell(row=j, column=i).value or "")) for j in range(1, ws.max_row + 1))
+                    ws.column_dimensions[get_column_letter(i)].width = min(max_len + 4, 50)
+
+                # === Esporta ===
+                bio = BytesIO()
+                wb.save(bio)
+                st.download_button(
+                    "📘 Esporta Excel",
+                    bio.getvalue(),
+                    file_name=f"Contratti_{rag_soc}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key=f"xlsx_{sel_id}",
+                )
         except Exception as e:
             st.error(f"❌ Errore export Excel: {e}")
 
+    # ======================================================
+    #  EXPORT PDF PROFESSIONALE (A4 landscape)
+    # ======================================================
     with cex2:
-        # PDF (come tua versione)
+        from fpdf import FPDF
         from io import BytesIO
+
         try:
             disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-            pdf = FPDF(orientation="L", unit="mm", format="A4")
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 10, safe_text(f"Contratti - {rag_soc}"), ln=1, align="C")
-            pdf.ln(3)
+            if disp.empty:
+                st.info("Nessun contratto da esportare.")
+            else:
+                disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+                disp["DataFine"] = disp["DataFine"].apply(fmt_date)
 
-            pdf.set_font("Arial", "B", 9)
-            headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata",
-                       "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Stato"]
-            widths = [25, 25, 25, 15, 90, 20, 20, 25, 25]
-            pdf.set_fill_color(37, 99, 235)
-            pdf.set_text_color(255)
-            for ii, h in enumerate(headers):
-                pdf.cell(widths[ii], 7, safe_text(h), border=1, align="C", fill=True)
-            pdf.ln()
-            pdf.set_text_color(0)
-            pdf.set_font("Arial", "", 8)
+                pdf = FPDF(orientation="L", unit="mm", format="A4")
+                pdf.add_page()
+                pdf.set_font("Arial", "B", 14)
+                pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
+                pdf.ln(3)
 
-            for _, row in disp.iterrows():
-                vals = [safe_text(str(row.get(h, ""))) for h in headers]
-                y_start = pdf.get_y(); x_start = pdf.get_x()
-                for ii, v in enumerate(vals):
-                    align = "L" if headers[ii] == "DescrizioneProdotto" else "C"
-                    if headers[ii] == "DescrizioneProdotto":
-                        pdf.multi_cell(widths[ii], 5, v, border=1, align=align)
-                        x_start += widths[ii]; pdf.set_xy(x_start, y_start)
-                    else:
-                        pdf.cell(widths[ii], 5, v, border=1, align=align)
-                        x_start += widths[ii]; pdf.set_xy(x_start, y_start)
+                # === Intestazioni ===
+                headers = [
+                    "NumeroContratto",
+                    "DataInizio",
+                    "DataFine",
+                    "Durata",
+                    "DescrizioneProdotto",
+                    "NOL_FIN",
+                    "NOL_INT",
+                    "TotRata",
+                    "CopieBN",
+                    "EccBN",
+                    "CopieCol",
+                    "EccCol",
+                    "Stato",
+                ]
+                widths = [25, 25, 25, 15, 65, 18, 18, 22, 20, 22, 20, 22, 20]
+
+                pdf.set_fill_color(37, 99, 235)
+                pdf.set_text_color(255)
+                pdf.set_font("Arial", "B", 9)
+                for i, h in enumerate(headers):
+                    pdf.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
                 pdf.ln()
 
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-            st.download_button(
-                "📗 Esporta PDF",
-                data=pdf_bytes,
-                file_name=f"contratti_{rag_soc}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                key=f"pdf_{sel_id}"
-            )
+                # === Dati ===
+                pdf.set_font("Arial", "", 8)
+                pdf.set_text_color(0)
+
+                for _, row in disp.iterrows():
+                    stato = str(row.get("Stato", "")).lower()
+                    if stato == "chiuso":
+                        pdf.set_fill_color(255, 205, 210)  # rosso chiaro per contratti chiusi
+                        fill = True
+                    else:
+                        fill = False
+
+                    vals = [safe_text(str(row.get(h, ""))) for h in headers]
+                    y_start = pdf.get_y()
+                    x_start = pdf.get_x()
+
+                    for i, v in enumerate(vals):
+                        align = "L" if headers[i] == "DescrizioneProdotto" else "C"
+                        pdf.multi_cell(widths[i], 5, v, border=1, align=align, fill=fill)
+                        x_start += widths[i]
+                        pdf.set_xy(x_start, y_start)
+                    pdf.ln()
+
+                # === Output ===
+                pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+                st.download_button(
+                    "📗 Esporta PDF",
+                    data=pdf_bytes,
+                    file_name=f"Contratti_{rag_soc}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key=f"pdf_{sel_id}",
+                )
         except Exception as e:
             st.error(f"❌ Errore export PDF: {e}")
 

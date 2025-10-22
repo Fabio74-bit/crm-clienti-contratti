@@ -740,24 +740,33 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cdel1, cdel2 = st.columns(2)
 
         with cdel1:
-            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
-                try:
-                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
-                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
-        
-                    # 💾 SALVATAGGIO DIRETTO (forzato)
-                    df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-                    df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-        
-                    st.session_state.pop("confirm_delete_cliente", None)
-                    st.session_state["nav_target"] = "Clienti"
-        
-                    st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
-                    time.sleep(0.5)
-                    st.rerun()
+    if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
+        try:
+            # 1) Crea i nuovi df SENZA il cliente
+            df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
+            df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != str(sel_id)].copy()
 
-                except Exception as e:
-                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+            # 2) 💾 SALVATAGGIO FORZATO su disco (senza confronti)
+            df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+            df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+
+            # 3) 🔄 Flush + pulizia cache letture
+            import io
+            io.open(CLIENTI_CSV, "r").close()
+            io.open(CONTRATTI_CSV, "r").close()
+            try:
+                st.cache_data.clear()
+            except Exception:
+                pass
+
+            # 4) Aggiorna stato UI
+            st.session_state.pop("confirm_delete_cliente", None)
+            st.session_state["nav_target"] = "Clienti"
+            st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
+            time.sleep(0.5)
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Errore durante l'eliminazione: {e}")
 
 
         with cdel2:

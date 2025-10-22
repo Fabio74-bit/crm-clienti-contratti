@@ -1248,46 +1248,60 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     h7.markdown("<div class='tbl-head'>Descrizione</div>", unsafe_allow_html=True)
     h8.markdown("<div class='tbl-head'>Azioni</div>", unsafe_allow_html=True)
 
-        # === RIGHE CONTRATTI ===
-    for i, r in ct.reset_index().iterrows():
-        # Chiave univoca sicura
-        rid = f"{r['ClienteID']}_{r['NumeroContratto']}_{i}".replace("/", "_").replace(" ", "_")
+        # === RIGHE CONTRATTI (con evidenza visiva contratti chiusi) ===
+for i, r in ct.reset_index().iterrows():
+    # Chiave univoca sicura
+    rid = f"{r['ClienteID']}_{r['NumeroContratto']}_{i}".replace("/", "_").replace(" ", "_")
 
-        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 0.9, 0.9, 0.6, 1.2, 0.8, 2.0, 0.9])
-        with c1: st.markdown(f"<div class='tbl-row'>{r.get('NumeroContratto','')}</div>", unsafe_allow_html=True)
-        with c2: st.markdown(f"<div class='tbl-row'>{r.get('DataInizio','')}</div>", unsafe_allow_html=True)
-        with c3: st.markdown(f"<div class='tbl-row'>{r.get('DataFine','')}</div>", unsafe_allow_html=True)
-        with c4: st.markdown(f"<div class='tbl-row'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
-        with c5: st.markdown(f"<div class='tbl-row'>{r.get('TotRata','')}</div>", unsafe_allow_html=True)
-        stato_tag = (
-            "<span class='pill-open'>Aperto</span>"
-            if str(r.get("Stato", "")).lower() != "chiuso"
-            else "<span class='pill-closed'>Chiuso</span>"
-        )
-        with c6: st.markdown(f"<div class='tbl-row'>{stato_tag}</div>", unsafe_allow_html=True)
+    # Colore riga: rosso chiaro se chiuso, altrimenti alternato
+    stato = str(r.get("Stato", "")).lower()
+    bg = "#ffebee" if stato == "chiuso" else ("#f8fbff" if i % 2 == 0 else "#ffffff")
 
-        desc_short = str(r.get("DescrizioneProdotto", "")) or "—"
-        if len(desc_short) > 80:
-            desc_short = desc_short[:80] + "…"
+    c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 0.9, 0.9, 0.6, 1.2, 0.8, 2.0, 0.9])
+    with c1:
+        st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','')}</div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('DataInizio','')}</div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('DataFine','')}</div>", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
+    with c5:
+        st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('TotRata','')}</div>", unsafe_allow_html=True)
 
-        with c7:
-            if st.button(desc_short, key=f"desc_{rid}", use_container_width=True):
-                st.session_state["desc_popup"] = r.get("DescrizioneProdotto", "")
-                st.session_state["desc_popup_title"] = r.get("NumeroContratto", "")
-                st.rerun()
+    stato_tag = (
+        "<span class='pill-open'>Aperto</span>"
+        if stato != "chiuso"
+        else "<span class='pill-closed'>Chiuso</span>"
+    )
+    with c6:
+        st.markdown(f"<div style='background:{bg};padding:6px'>{stato_tag}</div>", unsafe_allow_html=True)
 
-        with c8:
-            colE, colD = st.columns(2)
-            if colE.button("✏️", key=f"edit_{rid}", use_container_width=True):
-                st.session_state["edit_index"] = i
-                st.rerun()
+    desc_short = str(r.get("DescrizioneProdotto", "")) or "—"
+    if len(desc_short) > 80:
+        desc_short = desc_short[:80] + "…"
 
-            if colD.button("🗑️", key=f"del_{rid}", use_container_width=True):
-                st.session_state["delete_index"] = i
-                st.session_state["ask_delete_now"] = True
-                st.rerun()
+    with c7:
+        st.markdown(f"<div style='background:{bg};padding:6px'>", unsafe_allow_html=True)
+        if st.button(desc_short, key=f"desc_{rid}", use_container_width=True):
+            st.session_state["desc_popup"] = r.get("DescrizioneProdotto", "")
+            st.session_state["desc_popup_title"] = r.get("NumeroContratto", "")
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    with c8:
+        st.markdown(f"<div style='background:{bg};padding:6px'>", unsafe_allow_html=True)
+        colE, colD = st.columns(2)
+        if colE.button("✏️", key=f"edit_{rid}", use_container_width=True):
+            st.session_state["edit_index"] = i
+            st.rerun()
+        if colD.button("🗑️", key=f"del_{rid}", use_container_width=True):
+            st.session_state["delete_index"] = i
+            st.session_state["ask_delete_now"] = True
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
 
     # === MODIFICA CONTRATTO SELEZIONATO ===
     if st.session_state.get("edit_index") is not None:
@@ -1671,7 +1685,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 for _, row in disp.iterrows():
                     vals = [row.get(h, "") for h in headers]
                     stato_chiuso = str(row.get("Stato", "")).lower() == "chiuso"
-                    pdf.row(vals, widths, line_h=5, fill=stato_chiuso, align_desc="L")
+                    pdf.row(vals, widths, line_h=6, fill=stato_chiuso, align_desc="L")
 
                 # Output
                 pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")

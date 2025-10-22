@@ -116,34 +116,56 @@ def ensure_columns(df, cols):
         if c not in df.columns:
             df[c] = pd.NA
     return df[cols]
-def fix_inverted_dates(series: pd.Series) -> pd.Series:
-    """Corregge le date invertite (MM/DD/YYYY ↔ DD/MM/YYYY) in automatico."""
+def fix_inverted_dates(series: pd.Series, col_name: str = "") -> pd.Series:
+    """
+    Corregge automaticamente le date invertite (MM/DD/YYYY → DD/MM/YYYY)
+    e mostra un log nel frontend Streamlit.
+    """
     fixed = []
-    for val in series: 
+    fixed_count = 0
+    total = len(series)
+
+    for val in series:
         if pd.isna(val) or str(val).strip() == "":
             fixed.append("")
             continue
 
         s = str(val).strip()
-        # Se contiene / o - lo trattiamo come data
-        if "/" in s or "-" in s:
-            try:
-                # Prima prova: formato italiano
-                d = pd.to_datetime(s, dayfirst=True, errors="coerce")
-                if pd.isna(d):
-                    # fallback formato americano
-                    d = pd.to_datetime(s, dayfirst=False, errors="coerce")
+        parsed = None
 
-                # Corregge se il giorno > 12 e il mese < 12 (inversione)
-                if not pd.isna(d):
-                    fixed.append(d.strftime("%d/%m/%Y"))
+        try:
+            # 1️⃣ Tentativo in formato italiano
+            d1 = pd.to_datetime(s, dayfirst=True, errors="coerce")
+            # 2️⃣ Tentativo in formato americano
+            d2 = pd.to_datetime(s, dayfirst=False, errors="coerce")
+
+            # Se entrambe valide e diverse → probabile inversione
+            if not pd.isna(d1) and not pd.isna(d2) and d1 != d2:
+                if d1.day <= 12 and d2.day > 12:
+                    parsed = d2
+                    fixed_count += 1
                 else:
-                    fixed.append("")
-            except Exception:
-                fixed.append("")
+                    parsed = d1
+            elif not pd.isna(d1):
+                parsed = d1
+            elif not pd.isna(d2):
+                parsed = d2
+            else:
+                parsed = None
+        except Exception:
+            parsed = None
+
+        if parsed is not None:
+            fixed.append(parsed.strftime("%d/%m/%Y"))
         else:
             fixed.append("")
+
+    # Mostra log su Streamlit (solo se ha corretto qualcosa)
+    if fixed_count > 0:
+        st.info(f"🔄 {fixed_count}/{total} date corrette automaticamente nella colonna **{col_name}**.")
+
     return pd.Series(fixed)
+
 # =====================================
 # CARICAMENTO E SALVATAGGIO DATI
 # =====================================
@@ -259,7 +281,8 @@ def load_contratti() -> pd.DataFrame:
 
     # Conversione date coerente
     for c in ["DataInizio", "DataFine"]:
-        df[c] = fix_inverted_dates(df[c])
+        df[c] = fix_inverted_dates(df[c], col_name=c)
+
 
 
     return df
@@ -350,6 +373,7 @@ def load_contratti() -> pd.DataFrame:
     # Conversione date coerente
     for c in ["DataInizio", "DataFine"]:
         df[c] = to_date_series(df[c])
+    save_contratti(df)
 
     return df
 

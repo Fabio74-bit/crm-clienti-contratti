@@ -1051,7 +1051,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
 
 
-# === ELENCO PREVENTIVI ===
+# === ELENCO PREVENTIVI === 
     st.divider()
     st.markdown("### 📂 Elenco Preventivi Cliente")
     

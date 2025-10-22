@@ -861,7 +861,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.info("Operazione annullata.")
                 st.rerun()
 
-         # === INFO RAPIDE (NUOVO LAYOUT CON PULSANTI COLORATI) ===
+ # === INFO RAPIDE (NUOVO LAYOUT CON PULSANTI COLORATI + CARD) ===
 st.markdown("""
 <style>
 /* --- Card contenitore --- */
@@ -874,6 +874,7 @@ st.markdown("""
     margin-bottom: 1.5rem;
     font-size: 15px;
     line-height: 1.7;
+    border-left: 5px solid #2563eb;
 }
 /* --- Titolo e label --- */
 .info-title {
@@ -882,13 +883,9 @@ st.markdown("""
     font-weight: 600;
     margin-bottom: 0.6rem;
 }
-.info-item {
-    margin-bottom: 0.3rem;
-}
-.info-label {
-    font-weight: 600;
-    color: #0d1117;
-}
+.info-item { margin-bottom: 0.3rem; }
+.info-label { font-weight: 600; color: #0d1117; }
+
 /* --- Pulsanti personalizzati --- */
 .btn-blue > button {
     background-color: #e3f2fd !important;

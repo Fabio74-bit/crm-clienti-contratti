@@ -727,50 +727,35 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cdel1, cdel2 = st.columns(2)
 
         with cdel1:
-            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
-                try:
-                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
-                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
-            
-                    save_clienti(df_cli_new)
-                    save_contratti(df_ct_new)
-            
-                    # 🔄 Forza aggiornamento immediato e pulizia cache
-                    import os, io
-                    io.open(CLIENTI_CSV, "r").close()
-                    io.open(CONTRATTI_CSV, "r").close()
-                    st.cache_data.clear()
-                    st.session_state.pop("confirm_delete_cliente", None)
-                    st.session_state["nav_target"] = "Clienti"
-            
-                    st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
-                    time.sleep(0.6)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+    if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
+        try:
+            df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
+            df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
 
-                try:
-                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
-                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
+            save_clienti(df_cli_new)
+            save_contratti(df_ct_new)
 
-                    save_clienti(df_cli_new)
-                    save_contratti(df_ct_new)
+            # 🔄 Forza aggiornamento immediato e pulizia cache
+            import os, io
+            io.open(CLIENTI_CSV, "r").close()
+            io.open(CONTRATTI_CSV, "r").close()
+            st.cache_data.clear()
+            st.session_state.pop("confirm_delete_cliente", None)
+            st.session_state["nav_target"] = "Clienti"
 
-                    st.session_state.pop("confirm_delete_cliente", None)
-                    st.success("🗑️ Cliente e contratti eliminati con successo!")
-                    st.session_state["nav_target"] = "Clienti"
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+            st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
+            time.sleep(0.6)
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Errore durante l'eliminazione: {e}")
+
 
         with cdel2:
             if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
                 st.session_state.pop("confirm_delete_cliente", None)
                 st.info("Operazione annullata.")
                 st.rerun()
-
-
-
 
     # === INFO RAPIDE ===
     st.markdown(

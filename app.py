@@ -756,7 +756,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     time.sleep(0.5)
                     st.rerun()
 
-            except Exception as e:
+                except Exception as e:
                     st.error(f"❌ Errore durante l'eliminazione: {e}")
 
 

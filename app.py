@@ -669,6 +669,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
             with col5:
                 if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                    # 🔹 Pulisce eventuali flag di modifica prima di cambiare pagina
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
+                            del st.session_state[k]
+
                     st.session_state.update({
                         "selected_cliente": str(r.get("ClienteID")),
                         "nav_target": "Contratti",
@@ -705,7 +710,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         contratti_senza_fine["DataInizio"] = contratti_senza_fine["DataInizio"].apply(fmt_date)
         contratti_senza_fine = contratti_senza_fine.sort_values("DataInizio", ascending=False)
 
-        # Visualizzazione
+        # Intestazione
         head_cols = st.columns([2.5, 1, 1.2, 2.5, 0.8])
         head_cols[0].markdown("**Cliente**")
         head_cols[1].markdown("**Contratto**")
@@ -715,6 +720,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown("---")
 
+        # Righe
         for i, r in contratti_senza_fine.iterrows():
             bg = "#fffdf5" if i % 2 == 0 else "#ffffff"
             col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
@@ -731,12 +737,18 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.markdown(f"<div style='background:{bg};padding:6px'>{desc}</div>", unsafe_allow_html=True)
             with col5:
                 if st.button("📂 Apri", key=f"open_ndf_{i}", use_container_width=True):
+                    # 🔹 Pulisce eventuali flag di modifica prima di cambiare pagina
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
+                            del st.session_state[k]
+
                     st.session_state.update({
                         "selected_cliente": str(r.get("ClienteID")),
                         "nav_target": "Contratti",
                         "_go_contratti_now": True
                     })
                     st.rerun()
+
 
 
 # =====================================

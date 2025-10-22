@@ -187,7 +187,7 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
 
 
 def save_if_changed(df_new, path: Path, original_df):
-    \"\"\"Salva solo se i dati sono effettivamente cambiati.\"\"\"
+    """Salva solo se i dati sono effettivamente cambiati."""
     import pandas as pd
     try:
         if not original_df.equals(df_new):

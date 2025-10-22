@@ -522,31 +522,30 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")
-
+            
             colc1, colc2, colc3 = st.columns(3)
             num = colc1.text_input("📄 Numero Contratto")
             data_inizio = colc2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
             durata = colc3.selectbox("📆 Durata (mesi)", DURATE_MESI, index=2)
-
+            
             desc = st.text_area("🧾 Descrizione Prodotto", height=80)
-
+            
             colp1, colp2, colp3 = st.columns(3)
             nf = colp1.text_input("🏦 NOL_FIN")
             ni = colp2.text_input("🏢 NOL_INT")
             tot = colp3.text_input("💰 Tot Rata")
+            
+            # 🔹 Copie e costi extra nello stesso blocco (senza intestazione e senza + / -)
+            colx1, colx2, colx3, colx4 = st.columns(4)
+            with colx1:
+                copie_bn = st.text_input("📄 Copie incluse B/N", value="", key="copie_bn")
+            with colx2:
+                ecc_bn = st.text_input("💰 Costo extra B/N (€)", value="", key="ecc_bn")
+            with colx3:
+                copie_col = st.text_input("🖨️ Copie incluse Colore", value="", key="copie_col")
+            with colx4:
+                ecc_col = st.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
 
-            # === NUOVI CAMPI: COPIE / COSTI EXTRA ===
-            st.divider()
-            st.markdown("##### 🖨️ Impostazioni copie e costi extra")
-            coln1, coln2, coln3, coln4 = st.columns(4)
-            with coln1:
-                copie_bn = st.number_input("📄 Copie incluse B/N", min_value=0, step=1, key="copie_bn")
-            with coln2:
-                ecc_bn = st.number_input("💰 Costo extra B/N (€)", min_value=0.0, step=0.01, format="%.2f", key="ecc_bn")
-            with coln3:
-                copie_col = st.number_input("🖨️ Copie incluse Colore", min_value=0, step=1, key="copie_col")
-            with coln4:
-                ecc_col = st.number_input("💰 Costo extra Colore (€)", min_value=0.0, step=0.01, format="%.2f", key="ecc_col")
 
             # === SALVA CLIENTE + CONTRATTO ===
             if st.form_submit_button("💾 Crea Cliente e Contratto"):

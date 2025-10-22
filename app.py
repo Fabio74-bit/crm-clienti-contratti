@@ -1503,6 +1503,12 @@ def main():
         st.session_state["_go_clienti_now"] = False
         page = "Clienti"
     df_cli, df_ct = load_clienti(), load_contratti()
+
+    # 🔄 Corregge e salva automaticamente eventuali date invertite nei CSV
+    save_clienti(df_cli)
+    save_contratti(df_ct)
+    st.toast("🔄 Date corrette e salvate automaticamente nei file CSV.", icon="✅")
+    
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
 

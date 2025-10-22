@@ -745,8 +745,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
                     df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
         
-                    changed_cli = save_if_changed(df_cli_new, CLIENTI_CSV, df_cli)
-                    changed_ct = save_if_changed(df_ct_new, CONTRATTI_CSV, df_ct)
+                    original_cli = pd.read_csv(CLIENTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+                    original_ct = pd.read_csv(CONTRATTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+
+                    changed_cli = save_if_changed(df_cli_new, CLIENTI_CSV, original_cli)
+                    changed_ct = save_if_changed(df_ct_new, CONTRATTI_CSV, original_ct)
+
+                    
         
                     # 🔄 Forza aggiornamento immediato e pulizia cache
                     import os, io

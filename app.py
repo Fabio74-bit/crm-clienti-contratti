@@ -116,7 +116,34 @@ def ensure_columns(df, cols):
         if c not in df.columns:
             df[c] = pd.NA
     return df[cols]
+def fix_inverted_dates(series: pd.Series) -> pd.Series:
+    """Corregge le date invertite (MM/DD/YYYY ↔ DD/MM/YYYY) in automatico."""
+    fixed = []
+    for val in series:
+        if pd.isna(val) or str(val).strip() == "":
+            fixed.append("")
+            continue
 
+        s = str(val).strip()
+        # Se contiene / o - lo trattiamo come data
+        if "/" in s or "-" in s:
+            try:
+                # Prima prova: formato italiano
+                d = pd.to_datetime(s, dayfirst=True, errors="coerce")
+                if pd.isna(d):
+                    # fallback formato americano
+                    d = pd.to_datetime(s, dayfirst=False, errors="coerce")
+
+                # Corregge se il giorno > 12 e il mese < 12 (inversione)
+                if not pd.isna(d):
+                    fixed.append(d.strftime("%d/%m/%Y"))
+                else:
+                    fixed.append("")
+            except Exception:
+                fixed.append("")
+        else:
+            fixed.append("")
+    return pd.Series(fixed)
 # =====================================
 # CARICAMENTO E SALVATAGGIO DATI
 # =====================================
@@ -232,7 +259,8 @@ def load_contratti() -> pd.DataFrame:
 
     # Conversione date coerente
     for c in ["DataInizio", "DataFine"]:
-        df[c] = to_date_series(df[c])
+        df[c] = fix_inverted_dates(df[c])
+
 
     return df
 

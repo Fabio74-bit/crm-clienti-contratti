@@ -643,32 +643,94 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
         scadenze = scadenze.sort_values("DataFine")
 
-        st.markdown(f"**🔢 {len(scadenze)} contratti in scadenza entro 6 mesi:**")
+        st.markdown(f"📅 <b>{len(scadenze)} contratti in scadenza entro 6 mesi:</b>", unsafe_allow_html=True)
 
+        # --- Stile tabella ---
+        st.markdown("""
+        <style>
+        .scadenze-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        .scadenze-table th, .scadenze-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: left;
+            font-size: 15px;
+        }
+        .scadenze-table th {
+            background-color: #f9f9f9;
+            font-weight: 600;
+        }
+        .scadenze-table tr:hover {
+            background-color: #f2f8ff;
+        }
+        .open-btn {
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # --- Generazione tabella HTML ---
+        rows_html = ""
         for i, r in scadenze.iterrows():
             rag = r.get("RagioneSociale", "—")
             num = r.get("NumeroContratto", "—")
             fine = r.get("DataFine", "—")
             stato = r.get("Stato", "—")
 
-            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 0.8, 0.8])
-            with col1:
-                st.markdown(f"**{rag}**")
-                st.markdown(num or "—")
-            with col3:
-                st.markdown(fine or "—")
-            with col4:
-                st.markdown(stato or "—")
-            with col5:
-                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                    unique_id = f"{r.get('ClienteID')}_{r.get('NumeroContratto')}_{fmt_date(r.get('DataInizio'))}".lower().strip()
-                    st.session_state.update({
-                        "selected_cliente": str(r.get("ClienteID")),
-                        "selected_contract_uid": unique_id,
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
-                    st.rerun()
+            # Crea una chiave univoca
+            uid = f"{r.get('ClienteID')}_{r.get('NumeroContratto')}_{fmt_date(r.get('DataInizio'))}".lower().strip()
+
+            # Righe HTML
+            rows_html += f"""
+            <tr>
+                <td><b>{rag}</b></td>
+                <td>{num or "—"}</td>
+                <td>{fine or "—"}</td>
+                <td>{stato or "—"}</td>
+                <td>
+                    <button class="open-btn" onClick="window.location.reload()">📂 Apri</button>
+                </td>
+            </tr>
+            """
+
+        # --- Mostra tabella ---
+        st.markdown(
+            f"""
+            <table class="scadenze-table">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Contratto</th>
+                        <th>Scadenza</th>
+                        <th>Stato</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # --- Gestione pulsanti Apri (uno per volta) ---
+        for i, r in scadenze.iterrows():
+            if st.button(f"Apri contratto {r.get('NumeroContratto')}", key=f"btn_open_{i}", help=f"Apri {r.get('RagioneSociale')}"):
+                st.session_state.update({
+                    "selected_cliente": str(r.get("ClienteID")),
+                    "nav_target": "Contratti",
+                    "_go_contratti_now": True
+                })
+                st.rerun()
 
 
     # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===

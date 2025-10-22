@@ -701,11 +701,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         table_html += "</tbody></table>"
 
-        st.markdown(table_html, unsafe_allow_html=True)
+       st.markdown(table_html, unsafe_allow_html=True)
 
-        # --- Pulsanti "Apri" funzionanti (Streamlit) ---
         for i, r in scadenze.iterrows():
-            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.7])
+            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
             with col1:
                 st.markdown(f"**{r.get('RagioneSociale', '—')}**")
             with col2:
@@ -722,6 +721,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "_go_contratti_now": True
                     })
                     st.rerun()
+
 
 
         # --- Gestione pulsanti Apri (uno per volta) ---

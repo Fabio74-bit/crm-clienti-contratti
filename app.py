@@ -1355,11 +1355,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.rerun()
 
             st.markdown('</div>', unsafe_allow_html=True)
-        # === ESPORTAZIONI (Excel + PDF migliorati) ===
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("<h3>📤 Esportazioni</h3>", unsafe_allow_html=True)
-    cex1, cex2 = st.columns(2)
-
+  
     # --- EXCEL ---
     with cex1:
         from openpyxl import Workbook

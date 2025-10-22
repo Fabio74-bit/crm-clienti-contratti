@@ -1007,7 +1007,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             mappa = {
                 "CLIENTE": nome_cliente,
                 "INDIRIZZO": cliente.get("Indirizzo", ""),
-                "CITTA": cliente.get("Citta", ""),
+                "CITTA": cliente.get("CITTA", ""),
                 "NUMERO_OFFERTA": num_off,
                 "DATA": datetime.now().strftime("%d/%m/%Y"),
                 "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),

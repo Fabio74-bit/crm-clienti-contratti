@@ -1189,7 +1189,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     contr_sel_label = st.selectbox("Seleziona contratto:", options, index=0, key=f"sel_cont_{sel_id}")
     selected_row = ct.iloc[options.index(contr_sel_label)]
 
-    with st.expander("✏️ Modifica contratto selezionato", expanded=True):
+    with st.expander("✏️ Modifica Contratto", expanded=st.session_state.get(f"edit_ct_{id}", False)):
+
         with st.form(f"frm_edit_cont_{sel_id}_{contr_sel_label}"):
             col1, col2, col3 = st.columns(3)
             din = col1.date_input("Data Inizio", value=safe_date(selected_row.get("DataInizio")), format="DD/MM/YYYY")

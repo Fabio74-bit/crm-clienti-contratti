@@ -186,15 +186,23 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
     out.to_csv(path, index=False, encoding="utf-8-sig")
 
 # =====================================
-# FUNZIONI DI SALVATAGGIO DEDICATE
+# FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
 # =====================================
 def save_clienti(df: pd.DataFrame):
-    """Salva il CSV clienti con formattazione coerente."""
+    """Salva il CSV clienti correggendo e formattando le date."""
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        if c in df.columns:
+            df[c] = fix_inverted_dates(df[c], col_name=c)
     save_csv(df, CLIENTI_CSV, date_cols=["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"])
 
+
 def save_contratti(df: pd.DataFrame):
-    """Salva il CSV contratti con formattazione coerente."""
+    """Salva il CSV contratti correggendo e formattando le date."""
+    for c in ["DataInizio", "DataFine"]:
+        if c in df.columns:
+            df[c] = fix_inverted_dates(df[c], col_name=c)
     save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
+
 # =====================================
 # CONVERSIONE SICURA DATE ITALIANE
 # =====================================
@@ -1484,8 +1492,11 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 def main():
     user, role = do_login_fullscreen()
-    if not user: st.stop()
+    if not user:
+        st.stop()
+
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
+
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -1493,22 +1504,50 @@ def main():
         "📅 Recall e Visite": page_richiami_visite,
         "📋 Lista Clienti": page_lista_clienti
     }
+
     default_page = st.session_state.pop("nav_target", "Dashboard")
-    page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()),
-                            index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0)
+    page = st.sidebar.radio(
+        "📂 Menu principale",
+        list(PAGES.keys()),
+        index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0
+    )
+
     if st.session_state.get("_go_contratti_now"):
         st.session_state["_go_contratti_now"] = False
         page = "Contratti"
+
     if st.session_state.get("_go_clienti_now"):
         st.session_state["_go_clienti_now"] = False
         page = "Clienti"
+
+    # Carica i CSV
     df_cli, df_ct = load_clienti(), load_contratti()
 
-    # 🔄 Corregge e salva automaticamente eventuali date invertite nei CSV
-    save_clienti(df_cli)
-    save_contratti(df_ct)
-    st.toast("🔄 Date corrette e salvate automaticamente nei file CSV.", icon="✅")
-    
+    # 🔄 Corregge e risalva eventuali date invertite PRIMA di passare alle pagine
+    try:
+        if not df_cli.empty:
+            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+                if c in df_cli.columns:
+                    df_cli[c] = fix_inverted_dates(df_cli[c])
+
+        if not df_ct.empty:
+            for c in ["DataInizio", "DataFine"]:
+                if c in df_ct.columns:
+                    df_ct[c] = fix_inverted_dates(df_ct[c])
+
+        save_clienti(df_cli)
+        save_contratti(df_ct)
+
+        # st.toast esiste solo su versioni recenti. Se non c'è, non blocchiamo l'app.
+        try:
+            st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
+        except Exception:
+            pass
+    except Exception as _:
+        # Se qualcosa va storto nella correzione, non bloccare la UI
+        st.warning("⚠️ Correzione automatica date non completata. Puoi continuare a usare l'app.")
+
+    # Esegui la pagina selezionata con i dataframe aggiornati
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
 

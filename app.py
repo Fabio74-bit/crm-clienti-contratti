@@ -1763,11 +1763,15 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with c3:
             st.markdown(r["ScadenzaBadge"], unsafe_allow_html=True)
         with c4:
-            tmk = r.get("TMK", "")
-            if tmk:
-                st.markdown(f"<span style='background:#e3f2fd;color:#0d47a1;padding:3px 8px;border-radius:8px;font-weight:600;'>{tmk}</span>", unsafe_allow_html=True)
-            else:
-                st.markdown("—")
+            tmk = str(r.get("TMK", "") or "").strip()
+            if tmk and tmk.lower() not in ["nan", "none", "nat"]:
+                st.markdown(
+            f"<span style='background:#e3f2fd;color:#0d47a1;padding:3px 8px;border-radius:8px;font-weight:600;'>{tmk}</span>",
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown("—")
+
         with c5:
             if st.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
                 st.session_state.update({

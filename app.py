@@ -1121,7 +1121,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “TABELLA PULITA + MODALE”
+# PAGINA CONTRATTI — VERSIONE 2025 “TABELLA PULITA + MODALE (STABILE)”
 # =====================================
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
@@ -1142,7 +1142,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     sel_id = clienti_ids[clienti_labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
-    # === Header e azione aggiunta ===
+    # === Header e pulsante aggiunta ===
     st.markdown(f"### 🏢 Cliente: **{rag_soc}**")
     st.markdown("<div style='text-align:right'>", unsafe_allow_html=True)
     if not permessi_limitati and st.button("➕ Aggiungi Contratto", key="btn_add_contract", use_container_width=False):
@@ -1151,74 +1151,77 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("</div>", unsafe_allow_html=True)
     st.divider()
 
-    # === Filtro contratti del cliente ===
+    # === Filtro contratti ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     if ct.empty:
         st.info("Nessun contratto registrato per questo cliente.")
         return
 
-    # === Formattazione e pulizia dati per AgGrid ===
+    # === Formattazione e pulizia ===
     for c in ["DataInizio", "DataFine"]:
         ct[c] = ct[c].apply(fmt_date)
 
-    # converte ogni valore in stringa per evitare MarshallComponentException
-    ct = ct.replace({pd.NA: "", "nan": "", "NaT": "", None: ""})
-    ct = ct.fillna("").astype(str)
+    # Rimozione valori problematici
+    ct = (
+        ct.replace({pd.NA: "", None: "", "NaT": "", "nan": ""})
+          .fillna("")
+    )
+
+    # Conversione totale in stringhe (JSON-safe)
+    for col in ct.columns:
+        ct[col] = ct[col].astype(str)
+
     ct = ct.sort_values("DataInizio", ascending=False)
 
-    # === Aggiungi colonna Azioni ===
-    ct["Azioni"] = ""
+    # === Aggiungi colonna pulsanti ===
+    ct["Azioni"] = [
+        f"""
+        <div style='text-align:center'>
+            <a href='?edit={r["NumeroContratto"]}' target='_self'>
+                <button style='background:#1976d2;color:white;border:none;border-radius:6px;padding:2px 6px;margin-right:4px;cursor:pointer'>✏️</button>
+            </a>
+            <a href='?close={r["NumeroContratto"]}' target='_self'>
+                <button style='background:#e53935;color:white;border:none;border-radius:6px;padding:2px 6px;cursor:pointer'>❌</button>
+            </a>
+        </div>
+        """ for _, r in ct.iterrows()
+    ]
 
     # === Configurazione AgGrid ===
     gb = GridOptionsBuilder.from_dataframe(ct)
     gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
-    gb.configure_column("Azioni", width=120, pinned="right",
-        cellRenderer=JsCode("""
-            function(params){
-                let stato = (params.data.Stato || '').toLowerCase();
-                let bg = stato === 'chiuso' ? '#ffebee' : '#ffffff';
-                let style = 'background:'+bg+';padding:2px 0;text-align:center;';
-                return `
-                    <div style="${style}">
-                        <button 
-                            style="background:#1976d2;color:white;border:none;border-radius:6px;padding:2px 6px;margin-right:4px;cursor:pointer"
-                            onClick="window.open('?edit='+params.data.NumeroContratto,'_self')">✏️</button>
-                        <button 
-                            style="background:#e53935;color:white;border:none;border-radius:6px;padding:2px 6px;cursor:pointer"
-                            onClick="window.open('?close='+params.data.NumeroContratto,'_self')">❌</button>
-                    </div>`;
-            }
-        """)
-    )
+    gb.configure_column("Azioni", width=130, pinned="right", cellRenderer=JsCode("function(params){return params.value;}"))
 
-    # === Colorazione righe (chiuso = rosso tenue) ===
-    gb.configure_grid_options(
-        getRowStyle=JsCode("""
-            function(params) {
-                if (params.data.Stato && params.data.Stato.toLowerCase() === 'chiuso') {
-                    return { backgroundColor: '#ffebee' }
-                }
-                return { backgroundColor: 'white' }
+    # Colorazione righe chiuse (rosso tenue)
+    row_style = JsCode("""
+        function(params) {
+            if (params.data.Stato && params.data.Stato.toLowerCase() === 'chiuso') {
+                return { 'backgroundColor': '#ffebee' };
             }
-        """),
+            return null;
+        }
+    """)
+    gb.configure_grid_options(
+        getRowStyle=row_style,
         domLayout="normal",
         ensureDomOrder=True,
         rowSelection="single"
     )
 
-    # === Mostra tabella contratti ===
-    grid = AgGrid(
+    # === Mostra tabella ===
+    AgGrid(
         ct,
         gridOptions=gb.build(),
-        height=420,
+        height=430,
         fit_columns_on_grid_load=True,
         update_mode=GridUpdateMode.NO_UPDATE,
+        allow_unsafe_jscode=True,
         theme="balham",
     )
 
     st.divider()
 
-    # === Gestione eventi (edit / close) ===
+    # === Gestione eventi ===
     query_params = st.experimental_get_query_params()
 
     # --- MODIFICA CONTRATTO ---
@@ -1240,7 +1243,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             df_ct.loc[idx[0], "Stato"] = "chiuso"
             save_contratti(df_ct)
             st.success(f"✅ Contratto {num_cont} chiuso correttamente.")
-            time.sleep(0.5)
+            time.sleep(0.4)
             st.experimental_set_query_params()
             st.rerun()
 

@@ -233,14 +233,32 @@ def ensure_columns(df,cols):
 # CACHE E SALVATAGGI OTTIMIZZATI
 # =====================================
 @st.cache_data(ttl=90)
-def load_csv(path:Path,cols:list[str])->pd.DataFrame:
-    """Carica CSV con cache (90 s) e colonne garantite."""
+def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
+    """Carica CSV in modo sicuro, anche se contiene righe o delimitatori errati."""
+    import pandas as pd
+
     if path.exists():
-        df=pd.read_csv(path,dtype=str,encoding="utf-8-sig").fillna("")
+        try:
+            # Parser flessibile: riconosce automaticamente ; o , e ignora righe danneggiate
+            df = pd.read_csv(
+                path,
+                dtype=str,
+                sep=None,              # autodetect ; or ,
+                engine="python",       # parser tollerante
+                encoding="utf-8-sig",
+                on_bad_lines="skip"    # salta righe problematiche invece di crashare
+            ).fillna("")
+        except Exception as e:
+            st.warning(f"⚠️ Errore nel parsing del file {path.name}: {e}")
+            df = pd.DataFrame(columns=cols)
     else:
-        df=pd.DataFrame(columns=cols)
-        df.to_csv(path,index=False,encoding="utf-8-sig")
-    return ensure_columns(df,cols)
+        # Se il file non esiste, lo crea vuoto con le intestazioni corrette
+        df = pd.DataFrame(columns=cols)
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+
+    # Garantisce che tutte le colonne standard siano sempre presenti
+    df = ensure_columns(df, cols)
+    return df
 
 def save_csv(df:pd.DataFrame,path:Path,date_cols=None):
     out=df.copy()

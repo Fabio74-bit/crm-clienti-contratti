@@ -529,10 +529,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 iban = st.text_input("🏦 IBAN")
                 sdi = st.text_input("📡 SDI")
                 note = st.text_area("📝 Note Cliente", height=70)
-            tmk = st.selectbox(
-                "👩‍💼 TMK di riferimento",
-                ["", "Giulia", "Antonella", "Annalisa", "Laura"],
-                index=0
+                tmk = st.selectbox(
+                    "👩‍💼 TMK di riferimento",
+                    ["", "Giulia", "Antonella", "Annalisa", "Laura"],
+                    index=0
             )
             # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")

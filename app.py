@@ -69,8 +69,10 @@ DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 CLIENTI_COLS = [
     "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
     "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
-    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita", "NoteCliente"
+    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
+    "TMK", "NoteCliente"
 ]
+
 
 CONTRATTI_COLS = [
     "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
@@ -885,36 +887,42 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 
-    # === MODIFICA ANAGRAFICA ===
-    if st.session_state.get(f"edit_cli_{sel_id}", False):
-        st.divider()
-        st.markdown("### ✏️ Modifica Anagrafica Cliente")
-        with st.form(f"frm_anagrafica_{sel_id}"):
-            col1, col2 = st.columns(2)
-            with col1:
-                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
-                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
-                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
-                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
-                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
-                email = st.text_input("✉️ Email", cliente.get("Email", ""))
-            with col2:
-                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
-                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
-                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
+# === MODIFICA ANAGRAFICA ===
+if st.session_state.get(f"edit_cli_{sel_id}", False):
+    st.divider()
+    st.markdown("### ✏️ Modifica Anagrafica Cliente")
+    with st.form(f"frm_anagrafica_{sel_id}"):
+        col1, col2 = st.columns(2)
+        with col1:
+            indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+            citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+            cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
+            telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+            cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+            email = st.text_input("✉️ Email", cliente.get("Email", ""))
+        with col2:
+            persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+            piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+            iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+            sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
+            tmk = st.selectbox(
+                "👩‍💼 TMK di riferimento",
+                ["", "Giulia", "Antonella", "Annalisa", "Laura"],
+                index=["", "Giulia", "Antonella", "Annalisa", "Laura"].index(cliente.get("TMK", "")) if cliente.get("TMK", "") in ["Giulia", "Antonella", "Annalisa", "Laura"] else 0
+            )
 
-            salva = st.form_submit_button("💾 Salva Modifiche")
-            if salva:
-                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                df_cli.loc[idx, [
-                    "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "Email",
-                    "PersonaRiferimento", "PartitaIVA", "IBAN", "SDI"
-                ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi]
-                save_clienti(df_cli)
-                st.success("✅ Anagrafica aggiornata.")
-                st.session_state[f"edit_cli_{sel_id}"] = False
-                st.rerun()
+        salva = st.form_submit_button("💾 Salva Modifiche")
+        if salva:
+            idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+            df_cli.loc[idx, [
+                "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "Email",
+                "PersonaRiferimento", "PartitaIVA", "IBAN", "SDI", "TMK"
+            ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk]
+            save_clienti(df_cli)
+            st.success("✅ Anagrafica aggiornata.")
+            st.session_state[f"edit_cli_{sel_id}"] = False
+            st.rerun()
+
 
     # === NOTE CLIENTE ===
     st.divider()
@@ -1647,13 +1655,13 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# 📇 PAGINA LISTA COMPLETA CLIENTI E SCADENZE (CON FILTRI)
+# 📇 PAGINA LISTA COMPLETA CLIENTI E SCADENZE (CON FILTRO TMK)
 # =====================================
 def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.title("📋 Lista Completa Clienti e Scadenze Contratti")
     oggi = pd.Timestamp.now().normalize()
 
-    # === Pulisce e prepara i dati contratti ===
+    # === Prepara i dati contratti ===
     df_ct = df_ct.copy()
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
     df_ct["Stato"] = df_ct["Stato"].astype(str).str.lower().fillna("")
@@ -1670,7 +1678,7 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     merged = df_cli.merge(prime_scadenze, on="ClienteID", how="left")
     merged["GiorniMancanti"] = (merged["PrimaScadenza"] - oggi).dt.days
 
-    # === Funzione badge colorati ===
+    # === Badge colorati per scadenza ===
     def badge_scadenza(row):
         if pd.isna(row["PrimaScadenza"]):
             return "<span style='color:#999;'>⚪ Nessuna</span>"
@@ -1687,18 +1695,24 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     merged["ScadenzaBadge"] = merged.apply(badge_scadenza, axis=1)
 
-    # === FILTRI ===
+    # === FILTRI PRINCIPALI ===
     st.markdown("### 🔍 Filtri")
-    col1, col2, col3, col4 = st.columns([1.5, 1.5, 1.5, 1.5])
+    col1, col2, col3, col4, col5 = st.columns([1.5, 1.5, 1.5, 1.5, 1.5])
+
     filtro_nome = col1.text_input("Cerca per nome cliente")
     filtro_citta = col2.text_input("Cerca per città")
-    data_da = col3.date_input("Da data scadenza:", value=None, format="DD/MM/YYYY")
-    data_a = col4.date_input("A data scadenza:", value=None, format="DD/MM/YYYY")
+    tmk_options = ["Tutti", "Giulia", "Antonella", "Annalisa", "Laura"]
+    filtro_tmk = col3.selectbox("Filtra per TMK", tmk_options, index=0)
+    data_da = col4.date_input("Da data scadenza:", value=None, format="DD/MM/YYYY")
+    data_a = col5.date_input("A data scadenza:", value=None, format="DD/MM/YYYY")
 
+    # === Applica filtri ===
     if filtro_nome:
         merged = merged[merged["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
     if filtro_citta:
         merged = merged[merged["Citta"].str.contains(filtro_citta, case=False, na=False)]
+    if filtro_tmk != "Tutti":
+        merged = merged[merged["TMK"] == filtro_tmk]
     if data_da:
         merged = merged[merged["PrimaScadenza"] >= pd.Timestamp(data_da)]
     if data_a:
@@ -1749,7 +1763,7 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         return
 
     for i, r in merged.iterrows():
-        c1, c2, c3, c4 = st.columns([2, 1.5, 1.2, 0.7])
+        c1, c2, c3, c4, c5 = st.columns([2, 1.5, 1.2, 1.2, 0.7])
         with c1:
             st.markdown(f"**{r['RagioneSociale']}**")
         with c2:
@@ -1757,6 +1771,12 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with c3:
             st.markdown(r["ScadenzaBadge"], unsafe_allow_html=True)
         with c4:
+            tmk = r.get("TMK", "")
+            if tmk:
+                st.markdown(f"<span style='background:#e3f2fd;color:#0d47a1;padding:3px 8px;border-radius:8px;font-weight:600;'>{tmk}</span>", unsafe_allow_html=True)
+            else:
+                st.markdown("—")
+        with c5:
             if st.button("📂 Apri", key=f"apri_cli_{i}", use_container_width=True):
                 st.session_state.update({
                     "selected_cliente": str(r["ClienteID"]),
@@ -1765,6 +1785,9 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     "_force_scroll_top": True
                 })
                 st.rerun()
+
+    st.caption(f"📋 Totale clienti mostrati: **{len(merged)}**")
+
 # =====================================
 # FIX DATE: ESEGUILO UNA SOLA VOLTA
 # =====================================

@@ -1126,8 +1126,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # PAGINA CONTRATTI — VERSIONE 2025 “TABELLA PULITA + MODALE (STABILE)”
 # =====================================
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
-
+# =====================================
+# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA STREAMLIT”
+# =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
@@ -1146,93 +1147,126 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
     # === Header e pulsante aggiunta ===
-    st.markdown(f"### 🏢 Cliente: **{rag_soc}**")
-    st.markdown("<div style='text-align:right'>", unsafe_allow_html=True)
-    if not permessi_limitati and st.button("➕ Aggiungi Contratto", key="btn_add_contract", use_container_width=False):
-        st.session_state["open_modal"] = "new"
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.divider()
+    st.markdown(
+        f"""
+        <div style='display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:20px;'>
+            <h3 style='margin:0;color:#2563eb;'>🏢 {rag_soc}</h3>
+            {'<button style="background:#2563eb;color:white;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;">➕ Aggiungi Contratto</button>' if not permessi_limitati else ''}
+        </div>
+        """, unsafe_allow_html=True
+    )
 
-    # === Filtro contratti ===
+    if not permessi_limitati:
+        if st.button("➕ Aggiungi Contratto", use_container_width=False, key="btn_add_contract2"):
+            st.session_state["open_modal"] = "new"
+            st.rerun()
+
+    # === Filtra contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     if ct.empty:
         st.info("Nessun contratto registrato per questo cliente.")
         return
 
-    # === Formattazione e pulizia ===
+    # === Formatta dati ===
     for c in ["DataInizio", "DataFine"]:
         ct[c] = ct[c].apply(fmt_date)
+    ct["TotRata"] = ct["TotRata"].apply(money)
+    ct["NOL_FIN"] = ct["NOL_FIN"].apply(money)
+    ct["NOL_INT"] = ct["NOL_INT"].apply(money)
 
-    # Rimozione valori problematici
-    ct = (
-        ct.replace({pd.NA: "", None: "", "NaT": "", "nan": ""})
-          .fillna("")
-    )
-
-    # Conversione totale in stringhe (JSON-safe)
-    for col in ct.columns:
-        ct[col] = ct[col].astype(str)
-
-    ct = ct.sort_values("DataInizio", ascending=False)
-
-    # === Aggiungi colonna pulsanti ===
-    ct["Azioni"] = [
-        f"""
-        <div style='text-align:center'>
-            <a href='?edit={r["NumeroContratto"]}' target='_self'>
-                <button style='background:#1976d2;color:white;border:none;border-radius:6px;padding:2px 6px;margin-right:4px;cursor:pointer'>✏️</button>
-            </a>
-            <a href='?close={r["NumeroContratto"]}' target='_self'>
-                <button style='background:#e53935;color:white;border:none;border-radius:6px;padding:2px 6px;cursor:pointer'>❌</button>
-            </a>
-        </div>
-        """ for _, r in ct.iterrows()
-    ]
-
-    # === Configurazione AgGrid ===
-    gb = GridOptionsBuilder.from_dataframe(ct)
-    gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
-    gb.configure_column(
-        "Azioni",
-        width=130,
-        pinned="right",
-        cellRenderer=JsCode("function(params){return params.value;}"),
-    )
-
-    # Colore righe chiuse (rosso tenue)
-    row_style = JsCode("""
-        function(params) {
-            if (params.data.Stato && params.data.Stato.toLowerCase() === 'chiuso') {
-                return { 'backgroundColor': '#ffebee' };
-            }
-            return null;
+    # === Tabella Contratti ===
+    st.markdown("""
+    <style>
+        .tbl-container {
+            border:1px solid #e0e0e0;
+            border-radius:10px;
+            overflow:hidden;
+            box-shadow:0 2px 6px rgba(0,0,0,0.05);
         }
-    """)
-    gb.configure_grid_options(
-        getRowStyle=row_style,
-        domLayout="normal",
-        ensureDomOrder=True,
-        rowSelection="single"
+        .tbl-header, .tbl-row {
+            display:grid;
+            grid-template-columns: 1.2fr 1fr 1fr 0.8fr 1fr 1fr 1fr 1fr;
+            padding:8px 14px;
+            font-size:14px;
+            align-items:center;
+        }
+        .tbl-header {
+            background:#f8fafc;
+            font-weight:600;
+            border-bottom:1px solid #e5e7eb;
+        }
+        .tbl-row:nth-child(even) {
+            background:#ffffff;
+        }
+        .tbl-row:nth-child(odd) {
+            background:#fdfdfd;
+        }
+        .tbl-row.chiuso {
+            background:#ffebee !important;
+        }
+        .action-btn {
+            border:none;
+            border-radius:6px;
+            padding:3px 6px;
+            color:white;
+            cursor:pointer;
+        }
+        .edit { background:#1976d2; }
+        .del { background:#e53935; margin-left:6px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div class='tbl-container'>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class='tbl-header'>
+            <div>📄 Numero</div>
+            <div>📅 Inizio</div>
+            <div>📅 Fine</div>
+            <div>📆 Durata</div>
+            <div>💰 Tot Rata</div>
+            <div>🏦 NOL_FIN</div>
+            <div>🏢 NOL_INT</div>
+            <div>⚙️ Azioni</div>
+        </div>
+        """, unsafe_allow_html=True
     )
 
-    # === Mostra tabella ===
-    AgGrid(
-        ct,
-        gridOptions=gb.build(),
-        height=420,
-        fit_columns_on_grid_load=True,
-        update_mode=GridUpdateMode.NO_UPDATE,
-        allow_unsafe_jscode=True,   # ✅ permette HTML nei pulsanti
-        theme="material",           # ✅ tema chiaro pulito
-    )
+    for i, r in ct.iterrows():
+        stato = str(r.get("Stato", "")).lower()
+        bg_class = "chiuso" if stato == "chiuso" else ""
+        numero = r.get("NumeroContratto", "—")
+        din = r.get("DataInizio", "")
+        dfi = r.get("DataFine", "")
+        durata = r.get("Durata", "")
+        tot = r.get("TotRata", "")
+        nfin = r.get("NOL_FIN", "")
+        nint = r.get("NOL_INT", "")
+        num_cont = r.get("NumeroContratto", "")
 
-    st.divider()
+        st.markdown(
+            f"""
+            <div class='tbl-row {bg_class}'>
+                <div>{numero}</div>
+                <div>{din}</div>
+                <div>{dfi}</div>
+                <div>{durata}</div>
+                <div>{tot}</div>
+                <div>{nfin}</div>
+                <div>{nint}</div>
+                <div style='text-align:center;'>
+                    {"<button class='action-btn edit' onClick=\"window.location='?edit="+num_cont+"'\">✏️</button>" if not permessi_limitati else ""}
+                    {"<button class='action-btn del' onClick=\"window.location='?close="+num_cont+"'\">❌</button>" if not permessi_limitati else ""}
+                </div>
+            </div>
+            """, unsafe_allow_html=True
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # === Gestione eventi ===
     query_params = st.query_params
 
-    # --- MODIFICA CONTRATTO ---
     if "edit" in query_params and not permessi_limitati:
         num_cont = query_params["edit"]
         if isinstance(num_cont, list):
@@ -1245,7 +1279,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.warning("Contratto non trovato.")
         return
 
-    # --- CHIUDI CONTRATTO ---
     if "close" in query_params and not permessi_limitati:
         num_cont = query_params["close"]
         if isinstance(num_cont, list):
@@ -1260,7 +1293,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.rerun()
 
     # === Esportazioni ===
+    st.markdown("---")
     st.markdown("### 📤 Esportazioni")
+
     cex1, cex2 = st.columns(2)
     with cex1:
         st.download_button(
@@ -1278,6 +1313,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             mime="application/pdf",
             use_container_width=True
         )
+
 
 
 # =====================================

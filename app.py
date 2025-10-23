@@ -1124,6 +1124,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA STREAMLIT (FIX DEFINITIVO)”
 # =====================================
+# =====================================
+# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA STREAMLIT”
+# =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
@@ -1168,49 +1171,37 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ct["NOL_FIN"] = ct["NOL_FIN"].apply(money)
     ct["NOL_INT"] = ct["NOL_INT"].apply(money)
 
-    # === Stile tabella ===
+    # === Stile tabella (estesa) ===
     st.markdown("""
     <style>
-        .tbl-container {
-            border:1px solid #e0e0e0;
-            border-radius:10px;
-            overflow:hidden;
-            box-shadow:0 2px 6px rgba(0,0,0,0.05);
-        }
-        .tbl-header, .tbl-row {
-            display:grid;
-            grid-template-columns: 1.2fr 1fr 1fr 0.8fr 1fr 1fr 1fr 1fr;
-            padding:8px 14px;
-            font-size:14px;
-            align-items:center;
-        }
-        .tbl-header {
-            background:#f8fafc;
-            font-weight:600;
-            border-bottom:1px solid #e5e7eb;
-        }
-        .tbl-row:nth-child(even) {
-            background:#ffffff;
-        }
-        .tbl-row:nth-child(odd) {
-            background:#fdfdfd;
-        }
-        .tbl-row.chiuso {
-            background:#ffebee !important;
-        }
-        .action-btn {
-            border:none;
-            border-radius:6px;
-            padding:3px 6px;
-            color:white;
-            cursor:pointer;
-        }
-        .edit { background:#1976d2; }
-        .del { background:#e53935; margin-left:6px; }
+      .tbl-wrapper { overflow-x:auto; }
+      .tbl-container {
+          border:1px solid #e0e0e0; border-radius:10px; overflow:hidden;
+          box-shadow:0 2px 6px rgba(0,0,0,0.05); min-width:1400px;
+      }
+      .tbl-header, .tbl-row {
+          display:grid;
+          grid-template-columns: 
+            1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr;
+          padding:8px 14px; font-size:14px; align-items:center;
+      }
+      .tbl-header { background:#f8fafc; font-weight:600; border-bottom:1px solid #e5e7eb; }
+      .tbl-row:nth-child(even) { background:#ffffff; }
+      .tbl-row:nth-child(odd) { background:#fdfdfd; }
+      .tbl-row.chiuso { background:#ffebee !important; }
+      .pill {
+          display:inline-block; padding:2px 8px; border-radius:999px; font-weight:600; font-size:12px;
+      }
+      .pill-open { background:#e8f5e9; color:#1b5e20; }
+      .pill-closed { background:#ffebee; color:#b71c1c; }
+      .action-btn { border:none; border-radius:6px; padding:3px 6px; color:white; cursor:pointer; }
+      .edit { background:#1976d2; }
+      .del { background:#e53935; margin-left:6px; }
+      .desc-clip { display:block; max-width:380px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div class='tbl-container'>", unsafe_allow_html=True)
+    st.markdown("<div class='tbl-wrapper'><div class='tbl-container'>", unsafe_allow_html=True)
     st.markdown(
         """
         <div class='tbl-header'>
@@ -1219,14 +1210,20 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             <div>📅 Fine</div>
             <div>📆 Durata</div>
             <div>💰 Tot Rata</div>
+            <div>🧾 Descrizione</div>
+            <div>📄 Copie B/N</div>
+            <div>💶 Extra B/N</div>
+            <div>🖨️ Copie Col</div>
+            <div>💶 Extra Col</div>
             <div>🏦 NOL_FIN</div>
             <div>🏢 NOL_INT</div>
+            <div>🟢 Stato</div>
             <div>⚙️ Azioni</div>
         </div>
         """, unsafe_allow_html=True
     )
 
-    # === Righe tabella ===
+    # === Righe tabella (estese) ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "")).lower()
         bg_class = "chiuso" if stato == "chiuso" else ""
@@ -1235,11 +1232,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         dfi = r.get("DataFine", "")
         durata = r.get("Durata", "")
         tot = r.get("TotRata", "")
+        desc = str(r.get("DescrizioneProdotto", "") or "—")
+        desc_short = (desc[:80] + "…") if len(desc) > 80 else desc
+        copie_bn = r.get("CopieBN", "")
+        ecc_bn = r.get("EccBN", "")
+        copie_col = r.get("CopieCol", "")
+        ecc_col = r.get("EccCol", "")
         nfin = r.get("NOL_FIN", "")
         nint = r.get("NOL_INT", "")
         num_cont = r.get("NumeroContratto", "")
 
-        # --- Pulsanti azione ---
+        # badge stato
+        stato_badge = (
+            "<span class='pill pill-closed'>Chiuso</span>" if stato == "chiuso"
+            else "<span class='pill pill-open'>Aperto</span>"
+        )
+
+        # pulsanti azione
         btn_edit = ""
         btn_close = ""
         if not permessi_limitati:
@@ -1254,15 +1263,21 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 <div>{dfi}</div>
                 <div>{durata}</div>
                 <div>{tot}</div>
+                <div><span class='desc-clip' title="{desc.replace('"','&quot;')}">{desc_short}</span></div>
+                <div>{copie_bn}</div>
+                <div>{ecc_bn}</div>
+                <div>{copie_col}</div>
+                <div>{ecc_col}</div>
                 <div>{nfin}</div>
                 <div>{nint}</div>
+                <div>{stato_badge}</div>
                 <div style='text-align:center;'>{btn_edit} {btn_close}</div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
     # === Gestione eventi ===
     query_params = st.query_params

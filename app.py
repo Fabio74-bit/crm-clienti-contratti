@@ -1782,11 +1782,23 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 # MAIN APP
 # =====================================
 def main():
+    # --- LOGIN E SELEZIONE RUOLO ---
     user, role = do_login_fullscreen()
     if not user:
         st.stop()
 
+    # --- Se l'utente è Gabriele, usa i suoi file dedicati ---
+    global CLIENTI_CSV, CONTRATTI_CSV  # serve per aggiornare i path globali
+    if user == "gabriele":
+        CLIENTI_CSV = STORAGE_DIR / "gabriele" / "clienti.csv"
+        CONTRATTI_CSV = STORAGE_DIR / "gabriele" / "contratti_clienti.csv"
+        role = "limited"  # ruolo limitato: solo i suoi dati
+    else:
+        CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
+        CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
+
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
+    st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
 
     # --- Mappa pagine ---
     PAGES = {
@@ -1843,6 +1855,7 @@ def main():
     # --- Esegui la pagina scelta ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, role)
+
 
 # =====================================
 # AVVIO

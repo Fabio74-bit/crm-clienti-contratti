@@ -1818,7 +1818,7 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 
 
 # =====================================
-# MAIN APP
+# MAIN APP — versione con filtro visibilità (Fabio / Giulia / Antonella)
 # =====================================
 def main():
     # --- LOGIN ---
@@ -1826,56 +1826,62 @@ def main():
     if not user:
         st.stop()
 
-    # --- Percorsi CSV ---
+    # --- Percorsi base ---
     global CLIENTI_CSV, CONTRATTI_CSV
     base_clienti = STORAGE_DIR / "clienti.csv"
     base_contratti = STORAGE_DIR / "contratti_clienti.csv"
     gabriele_clienti = STORAGE_DIR / "gabriele" / "clienti.csv"
     gabriele_contratti = STORAGE_DIR / "gabriele" / "contratti_clienti.csv"
 
-    # === Definizione visibilità e ruoli ===
+    # --- Ruolo e diritti ---
     if user == "fabio":
-        visibilita = "tutti"
         ruolo_scrittura = "full"
-        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
-
     elif user in ["emanuela", "claudia"]:
-        visibilita = "tutti"
         ruolo_scrittura = "full"
-
     elif user in ["giulia", "antonella"]:
-        visibilita = "tutti"
         ruolo_scrittura = "limitato"
-
     elif user in ["gabriele", "laura", "annalisa"]:
-        visibilita = "gabriele"
         ruolo_scrittura = "limitato"
-        CLIENTI_CSV, CONTRATTI_CSV = gabriele_clienti, gabriele_contratti
-
     else:
-        visibilita = "solo_propri"
         ruolo_scrittura = "limitato"
-        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
 
-    # --- Sidebar info ---
-    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
-    st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
+    # --- Selettore visibilità (solo per Fabio, Giulia, Antonella) ---
+    if user in ["fabio", "giulia", "antonella"]:
+        default_view = "Miei"
+        visibilita_opzioni = ["Miei", "Gabriele", "Tutti"]
+        visibilita_scelta = st.sidebar.radio(
+            "📂 Visualizza clienti di:",
+            visibilita_opzioni,
+            index=visibilita_opzioni.index(default_view)
+        )
+    else:
+        visibilita_scelta = "Miei"
 
-    # --- Caricamento dati ---
+    # --- Caricamento CSV base ---
     df_cli_main, df_ct_main = load_clienti(), load_contratti()
-    df_cli_gab, df_ct_gab = pd.DataFrame(), pd.DataFrame()
 
-    if visibilita == "tutti":
-        try:
+    # --- Caricamento CSV Gabriele ---
+    try:
+        if gabriele_clienti.exists():
             df_cli_gab = pd.read_csv(gabriele_clienti, dtype=str).fillna("")
+        else:
+            df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
+        if gabriele_contratti.exists():
             df_ct_gab = pd.read_csv(gabriele_contratti, dtype=str).fillna("")
-            df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
-            df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
-        except Exception as e:
-            st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
-            df_cli, df_ct = df_cli_main, df_ct_main
-    else:
+        else:
+            df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
+    except Exception as e:
+        st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
+        df_cli_gab, df_ct_gab = pd.DataFrame(columns=CLIENTI_COLS), pd.DataFrame(columns=CONTRATTI_COLS)
+
+    # --- Applica filtro scelto ---
+    if visibilita_scelta == "Miei":
         df_cli, df_ct = df_cli_main, df_ct_main
+    elif visibilita_scelta == "Gabriele":
+        df_cli, df_ct = df_cli_gab, df_ct_gab
+    else:  # Tutti
+        df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
+        df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
 
     # --- Correzione date una sola volta ---
     if not st.session_state.get("_date_fix_done", False):
@@ -1890,9 +1896,13 @@ def main():
         except Exception as e:
             st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
+    # --- Sidebar info ---
+    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
+    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
+
     # --- Passaggio info ai moduli ---
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
-    st.session_state["visibilita"] = visibilita
+    st.session_state["visibilita"] = visibilita_scelta
 
     # --- Pagine ---
     PAGES = {
@@ -1905,19 +1915,13 @@ def main():
 
     # --- Menu ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
-    
+
     # --- Navigazione automatica da pulsanti interni ---
     if "nav_target" in st.session_state:
         target = st.session_state.pop("nav_target")
         if target in PAGES:
             page = target
-            
+
     # --- Esegui pagina ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-
-# =====================================
-# AVVIO APPLICAZIONE
-# =====================================
-if __name__ == "__main__":
-    main()

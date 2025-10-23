@@ -1888,3 +1888,8 @@ def main():
     # --- Esegui pagina ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
+    # =====================================
+    # AVVIO APPLICAZIONE
+    # =====================================
+    if __name__ == "__main__":
+        main()

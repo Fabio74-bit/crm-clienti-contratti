@@ -1800,6 +1800,11 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
         st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     return df_cli, df_ct
+
+
+# =====================================
+# MAIN APP
+# =====================================
 def main():
     # --- LOGIN ---
     user, role = do_login_fullscreen()
@@ -1837,6 +1842,7 @@ def main():
         ruolo_scrittura = "limitato"
         CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
 
+    # --- Sidebar info ---
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
 
@@ -1888,8 +1894,10 @@ def main():
     # --- Esegui pagina ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-    # =====================================
-    # AVVIO APPLICAZIONE
-    # =====================================
-    if __name__ == "__main__":
-        main()
+
+
+# =====================================
+# AVVIO APPLICAZIONE
+# =====================================
+if __name__ == "__main__":
+    main()

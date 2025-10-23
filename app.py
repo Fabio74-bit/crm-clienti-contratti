@@ -1821,6 +1821,11 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 # MAIN APP — versione con filtro visibilità (Fabio / Giulia / Antonella)
 # =====================================
 def main():
+    st.write("🟢 Il main() è stato avviato con successo")
+    user, role = do_login_fullscreen()
+
+
+def main():
     # --- LOGIN ---
     user, role = do_login_fullscreen()
     if not user:

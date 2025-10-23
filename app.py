@@ -61,7 +61,6 @@ TEMPLATE_OPTIONS = {
 }
 
 
-
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 # =====================================
 # COLONNE STANDARD CSV
@@ -530,7 +529,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 iban = st.text_input("🏦 IBAN")
                 sdi = st.text_input("📡 SDI")
                 note = st.text_area("📝 Note Cliente", height=70)
-
+                        tmk = st.selectbox(
+                "👩‍💼 TMK di riferimento",
+                ["", "Giulia", "Antonella", "Annalisa", "Laura"],
+                index=0
+            )
             # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")
             
@@ -581,6 +584,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "ProssimoRecall": "",
                         "UltimaVisita": "",
                         "ProssimaVisita": "",
+                        "TMK": tmk,
                         "NoteCliente": note
                     }
                     df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
@@ -870,6 +874,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             <div class="info-title">📇 Dati Principali</div>
             <div class="info-item"><span class="info-label">👤 Referente:</span> {cliente.get('PersonaRiferimento','')}</div>
             <div class="info-item"><span class="info-label">✉️ Email:</span> {cliente.get('Email','')}</div>
+            <div class="info-item"><span class="info-label">👩‍💼 TMK:</span> {cliente.get('TMK','')}</div>
             <div class="info-item"><span class="info-label">📞 Telefono:</span> {cliente.get('Telefono','')} — <span class="info-label">📱 Cell:</span> {cliente.get('Cell','')}</div>
         </div>
         """, unsafe_allow_html=True)

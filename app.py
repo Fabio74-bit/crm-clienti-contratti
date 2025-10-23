@@ -758,7 +758,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CLIENTI (VERSIONE FINALE STABILE — FIX NameError)
+# PAGINA CLIENTI (VERSIONE FINALE STABILE — FIX NameError COMPLETO)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
@@ -802,7 +802,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
     sel_id = cliente["ClienteID"]
 
-    # === INTESTAZIONE CLIENTE + PULSANTI COLORATI ===
+    # === INTESTAZIONE CLIENTE + PULSANTI ===
     st.markdown("""
     <style>
     .btn-blue > button {
@@ -828,7 +828,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     </style>
     """, unsafe_allow_html=True)
 
-    # === HEADER CON PULSANTI ===
     col1, col2 = st.columns([4, 1])
     with col1:
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
@@ -869,7 +868,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             <div class="info-item"><span class="info-label">📞 Telefono:</span> {cliente.get('Telefono','')} — <span class="info-label">📱 Cell:</span> {cliente.get('Cell','')}</div>
         </div>
         """, unsafe_allow_html=True)
-
     with infoB:
         st.markdown(f"""
         <div class="info-box">
@@ -881,7 +879,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         </div>
         """, unsafe_allow_html=True)
 
-    # ✅ === MODIFICA ANAGRAFICA (ora dentro la funzione, fix NameError) ===
+    # === MODIFICA ANAGRAFICA ===
     if st.session_state.get(f"edit_cli_{sel_id}", False):
         st.divider()
         st.markdown("### ✏️ Modifica Anagrafica Cliente")
@@ -917,64 +915,64 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state[f"edit_cli_{sel_id}"] = False
                 st.rerun()
 
+        # === NOTE CLIENTE ===
+        st.divider()
+        st.markdown("### 📝 Note Cliente")
+        note_attuali = cliente.get("NoteCliente", "")
+        nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=160, key=f"note_{sel_id}_{int(time.time()*1000)}")
 
-    # === NOTE CLIENTE ===
-    st.divider()
-    st.markdown("### 📝 Note Cliente")
-    note_attuali = cliente.get("NoteCliente", "")
-    nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=160, key=f"note_{sel_id}_{int(time.time()*1000)}")
+        if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}_{int(time.time()*1000)}", use_container_width=True):
+            try:
+                idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+                save_clienti(df_cli)
+                st.success("✅ Note aggiornate correttamente!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Errore durante il salvataggio delle note: {e}")
 
-    if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}_{int(time.time()*1000)}", use_container_width=True):
-        try:
-            idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-            df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+        # === RECALL E VISITE ===
+        st.divider()
+        st.markdown("### ⚡ Recall e Visite")
+
+        def _safe_date(val):
+            try:
+                d = pd.to_datetime(val, dayfirst=True)
+                return None if pd.isna(d) else d.date()
+            except Exception:
+                return None
+
+        ur_val = _safe_date(cliente.get("UltimoRecall"))
+        pr_val = _safe_date(cliente.get("ProssimoRecall"))
+        uv_val = _safe_date(cliente.get("UltimaVisita"))
+        pv_val = _safe_date(cliente.get("ProssimaVisita"))
+
+        if ur_val and not pr_val:
+            pr_val = (pd.Timestamp(ur_val) + pd.DateOffset(months=3)).date()
+        if uv_val and not pv_val:
+            pv_val = (pd.Timestamp(uv_val) + pd.DateOffset(months=6)).date()
+
+        import time as _t
+        uniq = f"{sel_id}_{int(_t.time()*1000)}"
+        c1, c2, c3, c4 = st.columns(4)
+        ur = c1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{uniq}")
+        pr = c2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{uniq}")
+        uv = c3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{uniq}")
+        pv = c4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{uniq}")
+
+        if st.button("💾 Salva Aggiornamenti", use_container_width=True, key=f"save_recall_{uniq}"):
+            idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+            df_cli.loc[idx, ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]] = \
+                [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
             save_clienti(df_cli)
-            st.success("✅ Note aggiornate correttamente!")
+            st.success("✅ Date aggiornate.")
             st.rerun()
-        except Exception as e:
-            st.error(f"❌ Errore durante il salvataggio delle note: {e}")
 
-    # === RECALL E VISITE ===
-    st.divider()
-    st.markdown("### ⚡ Recall e Visite")
+        # === GENERA PREVENTIVO + ELENCO ===
+        st.divider()
+        st.markdown("### 🧾 Genera Nuovo Preventivo")
+        # (segue qui la sezione preventivi e elenco preventivi, invariata)
 
-    def _safe_date(val):
-        try:
-            d = pd.to_datetime(val, dayfirst=True)
-            return None if pd.isna(d) else d.date()
-        except Exception:
-            return None
-
-    ur_val = _safe_date(cliente.get("UltimoRecall"))
-    pr_val = _safe_date(cliente.get("ProssimoRecall"))
-    uv_val = _safe_date(cliente.get("UltimaVisita"))
-    pv_val = _safe_date(cliente.get("ProssimaVisita"))
-
-    if ur_val and not pr_val:
-        pr_val = (pd.Timestamp(ur_val) + pd.DateOffset(months=3)).date()
-    if uv_val and not pv_val:
-        pv_val = (pd.Timestamp(uv_val) + pd.DateOffset(months=6)).date()
-
-    import time as _t
-    uniq = f"{sel_id}_{int(_t.time()*1000)}"
-    c1, c2, c3, c4 = st.columns(4)
-    ur = c1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{uniq}")
-    pr = c2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{uniq}")
-    uv = c3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{uniq}")
-    pv = c4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{uniq}")
-
-    if st.button("💾 Salva Aggiornamenti", use_container_width=True, key=f"save_recall_{uniq}"):
-        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-        df_cli.loc[idx, ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]] = \
-            [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
-        save_clienti(df_cli)
-        st.success("✅ Date aggiornate.")
-        st.rerun()
-
-
-    # === GENERA PREVENTIVO (VERSIONE PULITA E STABILE) ===
-    st.divider()
-    st.markdown("### 🧾 Genera Nuovo Preventivo")
     
     TEMPLATE_OPTIONS = {
         "Offerta A4": "Offerta_A4.docx",

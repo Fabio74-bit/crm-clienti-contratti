@@ -1818,13 +1818,8 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 
 
 # =====================================
-# MAIN APP — versione con filtro visibilità (Fabio / Giulia / Antonella)
+# MAIN APP — versione definitiva 2025 con filtro visibilità e loader sicuro
 # =====================================
-def main():
-    st.write("🟢 Il main() è stato avviato con successo")
-    user, role = do_login_fullscreen()
-
-
 def main():
     # --- LOGIN ---
     user, role = do_login_fullscreen()
@@ -1865,19 +1860,36 @@ def main():
     # --- Caricamento CSV base ---
     df_cli_main, df_ct_main = load_clienti(), load_contratti()
 
-    # --- Caricamento CSV Gabriele ---
+    # --- Caricamento CSV Gabriele (robusto) ---
     try:
         if gabriele_clienti.exists():
-            df_cli_gab = pd.read_csv(gabriele_clienti, dtype=str).fillna("")
+            df_cli_gab = pd.read_csv(
+                gabriele_clienti,
+                dtype=str,
+                sep=None,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            ).fillna("")
         else:
             df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
+
         if gabriele_contratti.exists():
-            df_ct_gab = pd.read_csv(gabriele_contratti, dtype=str).fillna("")
+            df_ct_gab = pd.read_csv(
+                gabriele_contratti,
+                dtype=str,
+                sep=None,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            ).fillna("")
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
+
     except Exception as e:
         st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
-        df_cli_gab, df_ct_gab = pd.DataFrame(columns=CLIENTI_COLS), pd.DataFrame(columns=CONTRATTI_COLS)
+        df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
+        df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
     # --- Applica filtro scelto ---
     if visibilita_scelta == "Miei":
@@ -1930,3 +1942,10 @@ def main():
     # --- Esegui pagina ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
+
+
+# =====================================
+# AVVIO APPLICAZIONE
+# =====================================
+if __name__ == "__main__":
+    main()

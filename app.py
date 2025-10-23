@@ -1162,10 +1162,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         ct[c] = ct[c].apply(fmt_date)
 
     # converte ogni valore in stringa per evitare MarshallComponentException
+    ct = ct.replace({pd.NA: "", "nan": "", "NaT": "", None: ""})
     ct = ct.fillna("").astype(str)
-    ct = ct.replace("nan", "", regex=False).replace("NaT", "", regex=False)
     ct = ct.sort_values("DataInizio", ascending=False)
-
 
     # === Aggiungi colonna Azioni ===
     ct["Azioni"] = ""
@@ -1207,6 +1206,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         rowSelection="single"
     )
 
+    # === Mostra tabella contratti ===
     grid = AgGrid(
         ct,
         gridOptions=gb.build(),
@@ -1245,6 +1245,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.rerun()
 
     # === Esportazioni ===
+    st.markdown("### 📤 Esportazioni")
     cex1, cex2 = st.columns(2)
     with cex1:
         st.download_button(

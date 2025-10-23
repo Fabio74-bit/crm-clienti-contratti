@@ -756,6 +756,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
+# Blocco permessi
+if role == "limited":
+    st.warning("⚠️ Accesso in sola lettura per il tuo profilo.")
+    st.stop()
 
     # === PRE-SELEZIONE CLIENTE ===
     if "selected_cliente" in st.session_state:
@@ -1120,6 +1124,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CONTRATTI — DASHBOARD ELEGANTE DEFINITIVA 2025
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    # === Gestione permessi per ruoli ===
+    ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
+    permessi_limitati = ruolo_scrittura == "limitato"
+
+    if permessi_limitati:
+        st.info("👁️ Modalità sola lettura: puoi visualizzare i contratti ma non modificarli o crearne di nuovi.")
+
     # 🔹 Reset automatico session state
     for k in list(st.session_state.keys()):
         if k.startswith("edit_ct_"):
@@ -1135,6 +1146,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
       .tbl-row{border-bottom:1px solid #f0f2f5;padding:.35rem 0;}
     </style>
     """, unsafe_allow_html=True)
+
 
     st.markdown("<h2>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
 
@@ -1778,29 +1790,80 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
         st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     return df_cli, df_ct
-# =====================================
-# MAIN APP
-# =====================================
 def main():
-    # --- LOGIN E SELEZIONE RUOLO ---
+    # --- LOGIN ---
     user, role = do_login_fullscreen()
     if not user:
         st.stop()
 
-    # --- Se l'utente è Gabriele, usa i suoi file dedicati ---
-    global CLIENTI_CSV, CONTRATTI_CSV  # serve per aggiornare i path globali
-    if user == "gabriele":
-        CLIENTI_CSV = STORAGE_DIR / "gabriele" / "clienti.csv"
-        CONTRATTI_CSV = STORAGE_DIR / "gabriele" / "contratti_clienti.csv"
-        role = "limited"  # ruolo limitato: solo i suoi dati
+    # --- Percorsi CSV ---
+    global CLIENTI_CSV, CONTRATTI_CSV
+    base_clienti = STORAGE_DIR / "clienti.csv"
+    base_contratti = STORAGE_DIR / "contratti_clienti.csv"
+    gabriele_clienti = STORAGE_DIR / "gabriele" / "clienti.csv"
+    gabriele_contratti = STORAGE_DIR / "gabriele" / "contratti_clienti.csv"
+
+    # === Definizione visibilità e ruoli ===
+    if user == "fabio":
+        visibilita = "tutti"
+        ruolo_scrittura = "full"
+        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
+
+    elif user in ["emanuela", "claudia"]:
+        visibilita = "tutti"
+        ruolo_scrittura = "full"
+
+    elif user in ["giulia", "antonella"]:
+        visibilita = "tutti"
+        ruolo_scrittura = "limitato"
+
+    elif user in ["gabriele", "laura", "annalisa"]:
+        visibilita = "gabriele"
+        ruolo_scrittura = "limitato"
+        CLIENTI_CSV, CONTRATTI_CSV = gabriele_clienti, gabriele_contratti
+
     else:
-        CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
-        CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
+        visibilita = "solo_propri"
+        ruolo_scrittura = "limitato"
+        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
 
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
 
-    # --- Mappa pagine ---
+    # --- Caricamento dati ---
+    df_cli_main, df_ct_main = load_clienti(), load_contratti()
+    df_cli_gab, df_ct_gab = pd.DataFrame(), pd.DataFrame()
+
+    if visibilita == "tutti":
+        try:
+            df_cli_gab = pd.read_csv(gabriele_clienti, dtype=str).fillna("")
+            df_ct_gab = pd.read_csv(gabriele_contratti, dtype=str).fillna("")
+            df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
+            df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+        except Exception as e:
+            st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
+            df_cli, df_ct = df_cli_main, df_ct_main
+    else:
+        df_cli, df_ct = df_cli_main, df_ct_main
+
+    # --- Correzione date una sola volta ---
+    if not st.session_state.get("_date_fix_done", False):
+        try:
+            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+                if c in df_cli.columns:
+                    df_cli[c] = fix_inverted_dates(df_cli[c], col_name=c)
+            for c in ["DataInizio", "DataFine"]:
+                if c in df_ct.columns:
+                    df_ct[c] = fix_inverted_dates(df_ct[c], col_name=c)
+            st.session_state["_date_fix_done"] = True
+        except Exception as e:
+            st.warning(f"⚠️ Correzione automatica date non completata: {e}")
+
+    # --- Passaggio info ai moduli ---
+    st.session_state["ruolo_scrittura"] = ruolo_scrittura
+    st.session_state["visibilita"] = visibilita
+
+    # --- Pagine ---
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -1809,56 +1872,9 @@ def main():
         "📋 Lista Clienti": page_lista_clienti,
     }
 
-    # --- Pagina di default ---
-    default_page = st.session_state.pop("nav_target", "Dashboard")
-    page = st.sidebar.radio(
-        "📂 Menu principale",
-        list(PAGES.keys()),
-        index=list(PAGES.keys()).index(default_page) if default_page in PAGES else 0,
-    )
+    # --- Menu ---
+    page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Redirect rapidi ---
-    if st.session_state.get("_go_contratti_now"):
-        st.session_state["_go_contratti_now"] = False
-        page = "Contratti"
-
-    if st.session_state.get("_go_clienti_now"):
-        st.session_state["_go_clienti_now"] = False
-        page = "Clienti"
-
-    # --- Caricamento dati ---
-    df_cli, df_ct = load_clienti(), load_contratti()
-
-    # --- Correzione date ONE-SHOT ---
-    if not st.session_state.get("_date_fix_done", False):
-        try:
-            if not df_cli.empty:
-                for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-                    if c in df_cli.columns:
-                        df_cli[c] = fix_inverted_dates(df_cli[c], col_name=c)
-
-            if not df_ct.empty:
-                for c in ["DataInizio", "DataFine"]:
-                    if c in df_ct.columns:
-                        df_ct[c] = fix_inverted_dates(df_ct[c], col_name=c)
-
-            # Salva una sola volta
-            df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-            df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-
-            st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
-            st.session_state["_date_fix_done"] = True
-
-        except Exception as e:
-            st.warning(f"⚠️ Correzione automatica date non completata: {e}")
-
-    # --- Esegui la pagina scelta ---
+    # --- Esegui pagina ---
     if page in PAGES:
-        PAGES[page](df_cli, df_ct, role)
-
-
-# =====================================
-# AVVIO
-# =====================================
-if __name__ == "__main__":
-    main()
+        PAGES[page](df_cli, df_ct, ruolo_scrittura)

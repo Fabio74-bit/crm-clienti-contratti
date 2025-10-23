@@ -1123,6 +1123,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # PAGINA CONTRATTI — VERSIONE 2025 “TABELLA PULITA + MODALE (STABILE)”
 # =====================================
+# =====================================
+# PAGINA CONTRATTI — VERSIONE 2025 “TABELLA PULITA + MODALE (STABILE)”
+# =====================================
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
@@ -1190,9 +1193,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === Configurazione AgGrid ===
     gb = GridOptionsBuilder.from_dataframe(ct)
     gb.configure_default_column(resizable=True, wrapText=True, autoHeight=True)
-    gb.configure_column("Azioni", width=130, pinned="right", cellRenderer=JsCode("function(params){return params.value;}"))
+    gb.configure_column(
+        "Azioni",
+        width=130,
+        pinned="right",
+        cellRenderer=JsCode("function(params){return params.value;}"),
+    )
 
-    # Colorazione righe chiuse (rosso tenue)
+    # Colore righe chiuse (rosso tenue)
     row_style = JsCode("""
         function(params) {
             if (params.data.Stato && params.data.Stato.toLowerCase() === 'chiuso') {
@@ -1212,21 +1220,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     AgGrid(
         ct,
         gridOptions=gb.build(),
-        height=430,
+        height=420,
         fit_columns_on_grid_load=True,
         update_mode=GridUpdateMode.NO_UPDATE,
-        allow_unsafe_jscode=True,
-        theme="balham",
+        allow_unsafe_jscode=True,   # ✅ permette HTML nei pulsanti
+        theme="material",           # ✅ tema chiaro pulito
     )
 
     st.divider()
 
     # === Gestione eventi ===
-    query_params = st.experimental_get_query_params()
+    query_params = st.query_params
 
     # --- MODIFICA CONTRATTO ---
     if "edit" in query_params and not permessi_limitati:
-        num_cont = query_params["edit"][0]
+        num_cont = query_params["edit"]
+        if isinstance(num_cont, list):
+            num_cont = num_cont[0]
         contratto = df_ct[df_ct["NumeroContratto"] == num_cont]
         if not contratto.empty:
             contratto = contratto.iloc[0]
@@ -1237,14 +1247,16 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # --- CHIUDI CONTRATTO ---
     if "close" in query_params and not permessi_limitati:
-        num_cont = query_params["close"][0]
+        num_cont = query_params["close"]
+        if isinstance(num_cont, list):
+            num_cont = num_cont[0]
         idx = df_ct.index[df_ct["NumeroContratto"] == num_cont]
         if len(idx) > 0:
             df_ct.loc[idx[0], "Stato"] = "chiuso"
             save_contratti(df_ct)
             st.success(f"✅ Contratto {num_cont} chiuso correttamente.")
             time.sleep(0.4)
-            st.experimental_set_query_params()
+            st.query_params.clear()
             st.rerun()
 
     # === Esportazioni ===

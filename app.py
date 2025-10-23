@@ -1905,14 +1905,16 @@ def main():
 
     # --- Menu ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
+    
     # --- Navigazione automatica da pulsanti interni ---
     if "nav_target" in st.session_state:
-    target = st.session_state.pop("nav_target")
-    if target in PAGES:
-        page = target    # --- Esegui pagina ---
+        target = st.session_state.pop("nav_target")
+        if target in PAGES:
+            page = target
+            
+    # --- Esegui pagina ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-
 
 # =====================================
 # AVVIO APPLICAZIONE

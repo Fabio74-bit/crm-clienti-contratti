@@ -12,10 +12,8 @@ from st_aggrid import AgGrid, GridOptionsBuilder
 from docx import Document
 from docx.shared import Pt
 
-# =====================================
-# CONFIGURAZIONE BASE E STILE STREAMLIT
-# =====================================
-st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide
+st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
+
 # =====================================
 # 🎨 BLOCCO A – STILE UI E CSS AVANZATO
 # =====================================
@@ -317,10 +315,7 @@ def kpi_card(label:str,value,icon:str,color:str)->str:
         <div style='font-size:14px'>{label}</div>
     </div>
     """
-# ======== FINE BLOCCO 1 ========
-# =====================================
-# 📊 PAGINA DASHBOARD COMPLETA
-# =====================================
+
 # =====================================
 # 📊 BLOCCO D — DASHBOARD AVANZATA
 # =====================================

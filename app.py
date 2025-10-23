@@ -1120,14 +1120,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
 
+
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “TABELLA PULITA + MODALE (STABILE)”
-# =====================================
-# =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “TABELLA PULITA + MODALE (STABILE)”
-# =====================================
-# =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA STREAMLIT”
+# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA STREAMLIT (FIX DEFINITIVO)”
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1151,13 +1146,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         f"""
         <div style='display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:20px;'>
             <h3 style='margin:0;color:#2563eb;'>🏢 {rag_soc}</h3>
-            {'<button style="background:#2563eb;color:white;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;">➕ Aggiungi Contratto</button>' if not permessi_limitati else ''}
         </div>
         """, unsafe_allow_html=True
     )
 
     if not permessi_limitati:
-        if st.button("➕ Aggiungi Contratto", use_container_width=False, key="btn_add_contract2"):
+        if st.button("➕ Aggiungi Contratto", use_container_width=False, key="btn_add_contract"):
             st.session_state["open_modal"] = "new"
             st.rerun()
 
@@ -1174,7 +1168,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ct["NOL_FIN"] = ct["NOL_FIN"].apply(money)
     ct["NOL_INT"] = ct["NOL_INT"].apply(money)
 
-    # === Tabella Contratti ===
+    # === Stile tabella ===
     st.markdown("""
     <style>
         .tbl-container {
@@ -1232,6 +1226,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         """, unsafe_allow_html=True
     )
 
+    # === Righe tabella ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "")).lower()
         bg_class = "chiuso" if stato == "chiuso" else ""
@@ -1244,6 +1239,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         nint = r.get("NOL_INT", "")
         num_cont = r.get("NumeroContratto", "")
 
+        # --- Pulsanti azione ---
+        btn_edit = ""
+        btn_close = ""
+        if not permessi_limitati:
+            btn_edit = f"<button class='action-btn edit' onClick='window.location=\"?edit={num_cont}\"'>✏️</button>"
+            btn_close = f"<button class='action-btn del' onClick='window.location=\"?close={num_cont}\"'>❌</button>"
+
         st.markdown(
             f"""
             <div class='tbl-row {bg_class}'>
@@ -1254,12 +1256,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 <div>{tot}</div>
                 <div>{nfin}</div>
                 <div>{nint}</div>
-                <div style='text-align:center;'>
-                    {"<button class='action-btn edit' onClick=\"window.location='?edit="+num_cont+"'\">✏️</button>" if not permessi_limitati else ""}
-                    {"<button class='action-btn del' onClick=\"window.location='?close="+num_cont+"'\">❌</button>" if not permessi_limitati else ""}
-                </div>
+                <div style='text-align:center;'>{btn_edit} {btn_close}</div>
             </div>
-            """, unsafe_allow_html=True
+            """,
+            unsafe_allow_html=True
         )
 
     st.markdown("</div>", unsafe_allow_html=True)

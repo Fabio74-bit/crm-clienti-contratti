@@ -1157,11 +1157,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato per questo cliente.")
         return
 
-    # === Formattazione dati ===
+    # === Formattazione e pulizia dati per AgGrid ===
     for c in ["DataInizio", "DataFine"]:
         ct[c] = ct[c].apply(fmt_date)
-    ct = ct.fillna("")
+
+    # converte ogni valore in stringa per evitare MarshallComponentException
+    ct = ct.fillna("").astype(str)
+    ct = ct.replace("nan", "", regex=False).replace("NaT", "", regex=False)
     ct = ct.sort_values("DataInizio", ascending=False)
+
 
     # === Aggiungi colonna Azioni ===
     ct["Azioni"] = ""

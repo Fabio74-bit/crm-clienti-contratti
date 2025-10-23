@@ -756,10 +756,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
-# Blocco permessi
-if role == "limited":
-    st.warning("⚠️ Accesso in sola lettura per il tuo profilo.")
-    st.stop()
+
+    # Blocco permessi
+    if role == "limited":
+        st.warning("⚠️ Accesso in sola lettura per il tuo profilo.")
+        st.stop()
 
     # === PRE-SELEZIONE CLIENTE ===
     if "selected_cliente" in st.session_state:
@@ -768,6 +769,10 @@ if role == "limited":
         if sel_id in set(cli_ids):
             row = df_cli.loc[cli_ids == sel_id].iloc[0]
             st.session_state["cliente_selezionato"] = row["RagioneSociale"]
+
+    # === RICERCA CLIENTE ===
+    ...
+
 
     # === RICERCA CLIENTE ===
     search_query = st.text_input("🔍 Cerca cliente per nome o ID", key="search_cli")

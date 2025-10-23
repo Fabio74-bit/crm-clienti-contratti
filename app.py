@@ -1121,11 +1121,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 
+
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA STREAMLIT (FIX DEFINITIVO)”
-# =====================================
-# =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA STREAMLIT”
+# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA + DESCRIZIONE MULTIRIGA”
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1171,7 +1169,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ct["NOL_FIN"] = ct["NOL_FIN"].apply(money)
     ct["NOL_INT"] = ct["NOL_INT"].apply(money)
 
-    # === Stile tabella (estesa) ===
+    # === Stile tabella (estesa + descrizione multilinea) ===
     st.markdown("""
     <style>
       .tbl-wrapper { overflow-x:auto; }
@@ -1182,7 +1180,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
       .tbl-header, .tbl-row {
           display:grid;
           grid-template-columns: 
-            1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr;
+            1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.6fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr;
           padding:8px 14px; font-size:14px; align-items:center;
       }
       .tbl-header { background:#f8fafc; font-weight:600; border-bottom:1px solid #e5e7eb; }
@@ -1197,7 +1195,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
       .action-btn { border:none; border-radius:6px; padding:3px 6px; color:white; cursor:pointer; }
       .edit { background:#1976d2; }
       .del { background:#e53935; margin-left:6px; }
-      .desc-clip { display:block; max-width:380px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .desc-wrap {
+          display:block;
+          white-space:normal;
+          word-wrap:break-word;
+          overflow-wrap:anywhere;
+          line-height:1.4;
+          max-height:4.8em; /* circa 3 righe di testo */
+          overflow:hidden;
+      }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1223,7 +1229,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         """, unsafe_allow_html=True
     )
 
-    # === Righe tabella (estese) ===
+    # === Righe tabella ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "")).lower()
         bg_class = "chiuso" if stato == "chiuso" else ""
@@ -1233,7 +1239,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         durata = r.get("Durata", "")
         tot = r.get("TotRata", "")
         desc = str(r.get("DescrizioneProdotto", "") or "—")
-        desc_short = (desc[:80] + "…") if len(desc) > 80 else desc
         copie_bn = r.get("CopieBN", "")
         ecc_bn = r.get("EccBN", "")
         copie_col = r.get("CopieCol", "")
@@ -1242,13 +1247,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         nint = r.get("NOL_INT", "")
         num_cont = r.get("NumeroContratto", "")
 
-        # badge stato
         stato_badge = (
             "<span class='pill pill-closed'>Chiuso</span>" if stato == "chiuso"
             else "<span class='pill pill-open'>Aperto</span>"
         )
 
-        # pulsanti azione
         btn_edit = ""
         btn_close = ""
         if not permessi_limitati:
@@ -1263,7 +1266,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 <div>{dfi}</div>
                 <div>{durata}</div>
                 <div>{tot}</div>
-                <div><span class='desc-clip' title="{desc.replace('"','&quot;')}">{desc_short}</span></div>
+                <div><span class='desc-wrap'>{desc}</span></div>
                 <div>{copie_bn}</div>
                 <div>{ecc_bn}</div>
                 <div>{copie_col}</div>

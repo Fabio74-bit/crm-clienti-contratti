@@ -338,6 +338,13 @@ def carica_dati_supabase(user: str):
         data_cli = res_cli.data
         df_cli = pd.DataFrame(data_cli)
 
+        import streamlit as st
+        st.sidebar.write("🧾 Colonne clienti:", list(df_cli.columns))
+        if not df_cli.empty:
+            st.sidebar.write("🔍 Prime righe clienti:", df_cli.head(3))
+        else:
+            st.sidebar.warning("⚠️ Nessun cliente trovato su Supabase.")
+
         # 🔍 Filtro in Python per owner (se la colonna esiste)
         if not df_cli.empty:
             if "owner" in df_cli.columns:
@@ -2122,6 +2129,15 @@ def main():
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
 
+# =====================================
+# 🔧 UTILITÀ AMMINISTRATIVE
+# =====================================
+if st.sidebar.button("🛠️ Correggi owner su Supabase (solo admin)"):
+    user = st.session_state.get("user", "")
+    if user.lower() == "fabio":
+        fix_supabase_owner(user)
+    else:
+        st.sidebar.warning("⚠️ Solo l'admin può eseguire questa operazione.")
 
 # =====================================
 # AVVIO APPLICAZIONE

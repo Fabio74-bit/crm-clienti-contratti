@@ -196,6 +196,83 @@ def save_contratti(df: pd.DataFrame):
     except Exception as e:
         st.warning(f"⚠️ Impossibile sincronizzare contratti: {e}")
 # =====================================
+# NORMALIZZAZIONE COLONNE (compatibilità Supabase)
+# =====================================
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Rinomina automaticamente le colonne in maiuscolo standard
+    per compatibilità col codice Streamlit.
+    """
+    mapping = {
+        "clienteid": "ClienteID",
+        "ragionesociale": "RagioneSociale",
+        "personariferimento": "PersonaRiferimento",
+        "indirizzo": "Indirizzo",
+        "citta": "Citta",
+        "cap": "CAP",
+        "telefono": "Telefono",
+        "cell": "Cell",
+        "email": "Email",
+        "partitaiva": "PartitaIVA",
+        "iban": "IBAN",
+        "sdi": "SDI",
+        "ultimorecall": "UltimoRecall",
+        "prossimorecall": "ProssimoRecall",
+        "ultimavisita": "UltimaVisita",
+        "prossimavisita": "ProssimaVisita",
+        "tmk": "TMK",
+        "notecliente": "NoteCliente",
+        "numerocontratto": "NumeroContratto",
+        "datainizio": "DataInizio",
+        "datafine": "DataFine",
+        "durata": "Durata",
+        "descrizioneprodotto": "DescrizioneProdotto",
+        "nol_fin": "NOL_FIN",
+        "nol_int": "NOL_INT",
+        "totrata": "TotRata",
+        "copiebn": "CopieBN",
+        "eccbn": "EccBN",
+        "copiecol": "CopieCol",
+        "ecccol": "EccCol",
+        "stato": "Stato",
+        "owner": "owner"
+    }
+    df = df.rename(columns={c: mapping.get(c.lower(), c) for c in df.columns})
+    return df
+
+# =====================================
+# SINCRONIZZAZIONE AUTOMATICA SUPABASE
+# =====================================
+import threading
+import time
+
+def sync_supabase_periodico():
+    """Sincronizza automaticamente clienti e contratti ogni 5 minuti per l’utente loggato."""
+    while True:
+        try:
+            if st.session_state.get("logged_in") and "user" in st.session_state:
+                user = st.session_state["user"]
+                CLIENTI_CSV = st.session_state.get("CLIENTI_CSV")
+                CONTRATTI_CSV = st.session_state.get("CONTRATTI_CSV")
+
+                # Carica dati locali
+                df_cli = pd.read_csv(CLIENTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+                df_ct = pd.read_csv(CONTRATTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+
+                # 🔁 Sincronizza con Supabase
+                supabase.table("clienti").delete().eq("owner", user).execute()
+                supabase.table("clienti").insert(df_cli.assign(owner=user).to_dict(orient="records")).execute()
+
+                supabase.table("contratti").delete().eq("owner", user).execute()
+                supabase.table("contratti").insert(df_ct.assign(owner=user).to_dict(orient="records")).execute()
+
+                print(f"[SYNC] ✅ Dati sincronizzati con Supabase per {user}")
+            time.sleep(300)  # 5 minuti
+        except Exception as e:
+            print(f"[SYNC] ⚠️ Errore nella sincronizzazione: {e}")
+            time.sleep(300)
+
+# =====================================
 # FUNZIONI UTILITY
 # =====================================
 def fmt_date(d) -> str:
@@ -361,23 +438,21 @@ def do_login_fullscreen():
             # STORAGE MULTIUTENTE AUTOMATICO
             # =====================================
             from pathlib import Path
-
             base_storage = Path("storage")
             user = username.lower()
 
-            # Fabio (admin) lavora nella root
             if user == "fabio":
                 user_storage = base_storage
             else:
                 user_storage = base_storage / user
                 user_storage.mkdir(parents=True, exist_ok=True)
 
-            # Definizione percorsi personali
+            # === Percorsi personali ===
             CLIENTI_CSV = user_storage / "clienti.csv"
             CONTRATTI_CSV = user_storage / "contratti_clienti.csv"
             PREVENTIVI_CSV = user_storage / "preventivi.csv"
 
-            # Struttura colonne
+            # === Struttura colonne ===
             CLIENTI_COLS = [
                 "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
                 "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
@@ -391,13 +466,17 @@ def do_login_fullscreen():
                 "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato", "owner"
             ]
 
-            # Crea i CSV se non esistono
-            for path, cols in [(CLIENTI_CSV, CLIENTI_COLS), (CONTRATTI_CSV, CONTRATTI_COLS), (PREVENTIVI_CSV, [])]:
+            # === Crea i CSV se non esistono ===
+            for path, cols in [
+                (CLIENTI_CSV, CLIENTI_COLS),
+                (CONTRATTI_CSV, CONTRATTI_COLS),
+                (PREVENTIVI_CSV, [])
+            ]:
                 if not path.exists():
                     import pandas as pd
                     pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig")
 
-            # Salva i percorsi e colonne nel session state
+            # === Salva nel session_state ===
             st.session_state["CLIENTI_CSV"] = CLIENTI_CSV
             st.session_state["CONTRATTI_CSV"] = CONTRATTI_CSV
             st.session_state["PREVENTIVI_CSV"] = PREVENTIVI_CSV
@@ -405,18 +484,23 @@ def do_login_fullscreen():
             st.session_state["CONTRATTI_COLS"] = CONTRATTI_COLS
 
             # =====================================
+            # 🔄 AVVIO SINCRONIZZAZIONE AUTOMATICA SUPABASE
+            # =====================================
+            if "sync_thread_started" not in st.session_state:
+                threading.Thread(target=sync_supabase_periodico, daemon=True).start()
+                st.session_state["sync_thread_started"] = True
 
+            # =====================================
             st.success(f"✅ Benvenuto {username}!")
             time.sleep(0.3)
             st.rerun()
+
         else:
             st.error("❌ Credenziali non valide.")
             st.session_state["_login_checked"] = False
 
     st.stop()
-# =====================================
-# KPI CARD (riutilizzata)
-# =====================================
+
 
 def kpi_card(label: str, value, icon: str, color: str) -> str:
     return f"""

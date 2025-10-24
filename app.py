@@ -1804,10 +1804,13 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 # MAIN APP — versione definitiva 2025 con filtro visibilità e loader sicuro
 # =====================================
 def main():
+    global LOGO_URL  # 🔹 rende disponibile la variabile globale all’interno di main()
+    
     # --- LOGIN ---
     user, role = do_login_fullscreen()
     if not user:
         st.stop()
+
 
     # --- Percorsi base ---
     global CLIENTI_CSV, CONTRATTI_CSV

@@ -83,15 +83,15 @@ CLIENTI_COLS = [
     "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
     "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
     "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
-    "TMK", "NoteCliente"
+    "TMK", "NoteCliente", "owner"   # 👈 aggiunta colonna obbligatoria per Supabase
 ]
-
 
 CONTRATTI_COLS = [
     "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
     "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-    "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+    "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato", "owner"  # 👈 anche qui
 ]
+
 # =====================================
 # CONNESSIONE A SUPABASE
 # =====================================

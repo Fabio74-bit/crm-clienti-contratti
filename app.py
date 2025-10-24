@@ -331,28 +331,26 @@ def carica_dati_supabase(user: str):
     """Scarica i dati di clienti e contratti da Supabase e li normalizza."""
     try:
         data_cli = supabase.table("clienti").select("*").eq("owner", user).execute().data
-        data_ct = supabase.table("contratti").select("*").eq("owner", user).execute().data
+        data_ct = (
+            supabase.table("contratti")
+            .select("*")
+            .or_("owner.eq." + user + ",Owner.eq." + user)
+            .execute()
+            .data
+        )
 
         df_cli = pd.DataFrame(data_cli)
         df_ct = pd.DataFrame(data_ct)
 
+        # --- Debug opzionale ---
         import streamlit as st
-        st.write("=== DEBUG SUPABASE ===")
-        st.write("Clienti:", len(df_cli), "Contratti:", len(df_ct))
-        st.write("Colonne contratti:", list(df_ct.columns))
-        st.write("Prime 3 righe contratti:")
-        st.write(df_ct.head(3))
-        st.write("=======================")
+        st.sidebar.markdown(f"📡 Supabase: **{len(df_cli)} clienti / {len(df_ct)} contratti**")
+        if len(df_ct) == 0:
+            st.sidebar.warning("⚠️ Nessun contratto trovato (controlla campo Owner su Supabase).")
 
         # --- Normalizzazione colonne (usa quella globale) ---
         df_cli = normalize_columns(df_cli)
         df_ct = normalize_columns(df_ct)
-
-        # --- Cast sicuro per chiavi relazionali ---
-        if "ClienteID" in df_cli.columns:
-            df_cli["ClienteID"] = df_cli["ClienteID"].astype(str)
-        if "ClienteID" in df_ct.columns:
-            df_ct["ClienteID"] = df_ct["ClienteID"].astype(str)
 
         # --- Colonne minime garantite ---
         for col in ["ClienteID", "RagioneSociale"]:
@@ -368,6 +366,7 @@ def carica_dati_supabase(user: str):
     except Exception as e:
         print(f"[LOAD] ⚠️ Errore nel caricamento da Supabase: {e}")
         return pd.DataFrame(), pd.DataFrame()
+
 
 # =====================================
 # FUNZIONI UTILITY

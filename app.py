@@ -329,6 +329,8 @@ def sync_supabase_periodico():
 # =====================================
 def carica_dati_supabase(user: str):
     """Scarica i dati di clienti e contratti da Supabase, li normalizza e verifica la coerenza."""
+    import streamlit as st   # 👈 AGGIUNTO QUI!
+
     try:
         # --- Query clienti (gestisce owner / Owner) ---
         data_cli = (
@@ -339,10 +341,10 @@ def carica_dati_supabase(user: str):
             .data
         )
 
-
         # --- Query contratti (lettura completa + filtro locale) ---
         res_ct = supabase.table("contratti").select("*").execute()
         data_ct = res_ct.data
+
 
         df_cli = pd.DataFrame(data_cli)
         df_ct = pd.DataFrame(data_ct)

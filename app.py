@@ -337,12 +337,7 @@ def carica_dati_supabase(user: str):
         res_cli = supabase.table("clienti").select("*").execute()
         data_cli = res_cli.data
         df_cli = pd.DataFrame(data_cli)
-
-        st.sidebar.write("🧾 Colonne clienti:", list(df_cli.columns))
-        if not df_cli.empty:
-            st.sidebar.write("🔍 Prime righe clienti:", df_cli.head(3))
-        else:
-            st.sidebar.warning("⚠️ Nessun cliente trovato su Supabase.")
+        
 
         # 🔍 Filtro in Python per owner (se la colonna esiste)
         if not df_cli.empty:

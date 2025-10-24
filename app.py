@@ -1559,70 +1559,118 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# FUNZIONE MODALE MODIFICA CONTRATTO
+# MODALE CONTRATTO — VERSIONE 2025 (completa)
 # =====================================
 def show_contract_modal(contratto, df_ct, df_cli, rag_soc):
-    """Mostra la finestra di modifica al centro schermo"""
-    st.markdown("""
-    <style>
-    .modal-bg {
-        position: fixed; top:0; left:0; width:100%; height:100%;
-        background: rgba(0,0,0,0.4); z-index: 9998;
-        display: flex; align-items: center; justify-content: center;
-    }
-    .modal-box {
-        background: white; border-radius: 12px; width: 620px;
-        padding: 1.8rem 2rem; box-shadow: 0 4px 18px rgba(0,0,0,0.25);
-    }
-    </style>
-    <div class="modal-bg"><div class="modal-box">
-    """, unsafe_allow_html=True)
+    import datetime
 
-    st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}")
-    with st.form("frm_edit_contract"):
-        col1, col2 = st.columns(2)
+    ruolo_scrittura = st.session_state.get("ruolo_scrittura", "viewer")
+    permessi_limitati = ruolo_scrittura == "limitato"
+
+    numero = contratto.get("NumeroContratto", "")
+    st.markdown(
+        f"""
+        <div style='padding:15px 20px;border-radius:12px;background:#f8fafc;margin-top:10px;'>
+            <h4 style='margin:0 0 10px 0;color:#2563eb;'>✏️ Modifica Contratto #{numero}</h4>
+        </div>
+        """, unsafe_allow_html=True
+    )
+
+    with st.form(f"form_edit_contratto_{numero}"):
+        col1, col2, col3 = st.columns(3)
         with col1:
-            num = st.text_input("Numero Contratto", contratto.get("NumeroContratto",""), disabled=True)
-            din = st.date_input("Data Inizio", value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce"))
-            durata = st.text_input("Durata (mesi)", contratto.get("Durata",""))
-            stato = st.selectbox("Stato", ["aperto", "chiuso"], index=0 if contratto.get("Stato","")!="chiuso" else 1)
+            din = st.date_input(
+                "📅 Data Inizio",
+                value=pd.to_datetime(contratto.get("DataInizio"), errors="coerce").date()
+                if pd.notna(contratto.get("DataInizio")) else datetime.date.today(),
+                format="DD/MM/YYYY"
+            )
         with col2:
-            nf = st.text_input("NOL_FIN", contratto.get("NOL_FIN",""))
-            ni = st.text_input("NOL_INT", contratto.get("NOL_INT",""))
-            tot = st.text_input("Tot Rata", contratto.get("TotRata",""))
-        desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto",""), height=100)
-        colA, colB, colC, colD = st.columns(4)
-        copie_bn = colA.text_input("Copie B/N", contratto.get("CopieBN",""))
-        ecc_bn   = colB.text_input("Extra B/N (€)", contratto.get("EccBN",""))
-        copie_col= colC.text_input("Copie Colore", contratto.get("CopieCol",""))
-        ecc_col  = colD.text_input("Extra Colore (€)", contratto.get("EccCol",""))
+            dfi = st.date_input(
+                "📅 Data Fine",
+                value=pd.to_datetime(contratto.get("DataFine"), errors="coerce").date()
+                if pd.notna(contratto.get("DataFine")) else datetime.date.today(),
+                format="DD/MM/YYYY"
+            )
+        with col3:
+            durata = st.selectbox(
+                "📆 Durata (mesi)",
+                DURATE_MESI,
+                index=DURATE_MESI.index(str(contratto.get("Durata", "12"))) if str(contratto.get("Durata", "12")) in DURATE_MESI else 2
+            )
 
-        salva = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
-        annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
+        desc = st.text_area("🧾 Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
 
-        if salva:
-            try:
-                idx = df_ct.index[df_ct["NumeroContratto"] == num][0]
-                df_ct.loc[idx, [
-                    "DataInizio","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT",
-                    "TotRata","CopieBN","EccBN","CopieCol","EccCol","Stato"
-                ]] = [
-                    fmt_date(din), durata, desc, nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
-                ]
-                save_contratti(df_ct)
-                st.success("✅ Contratto aggiornato con successo.")
-                time.sleep(0.6)
-                st.experimental_set_query_params()
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Errore durante il salvataggio: {e}")
+        colp1, colp2, colp3 = st.columns(3)
+        with colp1:
+            nf = st.text_input("🏦 NOL_FIN", contratto.get("NOL_FIN", ""))
+        with colp2:
+            ni = st.text_input("🏢 NOL_INT", contratto.get("NOL_INT", ""))
+        with colp3:
+            tot = st.text_input("💰 Tot Rata", contratto.get("TotRata", ""))
 
-        if annulla:
-            st.experimental_set_query_params()
+        colx1, colx2, colx3, colx4 = st.columns(4)
+        with colx1:
+            copie_bn = st.text_input("📄 Copie incluse B/N", contratto.get("CopieBN", ""))
+        with colx2:
+            ecc_bn = st.text_input("💶 Costo extra B/N (€)", contratto.get("EccBN", ""))
+        with colx3:
+            copie_col = st.text_input("🖨️ Copie incluse Colore", contratto.get("CopieCol", ""))
+        with colx4:
+            ecc_col = st.text_input("💶 Costo extra Colore (€)", contratto.get("EccCol", ""))
+
+        stato = st.selectbox(
+            "🟢 Stato Contratto",
+            ["aperto", "chiuso"],
+            index=0 if str(contratto.get("Stato", "")).lower() != "chiuso" else 1
+        )
+
+        st.markdown("---")
+
+        cbtn1, cbtn2, cbtn3 = st.columns([1, 1, 2])
+        with cbtn1:
+            salva = st.form_submit_button("💾 Salva Modifiche", use_container_width=True, disabled=permessi_limitati)
+        with cbtn2:
+            annulla = st.form_submit_button("❌ Chiudi", use_container_width=True)
+
+    # === Logica pulsanti ===
+    if salva:
+        try:
+            idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+            if len(idx) == 0:
+                st.error("Contratto non trovato nel DataFrame.")
+                return
+
+            i = idx[0]
+            df_ct.loc[i, "DataInizio"] = fmt_date(din)
+            df_ct.loc[i, "DataFine"] = fmt_date(dfi)
+            df_ct.loc[i, "Durata"] = durata
+            df_ct.loc[i, "DescrizioneProdotto"] = desc
+            df_ct.loc[i, "NOL_FIN"] = nf
+            df_ct.loc[i, "NOL_INT"] = ni
+            df_ct.loc[i, "TotRata"] = tot
+            df_ct.loc[i, "CopieBN"] = copie_bn
+            df_ct.loc[i, "EccBN"] = ecc_bn
+            df_ct.loc[i, "CopieCol"] = copie_col
+            df_ct.loc[i, "EccCol"] = ecc_col
+            df_ct.loc[i, "Stato"] = stato
+
+            save_contratti(df_ct)
+
+            st.success(f"✅ Contratto {numero} aggiornato correttamente.")
+            time.sleep(0.4)
+            st.session_state.pop("open_modal", None)
+            st.session_state.pop("selected_contratto", None)
+            st.query_params.clear()
             st.rerun()
+        except Exception as e:
+            st.error(f"❌ Errore durante il salvataggio: {e}")
 
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
+    elif annulla:
+        st.session_state.pop("open_modal", None)
+        st.session_state.pop("selected_contratto", None)
+        st.query_params.clear()
+        st.rerun()
 
 # =====================================
 # FUNZIONI DI ESPORTAZIONE (Excel + PDF)

@@ -451,12 +451,62 @@ def do_login_fullscreen():
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
         users = st.secrets["auth"]["users"]
+
         if username in users and users[username]["password"] == password:
             st.session_state.update({
                 "user": username,
                 "role": users[username].get("role", "viewer"),
                 "logged_in": True
             })
+
+            # =====================================
+            # STORAGE MULTIUTENTE AUTOMATICO
+            # =====================================
+            from pathlib import Path
+
+            base_storage = Path("storage")
+            user = username.lower()
+
+            # Fabio (admin) lavora nella root
+            if user == "fabio":
+                user_storage = base_storage
+            else:
+                user_storage = base_storage / user
+                user_storage.mkdir(parents=True, exist_ok=True)
+
+            # Definizione percorsi personali
+            CLIENTI_CSV = user_storage / "clienti.csv"
+            CONTRATTI_CSV = user_storage / "contratti_clienti.csv"
+            PREVENTIVI_CSV = user_storage / "preventivi.csv"
+
+            # Struttura colonne
+            CLIENTI_COLS = [
+                "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "Cap",
+                "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
+                "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
+                "TMK", "NoteCliente"
+            ]
+            CONTRATTI_COLS = [
+                "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine",
+                "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+                "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+            ]
+
+            # Crea i CSV se non esistono
+            for path, cols in [(CLIENTI_CSV, CLIENTI_COLS), (CONTRATTI_CSV, CONTRATTI_COLS), (PREVENTIVI_CSV, [])]:
+                if not path.exists():
+                    import pandas as pd
+                    pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig")
+
+            # Salva i percorsi e colonne nel session state
+            st.session_state["CLIENTI_CSV"] = CLIENTI_CSV
+            st.session_state["CONTRATTI_CSV"] = CONTRATTI_CSV
+            st.session_state["PREVENTIVI_CSV"] = PREVENTIVI_CSV
+            st.session_state["CLIENTI_COLS"] = CLIENTI_COLS
+            st.session_state["CONTRATTI_COLS"] = CONTRATTI_COLS
+
+            # =====================================
+
             st.success(f"✅ Benvenuto {username}!")
             time.sleep(0.3)
             st.rerun()
@@ -468,6 +518,7 @@ def do_login_fullscreen():
 # =====================================
 # KPI CARD (riutilizzata)
 # =====================================
+
 def kpi_card(label: str, value, icon: str, color: str) -> str:
     return f"""
     <div style="

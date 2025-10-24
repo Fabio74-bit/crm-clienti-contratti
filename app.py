@@ -109,14 +109,30 @@ supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 # CARICAMENTO E SALVATAGGIO DATI (CSV + SUPABASE)
 # =====================================
 
-import pandas as pd
-
 def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    """Garantisce che il DataFrame abbia tutte le colonne richieste."""
+    """
+    Garantisce che il DataFrame contenga tutte le colonne richieste
+    (nell'ordine corretto), aggiungendo quelle mancanti come stringhe vuote.
+
+    - Gestisce DataFrame vuoti o None.
+    - Mantiene l'ordine delle colonne specificato.
+    - Riempie i valori mancanti con stringhe vuote.
+    """
+    if df is None or df.empty:
+        return pd.DataFrame(columns=cols)
+
+    out = df.copy()
+
     for c in cols:
-        if c not in df.columns:
-            df[c] = ""
-    return df[cols]
+        if c not in out.columns:
+            out[c] = ""
+
+    # Riordina e pulisce
+    out = out[cols]
+    out = out.fillna("").astype(str)
+
+    return out
+
 
 # =====================================
 # CARICAMENTO CSV UNIVERSALE — VERSIONE 2025 (ottimizzata + cache + garanzia colonne)

@@ -2138,3 +2138,6 @@ if st.sidebar.button("🛠️ Correggi owner su Supabase (solo admin)"):
 # =====================================
 # AVVIO APPLICAZIONE
 # =====================================
+if "main" in globals():
+    main()
+

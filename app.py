@@ -1972,7 +1972,48 @@ def main():
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
 
+# =====================================
+# 🔍 TEST DIAGNOSTICO SUPABASE / SALVATAGGIO
+# =====================================
+if st.sidebar.button("🧪 Test Sync Supabase"):
+    try:
+        # 1️⃣ Crea una piccola riga di test
+        test_df = pd.DataFrame([{
+            "ClienteID": "TEST-001",
+            "RagioneSociale": "Cliente Test Sync",
+            "PersonaRiferimento": "Debug",
+            "Indirizzo": "Via Verifica 123",
+            "Citta": "TestCity",
+            "CAP": "00000",
+            "Telefono": "0000000000",
+            "Cell": "0000000000",
+            "Email": "test@example.com",
+            "PartitaIVA": "00000000000",
+            "IBAN": "IT00TESTSYNC",
+            "SDI": "0000000",
+            "UltimoRecall": "",
+            "ProssimoRecall": "",
+            "UltimaVisita": "",
+            "ProssimaVisita": "",
+            "TMK": "",
+            "NoteCliente": "",
+            "owner": st.session_state.get("user", "")
+        }])
 
+        st.write("📄 **Test DF generato:**", test_df)
+
+        # 2️⃣ Salvataggio locale + sincronizzazione
+        save_clienti(test_df)
+
+        # 3️⃣ Controllo remoto
+        res = supabase.table("clienti").select("*").eq("owner", st.session_state["user"]).execute()
+        if res.data:
+            st.success(f"✅ Supabase risponde correttamente: {len(res.data)} record trovati per {st.session_state['user']}.")
+        else:
+            st.warning("⚠️ Nessun record trovato (verifica policy o credenziali Supabase).")
+
+    except Exception as e:
+        st.error(f"❌ Test fallito: {e}")
 # =====================================
 # AVVIO APPLICAZIONE
 # =====================================

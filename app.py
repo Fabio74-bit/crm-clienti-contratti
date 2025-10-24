@@ -1559,7 +1559,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# MODALE CONTRATTO — VERSIONE 2025 (completa)
+# MODALE CONTRATTO — VERSIONE 2025 (completa: nuova creazione + modifica)
 # =====================================
 def show_contract_modal(contratto, df_ct, df_cli, rag_soc):
     import datetime
@@ -1567,102 +1567,142 @@ def show_contract_modal(contratto, df_ct, df_cli, rag_soc):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", "viewer")
     permessi_limitati = ruolo_scrittura == "limitato"
 
-    numero = contratto.get("NumeroContratto", "")
+    is_new = st.session_state.get("open_modal") == "new"
+    numero = contratto.get("NumeroContratto", "") if not is_new else ""
+    titolo = "➕ Nuovo Contratto" if is_new else f"✏️ Modifica Contratto #{numero}"
+
     st.markdown(
         f"""
         <div style='padding:15px 20px;border-radius:12px;background:#f8fafc;margin-top:10px;'>
-            <h4 style='margin:0 0 10px 0;color:#2563eb;'>✏️ Modifica Contratto #{numero}</h4>
+            <h4 style='margin:0 0 10px 0;color:#2563eb;'>{titolo}</h4>
         </div>
         """, unsafe_allow_html=True
     )
 
-    with st.form(f"form_edit_contratto_{numero}"):
+    with st.form(f"form_contratto_{numero or 'new'}"):
         col1, col2, col3 = st.columns(3)
         with col1:
             din = st.date_input(
                 "📅 Data Inizio",
-                value=pd.to_datetime(contratto.get("DataInizio"), errors="coerce").date()
-                if pd.notna(contratto.get("DataInizio")) else datetime.date.today(),
+                value=(
+                    pd.to_datetime(contratto.get("DataInizio"), errors="coerce").date()
+                    if not is_new and pd.notna(contratto.get("DataInizio"))
+                    else datetime.date.today()
+                ),
                 format="DD/MM/YYYY"
             )
         with col2:
             dfi = st.date_input(
                 "📅 Data Fine",
-                value=pd.to_datetime(contratto.get("DataFine"), errors="coerce").date()
-                if pd.notna(contratto.get("DataFine")) else datetime.date.today(),
+                value=(
+                    pd.to_datetime(contratto.get("DataFine"), errors="coerce").date()
+                    if not is_new and pd.notna(contratto.get("DataFine"))
+                    else datetime.date.today() + datetime.timedelta(days=365)
+                ),
                 format="DD/MM/YYYY"
             )
         with col3:
             durata = st.selectbox(
                 "📆 Durata (mesi)",
                 DURATE_MESI,
-                index=DURATE_MESI.index(str(contratto.get("Durata", "12"))) if str(contratto.get("Durata", "12")) in DURATE_MESI else 2
+                index=(
+                    DURATE_MESI.index(str(contratto.get("Durata", "12")))
+                    if not is_new and str(contratto.get("Durata", "12")) in DURATE_MESI
+                    else 2
+                )
             )
 
-        desc = st.text_area("🧾 Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+        desc = st.text_area(
+            "🧾 Descrizione Prodotto",
+            contratto.get("DescrizioneProdotto", "") if not is_new else "",
+            height=100
+        )
 
         colp1, colp2, colp3 = st.columns(3)
         with colp1:
-            nf = st.text_input("🏦 NOL_FIN", contratto.get("NOL_FIN", ""))
+            nf = st.text_input("🏦 NOL_FIN", contratto.get("NOL_FIN", "") if not is_new else "")
         with colp2:
-            ni = st.text_input("🏢 NOL_INT", contratto.get("NOL_INT", ""))
+            ni = st.text_input("🏢 NOL_INT", contratto.get("NOL_INT", "") if not is_new else "")
         with colp3:
-            tot = st.text_input("💰 Tot Rata", contratto.get("TotRata", ""))
+            tot = st.text_input("💰 Tot Rata", contratto.get("TotRata", "") if not is_new else "")
 
         colx1, colx2, colx3, colx4 = st.columns(4)
         with colx1:
-            copie_bn = st.text_input("📄 Copie incluse B/N", contratto.get("CopieBN", ""))
+            copie_bn = st.text_input("📄 Copie incluse B/N", contratto.get("CopieBN", "") if not is_new else "")
         with colx2:
-            ecc_bn = st.text_input("💶 Costo extra B/N (€)", contratto.get("EccBN", ""))
+            ecc_bn = st.text_input("💶 Costo extra B/N (€)", contratto.get("EccBN", "") if not is_new else "")
         with colx3:
-            copie_col = st.text_input("🖨️ Copie incluse Colore", contratto.get("CopieCol", ""))
+            copie_col = st.text_input("🖨️ Copie incluse Colore", contratto.get("CopieCol", "") if not is_new else "")
         with colx4:
-            ecc_col = st.text_input("💶 Costo extra Colore (€)", contratto.get("EccCol", ""))
+            ecc_col = st.text_input("💶 Costo extra Colore (€)", contratto.get("EccCol", "") if not is_new else "")
 
         stato = st.selectbox(
             "🟢 Stato Contratto",
             ["aperto", "chiuso"],
-            index=0 if str(contratto.get("Stato", "")).lower() != "chiuso" else 1
+            index=0 if is_new or str(contratto.get("Stato", "")).lower() != "chiuso" else 1
         )
 
         st.markdown("---")
 
         cbtn1, cbtn2, cbtn3 = st.columns([1, 1, 2])
         with cbtn1:
-            salva = st.form_submit_button("💾 Salva Modifiche", use_container_width=True, disabled=permessi_limitati)
+            salva = st.form_submit_button("💾 Salva", use_container_width=True, disabled=permessi_limitati)
         with cbtn2:
             annulla = st.form_submit_button("❌ Chiudi", use_container_width=True)
 
-    # === Logica pulsanti ===
+    # === LOGICA SALVATAGGIO ===
     if salva:
         try:
-            idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-            if len(idx) == 0:
-                st.error("Contratto non trovato nel DataFrame.")
-                return
+            if is_new:
+                new_num = str(len(df_ct) + 1)
+                new_contratto = {
+                    "ClienteID": st.session_state.get("selected_cliente", ""),
+                    "RagioneSociale": rag_soc,
+                    "NumeroContratto": new_num,
+                    "DataInizio": fmt_date(din),
+                    "DataFine": fmt_date(dfi),
+                    "Durata": durata,
+                    "DescrizioneProdotto": desc,
+                    "NOL_FIN": nf,
+                    "NOL_INT": ni,
+                    "TotRata": tot,
+                    "CopieBN": copie_bn,
+                    "EccBN": ecc_bn,
+                    "CopieCol": copie_col,
+                    "EccCol": ecc_col,
+                    "Stato": stato
+                }
+                df_ct = pd.concat([df_ct, pd.DataFrame([new_contratto])], ignore_index=True)
+                save_contratti(df_ct)
+                st.success(f"✅ Nuovo contratto creato correttamente ({rag_soc}).")
 
-            i = idx[0]
-            df_ct.loc[i, "DataInizio"] = fmt_date(din)
-            df_ct.loc[i, "DataFine"] = fmt_date(dfi)
-            df_ct.loc[i, "Durata"] = durata
-            df_ct.loc[i, "DescrizioneProdotto"] = desc
-            df_ct.loc[i, "NOL_FIN"] = nf
-            df_ct.loc[i, "NOL_INT"] = ni
-            df_ct.loc[i, "TotRata"] = tot
-            df_ct.loc[i, "CopieBN"] = copie_bn
-            df_ct.loc[i, "EccBN"] = ecc_bn
-            df_ct.loc[i, "CopieCol"] = copie_col
-            df_ct.loc[i, "EccCol"] = ecc_col
-            df_ct.loc[i, "Stato"] = stato
+            else:
+                idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                if len(idx) == 0:
+                    st.error("Contratto non trovato nel DataFrame.")
+                    return
+                i = idx[0]
+                df_ct.loc[i, "DataInizio"] = fmt_date(din)
+                df_ct.loc[i, "DataFine"] = fmt_date(dfi)
+                df_ct.loc[i, "Durata"] = durata
+                df_ct.loc[i, "DescrizioneProdotto"] = desc
+                df_ct.loc[i, "NOL_FIN"] = nf
+                df_ct.loc[i, "NOL_INT"] = ni
+                df_ct.loc[i, "TotRata"] = tot
+                df_ct.loc[i, "CopieBN"] = copie_bn
+                df_ct.loc[i, "EccBN"] = ecc_bn
+                df_ct.loc[i, "CopieCol"] = copie_col
+                df_ct.loc[i, "EccCol"] = ecc_col
+                df_ct.loc[i, "Stato"] = stato
+                save_contratti(df_ct)
+                st.success(f"✅ Contratto {numero} aggiornato correttamente.")
 
-            save_contratti(df_ct)
-
-            st.success(f"✅ Contratto {numero} aggiornato correttamente.")
             time.sleep(0.4)
             st.session_state.pop("open_modal", None)
             st.session_state.pop("selected_contratto", None)
             st.query_params.clear()
             st.rerun()
+
         except Exception as e:
             st.error(f"❌ Errore durante il salvataggio: {e}")
 

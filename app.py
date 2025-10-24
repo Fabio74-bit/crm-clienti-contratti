@@ -931,31 +931,53 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown("---")
 
-        # Righe tabella (zebra + pulsante funzionante)
-        for i, r in scadenze.iterrows():
-            bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
-            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
-            with col1:
-                st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
-            with col2:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-            with col4:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
-            with col5:
-                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                    # 🔹 Pulisce eventuali flag di modifica prima di cambiare pagina
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
-                            del st.session_state[k]
+            # === Righe tabella (layout fedele: 13 colonne dati + 1 colonna azioni) ===
+    for i, r in ct.iterrows():
+        stato = str(r.get("Stato", "")).lower()
+        is_chiuso = (stato == "chiuso")
+        badge = "🟥 Chiuso" if is_chiuso else "🟩 Aperto"
 
-                    st.session_state.update({
-                        "selected_cliente": str(r.get("ClienteID")),
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
+        # le stesse proporzioni della tua griglia (somma 14)
+        c = st.columns([1.1, 0.9, 0.9, 0.6, 0.9, 1.6, 0.8, 0.8, 0.8, 0.8, 0.9, 0.9, 0.8, 0.9])
+
+        # 13 colonne di dati (come prima)
+        c[0].markdown(f"{r.get('NumeroContratto','—')}")
+        c[1].markdown(f"{r.get('DataInizio','')}")
+        c[2].markdown(f"{r.get('DataFine','')}")
+        c[3].markdown(f"{r.get('Durata','')}")
+        c[4].markdown(f"{r.get('TotRata','')}")
+        # descrizione multilinea con wrap
+        desc = str(r.get('DescrizioneProdotto', '') or '—')
+        c[5].markdown(f"<div style='white-space:normal;word-wrap:break-word;overflow-wrap:anywhere;line-height:1.4'>{desc}</div>", unsafe_allow_html=True)
+        c[6].markdown(f"{r.get('CopieBN','')}")
+        c[7].markdown(f"{r.get('EccBN','')}")
+        c[8].markdown(f"{r.get('CopieCol','')}")
+        c[9].markdown(f"{r.get('EccCol','')}")
+        c[10].markdown(f"{r.get('NOL_FIN','')}")
+        c[11].markdown(f"{r.get('NOL_INT','')}")
+        c[12].markdown(f"{badge}")
+
+        # 14ª colonna: azioni (stessa cella, due bottoni)
+        # chiavi uniche e stabili
+        key_suffix = f"{sel_id}_{r.get('NumeroContratto','')}_{i}"
+        if not permessi_limitati:
+            b1, b2 = c[13].columns([1, 1])
+            if b1.button("✏️", key=f"edit_{key_suffix}", use_container_width=True):
+                st.session_state["selected_contratto"] = r.get("NumeroContratto")
+                st.session_state["open_modal"] = "edit"
+                st.rerun()
+
+            if b2.button("❌", key=f"close_{key_suffix}", use_container_width=True):
+                num = r.get("NumeroContratto")
+                idx = df_ct.index[df_ct["NumeroContratto"].astype(str) == str(num)]
+                if len(idx) > 0:
+                    df_ct.loc[idx[0], "Stato"] = "chiuso"
+                    save_contratti(df_ct)
+                    st.success(f"✅ Contratto {num} chiuso correttamente.")
+                    st.session_state.pop("open_modal", None)
+                    st.session_state.pop("selected_contratto", None)
                     st.rerun()
+
 
     # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
     st.divider()
@@ -1542,7 +1564,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             if c1.button("✏️ Modifica", key=f"edit_{i}_{sel_id}"):
                 st.session_state["selected_contratto"] = r.get("NumeroContratto")
                 st.session_state["open_modal"] = "edit"
-                st.experimental_rerun()
+                st.rerun()
+
 
             if c2.button("❌ Chiudi", key=f"close_{i}_{sel_id}"):
                 num = r.get("NumeroContratto")
@@ -1553,7 +1576,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.success(f"✅ Contratto {num} chiuso correttamente.")
                     st.session_state.pop("open_modal", None)
                     st.session_state.pop("selected_contratto", None)
-                    st.experimental_rerun()
+                    st.rerun()
+
 
 
     # === ESPORTAZIONI ===

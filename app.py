@@ -2,6 +2,8 @@
 # 📦 IMPORT PRINCIPALI E CONFIGURAZIONE BASE
 # =====================================
 import streamlit as st
+st.write("🧠 Test secrets:", st.secrets)
+st.stop()
 import pandas as pd
 from datetime import datetime
 from pathlib import Path

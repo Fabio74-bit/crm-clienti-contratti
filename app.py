@@ -386,13 +386,17 @@ def to_date_series(series: pd.Series) -> pd.Series:
 
 
 # =====================================
-# LOGIN FULLSCREEN
+# LOGIN FULLSCREEN (versione aggiornata con sync Supabase)
 # =====================================
 def do_login_fullscreen():
-    """Login elegante con sfondo fullscreen"""
+    """Login elegante con sfondo fullscreen + storage multiutente + sync periodico Supabase"""
+    import threading
+    import time
+
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
+    # --- Stile ---
     st.markdown("""
     <style>
     div[data-testid="stAppViewContainer"] {padding-top:0 !important;}
@@ -413,7 +417,8 @@ def do_login_fullscreen():
     </style>
     """, unsafe_allow_html=True)
 
-    login_col1, login_col2, _ = st.columns([1,2,1])
+    # --- UI ---
+    login_col1, login_col2, _ = st.columns([1, 2, 1])
     with login_col2:
         st.markdown("<div class='login-card'>", unsafe_allow_html=True)
         st.image(LOGO_URL, width=140)
@@ -423,6 +428,7 @@ def do_login_fullscreen():
         login_btn = st.button("Entra")
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # --- Login ---
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
         users = st.secrets["auth"]["users"]
@@ -441,6 +447,7 @@ def do_login_fullscreen():
             base_storage = Path("storage")
             user = username.lower()
 
+            # Fabio lavora nella root
             if user == "fabio":
                 user_storage = base_storage
             else:
@@ -459,7 +466,6 @@ def do_login_fullscreen():
                 "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
                 "TMK", "NoteCliente", "owner"
             ]
-
             CONTRATTI_COLS = [
                 "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
                 "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
@@ -483,37 +489,23 @@ def do_login_fullscreen():
             st.session_state["CLIENTI_COLS"] = CLIENTI_COLS
             st.session_state["CONTRATTI_COLS"] = CONTRATTI_COLS
 
-# =====================================
-# SINCRONIZZAZIONE AUTOMATICA SUPABASE
-# =====================================
-import threading
-import time
+            # =====================================
+            # 🔄 AVVIO SINCRONIZZAZIONE AUTOMATICA SUPABASE
+            # =====================================
+            if "sync_thread_started" not in st.session_state:
+                threading.Thread(target=sync_supabase_periodico, daemon=True).start()
+                st.session_state["sync_thread_started"] = True
 
-def sync_supabase_periodico():
-    """Sincronizza automaticamente clienti e contratti ogni 5 minuti per l’utente loggato."""
-    while True:
-        try:
-            if st.session_state.get("logged_in") and "user" in st.session_state:
-                user = st.session_state["user"]
-                CLIENTI_CSV = st.session_state.get("CLIENTI_CSV")
-                CONTRATTI_CSV = st.session_state.get("CONTRATTI_CSV")
+            # =====================================
+            st.success(f"✅ Benvenuto {username}!")
+            time.sleep(0.3)
+            st.rerun()
 
-                # Carica dati locali
-                df_cli = pd.read_csv(CLIENTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
-                df_ct = pd.read_csv(CONTRATTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+        else:
+            st.error("❌ Credenziali non valide.")
+            st.session_state["_login_checked"] = False
 
-                # 🔁 Sincronizza con Supabase
-                supabase.table("clienti").delete().eq("owner", user).execute()
-                supabase.table("clienti").insert(df_cli.assign(owner=user).to_dict(orient="records")).execute()
-
-                supabase.table("contratti").delete().eq("owner", user).execute()
-                supabase.table("contratti").insert(df_ct.assign(owner=user).to_dict(orient="records")).execute()
-
-                print(f"[SYNC] ✅ Dati sincronizzati con Supabase per {user}")
-            time.sleep(300)  # 5 minuti
-        except Exception as e:
-            print(f"[SYNC] ⚠️ Errore nella sincronizzazione: {e}")
-            time.sleep(300)
+    st.stop()
 
 
 # =====================================

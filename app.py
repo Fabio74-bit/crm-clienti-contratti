@@ -1913,16 +1913,16 @@ def main():
     global LOGO_URL  # 🔹 rende disponibile la variabile globale all’interno di main()
     
     # --- LOGIN ---
-   user, role = do_login_fullscreen()
-   if not user:
-   st.stop()
+    user, role = do_login_fullscreen()
+    if not user:
+        st.stop()
 
-   # 🔁 Riavvia thread sync se non attivo
-   if "sync_thread_started" not in st.session_state:
-       t = threading.Thread(target=sync_supabase_periodico, daemon=True)
-       t.start()
-       st.session_state["sync_thread_started"] = True
-       print("🌀 Thread di sincronizzazione Supabase avviato da main().")
+    # 🔁 Riavvia thread sync se non attivo
+    if "sync_thread_started" not in st.session_state:
+        t = threading.Thread(target=sync_supabase_periodico, daemon=True)
+        t.start()
+        st.session_state["sync_thread_started"] = True
+        print("🌀 Thread di sincronizzazione Supabase avviato da main().")
 
 
 

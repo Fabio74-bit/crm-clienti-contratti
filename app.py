@@ -280,8 +280,18 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         "stato": "Stato",
         "owner": "owner"
     }
+
+    # 🔹 Normalizza i nomi delle colonne in modo case-insensitive
     df = df.rename(columns={c: mapping.get(c.lower(), c) for c in df.columns})
+
+    # 🔹 Cast di sicurezza per chiavi relazionali
+    if "ClienteID" in df.columns:
+        df["ClienteID"] = df["ClienteID"].astype(str)
+    if "NumeroContratto" in df.columns:
+        df["NumeroContratto"] = df["NumeroContratto"].astype(str)
+
     return df
+
 
 # =====================================
 # SINCRONIZZAZIONE AUTOMATICA SUPABASE
@@ -1903,9 +1913,17 @@ def main():
     global LOGO_URL  # 🔹 rende disponibile la variabile globale all’interno di main()
     
     # --- LOGIN ---
-    user, role = do_login_fullscreen()
-    if not user:
-        st.stop()
+   user, role = do_login_fullscreen()
+   if not user:
+   st.stop()
+
+   # 🔁 Riavvia thread sync se non attivo
+   if "sync_thread_started" not in st.session_state:
+       t = threading.Thread(target=sync_supabase_periodico, daemon=True)
+       t.start()
+       st.session_state["sync_thread_started"] = True
+       print("🌀 Thread di sincronizzazione Supabase avviato da main().")
+
 
 
     # --- Percorsi base ---

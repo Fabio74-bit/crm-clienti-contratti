@@ -332,14 +332,20 @@ def carica_dati_supabase(user: str):
     import streamlit as st   # 👈 AGGIUNTO QUI!
 
     try:
-        # --- Query clienti (gestisce owner / Owner) ---
-        data_cli = (
-            supabase.table("clienti")
-            .select("*")
-            .or_("owner.eq." + user + ",Owner.eq." + user)
-            .execute()
-            .data
-        )
+        # --- Query clienti (gestisce owner solo se esiste la colonna) ---
+        res_cli = supabase.table("clienti").select("*").execute()
+        data_cli = res_cli.data
+        df_cli = pd.DataFrame(data_cli)
+
+        # 🔍 Filtra in Python se esiste la colonna "owner"
+        if not df_cli.empty:
+            if "owner" in df_cli.columns:
+                df_cli = df_cli[df_cli["owner"].astype(str).str.lower() == user.lower()]
+            elif "Owner" in df_cli.columns:
+                df_cli = df_cli[df_cli["Owner"].astype(str).str.lower() == user.lower()]
+            else:
+                print("⚠️ Nessuna colonna owner trovata — caricati tutti i clienti.")
+
 
         # --- Query contratti (lettura completa + filtro locale) ---
         res_ct = supabase.table("contratti").select("*").execute()

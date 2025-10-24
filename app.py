@@ -325,30 +325,36 @@ def sync_supabase_periodico():
             print(f"[SYNC] ⚠️ Errore nella sincronizzazione: {e}")
             time.sleep(300)
 # =====================================
-# CARICAMENTO DATI DA SUPABASE (con normalizzazione)
+# CARICAMENTO DATI DA SUPABASE (con normalizzazione + verifica coerenza)
 # =====================================
 def carica_dati_supabase(user: str):
-    """Scarica i dati di clienti e contratti da Supabase e li normalizza."""
+    """Scarica i dati di clienti e contratti da Supabase, li normalizza e verifica la coerenza."""
     try:
-        data_cli = supabase.table("clienti").select("*").eq("owner", user).execute().data
-        data_ct = (
-            supabase.table("contratti")
+        # --- Query clienti ---
+        data_cli = (
+            supabase.table("clienti")
             .select("*")
-            .or_("owner.eq." + user + ",Owner.eq." + user)
+            .eq("owner", user)
             .execute()
             .data
         )
 
+        # --- Query contratti (lettura completa + filtro locale) ---
+        res_ct = supabase.table("contratti").select("*").execute()
+        data_ct = res_ct.data
+
         df_cli = pd.DataFrame(data_cli)
         df_ct = pd.DataFrame(data_ct)
 
-        # --- Debug opzionale ---
-        import streamlit as st
-        st.sidebar.markdown(f"📡 Supabase: **{len(df_cli)} clienti / {len(df_ct)} contratti**")
-        if len(df_ct) == 0:
-            st.sidebar.warning("⚠️ Nessun contratto trovato (controlla campo Owner su Supabase).")
+        # 🔍 Filtra in Python
+        if not df_ct.empty:
+            owner_col = "owner" if "owner" in df_ct.columns else "Owner" if "Owner" in df_ct.columns else None
+            if owner_col:
+                df_ct = df_ct[df_ct[owner_col].astype(str).str.lower() == user.lower()]
+            else:
+                print("⚠️ Nessuna colonna owner trovata in contratti — caricati tutti i record.")
 
-        # --- Normalizzazione colonne (usa quella globale) ---
+        # --- Normalizzazione colonne ---
         df_cli = normalize_columns(df_cli)
         df_ct = normalize_columns(df_ct)
 
@@ -360,11 +366,25 @@ def carica_dati_supabase(user: str):
             if col not in df_ct.columns:
                 df_ct[col] = ""
 
-        print(f"[LOAD] ✅ Dati caricati da Supabase per {user} — Clienti: {len(df_cli)}, Contratti: {len(df_ct)}")
+        # --- Log e verifica coerenza ---
+        import streamlit as st
+        st.sidebar.markdown(f"📡 Supabase: **{len(df_cli)} clienti / {len(df_ct)} contratti**")
+
+        if not df_ct.empty and not df_cli.empty:
+            cli_ids = set(df_cli["ClienteID"].astype(str))
+            ct_ids = set(df_ct["ClienteID"].astype(str))
+            orfani = sorted(list(ct_ids - cli_ids))
+            if orfani:
+                st.sidebar.warning(f"⚠️ Contratti orfani: {len(orfani)}")
+            else:
+                st.sidebar.success("✅ Dati Supabase coerenti!")
+
         return df_cli, df_ct
 
     except Exception as e:
-        print(f"[LOAD] ⚠️ Errore nel caricamento da Supabase: {e}")
+        import traceback
+        st.sidebar.error(f"❌ Errore caricamento Supabase: {e}")
+        st.sidebar.text(traceback.format_exc())
         return pd.DataFrame(), pd.DataFrame()
 
 
@@ -2048,48 +2068,7 @@ def main():
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
 
-# =====================================
-# 🔍 TEST DIAGNOSTICO SUPABASE / SALVATAGGIO
-# =====================================
-if st.sidebar.button("🧪 Test Sync Supabase"):
-    try:
-        # 1️⃣ Crea una piccola riga di test
-        test_df = pd.DataFrame([{
-            "ClienteID": "TEST-001",
-            "RagioneSociale": "Cliente Test Sync",
-            "PersonaRiferimento": "Debug",
-            "Indirizzo": "Via Verifica 123",
-            "Citta": "TestCity",
-            "CAP": "00000",
-            "Telefono": "0000000000",
-            "Cell": "0000000000",
-            "Email": "test@example.com",
-            "PartitaIVA": "00000000000",
-            "IBAN": "IT00TESTSYNC",
-            "SDI": "0000000",
-            "UltimoRecall": "",
-            "ProssimoRecall": "",
-            "UltimaVisita": "",
-            "ProssimaVisita": "",
-            "TMK": "",
-            "NoteCliente": "",
-            "owner": st.session_state.get("user", "")
-        }])
 
-        st.write("📄 **Test DF generato:**", test_df)
-
-        # 2️⃣ Salvataggio locale + sincronizzazione
-        save_clienti(test_df)
-
-        # 3️⃣ Controllo remoto
-        res = supabase.table("clienti").select("*").eq("owner", st.session_state["user"]).execute()
-        if res.data:
-            st.success(f"✅ Supabase risponde correttamente: {len(res.data)} record trovati per {st.session_state['user']}.")
-        else:
-            st.warning("⚠️ Nessun record trovato (verifica policy o credenziali Supabase).")
-
-    except Exception as e:
-        st.error(f"❌ Test fallito: {e}")
 # =====================================
 # AVVIO APPLICAZIONE
 # =====================================

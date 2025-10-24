@@ -1340,6 +1340,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 # =====================================
 # PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA + DESCRIZIONE MULTIRIGA”
+# (Aggiornata: apertura diretta cliente/contratto da Dashboard)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1352,9 +1353,16 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
+    # 🔹 Preselezione automatica se arrivo dalla Dashboard
+    selected_cliente = st.session_state.get("selected_cliente")
+    if selected_cliente and selected_cliente in df_cli["ClienteID"].astype(str).tolist():
+        idx_preselezionato = df_cli["ClienteID"].astype(str).tolist().index(selected_cliente)
+    else:
+        idx_preselezionato = 0
+
     clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     clienti_ids = df_cli["ClienteID"].astype(str).tolist()
-    sel_label = st.selectbox("Seleziona Cliente", clienti_labels.tolist())
+    sel_label = st.selectbox("Seleziona Cliente", clienti_labels.tolist(), index=idx_preselezionato)
     sel_id = clienti_ids[clienti_labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 

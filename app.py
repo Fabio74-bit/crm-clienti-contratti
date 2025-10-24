@@ -1507,11 +1507,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         """, unsafe_allow_html=True
     )
 
-    # === Righe tabella ===
+       # === Righe tabella ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "")).lower()
         bg_class = "chiuso" if stato == "chiuso" else ""
         numero = r.get("NumeroContratto", "—")
+
+        evidenzia = (
+            st.session_state.get("selected_contratto")
+            and str(st.session_state.get("selected_contratto")) == str(numero)
+        )
+        evidenziato_style = "border:2px solid #1976d2;" if evidenzia else ""
+
         din = r.get("DataInizio", "")
         dfi = r.get("DataFine", "")
         durata = r.get("Durata", "")
@@ -1523,70 +1530,76 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         ecc_col = r.get("EccCol", "")
         nfin = r.get("NOL_FIN", "")
         nint = r.get("NOL_INT", "")
-        num_cont = r.get("NumeroContratto", "")
 
         stato_badge = (
             "<span class='pill pill-closed'>Chiuso</span>" if stato == "chiuso"
             else "<span class='pill pill-open'>Aperto</span>"
         )
 
-        btn_edit = ""
-        btn_close = ""
-        if not permessi_limitati:
-            btn_edit = f"<button class='action-btn edit' onClick='window.location=\"?edit={num_cont}\"'>✏️</button>"
-            btn_close = f"<button class='action-btn del' onClick='window.location=\"?close={num_cont}\"'>❌</button>"
-
-        st.markdown(
-            f"""
-            <div class='tbl-row {bg_class}'>
-                <div>{numero}</div>
-                <div>{din}</div>
-                <div>{dfi}</div>
-                <div>{durata}</div>
-                <div>{tot}</div>
-                <div><span class='desc-wrap'>{desc}</span></div>
-                <div>{copie_bn}</div>
-                <div>{ecc_bn}</div>
-                <div>{copie_col}</div>
-                <div>{ecc_col}</div>
-                <div>{nfin}</div>
-                <div>{nint}</div>
-                <div>{stato_badge}</div>
-                <div style='text-align:center;'>{btn_edit} {btn_close}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        col1, col2, col3 = st.columns([10, 1, 1])
+        with col1:
+            st.markdown(
+                f"""
+                <div class='tbl-row {bg_class}' style='{evidenziato_style}'>
+                    <div>{numero}</div>
+                    <div>{din}</div>
+                    <div>{dfi}</div>
+                    <div>{durata}</div>
+                    <div>{tot}</div>
+                    <div><span class='desc-wrap'>{desc}</span></div>
+                    <div>{copie_bn}</div>
+                    <div>{ecc_bn}</div>
+                    <div>{copie_col}</div>
+                    <div>{ecc_col}</div>
+                    <div>{nfin}</div>
+                    <div>{nint}</div>
+                    <div>{stato_badge}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        with col2:
+            if not permessi_limitati:
+                if st.button("✏️", key=f"edit_{i}", use_container_width=True):
+                    st.session_state["selected_contratto"] = r.get("NumeroContratto")
+                    st.session_state["open_modal"] = "edit"
+                    st.rerun()
+        with col3:
+            if not permessi_limitati:
+                if st.button("❌", key=f"close_{i}", use_container_width=True):
+                    st.session_state["selected_contratto"] = r.get("NumeroContratto")
+                    st.session_state["open_modal"] = "close"
+                    st.rerun()
 
     st.markdown("</div></div>", unsafe_allow_html=True)
 
-    # === Gestione eventi ===
-    query_params = st.query_params
+    # === GESTIONE EVENTI ===
+    open_modal = st.session_state.get("open_modal")
 
-    if "edit" in query_params and not permessi_limitati:
-        num_cont = query_params["edit"]
-        if isinstance(num_cont, list):
-            num_cont = num_cont[0]
-        contratto = df_ct[df_ct["NumeroContratto"] == num_cont]
-        if not contratto.empty:
-            contratto = contratto.iloc[0]
-            show_contract_modal(contratto, df_ct, df_cli, rag_soc)
+    if open_modal == "edit":
+        numero = st.session_state.get("selected_contratto", "")
+        contratto_sel = df_ct[df_ct["NumeroContratto"] == numero]
+        if not contratto_sel.empty:
+            show_contract_modal(contratto_sel.iloc[0], df_ct, df_cli, rag_soc)
         else:
             st.warning("Contratto non trovato.")
         return
 
-    if "close" in query_params and not permessi_limitati:
-        num_cont = query_params["close"]
-        if isinstance(num_cont, list):
-            num_cont = num_cont[0]
-        idx = df_ct.index[df_ct["NumeroContratto"] == num_cont]
+    elif open_modal == "new":
+        show_contract_modal({}, df_ct, df_cli, rag_soc)
+        return
+
+    elif open_modal == "close":
+        numero = st.session_state.get("selected_contratto")
+        idx = df_ct.index[df_ct["NumeroContratto"] == numero]
         if len(idx) > 0:
             df_ct.loc[idx[0], "Stato"] = "chiuso"
             save_contratti(df_ct)
-            st.success(f"✅ Contratto {num_cont} chiuso correttamente.")
-            time.sleep(0.4)
-            st.query_params.clear()
+            st.success(f"✅ Contratto {numero} chiuso correttamente.")
+            st.session_state.pop("open_modal", None)
+            st.session_state.pop("selected_contratto", None)
             st.rerun()
+
 
     # === Esportazioni ===
     st.markdown("---")

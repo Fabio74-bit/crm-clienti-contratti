@@ -472,8 +472,9 @@ def main():
     df_cli_main, df_ct_main = carica_dati_supabase(user)
 
     if df_cli_main.empty or df_ct_main.empty:
-        st.warning("⚠️ Nessun dato trovato su Supabase. Controlla la colonna 'owner' o la connessione.")
-        st.stop()
+        st.warning("⚠️ Nessun dato trovato su Supabase. L'app si aprirà in modalità vuota.")
+        df_cli_main, df_ct_main = pd.DataFrame(), pd.DataFrame()
+
 
     # --- Applica filtro visibilità ---
     df_cli, df_ct = df_cli_main, df_ct_main

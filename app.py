@@ -1393,8 +1393,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA + DESCRIZIONE MULTIRIGA”
-# (Aggiornata: apertura diretta cliente/contratto da Dashboard)
+# PAGINA CONTRATTI — VERSIONE 2025 (completa e funzionante con modali)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1407,26 +1406,49 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
-    # 🔹 Preselezione automatica se arrivo dalla Dashboard
+    # 🔹 Preselezione automatica cliente (da Dashboard)
     selected_cliente = st.session_state.get("selected_cliente")
-    if selected_cliente and selected_cliente in df_cli["ClienteID"].astype(str).tolist():
-        idx_preselezionato = df_cli["ClienteID"].astype(str).tolist().index(selected_cliente)
+    clienti_ids = df_cli["ClienteID"].astype(str).tolist()
+    clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1).tolist()
+
+    if selected_cliente and selected_cliente in clienti_ids:
+        idx_preselezionato = clienti_ids.index(selected_cliente)
     else:
         idx_preselezionato = 0
 
-    clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
-    clienti_ids = df_cli["ClienteID"].astype(str).tolist()
-    sel_label = st.selectbox("Seleziona Cliente", clienti_labels.tolist(), index=idx_preselezionato)
-    sel_id = clienti_ids[clienti_labels.tolist().index(sel_label)]
+    sel_label = st.selectbox("Seleziona Cliente", clienti_labels, index=idx_preselezionato)
+    sel_id = clienti_ids[clienti_labels.index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
-if not permessi_limitati:
-    if st.button("➕ Aggiungi Contratto", use_container_width=False, key="btn_add_contract"):
-        # 🔹 Resetta eventuali stati precedenti
-        st.session_state["open_modal"] = "new"
-        st.session_state["selected_contratto"] = None
-        st.rerun()
+    # === Header e pulsante aggiunta ===
+    st.markdown(
+        f"""
+        <div style='display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:20px;'>
+            <h3 style='margin:0;color:#2563eb;'>🏢 {rag_soc}</h3>
+        </div>
+        """, unsafe_allow_html=True
+    )
 
+    # 🔹 Pulsante "Aggiungi Contratto"
+    if not permessi_limitati:
+        if st.button("➕ Aggiungi Contratto", key="btn_add_contract", use_container_width=False):
+            st.session_state["selected_contratto"] = None
+            st.session_state["open_modal"] = "new"
+            # La modale verrà gestita subito sotto
+
+    # === GESTIONE MODALE (nuovo/modifica) ===
+    _open = st.session_state.get("open_modal")
+    _sel = st.session_state.get("selected_contratto")
+
+    if _open == "new":
+        show_contract_modal({}, df_ct, df_cli, rag_soc)
+        st.stop()
+
+    elif _open == "edit" and _sel:
+        row = df_ct[df_ct["NumeroContratto"].astype(str) == str(_sel)]
+        if not row.empty:
+            show_contract_modal(row.iloc[0], df_ct, df_cli, rag_soc)
+            st.stop()
 
     # === Filtra contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
@@ -1437,49 +1459,28 @@ if not permessi_limitati:
     # === Formatta dati ===
     for c in ["DataInizio", "DataFine"]:
         ct[c] = ct[c].apply(fmt_date)
-    ct["TotRata"] = ct["TotRata"].apply(money)
-    ct["NOL_FIN"] = ct["NOL_FIN"].apply(money)
-    ct["NOL_INT"] = ct["NOL_INT"].apply(money)
+    for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
+        ct[c] = ct[c].apply(money)
 
-    # === Stile tabella (estesa + descrizione multilinea) ===
+    # === Intestazione tabella ===
     st.markdown("""
     <style>
       .tbl-wrapper { overflow-x:auto; }
-      .tbl-container {
-          border:1px solid #e0e0e0; border-radius:10px; overflow:hidden;
-          box-shadow:0 2px 6px rgba(0,0,0,0.05); min-width:1400px;
-      }
       .tbl-header, .tbl-row {
           display:grid;
           grid-template-columns: 
-            1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.6fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr;
+            1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.6fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 1.2fr;
           padding:8px 14px; font-size:14px; align-items:center;
       }
       .tbl-header { background:#f8fafc; font-weight:600; border-bottom:1px solid #e5e7eb; }
       .tbl-row:nth-child(even) { background:#ffffff; }
       .tbl-row:nth-child(odd) { background:#fdfdfd; }
       .tbl-row.chiuso { background:#ffebee !important; }
-      .pill {
-          display:inline-block; padding:2px 8px; border-radius:999px; font-weight:600; font-size:12px;
-      }
-      .pill-open { background:#e8f5e9; color:#1b5e20; }
-      .pill-closed { background:#ffebee; color:#b71c1c; }
-      .action-btn { border:none; border-radius:6px; padding:3px 6px; color:white; cursor:pointer; }
-      .edit { background:#1976d2; }
-      .del { background:#e53935; margin-left:6px; }
-      .desc-wrap {
-          display:block;
-          white-space:normal;
-          word-wrap:break-word;
-          overflow-wrap:anywhere;
-          line-height:1.4;
-          max-height:4.8em; /* circa 3 righe di testo */
-          overflow:hidden;
-      }
+      .pill-open { background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:12px; font-weight:600; font-size:12px; }
+      .pill-closed { background:#ffebee; color:#b71c1c; padding:2px 8px; border-radius:12px; font-weight:600; font-size:12px; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div class='tbl-wrapper'><div class='tbl-container'>", unsafe_allow_html=True)
     st.markdown(
         """
         <div class='tbl-header'>
@@ -1498,124 +1499,61 @@ if not permessi_limitati:
             <div>🟢 Stato</div>
             <div>⚙️ Azioni</div>
         </div>
-        """, unsafe_allow_html=True
+        """,
+        unsafe_allow_html=True
     )
 
-       # === Righe tabella ===
+    # === Righe tabella ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "")).lower()
         bg_class = "chiuso" if stato == "chiuso" else ""
         numero = r.get("NumeroContratto", "—")
 
-        evidenzia = (
-            st.session_state.get("selected_contratto")
-            and str(st.session_state.get("selected_contratto")) == str(numero)
-        )
-        evidenziato_style = "border:2px solid #1976d2;" if evidenzia else ""
-
-        din = r.get("DataInizio", "")
-        dfi = r.get("DataFine", "")
-        durata = r.get("Durata", "")
-        tot = r.get("TotRata", "")
-        desc = str(r.get("DescrizioneProdotto", "") or "—")
-        copie_bn = r.get("CopieBN", "")
-        ecc_bn = r.get("EccBN", "")
-        copie_col = r.get("CopieCol", "")
-        ecc_col = r.get("EccCol", "")
-        nfin = r.get("NOL_FIN", "")
-        nint = r.get("NOL_INT", "")
-
         stato_badge = (
-            "<span class='pill pill-closed'>Chiuso</span>" if stato == "chiuso"
-            else "<span class='pill pill-open'>Aperto</span>"
+            f"<span class='pill-closed'>Chiuso</span>" if stato == "chiuso"
+            else f"<span class='pill-open'>Aperto</span>"
         )
 
-        col1, col2, col3 = st.columns([10, 1, 1])
-        with col1:
-            st.markdown(
-                f"""
-                <div class='tbl-row {bg_class}' style='{evidenziato_style}'>
-                    <div>{numero}</div>
-                    <div>{din}</div>
-                    <div>{dfi}</div>
-                    <div>{durata}</div>
-                    <div>{tot}</div>
-                    <div><span class='desc-wrap'>{desc}</span></div>
-                    <div>{copie_bn}</div>
-                    <div>{ecc_bn}</div>
-                    <div>{copie_col}</div>
-                    <div>{ecc_col}</div>
-                    <div>{nfin}</div>
-                    <div>{nint}</div>
-                    <div>{stato_badge}</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        with col2:
-            if not permessi_limitati:
-                if st.button("✏️", key=f"edit_{i}", use_container_width=True):
-                    st.session_state["selected_contratto"] = r.get("NumeroContratto")
-                    st.session_state["open_modal"] = "edit"
-                    st.rerun()
-        with col3:
-            if not permessi_limitati:
-                if st.button("❌", key=f"close_{i}", use_container_width=True):
-                    st.session_state["selected_contratto"] = r.get("NumeroContratto")
-                    st.session_state["open_modal"] = "close"
-                    st.rerun()
-
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-    # === GESTIONE EVENTI ===
-    open_modal = st.session_state.get("open_modal")
-
-    if open_modal == "edit":
-        numero = st.session_state.get("selected_contratto", "")
-        contratto_sel = df_ct[df_ct["NumeroContratto"] == numero]
-        if not contratto_sel.empty:
-            show_contract_modal(contratto_sel.iloc[0], df_ct, df_cli, rag_soc)
-        else:
-            st.warning("Contratto non trovato.")
-        return
-
-    elif open_modal == "new":
-        show_contract_modal({}, df_ct, df_cli, rag_soc)
-        return
-
-    elif open_modal == "close":
-        numero = st.session_state.get("selected_contratto")
-        idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-        if len(idx) > 0:
-            df_ct.loc[idx[0], "Stato"] = "chiuso"
-            save_contratti(df_ct)
-            st.success(f"✅ Contratto {numero} chiuso correttamente.")
-            st.session_state.pop("open_modal", None)
-            st.session_state.pop("selected_contratto", None)
-            st.rerun()
-
-
-    # === Esportazioni ===
-    st.markdown("---")
-    st.markdown("### 📤 Esportazioni")
-
-    cex1, cex2 = st.columns(2)
-    with cex1:
-        st.download_button(
-            "📘 Esporta Excel",
-            export_excel_contratti(df_ct, sel_id, rag_soc),
-            file_name=f"Contratti_{rag_soc}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
+        # Riga base
+        st.markdown(
+            f"""
+            <div class='tbl-row {bg_class}'>
+                <div>{r.get('NumeroContratto','—')}</div>
+                <div>{r.get('DataInizio','')}</div>
+                <div>{r.get('DataFine','')}</div>
+                <div>{r.get('Durata','')}</div>
+                <div>{r.get('TotRata','')}</div>
+                <div>{r.get('DescrizioneProdotto','')}</div>
+                <div>{r.get('CopieBN','')}</div>
+                <div>{r.get('EccBN','')}</div>
+                <div>{r.get('CopieCol','')}</div>
+                <div>{r.get('EccCol','')}</div>
+                <div>{r.get('NOL_FIN','')}</div>
+                <div>{r.get('NOL_INT','')}</div>
+                <div>{stato_badge}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
-    with cex2:
-        st.download_button(
-            "📗 Esporta PDF",
-            export_pdf_contratti(df_ct, sel_id, rag_soc),
-            file_name=f"Contratti_{rag_soc}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
+
+        # === Pulsanti Azione ===
+        if not permessi_limitati:
+            c1, c2 = st.columns(2)
+            if c1.button("✏️ Modifica", key=f"edit_{i}_{sel_id}"):
+                st.session_state["selected_contratto"] = r.get("NumeroContratto")
+                st.session_state["open_modal"] = "edit"
+                st.experimental_rerun()
+
+            if c2.button("❌ Chiudi", key=f"close_{i}_{sel_id}"):
+                num = r.get("NumeroContratto")
+                idx = df_ct.index[df_ct["NumeroContratto"].astype(str) == str(num)]
+                if len(idx) > 0:
+                    df_ct.loc[idx[0], "Stato"] = "chiuso"
+                    save_contratti(df_ct)
+                    st.success(f"✅ Contratto {num} chiuso correttamente.")
+                    st.session_state.pop("open_modal", None)
+                    st.session_state.pop("selected_contratto", None)
+                    st.experimental_rerun()
 
 
 

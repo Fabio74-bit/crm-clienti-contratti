@@ -79,6 +79,119 @@ CONTRATTI_COLS = [
     "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
 ]
 # =====================================
+# CONNESSIONE A SUPABASE
+# =====================================
+from supabase import create_client
+import os
+
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_ANON_KEY = st.secrets["supabase"]["anon_key"]
+SUPABASE_SERVICE_KEY = st.secrets["supabase"]["service_key"]
+
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+# =====================================
+# CARICAMENTO E SALVATAGGIO DATI (CSV + SUPABASE)
+# =====================================
+
+import pandas as pd
+
+def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    """Garantisce che il DataFrame abbia tutte le colonne richieste."""
+    for c in cols:
+        if c not in df.columns:
+            df[c] = ""
+    return df[cols]
+
+def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
+    """Carica CSV locale, crea file vuoto se mancante."""
+    if not path.exists():
+        pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig")
+        return pd.DataFrame(columns=cols)
+    try:
+        df = pd.read_csv(path, dtype=str, encoding="utf-8-sig").fillna("")
+        return ensure_columns(df, cols)
+    except Exception as e:
+        st.error(f"❌ Errore caricamento {path.name}: {e}")
+        return pd.DataFrame(columns=cols)
+
+def save_csv(df: pd.DataFrame, path: Path):
+    """Salva DataFrame su CSV locale."""
+    try:
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+        st.toast(f"💾 {path.name} salvato", icon="📁")
+    except Exception as e:
+        st.error(f"❌ Errore salvataggio {path.name}: {e}")
+
+# =====================================
+# CLIENTI
+# =====================================
+def load_clienti() -> pd.DataFrame:
+    """Carica i clienti dal CSV personale e (se disponibile) da Supabase."""
+    CLIENTI_CSV = st.session_state["CLIENTI_CSV"]
+    CLIENTI_COLS = st.session_state["CLIENTI_COLS"]
+    df = load_csv(CLIENTI_CSV, CLIENTI_COLS)
+
+    # Tentativo di sincronizzazione da Supabase
+    try:
+        response = supabase.table("clienti").select("*").eq("owner", st.session_state["user"]).execute()
+        if response.data:
+            df_sb = pd.DataFrame(response.data)
+            df_sb = ensure_columns(df_sb, CLIENTI_COLS)
+            df = pd.concat([df, df_sb], ignore_index=True).drop_duplicates(subset=["ClienteID"], keep="last")
+            save_csv(df, CLIENTI_CSV)
+    except Exception as e:
+        st.warning(f"⚠️ Sync Supabase clienti saltata: {e}")
+
+    return df.fillna("")
+
+def save_clienti(df: pd.DataFrame):
+    """Salva i clienti su CSV e Supabase."""
+    CLIENTI_CSV = st.session_state["CLIENTI_CSV"]
+    save_csv(df, CLIENTI_CSV)
+    try:
+        supabase.table("clienti").delete().eq("owner", st.session_state["user"]).execute()
+        records = df.copy()
+        records["owner"] = st.session_state["user"]
+        supabase.table("clienti").insert(records.to_dict(orient="records")).execute()
+        st.toast("✅ Clienti sincronizzati con Supabase", icon="🌐")
+    except Exception as e:
+        st.warning(f"⚠️ Impossibile sincronizzare clienti: {e}")
+
+# =====================================
+# CONTRATTI
+# =====================================
+def load_contratti() -> pd.DataFrame:
+    """Carica contratti dal CSV personale e (se disponibile) da Supabase."""
+    CONTRATTI_CSV = st.session_state["CONTRATTI_CSV"]
+    CONTRATTI_COLS = st.session_state["CONTRATTI_COLS"]
+    df = load_csv(CONTRATTI_CSV, CONTRATTI_COLS)
+
+    try:
+        response = supabase.table("contratti").select("*").eq("owner", st.session_state["user"]).execute()
+        if response.data:
+            df_sb = pd.DataFrame(response.data)
+            df_sb = ensure_columns(df_sb, CONTRATTI_COLS)
+            df = pd.concat([df, df_sb], ignore_index=True).drop_duplicates(subset=["NumeroContratto"], keep="last")
+            save_csv(df, CONTRATTI_CSV)
+    except Exception as e:
+        st.warning(f"⚠️ Sync Supabase contratti saltata: {e}")
+
+    return df.fillna("")
+
+def save_contratti(df: pd.DataFrame):
+    """Salva contratti su CSV e Supabase."""
+    CONTRATTI_CSV = st.session_state["CONTRATTI_CSV"]
+    save_csv(df, CONTRATTI_CSV)
+    try:
+        supabase.table("contratti").delete().eq("owner", st.session_state["user"]).execute()
+        records = df.copy()
+        records["owner"] = st.session_state["user"]
+        supabase.table("contratti").insert(records.to_dict(orient="records")).execute()
+        st.toast("✅ Contratti sincronizzati con Supabase", icon="🌐")
+    except Exception as e:
+        st.warning(f"⚠️ Impossibile sincronizzare contratti: {e}")
+# =====================================
 # FUNZIONI UTILITY
 # =====================================
 def fmt_date(d) -> str:

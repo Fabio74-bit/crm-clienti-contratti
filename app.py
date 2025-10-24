@@ -507,7 +507,25 @@ def do_login_fullscreen():
 
     st.stop()
 
-
+# =====================================
+# KPI CARD (riutilizzata)
+# =====================================
+def kpi_card(label: str, value, icon: str, color: str) -> str:
+    """Restituisce HTML per una scheda KPI compatta"""
+    return f"""
+    <div style='
+        background:white;
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        padding:1.2rem 1.4rem;
+        box-shadow:0 2px 6px rgba(0,0,0,0.05);
+        text-align:center;
+    '>
+        <div style='font-size:1.8rem;color:{color};'>{icon}</div>
+        <div style='font-size:1.2rem;font-weight:600;margin-top:0.4rem;color:#111827;'>{label}</div>
+        <div style='font-size:1.8rem;font-weight:700;margin-top:0.2rem;color:{color};'>{value}</div>
+    </div>
+    """
 # =====================================
 # PAGINA DASHBOARD
 # =====================================

@@ -483,38 +483,38 @@ def do_login_fullscreen():
             st.session_state["CLIENTI_COLS"] = CLIENTI_COLS
             st.session_state["CONTRATTI_COLS"] = CONTRATTI_COLS
 
-            # =====================================
-            # 🔄 AVVIO SINCRONIZZAZIONE AUTOMATICA SUPABASE
-            # =====================================
-            if "sync_thread_started" not in st.session_state:
-                threading.Thread(target=sync_supabase_periodico, daemon=True).start()
-                st.session_state["sync_thread_started"] = True
+# =====================================
+# SINCRONIZZAZIONE AUTOMATICA SUPABASE
+# =====================================
+import threading
+import time
 
-            # =====================================
-            st.success(f"✅ Benvenuto {username}!")
-            time.sleep(0.3)
-            st.rerun()
+def sync_supabase_periodico():
+    """Sincronizza automaticamente clienti e contratti ogni 5 minuti per l’utente loggato."""
+    while True:
+        try:
+            if st.session_state.get("logged_in") and "user" in st.session_state:
+                user = st.session_state["user"]
+                CLIENTI_CSV = st.session_state.get("CLIENTI_CSV")
+                CONTRATTI_CSV = st.session_state.get("CONTRATTI_CSV")
 
-        else:
-            st.error("❌ Credenziali non valide.")
-            st.session_state["_login_checked"] = False
+                # Carica dati locali
+                df_cli = pd.read_csv(CLIENTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+                df_ct = pd.read_csv(CONTRATTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
 
-    st.stop()
+                # 🔁 Sincronizza con Supabase
+                supabase.table("clienti").delete().eq("owner", user).execute()
+                supabase.table("clienti").insert(df_cli.assign(owner=user).to_dict(orient="records")).execute()
 
+                supabase.table("contratti").delete().eq("owner", user).execute()
+                supabase.table("contratti").insert(df_ct.assign(owner=user).to_dict(orient="records")).execute()
 
-def kpi_card(label: str, value, icon: str, color: str) -> str:
-    return f"""
-    <div style="
-        background-color:{color};
-        padding:18px;
-        border-radius:12px;
-        text-align:center;
-        color:white;">
-        <div style="font-size:26px;">{icon}</div>
-        <div style="font-size:22px;font-weight:700;">{value}</div>
-        <div style="font-size:14px;">{label}</div>
-    </div>
-    """
+                print(f"[SYNC] ✅ Dati sincronizzati con Supabase per {user}")
+            time.sleep(300)  # 5 minuti
+        except Exception as e:
+            print(f"[SYNC] ⚠️ Errore nella sincronizzazione: {e}")
+            time.sleep(300)
+
 
 # =====================================
 # PAGINA DASHBOARD

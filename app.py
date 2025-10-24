@@ -186,6 +186,8 @@ def save_csv(df: pd.DataFrame, path: Path):
             except Exception as e:
                 st.warning(f"⚠️ Errore sync Supabase ({table}): {e}")
         else:
+            # se non loggato o supabase non disponibile
+            st.info("⏸️ Sync cloud non attivo (utente non loggato o Supabase non inizializzato).")
 
     except Exception as e:
         st.error(f"❌ Errore salvataggio {path.name}: {e}")

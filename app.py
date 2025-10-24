@@ -45,28 +45,36 @@ DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 # =====================================
 st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
 
+# --- Stile generale app ---
 st.markdown("""
 <style>
 .block-container {
     padding-left: 2rem;
     padding-right: 2rem;
+    padding-top: 1rem;
     max-width: 100% !important;
 }
 section.main > div:first-child {
     margin-top: 0 !important;
     padding-top: 0 !important;
 }
+[data-testid="stSidebar"] {
+    background-color: #f8fafc !important;
+}
+h2, h3 {
+    color: #2563eb;
+}
 </style>
 """, unsafe_allow_html=True)
 
+# --- Script per mantenere lo scroll in alto al cambio pagina ---
 st.markdown("""
 <script>
-    window.addEventListener('load', function() {
-        window.scrollTo(0, 0);
-    });
+window.addEventListener('load', function() {
+    window.scrollTo(0, 0);
+});
 </script>
 """, unsafe_allow_html=True)
-
 
 # =====================================
 # COLONNE STANDARD CSV
@@ -532,24 +540,22 @@ def do_login_fullscreen():
     st.stop()
 
 # =====================================
-# KPI CARD (riutilizzata)
+# KPI CARD — grafica con colore e icona
 # =====================================
-def kpi_card(titolo, valore, icona, colore):
-    """Crea una scheda KPI con colore e stile coerente."""
+def kpi_card(titolo: str, valore, icona: str, colore: str = "#2563eb") -> str:
+    """Crea una card colorata per i KPI della dashboard."""
     return f"""
     <div style="
-        background:white;
-        border:1px solid #e0e0e0;
-        border-radius:12px;
-        box-shadow:0 2px 8px rgba(0,0,0,0.05);
-        padding:1.2rem;
-        text-align:center;
-        width:100%;
+        background:{colore}10;
+        border-left:6px solid {colore};
+        border-radius:10px;
+        padding:1rem 1.2rem;
+        box-shadow:0 2px 8px rgba(0,0,0,0.06);
         height:100%;
     ">
-        <div style="font-size:2rem;">{icona}</div>
-        <div style="font-weight:600;margin-top:0.5rem;color:#111;">{titolo}</div>
-        <div style="font-size:1.8rem;font-weight:700;margin-top:0.4rem;color:{colore};">{valore}</div>
+        <div style="font-size:1.6rem;">{icona}</div>
+        <div style="font-size:0.9rem;font-weight:600;color:#444;">{titolo}</div>
+        <div style="font-size:1.8rem;font-weight:700;color:{colore};">{valore}</div>
     </div>
     """
 

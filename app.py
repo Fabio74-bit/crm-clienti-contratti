@@ -142,90 +142,100 @@ def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
 
 
 # =====================================
-# CLIENTI
+# CLIENTI E CONTRATTI (SALVATAGGIO + SYNC)
 # =====================================
+
+def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    """Garantisce che il DataFrame abbia tutte le colonne richieste."""
+    for c in cols:
+        if c not in df.columns:
+            df[c] = ""
+    return df[cols]
+
+
+def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
+    """Carica CSV locale, crea file vuoto se mancante."""
+    if not path.exists():
+        pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig", sep=";")
+        return pd.DataFrame(columns=cols)
+    try:
+        df = pd.read_csv(path, dtype=str, sep=None, engine="python",
+                         encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+        return ensure_columns(df, cols)
+    except Exception as e:
+        st.error(f"❌ Errore caricamento {path.name}: {e}")
+        return pd.DataFrame(columns=cols)
+
+
+def save_csv(df: pd.DataFrame, path: Path):
+    """Salva DataFrame in locale e sincronizza automaticamente con Supabase."""
+    try:
+        # 🔹 Salvataggio locale
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+        st.toast(f"💾 {path.name} salvato in locale", icon="📁")
+
+        # 🔹 Sync cloud
+        if "supabase" in globals() and st.session_state.get("logged_in"):
+            user = st.session_state.get("user", "")
+            table = "clienti" if "clienti" in path.name else "contratti"
+            try:
+                supabase.table(table).delete().eq("owner", user).execute()
+                supabase.table(table).insert(df.assign(owner=user).to_dict(orient="records")).execute()
+                print(f"[SYNC] ✅ {table} sincronizzati con Supabase per {user}")
+            except Exception as e:
+                st.warning(f"⚠️ Errore sync Supabase ({table}): {e}")
+        else:
+            print(f"[SYNC] ⏸️ Offline: solo salvataggio locale ({path.name})")
+
+    except Exception as e:
+        st.error(f"❌ Errore salvataggio {path.name}: {e}")
+
+
 def load_clienti() -> pd.DataFrame:
-    """Carica i clienti dal CSV personale e (se disponibile) da Supabase."""
+    """Carica i clienti dal CSV locale e sincronizza da Supabase."""
     CLIENTI_CSV = st.session_state["CLIENTI_CSV"]
     CLIENTI_COLS = st.session_state["CLIENTI_COLS"]
     df = load_csv(CLIENTI_CSV, CLIENTI_COLS)
 
-    # Tentativo di sincronizzazione da Supabase
+    # 🔹 Merge da Supabase
     try:
         response = supabase.table("clienti").select("*").eq("owner", st.session_state["user"]).execute()
         if response.data:
             df_sb = pd.DataFrame(response.data)
             df_sb = ensure_columns(df_sb, CLIENTI_COLS)
             df = pd.concat([df, df_sb], ignore_index=True).drop_duplicates(subset=["ClienteID"], keep="last")
-            save_csv(df, CLIENTI_CSV)
+            df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
     except Exception as e:
         st.warning(f"⚠️ Sync Supabase clienti saltata: {e}")
-
     return df.fillna("")
 
 
-def save_csv(df: pd.DataFrame, path: Path):
-    """Salva DataFrame su CSV locale e sincronizza Supabase (se attivo)."""
-    try:
-        # 🔹 Salvataggio locale immediato
-        df.to_csv(path, index=False, encoding="utf-8-sig")
-        st.toast(f"💾 {path.name} salvato in locale", icon="📁")
-
-        # 🔹 Sincronizzazione automatica opzionale
-        if "supabase" in globals() and st.session_state.get("logged_in"):
-            user = st.session_state.get("user", "")
-            table = None
-            if "clienti" in path.name:
-                table = "clienti"
-            elif "contratti" in path.name:
-                table = "contratti"
-
-            if table:
-                supabase.table(table).delete().eq("owner", user).execute()
-                supabase.table(table).insert(df.assign(owner=user).to_dict(orient="records")).execute()
-                print(f"[SYNC] ✅ {table} sincronizzati su Supabase per utente {user}")
-        else:
-            print(f"[SYNC] ⏸️ Offline: salvataggio solo locale ({path.name})")
-
-    except Exception as e:
-        st.error(f"❌ Errore salvataggio {path.name}: {e}")
-
-
 def save_clienti(df: pd.DataFrame):
-    """Salva i clienti (usa save_csv che sincronizza automaticamente)."""
-    CLIENTI_CSV = st.session_state["CLIENTI_CSV"]
-    save_csv(df, CLIENTI_CSV)
+    """Salva clienti — delega completamente a save_csv()."""
+    save_csv(df, st.session_state["CLIENTI_CSV"])
 
-# =====================================
-# CONTRATTI
-# =====================================
-# =====================================
-# CONTRATTI
-# =====================================
+
 def load_contratti() -> pd.DataFrame:
-    """Carica i contratti dal CSV personale e (se disponibile) da Supabase."""
+    """Carica contratti dal CSV locale e sincronizza da Supabase."""
     CONTRATTI_CSV = st.session_state["CONTRATTI_CSV"]
     CONTRATTI_COLS = st.session_state["CONTRATTI_COLS"]
     df = load_csv(CONTRATTI_CSV, CONTRATTI_COLS)
 
-    # Tentativo di sincronizzazione da Supabase
     try:
         response = supabase.table("contratti").select("*").eq("owner", st.session_state["user"]).execute()
         if response.data:
             df_sb = pd.DataFrame(response.data)
             df_sb = ensure_columns(df_sb, CONTRATTI_COLS)
             df = pd.concat([df, df_sb], ignore_index=True).drop_duplicates(subset=["NumeroContratto"], keep="last")
-            save_csv(df, CONTRATTI_CSV)
+            df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
     except Exception as e:
         st.warning(f"⚠️ Sync Supabase contratti saltata: {e}")
-
     return df.fillna("")
 
 
 def save_contratti(df: pd.DataFrame):
-    """Salva i contratti (usa save_csv che sincronizza automaticamente)."""
-    CONTRATTI_CSV = st.session_state["CONTRATTI_CSV"]
-    save_csv(df, CONTRATTI_CSV)
+    """Salva contratti — delega completamente a save_csv()."""
+    save_csv(df, st.session_state["CONTRATTI_CSV"])
 
 # =====================================
 # NORMALIZZAZIONE COLONNE (compatibilità Supabase)

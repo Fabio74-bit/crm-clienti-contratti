@@ -13,6 +13,34 @@ from docx import Document
 from docx.shared import Pt
 
 # =====================================
+# COSTANTI GLOBALI SEMPRE DISPONIBILI
+# =====================================
+APP_TITLE = "GESTIONALE CLIENTI – SHT"
+LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
+
+# Directory di archiviazione locale (una per ogni utente)
+STORAGE_DIR = Path(st.secrets.get("LOCAL_STORAGE_DIR", "storage"))
+STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Percorsi principali
+CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
+CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
+PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
+PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
+
+# Template e durate
+TEMPLATES_DIR = Path("templates")
+TEMPLATE_OPTIONS = {
+    "Offerta A4": "Offerta_A4.docx",
+    "Offerta A3": "Offerta_A3.docx",
+    "Centralino": "Offerta_Centralino.docx",
+    "Varie": "Offerta_Varie.docx",
+}
+
+DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
+
+
+# =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE
 # =====================================
 st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
@@ -39,29 +67,7 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-# =====================================
-# COSTANTI GLOBALI
-# =====================================
-APP_TITLE = "GESTIONALE CLIENTI – SHT"
-LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
-STORAGE_DIR = Path(st.secrets.get("LOCAL_STORAGE_DIR", "storage"))
-STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
-CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
-PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
-PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
-
-TEMPLATES_DIR = Path("templates")
-TEMPLATE_OPTIONS = {
-    "Offerta A4": "Offerta_A4.docx",
-    "Offerta A3": "Offerta_A3.docx",
-    "Centralino": "Offerta_Centralino.docx",
-    "Varie": "Offerta_Varie.docx",
-}
-
-
-DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 # =====================================
 # COLONNE STANDARD CSV
 # =====================================
@@ -149,28 +155,52 @@ def load_clienti() -> pd.DataFrame:
 
     return df.fillna("")
 
+
+def save_csv(df: pd.DataFrame, path: Path):
+    """Salva DataFrame su CSV locale e sincronizza Supabase (se attivo)."""
+    try:
+        # 🔹 Salvataggio locale immediato
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+        st.toast(f"💾 {path.name} salvato in locale", icon="📁")
+
+        # 🔹 Sincronizzazione automatica opzionale
+        if "supabase" in globals() and st.session_state.get("logged_in"):
+            user = st.session_state.get("user", "")
+            table = None
+            if "clienti" in path.name:
+                table = "clienti"
+            elif "contratti" in path.name:
+                table = "contratti"
+
+            if table:
+                supabase.table(table).delete().eq("owner", user).execute()
+                supabase.table(table).insert(df.assign(owner=user).to_dict(orient="records")).execute()
+                print(f"[SYNC] ✅ {table} sincronizzati su Supabase per utente {user}")
+        else:
+            print(f"[SYNC] ⏸️ Offline: salvataggio solo locale ({path.name})")
+
+    except Exception as e:
+        st.error(f"❌ Errore salvataggio {path.name}: {e}")
+
+
 def save_clienti(df: pd.DataFrame):
-    """Salva i clienti su CSV e Supabase."""
+    """Salva i clienti (usa save_csv che sincronizza automaticamente)."""
     CLIENTI_CSV = st.session_state["CLIENTI_CSV"]
     save_csv(df, CLIENTI_CSV)
-    try:
-        supabase.table("clienti").delete().eq("owner", st.session_state["user"]).execute()
-        records = df.copy()
-        records["owner"] = st.session_state["user"]
-        supabase.table("clienti").insert(records.to_dict(orient="records")).execute()
-        st.toast("✅ Clienti sincronizzati con Supabase", icon="🌐")
-    except Exception as e:
-        st.warning(f"⚠️ Impossibile sincronizzare clienti: {e}")
 
 # =====================================
 # CONTRATTI
 # =====================================
+# =====================================
+# CONTRATTI
+# =====================================
 def load_contratti() -> pd.DataFrame:
-    """Carica contratti dal CSV personale e (se disponibile) da Supabase."""
+    """Carica i contratti dal CSV personale e (se disponibile) da Supabase."""
     CONTRATTI_CSV = st.session_state["CONTRATTI_CSV"]
     CONTRATTI_COLS = st.session_state["CONTRATTI_COLS"]
     df = load_csv(CONTRATTI_CSV, CONTRATTI_COLS)
 
+    # Tentativo di sincronizzazione da Supabase
     try:
         response = supabase.table("contratti").select("*").eq("owner", st.session_state["user"]).execute()
         if response.data:
@@ -183,18 +213,12 @@ def load_contratti() -> pd.DataFrame:
 
     return df.fillna("")
 
+
 def save_contratti(df: pd.DataFrame):
-    """Salva contratti su CSV e Supabase."""
+    """Salva i contratti (usa save_csv che sincronizza automaticamente)."""
     CONTRATTI_CSV = st.session_state["CONTRATTI_CSV"]
     save_csv(df, CONTRATTI_CSV)
-    try:
-        supabase.table("contratti").delete().eq("owner", st.session_state["user"]).execute()
-        records = df.copy()
-        records["owner"] = st.session_state["user"]
-        supabase.table("contratti").insert(records.to_dict(orient="records")).execute()
-        st.toast("✅ Contratti sincronizzati con Supabase", icon="🌐")
-    except Exception as e:
-        st.warning(f"⚠️ Impossibile sincronizzare contratti: {e}")
+
 # =====================================
 # NORMALIZZAZIONE COLONNE (compatibilità Supabase)
 # =====================================
@@ -510,27 +534,30 @@ def do_login_fullscreen():
 # =====================================
 # KPI CARD (riutilizzata)
 # =====================================
-def kpi_card(label: str, value, icon: str, color: str) -> str:
-    """Restituisce HTML per una scheda KPI compatta"""
+def kpi_card(titolo, valore, icona, colore):
+    """Crea una scheda KPI con colore e stile coerente."""
     return f"""
-    <div style='
+    <div style="
         background:white;
-        border:1px solid #e5e7eb;
+        border:1px solid #e0e0e0;
         border-radius:12px;
-        padding:1.2rem 1.4rem;
-        box-shadow:0 2px 6px rgba(0,0,0,0.05);
+        box-shadow:0 2px 8px rgba(0,0,0,0.05);
+        padding:1.2rem;
         text-align:center;
-    '>
-        <div style='font-size:1.8rem;color:{color};'>{icon}</div>
-        <div style='font-size:1.2rem;font-weight:600;margin-top:0.4rem;color:#111827;'>{label}</div>
-        <div style='font-size:1.8rem;font-weight:700;margin-top:0.2rem;color:{color};'>{value}</div>
+        width:100%;
+        height:100%;
+    ">
+        <div style="font-size:2rem;">{icona}</div>
+        <div style="font-weight:600;margin-top:0.5rem;color:#111;">{titolo}</div>
+        <div style="font-size:1.8rem;font-weight:700;margin-top:0.4rem;color:{colore};">{valore}</div>
     </div>
     """
+
 # =====================================
 # PAGINA DASHBOARD
 # =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    st.image(LOGO_URL, width=120)
+    st.image(globals().get("LOGO_URL", ""), width=120)
     st.markdown("<h2>📊 Gestionale SHT</h2>", unsafe_allow_html=True)
     st.divider()
 

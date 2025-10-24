@@ -335,6 +335,12 @@ def carica_dati_supabase(user: str):
 
         df_cli = pd.DataFrame(data_cli)
         df_ct = pd.DataFrame(data_ct)
+        print("=== DEBUG SUPABASE ===")
+        print("Clienti:", len(df_cli), "Contratti:", len(df_ct))
+        print("Colonne contratti:", list(df_ct.columns))
+        print("Prime 3 righe contratti:")
+        print(df_ct.head(3).to_dict(orient="records"))
+        print("=======================")
 
         # --- Normalizzazione colonne (usa quella globale) ---
         df_cli = normalize_columns(df_cli)

@@ -11,6 +11,7 @@ fpdf==1.7.2
 # Database
 SQLAlchemy==2.0.36
 PyMySQL==1.1.1
+supabase==2.3.4
 
 # Tabelle interattive
 streamlit-aggrid>=1.0.4  # ✅ versione aggiornata e stabile

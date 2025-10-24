@@ -330,14 +330,15 @@ def sync_supabase_periodico():
 def carica_dati_supabase(user: str):
     """Scarica i dati di clienti e contratti da Supabase, li normalizza e verifica la coerenza."""
     try:
-        # --- Query clienti ---
+        # --- Query clienti (gestisce owner / Owner) ---
         data_cli = (
             supabase.table("clienti")
             .select("*")
-            .eq("owner", user)
+            .or_("owner.eq." + user + ",Owner.eq." + user)
             .execute()
             .data
         )
+
 
         # --- Query contratti (lettura completa + filtro locale) ---
         res_ct = supabase.table("contratti").select("*").execute()

@@ -338,7 +338,6 @@ def carica_dati_supabase(user: str):
         data_cli = res_cli.data
         df_cli = pd.DataFrame(data_cli)
 
-        import streamlit as st
         st.sidebar.write("🧾 Colonne clienti:", list(df_cli.columns))
         if not df_cli.empty:
             st.sidebar.write("🔍 Prime righe clienti:", df_cli.head(3))
@@ -352,6 +351,7 @@ def carica_dati_supabase(user: str):
             elif "Owner" in df_cli.columns:
                 df_cli = df_cli[df_cli["Owner"].astype(str).str.lower() == user.lower()]
             else:
+                st.sidebar.info("ℹ️ Nessuna colonna 'owner' trovata per i clienti.")
 
         # --- CONTRATTI ---
         res_ct = supabase.table("contratti").select("*").execute()
@@ -365,6 +365,7 @@ def carica_dati_supabase(user: str):
             elif "Owner" in df_ct.columns:
                 df_ct = df_ct[df_ct["Owner"].astype(str).str.lower() == user.lower()]
             else:
+                st.sidebar.info("ℹ️ Nessuna colonna 'owner' trovata per i contratti.")
 
         # --- Normalizzazione colonne ---
         df_cli = normalize_columns(df_cli)

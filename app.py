@@ -227,7 +227,8 @@ def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
             table = "clienti" if "client" in path.name.lower() else "contratti"
 
             try:
-                supabase.table(table).delete().eq("owner", user).execute()
+                save_csv_supabase_safe(df, path)
+
             except Exception as e:
                 st.warning(f"⚠️ Pulizia tabella {table} non riuscita: {e}")
 
@@ -292,6 +293,67 @@ def load_contratti() -> pd.DataFrame:
 def save_contratti(df: pd.DataFrame):
     """Salva contratti — delega completamente a save_csv()."""
     save_csv(df, st.session_state["CONTRATTI_CSV"])
+# =====================================
+# SALVATAGGIO SICURO CON SUPABASE (incrementale, senza delete)
+# =====================================
+def save_csv_supabase_safe(df: pd.DataFrame, path: Path):
+    """
+    Versione sicura: salva in locale e sincronizza su Supabase SENZA cancellare tutto.
+    - Inserisce solo i record nuovi o aggiornati.
+    - Mantiene quelli già presenti.
+    - Mai nessuna DELETE massiva.
+    """
+    try:
+        # Salvataggio locale
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+        st.toast(f"💾 {path.name} salvato in locale", icon="📁")
+
+        if "supabase" not in globals() or not st.session_state.get("logged_in"):
+            st.info("🌩️ Supabase non attivo o utente non loggato: sync saltato.")
+            return
+
+        user = st.session_state.get("user", "")
+        table = "clienti" if "client" in path.name.lower() else "contratti"
+
+        # Recupera i dati attuali da Supabase per l’utente
+        existing = supabase.table(table).select("*").eq("owner", user).execute()
+        existing_df = pd.DataFrame(existing.data or [])
+
+        # Aggiungi colonna owner
+        df_up = df.copy().fillna("")
+        df_up["owner"] = user
+
+        if existing_df.empty:
+            # Primo sync → insert completo
+            supabase.table(table).insert(df_up.to_dict(orient="records")).execute()
+            st.toast(f"☁️ Primo sync completato ({table})", icon="✅")
+        else:
+            # Sync incrementale
+            key_col = "ClienteID" if table == "clienti" else "NumeroContratto"
+            updated, new = [], []
+
+            for _, row in df_up.iterrows():
+                rid = str(row[key_col])
+                if rid in existing_df[key_col].astype(str).values:
+                    updated.append(row)
+                else:
+                    new.append(row)
+
+            # Aggiorna record esistenti
+            for r in updated:
+                try:
+                    supabase.table(table).update(r.to_dict()).eq(key_col, r[key_col]).eq("owner", user).execute()
+                except Exception as e:
+                    st.warning(f"⚠️ Update fallito per {r[key_col]}: {e}")
+
+            # Inserisci solo nuovi record
+            if new:
+                supabase.table(table).insert(pd.DataFrame(new).to_dict(orient="records")).execute()
+
+            st.toast(f"☁️ Sync Supabase completato ({len(updated)} aggiornati, {len(new)} nuovi)", icon="✅")
+
+    except Exception as e:
+        st.error(f"❌ Errore salvataggio sicuro: {e}")
 
 # =====================================
 # NORMALIZZAZIONE COLONNE (compatibilità Supabase)

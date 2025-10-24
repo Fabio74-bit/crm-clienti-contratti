@@ -394,6 +394,53 @@ def carica_dati_supabase(user: str):
         st.sidebar.text(traceback.format_exc())
         return pd.DataFrame(), pd.DataFrame()
 
+# =====================================
+# FIX AUTOMATICO OWNER SU SUPABASE
+# =====================================
+def fix_supabase_owner(user: str):
+    """Aggiorna i record su Supabase aggiungendo il campo owner dove manca."""
+    import streamlit as st
+    import pandas as pd
+
+    st.warning("⚙️ Avvio controllo e correzione 'owner' su Supabase...")
+
+    try:
+        # --- CLIENTI ---
+        res_cli = supabase.table("clienti").select("*").execute()
+        df_cli = pd.DataFrame(res_cli.data)
+
+        if "owner" not in df_cli.columns:
+            st.error("❌ La tabella 'clienti' non ha la colonna 'owner'. Aggiungila manualmente su Supabase.")
+        else:
+            mancanti_cli = df_cli[df_cli["owner"].astype(str).str.strip() == ""]
+            if not mancanti_cli.empty:
+                for _, row in mancanti_cli.iterrows():
+                    supabase.table("clienti").update({"owner": user}).eq("id", row["id"]).execute()
+                st.success(f"✅ Aggiornati {len(mancanti_cli)} clienti senza owner.")
+            else:
+                st.info("✅ Tutti i clienti hanno già un owner.")
+
+        # --- CONTRATTI ---
+        res_ct = supabase.table("contratti").select("*").execute()
+        df_ct = pd.DataFrame(res_ct.data)
+
+        if "owner" not in df_ct.columns:
+            st.error("❌ La tabella 'contratti' non ha la colonna 'owner'. Aggiungila manualmente su Supabase.")
+        else:
+            mancanti_ct = df_ct[df_ct["owner"].astype(str).str.strip() == ""]
+            if not mancanti_ct.empty:
+                for _, row in mancanti_ct.iterrows():
+                    supabase.table("contratti").update({"owner": user}).eq("id", row["id"]).execute()
+                st.success(f"✅ Aggiornati {len(mancanti_ct)} contratti senza owner.")
+            else:
+                st.info("✅ Tutti i contratti hanno già un owner.")
+
+        st.success("🎉 Correzione completata! Ricarica l'app per vedere i dati aggiornati.")
+
+    except Exception as e:
+        import traceback
+        st.error(f"❌ Errore durante il fix: {e}")
+        st.text(traceback.format_exc())
 
 # =====================================
 # FUNZIONI UTILITY

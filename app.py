@@ -1556,6 +1556,39 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.experimental_rerun()
 
 
+    # === ESPORTAZIONI ===
+    st.markdown("---")
+    st.markdown("### 📤 Esportazioni")
+
+    if ct.empty:
+        st.info("Nessun contratto da esportare.")
+        return
+
+    cex1, cex2 = st.columns(2)
+
+    with cex1:
+        try:
+            st.download_button(
+                "📘 Esporta Excel",
+                export_excel_contratti(df_ct, sel_id, rag_soc),
+                file_name=f"Contratti_{rag_soc}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.warning(f"⚠️ Errore durante l'esportazione Excel: {e}")
+
+    with cex2:
+        try:
+            st.download_button(
+                "📗 Esporta PDF",
+                export_pdf_contratti(df_ct, sel_id, rag_soc),
+                file_name=f"Contratti_{rag_soc}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.warning(f"⚠️ Errore durante l'esportazione PDF: {e}")
 
 # =====================================
 # MODALE CONTRATTO — VERSIONE 2025 (completa: nuova creazione + modifica)

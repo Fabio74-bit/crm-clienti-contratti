@@ -182,11 +182,10 @@ def save_csv(df: pd.DataFrame, path: Path):
             try:
                 supabase.table(table).delete().eq("owner", user).execute()
                 supabase.table(table).insert(df.assign(owner=user).to_dict(orient="records")).execute()
-                print(f"[SYNC] ✅ {table} sincronizzati con Supabase per {user}")
+
             except Exception as e:
                 st.warning(f"⚠️ Errore sync Supabase ({table}): {e}")
         else:
-            print(f"[SYNC] ⏸️ Offline: solo salvataggio locale ({path.name})")
 
     except Exception as e:
         st.error(f"❌ Errore salvataggio {path.name}: {e}")
@@ -319,10 +318,9 @@ def sync_supabase_periodico():
                 supabase.table("contratti").delete().eq("owner", user).execute()
                 supabase.table("contratti").insert(df_ct.assign(owner=user).to_dict(orient="records")).execute()
 
-                print(f"[SYNC] ✅ Dati sincronizzati con Supabase per {user}")
             time.sleep(300)  # 5 minuti
         except Exception as e:
-            print(f"[SYNC] ⚠️ Errore nella sincronizzazione: {e}")
+
             time.sleep(300)
 # =====================================
 # CARICAMENTO DATI DA SUPABASE (versione finale stabile)
@@ -352,7 +350,6 @@ def carica_dati_supabase(user: str):
             elif "Owner" in df_cli.columns:
                 df_cli = df_cli[df_cli["Owner"].astype(str).str.lower() == user.lower()]
             else:
-                print("⚠️ Nessuna colonna owner trovata — caricati tutti i clienti.")
 
         # --- CONTRATTI ---
         res_ct = supabase.table("contratti").select("*").execute()
@@ -366,7 +363,6 @@ def carica_dati_supabase(user: str):
             elif "Owner" in df_ct.columns:
                 df_ct = df_ct[df_ct["Owner"].astype(str).str.lower() == user.lower()]
             else:
-                print("⚠️ Nessuna colonna owner trovata — caricati tutti i contratti.")
 
         # --- Normalizzazione colonne ---
         df_cli = normalize_columns(df_cli)
@@ -1994,9 +1990,6 @@ def main():
         t = threading.Thread(target=sync_supabase_periodico, daemon=True)
         t.start()
         st.session_state["sync_thread_started"] = True
-        print("🌀 Thread di sincronizzazione Supabase avviato da main().")
-
-
 
     # --- Percorsi base ---
     global CLIENTI_CSV, CONTRATTI_CSV
@@ -2142,5 +2135,3 @@ if st.sidebar.button("🛠️ Correggi owner su Supabase (solo admin)"):
 # =====================================
 # AVVIO APPLICAZIONE
 # =====================================
-if __name__ == "__main__":
-    main()

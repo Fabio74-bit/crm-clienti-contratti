@@ -1420,19 +1420,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     sel_id = clienti_ids[clienti_labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
-    # === Header e pulsante aggiunta ===
-    st.markdown(
-        f"""
-        <div style='display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:20px;'>
-            <h3 style='margin:0;color:#2563eb;'>🏢 {rag_soc}</h3>
-        </div>
-        """, unsafe_allow_html=True
-    )
+if not permessi_limitati:
+    if st.button("➕ Aggiungi Contratto", use_container_width=False, key="btn_add_contract"):
+        # 🔹 Resetta eventuali stati precedenti
+        st.session_state["open_modal"] = "new"
+        st.session_state["selected_contratto"] = None
+        st.rerun()
 
-    if not permessi_limitati:
-        if st.button("➕ Aggiungi Contratto", use_container_width=False, key="btn_add_contract"):
-            st.session_state["open_modal"] = "new"
-            st.rerun()
 
     # === Filtra contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()

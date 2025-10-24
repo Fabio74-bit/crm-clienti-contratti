@@ -118,27 +118,46 @@ def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
             df[c] = ""
     return df[cols]
 
+# =====================================
+# CARICAMENTO CSV UNIVERSALE — VERSIONE 2025 (ottimizzata + cache + garanzia colonne)
+# =====================================
+@st.cache_data(ttl=120)
 def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
-    """Carica CSV locale, crea file vuoto se mancante."""
-    import pandas as pd
-
-    if not path.exists():
-        pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig", sep=";")
-        return pd.DataFrame(columns=cols)
-
+    """
+    Carica un CSV locale in modo sicuro e coerente.
+    - Se il file non esiste, lo crea vuoto con le colonne richieste.
+    - Gestisce encoding UTF-8 e caratteri speciali.
+    - Usa cache per migliorare le performance.
+    """
     try:
-        # ✅ Autodetect delimitatore (virgola o punto e virgola)
+        if not path.exists():
+            st.warning(f"⚠️ File {path.name} non trovato. Creato un nuovo CSV vuoto.")
+            df = pd.DataFrame(columns=cols)
+            df.to_csv(path, index=False, encoding="utf-8-sig")
+            return df
+
+        # --- Lettura CSV robusta ---
         df = pd.read_csv(
             path,
             dtype=str,
             encoding="utf-8-sig",
-            sep=None,
-            engine="python",   # permette autodetect
+            sep=None,               # auto-rilevamento delimitatore
+            engine="python",
             on_bad_lines="skip"
         ).fillna("")
-        return ensure_columns(df, cols)
+
+        # --- Garantisce tutte le colonne richieste ---
+        for c in cols:
+            if c not in df.columns:
+                df[c] = ""
+
+        # Riordina secondo la lista delle colonne attese
+        df = df[cols]
+
+        return df
+
     except Exception as e:
-        st.error(f"❌ Errore caricamento {path.name}: {e}")
+        st.error(f"❌ Errore durante il caricamento di {path.name}: {e}")
         return pd.DataFrame(columns=cols)
 
 

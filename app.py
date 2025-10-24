@@ -336,33 +336,17 @@ def carica_dati_supabase(user: str):
         df_cli = pd.DataFrame(data_cli)
         df_ct = pd.DataFrame(data_ct)
 
-        # --- Normalizzazione colonne ---
-        def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-            mapping = {
-                "id": "ClienteID",
-                "clienteid": "ClienteID",
-                "ragionesociale": "RagioneSociale",
-                "numerocontratto": "NumeroContratto",
-                "datainizio": "DataInizio",
-                "datafine": "DataFine",
-                "durata": "Durata",
-                "descrizioneprodotto": "DescrizioneProdotto",
-                "nol_fin": "NOL_FIN",
-                "nol_int": "NOL_INT",
-                "totrata": "TotRata",
-                "copiebn": "CopieBN",
-                "eccbn": "EccBN",
-                "copiecol": "CopieCol",
-                "ecccol": "EccCol",
-                "stato": "Stato",
-                "owner": "Owner",
-            }
-            return df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
-
+        # --- Normalizzazione colonne (usa quella globale) ---
         df_cli = normalize_columns(df_cli)
         df_ct = normalize_columns(df_ct)
 
-        # Colonne minime garantite
+        # --- Cast sicuro per chiavi relazionali ---
+        if "ClienteID" in df_cli.columns:
+            df_cli["ClienteID"] = df_cli["ClienteID"].astype(str)
+        if "ClienteID" in df_ct.columns:
+            df_ct["ClienteID"] = df_ct["ClienteID"].astype(str)
+
+        # --- Colonne minime garantite ---
         for col in ["ClienteID", "RagioneSociale"]:
             if col not in df_cli.columns:
                 df_cli[col] = ""
@@ -370,7 +354,7 @@ def carica_dati_supabase(user: str):
             if col not in df_ct.columns:
                 df_ct[col] = ""
 
-        print(f"[LOAD] ✅ Dati caricati da Supabase per {user}")
+        print(f"[LOAD] ✅ Dati caricati da Supabase per {user} — Clienti: {len(df_cli)}, Contratti: {len(df_ct)}")
         return df_cli, df_ct
 
     except Exception as e:

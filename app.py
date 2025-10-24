@@ -111,10 +111,10 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # =====================================
-# 📥 CARICAMENTO DATI DA SUPABASE
+# 📦 CARICAMENTO DATI DA SUPABASE (versione robusta)
 # =====================================
 def carica_dati_supabase(user: str):
-    """Scarica i dati di clienti e contratti da Supabase e li normalizza."""
+    """Scarica i dati di clienti e contratti da Supabase in modo sicuro."""
     try:
         data_cli = supabase.table("clienti").select("*").eq("owner", user).execute().data
         data_ct = supabase.table("contratti").select("*").eq("owner", user).execute().data
@@ -122,24 +122,29 @@ def carica_dati_supabase(user: str):
         df_cli = pd.DataFrame(data_cli)
         df_ct = pd.DataFrame(data_ct)
 
+        # --- Normalizza colonne ---
         df_cli = normalize_columns(df_cli)
         df_ct = normalize_columns(df_ct)
 
+        # --- Assicura presenza colonne chiave ---
+        for col in ["ClienteID", "RagioneSociale"]:
+            if col not in df_cli.columns:
+                df_cli[col] = ""
+        for col in ["ClienteID", "NumeroContratto", "DescrizioneProdotto", "Stato"]:
+            if col not in df_ct.columns:
+                df_ct[col] = ""
+
+        # --- Conversione tipo sicura ---
         if "ClienteID" in df_cli.columns:
             df_cli["ClienteID"] = df_cli["ClienteID"].astype(str)
         if "ClienteID" in df_ct.columns:
             df_ct["ClienteID"] = df_ct["ClienteID"].astype(str)
 
-        for col in ["ClienteID", "RagioneSociale"]:
-            if col not in df_cli.columns:
-                df_cli[col] = ""
-        for col in ["ClienteID", "NumeroContratto", "DescrizioneProdotto"]:
-            if col not in df_ct.columns:
-                df_ct[col] = ""
+        # --- Ritorna DataFrame puliti ---
+        return df_cli.fillna(""), df_ct.fillna("")
 
-        return df_cli, df_ct
     except Exception as e:
-        st.warning(f"⚠️ Errore caricamento da Supabase: {e}")
+        st.error(f"❌ Errore nel caricamento da Supabase: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
 
@@ -439,7 +444,7 @@ def do_login_fullscreen():
 
 
 # =====================================
-# 🚀 MAIN APP — versione definitiva
+# 🚀 MAIN APP (robusta, senza CSV locali)
 # =====================================
 def main():
     global LOGO_URL
@@ -450,15 +455,6 @@ def main():
     if not user:
         st.stop()
 
-    # --- Percorsi di storage ---
-    global STORAGE_DIR
-    STORAGE_DIR = Path("storage")
-    STORAGE_DIR.mkdir(exist_ok=True)
-
-    global CLIENTI_CSV, CONTRATTI_CSV
-    CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
-    CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
-
     # --- Ruoli e diritti ---
     if user in ["fabio", "emanuela", "claudia"]:
         ruolo_scrittura = "full"
@@ -467,52 +463,48 @@ def main():
 
     # --- Scelta visibilità ---
     if user in ["fabio", "giulia", "antonella"]:
-        visibilita_opzioni = ["Miei", "Gabriele", "Tutti"]
+        visibilita_opzioni = ["Miei", "Tutti"]
         visibilita_scelta = st.sidebar.radio("📂 Visualizza clienti di:", visibilita_opzioni, index=0)
     else:
         visibilita_scelta = "Miei"
 
-    # --- Caricamento dati ---
-    try:
-        df_cli_main, df_ct_main = carica_dati_supabase(user)
-        if df_cli_main.empty or df_ct_main.empty:
-            st.warning("⚠️ Nessun dato trovato su Supabase. Uso CSV locali.")
-            df_cli_main = pd.read_csv(CLIENTI_CSV, dtype=str).fillna("") if CLIENTI_CSV.exists() else pd.DataFrame()
-            df_ct_main = pd.read_csv(CONTRATTI_CSV, dtype=str).fillna("") if CONTRATTI_CSV.exists() else pd.DataFrame()
-    except Exception as e:
-        st.warning(f"⚠️ Errore nel caricamento da Supabase: {e}")
-        df_cli_main = pd.DataFrame()
-        df_ct_main = pd.DataFrame()
+    # --- Caricamento dati da Supabase ---
+    df_cli_main, df_ct_main = carica_dati_supabase(user)
 
-    # --- Caricamento storage Gabriele ---
-    gabriele_dir = STORAGE_DIR / "gabriele"
-    gabriele_dir.mkdir(exist_ok=True)
-    gabriele_clienti = gabriele_dir / "clienti.csv"
-    gabriele_contratti = gabriele_dir / "contratti_clienti.csv"
-
-    if gabriele_clienti.exists():
-        df_cli_gab = pd.read_csv(gabriele_clienti, dtype=str).fillna("")
-    else:
-        df_cli_gab = pd.DataFrame(columns=df_cli_main.columns)
-    if gabriele_contratti.exists():
-        df_ct_gab = pd.read_csv(gabriele_contratti, dtype=str).fillna("")
-    else:
-        df_ct_gab = pd.DataFrame(columns=df_ct_main.columns)
+    if df_cli_main.empty or df_ct_main.empty:
+        st.warning("⚠️ Nessun dato trovato su Supabase. Controlla la colonna 'owner' o la connessione.")
+        st.stop()
 
     # --- Applica filtro visibilità ---
-    if visibilita_scelta == "Miei":
-        df_cli, df_ct = df_cli_main, df_ct_main
-    elif visibilita_scelta == "Gabriele":
-        df_cli, df_ct = df_cli_gab, df_ct_gab
-    else:
-        df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
-        df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+    df_cli, df_ct = df_cli_main, df_ct_main
+    if visibilita_scelta == "Tutti" and user == "fabio":
+        try:
+            # Carica tutti i record, senza filtro per owner
+            all_cli = supabase.table("clienti").select("*").execute().data
+            all_ct = supabase.table("contratti").select("*").execute().data
+            df_cli = normalize_columns(pd.DataFrame(all_cli)).fillna("")
+            df_ct = normalize_columns(pd.DataFrame(all_ct)).fillna("")
+        except Exception as e:
+            st.warning(f"⚠️ Errore caricamento vista 'Tutti': {e}")
+
+    # --- Fix date invertite una sola volta ---
+    if not st.session_state.get("_date_fix_done", False):
+        try:
+            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+                if c in df_cli.columns:
+                    df_cli[c] = fix_inverted_dates(df_cli[c], col_name=c)
+            for c in ["DataInizio", "DataFine"]:
+                if c in df_ct.columns:
+                    df_ct[c] = fix_inverted_dates(df_ct[c], col_name=c)
+            st.session_state["_date_fix_done"] = True
+        except Exception as e:
+            st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     # --- Sidebar info ---
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
 
-    # --- Routing ---
+    # --- Routing tra pagine ---
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -527,23 +519,6 @@ def main():
         if target in PAGES:
             page = target
 
+    # --- Esegui pagina selezionata ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-
-
-# =====================================
-# ⚙️ UTILITÀ ADMIN — FIX OWNER SUPABASE
-# =====================================
-if st.sidebar.button("🛠️ Correggi owner su Supabase (solo admin)"):
-    user = st.session_state.get("user", "")
-    if user.lower() == "fabio":
-        fix_supabase_owner(user)
-    else:
-        st.sidebar.warning("⚠️ Solo l'admin può eseguire questa operazione.")
-
-
-# =====================================
-# ▶️ AVVIO APPLICAZIONE
-# =====================================
-if __name__ == "__main__":
-    main()

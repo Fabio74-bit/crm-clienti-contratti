@@ -447,11 +447,15 @@ def do_login_fullscreen():
 # 🚀 MAIN APP (robusta, senza CSV locali)
 # =====================================
 def main():
+    st.write("🚀 Avvio funzione main()...")
+
     global LOGO_URL
     LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
 
     # --- LOGIN ---
     user, role = do_login_fullscreen()
+    st.write(f"✅ Login completato — utente: {user}, ruolo: {role}")
+
     if not user:
         st.stop()
 
@@ -506,6 +510,8 @@ def main():
     st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
 
     # --- Routing tra pagine ---
+    st.write("📦 Dati caricati —", len(df_cli), "clienti,", len(df_ct), "contratti")
+
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,

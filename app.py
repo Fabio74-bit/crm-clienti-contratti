@@ -325,19 +325,20 @@ def sync_supabase_periodico():
             print(f"[SYNC] ⚠️ Errore nella sincronizzazione: {e}")
             time.sleep(300)
 # =====================================
-# CARICAMENTO DATI DA SUPABASE (con normalizzazione + verifica coerenza)
+# CARICAMENTO DATI DA SUPABASE (versione finale stabile)
 # =====================================
 def carica_dati_supabase(user: str):
     """Scarica i dati di clienti e contratti da Supabase, li normalizza e verifica la coerenza."""
-    import streamlit as st   # 👈 AGGIUNTO QUI!
+    import streamlit as st
+    import pandas as pd
 
     try:
-        # --- Query clienti (gestisce owner solo se esiste la colonna) ---
+        # --- CLIENTI ---
         res_cli = supabase.table("clienti").select("*").execute()
         data_cli = res_cli.data
         df_cli = pd.DataFrame(data_cli)
 
-        # 🔍 Filtra in Python se esiste la colonna "owner"
+        # 🔍 Filtro in Python per owner (se la colonna esiste)
         if not df_cli.empty:
             if "owner" in df_cli.columns:
                 df_cli = df_cli[df_cli["owner"].astype(str).str.lower() == user.lower()]
@@ -346,22 +347,19 @@ def carica_dati_supabase(user: str):
             else:
                 print("⚠️ Nessuna colonna owner trovata — caricati tutti i clienti.")
 
-
-        # --- Query contratti (lettura completa + filtro locale) ---
+        # --- CONTRATTI ---
         res_ct = supabase.table("contratti").select("*").execute()
         data_ct = res_ct.data
-
-
-        df_cli = pd.DataFrame(data_cli)
         df_ct = pd.DataFrame(data_ct)
 
-        # 🔍 Filtra in Python
+        # 🔍 Filtro in Python per owner (se la colonna esiste)
         if not df_ct.empty:
-            owner_col = "owner" if "owner" in df_ct.columns else "Owner" if "Owner" in df_ct.columns else None
-            if owner_col:
-                df_ct = df_ct[df_ct[owner_col].astype(str).str.lower() == user.lower()]
+            if "owner" in df_ct.columns:
+                df_ct = df_ct[df_ct["owner"].astype(str).str.lower() == user.lower()]
+            elif "Owner" in df_ct.columns:
+                df_ct = df_ct[df_ct["Owner"].astype(str).str.lower() == user.lower()]
             else:
-                print("⚠️ Nessuna colonna owner trovata in contratti — caricati tutti i record.")
+                print("⚠️ Nessuna colonna owner trovata — caricati tutti i contratti.")
 
         # --- Normalizzazione colonne ---
         df_cli = normalize_columns(df_cli)
@@ -375,16 +373,16 @@ def carica_dati_supabase(user: str):
             if col not in df_ct.columns:
                 df_ct[col] = ""
 
-        # --- Log e verifica coerenza ---
-        import streamlit as st
+        # --- Log nella sidebar ---
         st.sidebar.markdown(f"📡 Supabase: **{len(df_cli)} clienti / {len(df_ct)} contratti**")
 
+        # === 🔍 Verifica coerenza ===
         if not df_ct.empty and not df_cli.empty:
             cli_ids = set(df_cli["ClienteID"].astype(str))
             ct_ids = set(df_ct["ClienteID"].astype(str))
             orfani = sorted(list(ct_ids - cli_ids))
             if orfani:
-                st.sidebar.warning(f"⚠️ Contratti orfani: {len(orfani)}")
+                st.sidebar.warning(f"⚠️ Contratti orfani (ClienteID non trovato): {len(orfani)}")
             else:
                 st.sidebar.success("✅ Dati Supabase coerenti!")
 

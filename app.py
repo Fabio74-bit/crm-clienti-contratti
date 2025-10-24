@@ -280,55 +280,6 @@ def fix_inverted_dates(series: pd.Series, col_name: str = "") -> pd.Series:
 
     return pd.Series(fixed)
 
-# =====================================
-# CARICAMENTO E SALVATAGGIO DATI
-# =====================================
-def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
-    if path.exists():
-        df = pd.read_csv(path, dtype=str, encoding="utf-8-sig").fillna("")
-    else:
-        df = pd.DataFrame(columns=cols)
-        df.to_csv(path, index=False, encoding="utf-8-sig")
-    df = ensure_columns(df, cols)
-    return df
-
-def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
-    out = df.copy()
-    if date_cols:
-        for c in date_cols:
-            out[c] = out[c].apply(fmt_date)
-    out.to_csv(path, index=False, encoding="utf-8-sig")
-
-
-def save_if_changed(df_new, path: Path, original_df):
-    """Salva solo se i dati sono effettivamente cambiati."""
-    import pandas as pd
-    try:
-        if not original_df.equals(df_new):
-            df_new.to_csv(path, index=False, encoding='utf-8-sig')
-            return True
-        return False
-    except Exception:
-        df_new.to_csv(path, index=False, encoding='utf-8-sig')
-        return True
-
-# =====================================
-# FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
-# =====================================
-def save_clienti(df: pd.DataFrame):
-    """Salva il CSV clienti correggendo e formattando le date."""
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if c in df.columns:
-            df[c] = fix_inverted_dates(df[c], col_name=c)
-    save_csv(df, CLIENTI_CSV, date_cols=["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"])
-
-
-def save_contratti(df: pd.DataFrame):
-    """Salva il CSV contratti correggendo e formattando le date."""
-    for c in ["DataInizio", "DataFine"]:
-        if c in df.columns:
-            df[c] = fix_inverted_dates(df[c], col_name=c)
-    save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
 
 # =====================================
 # CONVERSIONE SICURA DATE ITALIANE (VERSIONE DEFINITIVA 2025)
@@ -351,176 +302,6 @@ def parse_date_safe(val: str) -> str:
 def to_date_series(series: pd.Series) -> pd.Series:
     """Compatibilità retroattiva: applica parse_date_safe a una serie pandas."""
     return series.apply(parse_date_safe)
-
-
-# =====================================
-# CARICAMENTO CLIENTI (senza salvataggio automatico)
-# =====================================
-def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (solo lettura, coerente con date italiane)."""
-    import pandas as pd
-
-    if CLIENTI_CSV.exists():
-        try:
-            df = pd.read_csv(
-                CLIENTI_CSV,
-                dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei clienti: {e}")
-            df = pd.DataFrame(columns=CLIENTI_COLS)
-    else:
-        df = pd.DataFrame(columns=CLIENTI_COLS)
-        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
-
-    # Normalizza valori vuoti o errati
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-
-    # Garantisce che tutte le colonne standard esistano
-    df = ensure_columns(df, CLIENTI_COLS)
-
-    # Conversione coerente delle date (senza salvarle)
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if c in df.columns:
-            df[c] = df[c].apply(parse_date_safe)
-
-    return df
-
-
-# =====================================
-# CARICAMENTO CONTRATTI (senza salvataggio automatico)
-# =====================================
-def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (solo lettura, coerente con date italiane)."""
-    import pandas as pd
-
-    if CONTRATTI_CSV.exists():
-        try:
-            df = pd.read_csv(
-                CONTRATTI_CSV,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei contratti: {e}")
-            df = pd.DataFrame(columns=CONTRATTI_COLS)
-    else:
-        df = pd.DataFrame(columns=CONTRATTI_COLS)
-        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
-
-    # Pulisce valori testuali e garantisce colonne
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-    df = ensure_columns(df, CONTRATTI_COLS)
-
-    # Conversione coerente delle date
-    for c in ["DataInizio", "DataFine"]:
-        if c in df.columns:
-            df[c] = df[c].apply(parse_date_safe)
-
-    return df
-
-
-# =====================================
-# FUNZIONI DI CARICAMENTO DATI (VERSIONE DEFINITIVA 2025)
-# =====================================
-
-def normalize_cliente_id(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalizza la colonna ClienteID rimuovendo zeri iniziali e spazi."""
-    if "ClienteID" not in df.columns:
-        return df
-    df["ClienteID"] = (
-        df["ClienteID"]
-        .astype(str)
-        .str.strip()
-        .str.replace(r"^0+", "", regex=True)
-        .replace({"": None})
-    )
-    return df
-
-
-def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
-    import pandas as pd
-
-    try:
-        if CLIENTI_CSV.exists():
-            df = pd.read_csv(
-                CLIENTI_CSV,
-                dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        else:
-            df = pd.DataFrame(columns=CLIENTI_COLS)
-    except Exception as e:
-        st.error(f"❌ Errore durante la lettura dei clienti: {e}")
-        df = pd.DataFrame(columns=CLIENTI_COLS)
-
-    # Pulizia e normalizzazione
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-    df = ensure_columns(df, CLIENTI_COLS)
-    df = normalize_cliente_id(df)
-
-    # Conversione date coerente
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if c in df.columns:
-            df[c] = to_date_series(df[c])
-
-    return df
-
-
-def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
-    import pandas as pd
-
-    try:
-        if CONTRATTI_CSV.exists():
-            df = pd.read_csv(
-                CONTRATTI_CSV,
-                dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        else:
-            df = pd.DataFrame(columns=CONTRATTI_COLS)
-    except Exception as e:
-        st.error(f"❌ Errore durante la lettura dei contratti: {e}")
-        df = pd.DataFrame(columns=CONTRATTI_COLS)
-
-    # Pulizia e normalizzazione
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-    df = ensure_columns(df, CONTRATTI_COLS)
-    df = normalize_cliente_id(df)
-
-    # Conversione date coerente
-    for c in ["DataInizio", "DataFine"]:
-        if c in df.columns:
-            df[c] = to_date_series(df[c])
-
-    return df
 
 
 # =====================================
@@ -594,15 +375,16 @@ def do_login_fullscreen():
 
             # Struttura colonne
             CLIENTI_COLS = [
-                "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "Cap",
+                "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
                 "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
                 "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
-                "TMK", "NoteCliente"
+                "TMK", "NoteCliente", "owner"
             ]
+
             CONTRATTI_COLS = [
-                "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine",
-                "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-                "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+                "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+                "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+                "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato", "owner"
             ]
 
             # Crea i CSV se non esistono

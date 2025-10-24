@@ -314,6 +314,58 @@ def sync_supabase_periodico():
         except Exception as e:
             print(f"[SYNC] ⚠️ Errore nella sincronizzazione: {e}")
             time.sleep(300)
+# =====================================
+# CARICAMENTO DATI DA SUPABASE (con normalizzazione)
+# =====================================
+def carica_dati_supabase(user: str):
+    """Scarica i dati di clienti e contratti da Supabase e li normalizza."""
+    try:
+        data_cli = supabase.table("clienti").select("*").eq("owner", user).execute().data
+        data_ct = supabase.table("contratti").select("*").eq("owner", user).execute().data
+
+        df_cli = pd.DataFrame(data_cli)
+        df_ct = pd.DataFrame(data_ct)
+
+        # --- Normalizzazione colonne ---
+        def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+            mapping = {
+                "id": "ClienteID",
+                "clienteid": "ClienteID",
+                "ragionesociale": "RagioneSociale",
+                "numerocontratto": "NumeroContratto",
+                "datainizio": "DataInizio",
+                "datafine": "DataFine",
+                "durata": "Durata",
+                "descrizioneprodotto": "DescrizioneProdotto",
+                "nol_fin": "NOL_FIN",
+                "nol_int": "NOL_INT",
+                "totrata": "TotRata",
+                "copiebn": "CopieBN",
+                "eccbn": "EccBN",
+                "copiecol": "CopieCol",
+                "ecccol": "EccCol",
+                "stato": "Stato",
+                "owner": "Owner",
+            }
+            return df.rename(columns={k: v for k, v in mapping.items() if k in df.columns})
+
+        df_cli = normalize_columns(df_cli)
+        df_ct = normalize_columns(df_ct)
+
+        # Colonne minime garantite
+        for col in ["ClienteID", "RagioneSociale"]:
+            if col not in df_cli.columns:
+                df_cli[col] = ""
+        for col in ["ClienteID", "NumeroContratto", "DescrizioneProdotto"]:
+            if col not in df_ct.columns:
+                df_ct[col] = ""
+
+        print(f"[LOAD] ✅ Dati caricati da Supabase per {user}")
+        return df_cli, df_ct
+
+    except Exception as e:
+        print(f"[LOAD] ⚠️ Errore nel caricamento da Supabase: {e}")
+        return pd.DataFrame(), pd.DataFrame()
 
 # =====================================
 # FUNZIONI UTILITY
@@ -1887,8 +1939,22 @@ def main():
     else:
         visibilita_scelta = "Miei"
 
-    # --- Caricamento CSV base ---
-    df_cli_main, df_ct_main = load_clienti(), load_contratti()
+    
+    # --- Caricamento dati base (da Supabase o CSV in fallback) ---
+    try:
+        if st.session_state.get("logged_in") and "user" in st.session_state:
+            user = st.session_state["user"]
+            df_cli_main, df_ct_main = carica_dati_supabase(user)
+            
+            # Se Supabase restituisce vuoto (es. prima connessione), fallback ai CSV locali
+            if df_cli_main.empty or df_ct_main.empty:
+                df_cli_main, df_ct_main = load_clienti(), load_contratti()
+        else:
+            df_cli_main, df_ct_main = load_clienti(), load_contratti()
+    except Exception as e:
+        st.warning(f"⚠️ Errore caricamento da Supabase, uso CSV locali: {e}")
+        df_cli_main, df_ct_main = load_clienti(), load_contratti()
+
 
     # --- Caricamento CSV Gabriele (robusto) ---
     try:

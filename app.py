@@ -80,17 +80,18 @@ window.addEventListener('load', function() {
 # COLONNE STANDARD CSV
 # =====================================
 CLIENTI_COLS = [
-    "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
-    "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
-    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
-    "TMK", "NoteCliente", "owner"   # 👈 aggiunta colonna obbligatoria per Supabase
+    "clienteid", "ragionesociale", "personariferimento", "indirizzo", "citta", "cap",
+    "telefono", "cell", "email", "partitaiva", "iban", "sdi",
+    "ultimorecall", "prossimorecall", "ultimavisita", "prossimavisita",
+    "tmk", "notecliente", "owner"
 ]
 
 CONTRATTI_COLS = [
-    "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
-    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-    "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato", "owner"  # 👈 anche qui
+    "clienteid", "ragionesociale", "numerocontratto", "datainizio", "datafine", "durata",
+    "descrizioneprodotto", "nol_fin", "nol_int", "totrata",
+    "copiebn", "eccbn", "copiecol", "ecccol", "stato", "owner"
 ]
+
 
 # =====================================
 # CONNESSIONE A SUPABASE

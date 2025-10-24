@@ -168,29 +168,48 @@ def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
         return pd.DataFrame(columns=cols)
 
 
-def save_csv(df: pd.DataFrame, path: Path):
-    """Salva DataFrame in locale e sincronizza automaticamente con Supabase."""
+def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
+    """
+    Salva il DataFrame in locale e sincronizza automaticamente con Supabase.
+    Gestisce sia 'clienti' che 'contratti' a seconda del file.
+    """
     try:
-        # 🔹 Salvataggio locale
-        df.to_csv(path, index=False, encoding="utf-8-sig")
+        out = df.copy()
+
+        if date_cols:
+            for c in date_cols:
+                out[c] = out[c].apply(fmt_date)
+
+        out.to_csv(path, index=False, encoding="utf-8-sig")
         st.toast(f"💾 {path.name} salvato in locale", icon="📁")
 
-        # 🔹 Sync cloud
         if "supabase" in globals() and st.session_state.get("logged_in"):
             user = st.session_state.get("user", "")
-            table = "clienti" if "clienti" in path.name else "contratti"
+            if not user:
+                st.warning("⚠️ Utente non definito: sincronizzazione annullata.")
+                return
+
+            table = "clienti" if "client" in path.name.lower() else "contratti"
+
             try:
                 supabase.table(table).delete().eq("owner", user).execute()
-                supabase.table(table).insert(df.assign(owner=user).to_dict(orient="records")).execute()
-
             except Exception as e:
-                st.warning(f"⚠️ Errore sync Supabase ({table}): {e}")
+                st.warning(f"⚠️ Pulizia tabella {table} non riuscita: {e}")
+
+            upload_df = out.copy()
+            upload_df["owner"] = user
+            upload_df = upload_df.fillna("")
+
+            try:
+                supabase.table(table).insert(upload_df.to_dict(orient="records")).execute()
+                st.toast(f"☁️ Dati sincronizzati con Supabase ({table})", icon="✅")
+            except Exception as e:
+                st.warning(f"⚠️ Errore durante la sincronizzazione di {table}: {e}")
         else:
-            # se non loggato o supabase non disponibile
-            st.info("⏸️ Sync cloud non attivo (utente non loggato o Supabase non inizializzato).")
+            st.info("ℹ️ Sync cloud non attiva (utente non loggato o Supabase non inizializzato).")
 
     except Exception as e:
-        st.error(f"❌ Errore salvataggio {path.name}: {e}")
+        st.error(f"❌ Errore durante il salvataggio di {path.name}: {e}")
 
 
 def load_clienti() -> pd.DataFrame:

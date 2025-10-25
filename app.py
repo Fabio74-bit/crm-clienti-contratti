@@ -16,6 +16,8 @@ from utils.formatting import *
 from utils.auth import *
 from utils.exports import *
 from utils.fixes import *
+from utils.pdf_builder import SHTPDF
+
 
 # =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE

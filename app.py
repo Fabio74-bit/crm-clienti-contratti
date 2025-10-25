@@ -1731,7 +1731,7 @@ def main():
 
     # --- Pagine ---
     PAGES = {
-        "Dashboard": page_dashboard,
+        "📊 Dashboard grafica": page_dashboard,
         "Clienti": page_clienti,
         "Contratti": page_contratti,
         "📅 Recall e Visite": page_richiami_visite,

@@ -12,6 +12,8 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from docx import Document
 from docx.shared import Pt
 from utils.data_io import *
+from utils.formatting import *
+
 
 # =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE

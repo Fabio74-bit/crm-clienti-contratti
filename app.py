@@ -17,6 +17,8 @@ from utils.auth import *
 from utils.exports import *
 from utils.fixes import *
 from utils.pdf_builder import SHTPDF
+from utils.dashboard import page_dashboard
+
 
 
 # =====================================

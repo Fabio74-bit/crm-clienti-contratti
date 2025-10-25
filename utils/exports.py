@@ -11,85 +11,170 @@ from openpyxl.utils import get_column_letter
 from utils.formatting import fmt_date, safe_text
 
 
-def export_excel_contratti(df_ct, sel_id, rag_soc):
-    """Esporta i contratti di un cliente in formato Excel"""
+def export_pdf_contratti(df_ct, sel_id, rag_soc):
+    """Esporta i contratti di un cliente in formato PDF A4 orizzontale con stile professionale."""
+    from fpdf import FPDF
+    from utils.formatting import safe_text, fmt_date
+
     disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = f"Contratti {rag_soc}"
-    ws.merge_cells("A1:M1")
+    # ✅ intestazione colonne (manteniamo 6 per leggibilità)
+    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto", "TotRata", "Stato"]
+    widths = [30, 25, 25, 20, 95, 25, 25]  # perfettamente centrato in A4 landscape
 
-    title = ws["A1"]
-    title.value = f"Contratti Cliente: {rag_soc}"
-    title.font = Font(size=14, bold=True, color="2563EB")
-    title.alignment = Alignment(horizontal="center")
+    class PDF(FPDF):
+        def header(self):
+            """Header con logo e barra blu"""
+            self.set_fill_color(37, 99, 235)  # blu SHT
+            self.rect(0, 0, 297, 18, "F")
+            self.image("https://www.shtsrl.com/template/images/logo.png", 10, 2, 30)
+            self.set_text_color(255, 255, 255)
+            self.set_font("Arial", "B", 14)
+            self.cell(0, 8, "GESTIONALE CLIENTI SHT — CONTRATTI", ln=1, align="C")
+            self.ln(6)
 
-    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
-               "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"]
-    ws.append(headers)
+        def footer(self):
+            """Piè di pagina elegante"""
+            self.set_y(-12)
+            self.set_font("Arial", "I", 8)
+            self.set_text_color(120, 120, 120)
+            self.cell(0, 10, f"Pagina {self.page_no()}", 0, 0, "C")
 
-    head_font = Font(bold=True, color="FFFFFF")
-    head_fill = PatternFill("solid", fgColor="2563EB")
-    center = Alignment(horizontal="center", wrap_text=True)
-    thin = Border(left=Side(style="thin"), right=Side(style="thin"),
-                  top=Side(style="thin"), bottom=Side(style="thin"))
+    pdf = PDF(orientation="L", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
 
-    for i, h in enumerate(headers, 1):
-        c = ws.cell(row=2, column=i)
-        c.font = head_font
-        c.fill = head_fill
-        c.alignment = center
-        c.border = thin
+    # Titolo cliente
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", "B", 13)
+    pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
 
-    for _, row in disp.iterrows():
-        ws.append([str(row.get(h, "")) for h in headers])
-        stato = str(row.get("Stato", "")).lower()
-        r_idx = ws.max_row
-        for j in range(1, len(headers) + 1):
-            cell = ws.cell(row=r_idx, column=j)
-            cell.alignment = center
-            cell.border = thin
+    # Intestazione tabella
+    pdf.set_font("Arial", "B", 9)
+    pdf.set_fill_color(37, 99, 235)
+    pdf.set_text_color(255, 255, 255)
+    for i, h in enumerate(headers):
+        pdf.cell(widths[i], 8, safe_text(h), 1, 0, "C", fill=True)
+    pdf.ln()
+
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", "", 9)
+
+    # Contenuto righe
+    for _, r in disp.iterrows():
+        stato = str(r.get("Stato", "")).lower()
+        cell_values = [safe_text(str(r.get(h, ""))) for h in headers]
+
+        # 🔹 altezza dinamica riga (in base alla descrizione)
+        descr = cell_values[headers.index("DescrizioneProdotto")] if "DescrizioneProdotto" in headers else ""
+        lines = (len(descr) // 70) + 1
+        max_height = 6 * lines
+
+        y_before = pdf.get_y()
+        x_before = pdf.get_x()
+
+        for i, h in enumerate(headers):
+            text = cell_values[i]
             if stato == "chiuso":
-                cell.fill = PatternFill("solid", fgColor="FFCDD2")
+                pdf.set_fill_color(255, 235, 238)  # rosa chiaro
+            else:
+                pdf.set_fill_color(255, 255, 255)
 
-    for i in range(1, len(headers) + 1):
-        ws.column_dimensions[get_column_letter(i)].width = 25
+            # 🔸 MultiCell per testo a capo
+            x = pdf.get_x()
+            y = pdf.get_y()
+            align = "C" if h != "DescrizioneProdotto" else "L"
+            pdf.multi_cell(widths[i], 6, text, border=1, align=align, fill=True)
+            pdf.set_xy(x + widths[i], y)
 
-    bio = BytesIO()
-    wb.save(bio)
-    return bio.getvalue()
+        pdf.set_y(y_before + max_height)
+
+    # Restituisce il PDF come bytes per download
+    return pdf.output(dest="S").encode("latin-1", errors="replace")
+
 
 
 def export_pdf_contratti(df_ct, sel_id, rag_soc):
-    """Esporta i contratti di un cliente in formato PDF"""
+    """Esporta i contratti di un cliente in formato PDF A4 orizzontale con stile professionale."""
+    from fpdf import FPDF
+    from utils.formatting import safe_text, fmt_date
+
     disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
 
-    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "TotRata", "Stato"]
-    widths = [30, 25, 25, 15, 25, 20]
+    # ✅ intestazione colonne (manteniamo 6 per leggibilità)
+    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto", "TotRata", "Stato"]
+    widths = [30, 25, 25, 20, 95, 25, 25]  # perfettamente centrato in A4 landscape
 
-    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    class PDF(FPDF):
+        def header(self):
+            """Header con logo e barra blu"""
+            self.set_fill_color(37, 99, 235)  # blu SHT
+            self.rect(0, 0, 297, 18, "F")
+            self.image("https://www.shtsrl.com/template/images/logo.png", 10, 2, 30)
+            self.set_text_color(255, 255, 255)
+            self.set_font("Arial", "B", 14)
+            self.cell(0, 8, "GESTIONALE CLIENTI SHT — CONTRATTI", ln=1, align="C")
+            self.ln(6)
+
+        def footer(self):
+            """Piè di pagina elegante"""
+            self.set_y(-12)
+            self.set_font("Arial", "I", 8)
+            self.set_text_color(120, 120, 120)
+            self.cell(0, 10, f"Pagina {self.page_no()}", 0, 0, "C")
+
+    pdf = PDF(orientation="L", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
+
+    # Titolo cliente
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", "B", 13)
     pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
-    pdf.set_font("Arial", "B", 10)
+
+    # Intestazione tabella
+    pdf.set_font("Arial", "B", 9)
+    pdf.set_fill_color(37, 99, 235)
+    pdf.set_text_color(255, 255, 255)
     for i, h in enumerate(headers):
-        pdf.cell(widths[i], 8, safe_text(h), 1, 0, "C", True)
+        pdf.cell(widths[i], 8, safe_text(h), 1, 0, "C", fill=True)
     pdf.ln()
 
+    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", "", 9)
+
+    # Contenuto righe
     for _, r in disp.iterrows():
         stato = str(r.get("Stato", "")).lower()
-        for i, h in enumerate(headers):
-            if stato == "chiuso":
-                pdf.set_fill_color(255, 235, 238)
-                pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C", fill=True)
-            else:
-                pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C")
-        pdf.ln()
+        cell_values = [safe_text(str(r.get(h, ""))) for h in headers]
 
+        # 🔹 altezza dinamica riga (in base alla descrizione)
+        descr = cell_values[headers.index("DescrizioneProdotto")] if "DescrizioneProdotto" in headers else ""
+        lines = (len(descr) // 70) + 1
+        max_height = 6 * lines
+
+        y_before = pdf.get_y()
+        x_before = pdf.get_x()
+
+        for i, h in enumerate(headers):
+            text = cell_values[i]
+            if stato == "chiuso":
+                pdf.set_fill_color(255, 235, 238)  # rosa chiaro
+            else:
+                pdf.set_fill_color(255, 255, 255)
+
+            # 🔸 MultiCell per testo a capo
+            x = pdf.get_x()
+            y = pdf.get_y()
+            align = "C" if h != "DescrizioneProdotto" else "L"
+            pdf.multi_cell(widths[i], 6, text, border=1, align=align, fill=True)
+            pdf.set_xy(x + widths[i], y)
+
+        pdf.set_y(y_before + max_height)
+
+    # Restituisce il PDF come bytes per download
     return pdf.output(dest="S").encode("latin-1", errors="replace")

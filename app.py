@@ -13,22 +13,45 @@ from docx import Document
 from docx.shared import Pt
 
 # =====================================
-# COSTANTI GLOBALI SEMPRE DISPONIBILI
+# CONFIGURAZIONE STREAMLIT E STILE BASE
+# =====================================
+st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
+
+st.markdown("""
+<style>
+.block-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+    max-width: 100% !important;
+}
+section.main > div:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<script>
+    window.addEventListener('load', function() {
+        window.scrollTo(0, 0);
+    });
+</script>
+""", unsafe_allow_html=True)
+
+# =====================================
+# COSTANTI GLOBALI
 # =====================================
 APP_TITLE = "GESTIONALE CLIENTI – SHT"
 LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
-
-# Directory di archiviazione locale (una per ogni utente)
 STORAGE_DIR = Path(st.secrets.get("LOCAL_STORAGE_DIR", "storage"))
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-# Percorsi principali
 CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
 CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
 PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
 PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
 
-# Template e durate
 TEMPLATES_DIR = Path("templates")
 TEMPLATE_OPTIONS = {
     "Offerta A4": "Offerta_A4.docx",
@@ -37,528 +60,24 @@ TEMPLATE_OPTIONS = {
     "Varie": "Offerta_Varie.docx",
 }
 
+
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
-
-
-# =====================================
-# CONFIGURAZIONE STREAMLIT E STILE BASE
-# =====================================
-st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
-
-# --- Stile generale app ---
-st.markdown("""
-<style>
-.block-container {
-    padding-left: 2rem;
-    padding-right: 2rem;
-    padding-top: 1rem;
-    max-width: 100% !important;
-}
-section.main > div:first-child {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-}
-[data-testid="stSidebar"] {
-    background-color: #f8fafc !important;
-}
-h2, h3 {
-    color: #2563eb;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# --- Script per mantenere lo scroll in alto al cambio pagina ---
-st.markdown("""
-<script>
-window.addEventListener('load', function() {
-    window.scrollTo(0, 0);
-});
-</script>
-""", unsafe_allow_html=True)
-
 # =====================================
 # COLONNE STANDARD CSV
 # =====================================
 CLIENTI_COLS = [
-    "clienteid", "ragionesociale", "personariferimento", "indirizzo", "citta", "cap",
-    "telefono", "cell", "email", "partitaiva", "iban", "sdi",
-    "ultimorecall", "prossimorecall", "ultimavisita", "prossimavisita",
-    "tmk", "notecliente", "owner"
+    "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
+    "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
+    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
+    "TMK", "NoteCliente"
 ]
+
 
 CONTRATTI_COLS = [
-    "clienteid", "ragionesociale", "numerocontratto", "datainizio", "datafine", "durata",
-    "descrizioneprodotto", "nol_fin", "nol_int", "totrata",
-    "copiebn", "eccbn", "copiecol", "ecccol", "stato", "owner"
+    "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
+    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+    "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
 ]
-
-
-# =====================================
-# CONNESSIONE A SUPABASE
-# =====================================
-from supabase import create_client
-import os
-
-SUPABASE_URL = st.secrets["supabase"]["url"]
-SUPABASE_ANON_KEY = st.secrets["supabase"]["anon_key"]
-SUPABASE_SERVICE_KEY = st.secrets["supabase"]["service_key"]
-
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-# =====================================
-# CARICAMENTO E SALVATAGGIO DATI (CSV + SUPABASE)
-# =====================================
-
-def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    """
-    Garantisce che il DataFrame contenga tutte le colonne richieste
-    (nell'ordine corretto), aggiungendo quelle mancanti come stringhe vuote.
-
-    - Gestisce DataFrame vuoti o None.
-    - Mantiene l'ordine delle colonne specificato.
-    - Riempie i valori mancanti con stringhe vuote.
-    """
-    if df is None or df.empty:
-        return pd.DataFrame(columns=cols)
-
-    out = df.copy()
-
-    for c in cols:
-        if c not in out.columns:
-            out[c] = ""
-
-    # Riordina e pulisce
-    out = out[cols]
-    out = out.fillna("").astype(str)
-
-    return out
-
-
-# =====================================
-# CARICAMENTO CSV UNIVERSALE — VERSIONE 2025 (ottimizzata + cache + garanzia colonne)
-# =====================================
-@st.cache_data(ttl=120)
-def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
-    """
-    Carica un CSV locale in modo sicuro e coerente.
-    - Se il file non esiste, lo crea vuoto con le colonne richieste.
-    - Gestisce encoding UTF-8 e caratteri speciali.
-    - Usa cache per migliorare le performance.
-    """
-    try:
-        if not path.exists():
-            st.warning(f"⚠️ File {path.name} non trovato. Creato un nuovo CSV vuoto.")
-            df = pd.DataFrame(columns=cols)
-            df.to_csv(path, index=False, encoding="utf-8-sig")
-            return df
-
-        # --- Lettura CSV robusta ---
-        df = pd.read_csv(
-            path,
-            dtype=str,
-            encoding="utf-8-sig",
-            sep=None,               # auto-rilevamento delimitatore
-            engine="python",
-            on_bad_lines="skip"
-        ).fillna("")
-
-        # --- Garantisce tutte le colonne richieste ---
-        for c in cols:
-            if c not in df.columns:
-                df[c] = ""
-
-        # Riordina secondo la lista delle colonne attese
-        df = df[cols]
-
-        return df
-
-    except Exception as e:
-        st.error(f"❌ Errore durante il caricamento di {path.name}: {e}")
-        return pd.DataFrame(columns=cols)
-
-
-# =====================================
-# CLIENTI E CONTRATTI (SALVATAGGIO + SYNC)
-# =====================================
-
-def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    """Garantisce che il DataFrame abbia tutte le colonne richieste."""
-    for c in cols:
-        if c not in df.columns:
-            df[c] = ""
-    return df[cols]
-
-
-def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
-    """Carica CSV locale, crea file vuoto se mancante."""
-    if not path.exists():
-        pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig", sep=";")
-        return pd.DataFrame(columns=cols)
-    try:
-        df = pd.read_csv(path, dtype=str, sep=None, engine="python",
-                         encoding="utf-8-sig", on_bad_lines="skip").fillna("")
-        return ensure_columns(df, cols)
-    except Exception as e:
-        st.error(f"❌ Errore caricamento {path.name}: {e}")
-        return pd.DataFrame(columns=cols)
-
-
-def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
-    """
-    Salva il DataFrame in locale e sincronizza automaticamente con Supabase.
-    Gestisce sia 'clienti' che 'contratti' a seconda del file.
-    """
-    try:
-        out = df.copy()
-
-        if date_cols:
-            for c in date_cols:
-                out[c] = out[c].apply(fmt_date)
-
-        out.to_csv(path, index=False, encoding="utf-8-sig")
-        st.toast(f"💾 {path.name} salvato in locale", icon="📁")
-
-        if "supabase" in globals() and st.session_state.get("logged_in"):
-            user = st.session_state.get("user", "")
-            if not user:
-                st.warning("⚠️ Utente non definito: sincronizzazione annullata.")
-                return
-
-            table = "clienti" if "client" in path.name.lower() else "contratti"
-
-            try:
-                save_csv_supabase_safe(df, path)
-
-            except Exception as e:
-                st.warning(f"⚠️ Pulizia tabella {table} non riuscita: {e}")
-
-            upload_df = out.copy()
-            upload_df["owner"] = user
-            upload_df = upload_df.fillna("")
-
-            try:
-                supabase.table(table).insert(upload_df.to_dict(orient="records")).execute()
-                st.toast(f"☁️ Dati sincronizzati con Supabase ({table})", icon="✅")
-            except Exception as e:
-                st.warning(f"⚠️ Errore durante la sincronizzazione di {table}: {e}")
-        else:
-            st.info("ℹ️ Sync cloud non attiva (utente non loggato o Supabase non inizializzato).")
-
-    except Exception as e:
-        st.error(f"❌ Errore durante il salvataggio di {path.name}: {e}")
-
-
-def load_clienti() -> pd.DataFrame:
-    """Carica i clienti dal CSV locale e sincronizza da Supabase."""
-    CLIENTI_CSV = st.session_state["CLIENTI_CSV"]
-    CLIENTI_COLS = st.session_state["CLIENTI_COLS"]
-    df = load_csv(CLIENTI_CSV, CLIENTI_COLS)
-
-    # 🔹 Merge da Supabase
-    try:
-        response = supabase.table("clienti").select("*").eq("owner", st.session_state["user"]).execute()
-        if response.data:
-            df_sb = pd.DataFrame(response.data)
-            df_sb = ensure_columns(df_sb, CLIENTI_COLS)
-            df = pd.concat([df, df_sb], ignore_index=True).drop_duplicates(subset=["ClienteID"], keep="last")
-            df.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-    except Exception as e:
-        st.warning(f"⚠️ Sync Supabase clienti saltata: {e}")
-    return df.fillna("")
-
-
-def save_clienti(df: pd.DataFrame):
-    """Salva clienti — delega completamente a save_csv()."""
-    save_csv(df, st.session_state["CLIENTI_CSV"])
-
-
-def load_contratti() -> pd.DataFrame:
-    """Carica contratti dal CSV locale e sincronizza da Supabase."""
-    CONTRATTI_CSV = st.session_state["CONTRATTI_CSV"]
-    CONTRATTI_COLS = st.session_state["CONTRATTI_COLS"]
-    df = load_csv(CONTRATTI_CSV, CONTRATTI_COLS)
-
-    try:
-        response = supabase.table("contratti").select("*").eq("owner", st.session_state["user"]).execute()
-        if response.data:
-            df_sb = pd.DataFrame(response.data)
-            df_sb = ensure_columns(df_sb, CONTRATTI_COLS)
-            df = pd.concat([df, df_sb], ignore_index=True).drop_duplicates(subset=["NumeroContratto"], keep="last")
-            df.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-    except Exception as e:
-        st.warning(f"⚠️ Sync Supabase contratti saltata: {e}")
-    return df.fillna("")
-
-
-def save_contratti(df: pd.DataFrame):
-    """Salva contratti — delega completamente a save_csv()."""
-    save_csv(df, st.session_state["CONTRATTI_CSV"])
-# =====================================
-# SALVATAGGIO SICURO CON SUPABASE (incrementale, senza delete)
-# =====================================
-def save_csv_supabase_safe(df: pd.DataFrame, path: Path):
-    """
-    Versione sicura: salva in locale e sincronizza su Supabase SENZA cancellare tutto.
-    - Inserisce solo i record nuovi o aggiornati.
-    - Mantiene quelli già presenti.
-    - Mai nessuna DELETE massiva.
-    """
-    try:
-        # Salvataggio locale
-        df.to_csv(path, index=False, encoding="utf-8-sig")
-        st.toast(f"💾 {path.name} salvato in locale", icon="📁")
-
-        if "supabase" not in globals() or not st.session_state.get("logged_in"):
-            st.info("🌩️ Supabase non attivo o utente non loggato: sync saltato.")
-            return
-
-        user = st.session_state.get("user", "")
-        table = "clienti" if "client" in path.name.lower() else "contratti"
-
-        # Recupera i dati attuali da Supabase per l’utente
-        existing = supabase.table(table).select("*").eq("owner", user).execute()
-        existing_df = pd.DataFrame(existing.data or [])
-
-        # Aggiungi colonna owner
-        df_up = df.copy().fillna("")
-        df_up["owner"] = user
-
-        if existing_df.empty:
-            # Primo sync → insert completo
-            supabase.table(table).insert(df_up.to_dict(orient="records")).execute()
-            st.toast(f"☁️ Primo sync completato ({table})", icon="✅")
-        else:
-            # Sync incrementale
-            key_col = "ClienteID" if table == "clienti" else "NumeroContratto"
-            updated, new = [], []
-
-            for _, row in df_up.iterrows():
-                rid = str(row[key_col])
-                if rid in existing_df[key_col].astype(str).values:
-                    updated.append(row)
-                else:
-                    new.append(row)
-
-            # Aggiorna record esistenti
-            for r in updated:
-                try:
-                    supabase.table(table).update(r.to_dict()).eq(key_col, r[key_col]).eq("owner", user).execute()
-                except Exception as e:
-                    st.warning(f"⚠️ Update fallito per {r[key_col]}: {e}")
-
-            # Inserisci solo nuovi record
-            if new:
-                supabase.table(table).insert(pd.DataFrame(new).to_dict(orient="records")).execute()
-
-            st.toast(f"☁️ Sync Supabase completato ({len(updated)} aggiornati, {len(new)} nuovi)", icon="✅")
-
-    except Exception as e:
-        st.error(f"❌ Errore salvataggio sicuro: {e}")
-
-# =====================================
-# NORMALIZZAZIONE COLONNE (compatibilità Supabase)
-# =====================================
-def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Rinomina automaticamente le colonne in maiuscolo standard
-    per compatibilità col codice Streamlit.
-    """
-    mapping = {
-        "clienteid": "ClienteID",
-        "ragionesociale": "RagioneSociale",
-        "personariferimento": "PersonaRiferimento",
-        "indirizzo": "Indirizzo",
-        "citta": "Citta",
-        "cap": "CAP",
-        "telefono": "Telefono",
-        "cell": "Cell",
-        "email": "Email",
-        "partitaiva": "PartitaIVA",
-        "iban": "IBAN",
-        "sdi": "SDI",
-        "ultimorecall": "UltimoRecall",
-        "prossimorecall": "ProssimoRecall",
-        "ultimavisita": "UltimaVisita",
-        "prossimavisita": "ProssimaVisita",
-        "tmk": "TMK",
-        "notecliente": "NoteCliente",
-        "numerocontratto": "NumeroContratto",
-        "datainizio": "DataInizio",
-        "datafine": "DataFine",
-        "durata": "Durata",
-        "descrizioneprodotto": "DescrizioneProdotto",
-        "nol_fin": "NOL_FIN",
-        "nol_int": "NOL_INT",
-        "totrata": "TotRata",
-        "copiebn": "CopieBN",
-        "eccbn": "EccBN",
-        "copiecol": "CopieCol",
-        "ecccol": "EccCol",
-        "stato": "Stato",
-        "owner": "owner"
-    }
-
-    # 🔹 Normalizza i nomi delle colonne in modo case-insensitive
-    df = df.rename(columns={c: mapping.get(c.lower(), c) for c in df.columns})
-
-    # 🔹 Cast di sicurezza per chiavi relazionali
-    if "ClienteID" in df.columns:
-        df["ClienteID"] = df["ClienteID"].astype(str)
-    if "NumeroContratto" in df.columns:
-        df["NumeroContratto"] = df["NumeroContratto"].astype(str)
-
-    return df
-
-
-# =====================================
-# SINCRONIZZAZIONE AUTOMATICA SUPABASE
-# =====================================
-import threading
-import time
-
-def sync_supabase_periodico():
-    """Sincronizza automaticamente clienti e contratti ogni 5 minuti per l’utente loggato."""
-    while True:
-        try:
-            if st.session_state.get("logged_in") and "user" in st.session_state:
-                user = st.session_state["user"]
-                CLIENTI_CSV = st.session_state.get("CLIENTI_CSV")
-                CONTRATTI_CSV = st.session_state.get("CONTRATTI_CSV")
-
-                # Carica dati locali
-                df_cli = pd.read_csv(CLIENTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
-                df_ct = pd.read_csv(CONTRATTI_CSV, dtype=str, encoding="utf-8-sig").fillna("")
-
-                # 🔁 Sincronizza con Supabase
-                supabase.table("clienti").delete().eq("owner", user).execute()
-                supabase.table("clienti").insert(df_cli.assign(owner=user).to_dict(orient="records")).execute()
-
-                supabase.table("contratti").delete().eq("owner", user).execute()
-                supabase.table("contratti").insert(df_ct.assign(owner=user).to_dict(orient="records")).execute()
-
-            time.sleep(300)  # 5 minuti
-        except Exception as e:
-
-            time.sleep(300)
-# =====================================
-# CARICAMENTO DATI DA SUPABASE (versione finale stabile)
-# =====================================
-def carica_dati_supabase(user: str):
-    """Scarica i dati di clienti e contratti da Supabase, li normalizza e verifica la coerenza."""
-    import streamlit as st
-    import pandas as pd
-
-    try:
-        # --- CLIENTI ---
-        res_cli = supabase.table("clienti").select("*").execute()
-        data_cli = res_cli.data
-        df_cli = pd.DataFrame(data_cli)
-        
-
-        # 🔍 Filtro in Python per owner (se la colonna esiste)
-        if not df_cli.empty:
-            if "owner" in df_cli.columns:
-                df_cli = df_cli[df_cli["owner"].astype(str).str.lower() == user.lower()]
-            elif "Owner" in df_cli.columns:
-                df_cli = df_cli[df_cli["Owner"].astype(str).str.lower() == user.lower()]
-            else:
-                st.sidebar.info("ℹ️ Nessuna colonna 'owner' trovata per i clienti.")
-
-        # --- CONTRATTI ---
-        res_ct = supabase.table("contratti").select("*").execute()
-        data_ct = res_ct.data
-        df_ct = pd.DataFrame(data_ct)
-
-        # 🔍 Filtro in Python per owner (se la colonna esiste)
-        if not df_ct.empty:
-            if "owner" in df_ct.columns:
-                df_ct = df_ct[df_ct["owner"].astype(str).str.lower() == user.lower()]
-            elif "Owner" in df_ct.columns:
-                df_ct = df_ct[df_ct["Owner"].astype(str).str.lower() == user.lower()]
-            else:
-                st.sidebar.info("ℹ️ Nessuna colonna 'owner' trovata per i contratti.")
-
-        # --- Normalizzazione colonne ---
-        df_cli = normalize_columns(df_cli)
-        df_ct = normalize_columns(df_ct)
-
-        # --- Colonne minime garantite ---
-        for col in ["ClienteID", "RagioneSociale"]:
-            if col not in df_cli.columns:
-                df_cli[col] = ""
-        for col in ["ClienteID", "NumeroContratto", "DescrizioneProdotto"]:
-            if col not in df_ct.columns:
-                df_ct[col] = ""
-
-        # --- Log nella sidebar ---
-        st.sidebar.markdown(f"📡 Supabase: **{len(df_cli)} clienti / {len(df_ct)} contratti**")
-
-        # === 🔍 Verifica coerenza ===
-        if not df_ct.empty and not df_cli.empty:
-            cli_ids = set(df_cli["ClienteID"].astype(str))
-            ct_ids = set(df_ct["ClienteID"].astype(str))
-            orfani = sorted(list(ct_ids - cli_ids))
-            if orfani:
-                st.sidebar.warning(f"⚠️ Contratti orfani (ClienteID non trovato): {len(orfani)}")
-            else:
-                st.sidebar.success("✅ Dati Supabase coerenti!")
-
-        return df_cli, df_ct
-
-    except Exception as e:
-        import traceback
-        st.sidebar.error(f"❌ Errore caricamento Supabase: {e}")
-        st.sidebar.text(traceback.format_exc())
-        return pd.DataFrame(), pd.DataFrame()
-
-# =====================================
-# FIX AUTOMATICO OWNER SU SUPABASE
-# =====================================
-def fix_supabase_owner(user: str):
-    """Aggiorna i record su Supabase aggiungendo il campo owner dove manca."""
-    import streamlit as st
-    import pandas as pd
-
-    st.warning("⚙️ Avvio controllo e correzione 'owner' su Supabase...")
-
-    try:
-        # --- CLIENTI ---
-        res_cli = supabase.table("clienti").select("*").execute()
-        df_cli = pd.DataFrame(res_cli.data)
-
-        if "owner" not in df_cli.columns:
-            st.error("❌ La tabella 'clienti' non ha la colonna 'owner'. Aggiungila manualmente su Supabase.")
-        else:
-            mancanti_cli = df_cli[df_cli["owner"].astype(str).str.strip() == ""]
-            if not mancanti_cli.empty:
-                for _, row in mancanti_cli.iterrows():
-                    supabase.table("clienti").update({"owner": user}).eq("id", row["id"]).execute()
-                st.success(f"✅ Aggiornati {len(mancanti_cli)} clienti senza owner.")
-            else:
-                st.info("✅ Tutti i clienti hanno già un owner.")
-
-        # --- CONTRATTI ---
-        res_ct = supabase.table("contratti").select("*").execute()
-        df_ct = pd.DataFrame(res_ct.data)
-
-        if "owner" not in df_ct.columns:
-            st.error("❌ La tabella 'contratti' non ha la colonna 'owner'. Aggiungila manualmente su Supabase.")
-        else:
-            mancanti_ct = df_ct[df_ct["owner"].astype(str).str.strip() == ""]
-            if not mancanti_ct.empty:
-                for _, row in mancanti_ct.iterrows():
-                    supabase.table("contratti").update({"owner": user}).eq("id", row["id"]).execute()
-                st.success(f"✅ Aggiornati {len(mancanti_ct)} contratti senza owner.")
-            else:
-                st.info("✅ Tutti i contratti hanno già un owner.")
-
-        st.success("🎉 Correzione completata! Ricarica l'app per vedere i dati aggiornati.")
-
-    except Exception as e:
-        import traceback
-        st.error(f"❌ Errore durante il fix: {e}")
-        st.text(traceback.format_exc())
-
 # =====================================
 # FUNZIONI UTILITY
 # =====================================
@@ -648,6 +167,55 @@ def fix_inverted_dates(series: pd.Series, col_name: str = "") -> pd.Series:
 
     return pd.Series(fixed)
 
+# =====================================
+# CARICAMENTO E SALVATAGGIO DATI
+# =====================================
+def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
+    if path.exists():
+        df = pd.read_csv(path, dtype=str, encoding="utf-8-sig").fillna("")
+    else:
+        df = pd.DataFrame(columns=cols)
+        df.to_csv(path, index=False, encoding="utf-8-sig")
+    df = ensure_columns(df, cols)
+    return df
+
+def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
+    out = df.copy()
+    if date_cols:
+        for c in date_cols:
+            out[c] = out[c].apply(fmt_date)
+    out.to_csv(path, index=False, encoding="utf-8-sig")
+
+
+def save_if_changed(df_new, path: Path, original_df):
+    """Salva solo se i dati sono effettivamente cambiati."""
+    import pandas as pd
+    try:
+        if not original_df.equals(df_new):
+            df_new.to_csv(path, index=False, encoding='utf-8-sig')
+            return True
+        return False
+    except Exception:
+        df_new.to_csv(path, index=False, encoding='utf-8-sig')
+        return True
+
+# =====================================
+# FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
+# =====================================
+def save_clienti(df: pd.DataFrame):
+    """Salva il CSV clienti correggendo e formattando le date."""
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        if c in df.columns:
+            df[c] = fix_inverted_dates(df[c], col_name=c)
+    save_csv(df, CLIENTI_CSV, date_cols=["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"])
+
+
+def save_contratti(df: pd.DataFrame):
+    """Salva il CSV contratti correggendo e formattando le date."""
+    for c in ["DataInizio", "DataFine"]:
+        if c in df.columns:
+            df[c] = fix_inverted_dates(df[c], col_name=c)
+    save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
 
 # =====================================
 # CONVERSIONE SICURA DATE ITALIANE (VERSIONE DEFINITIVA 2025)
@@ -673,17 +241,183 @@ def to_date_series(series: pd.Series) -> pd.Series:
 
 
 # =====================================
-# LOGIN FULLSCREEN (versione aggiornata con sync Supabase)
+# CARICAMENTO CLIENTI (senza salvataggio automatico)
+# =====================================
+def load_clienti() -> pd.DataFrame:
+    """Carica i dati dei clienti dal file CSV (solo lettura, coerente con date italiane)."""
+    import pandas as pd
+
+    if CLIENTI_CSV.exists():
+        try:
+            df = pd.read_csv(
+                CLIENTI_CSV,
+                dtype=str,
+                sep=None,              # autodetect ; or ,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            )
+        except Exception as e:
+            st.error(f"❌ Errore durante la lettura dei clienti: {e}")
+            df = pd.DataFrame(columns=CLIENTI_COLS)
+    else:
+        df = pd.DataFrame(columns=CLIENTI_COLS)
+        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
+
+    # Normalizza valori vuoti o errati
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+
+    # Garantisce che tutte le colonne standard esistano
+    df = ensure_columns(df, CLIENTI_COLS)
+
+    # Conversione coerente delle date (senza salvarle)
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        if c in df.columns:
+            df[c] = df[c].apply(parse_date_safe)
+
+    return df
+
+
+# =====================================
+# CARICAMENTO CONTRATTI (senza salvataggio automatico)
+# =====================================
+def load_contratti() -> pd.DataFrame:
+    """Carica i dati dei contratti dal file CSV (solo lettura, coerente con date italiane)."""
+    import pandas as pd
+
+    if CONTRATTI_CSV.exists():
+        try:
+            df = pd.read_csv(
+                CONTRATTI_CSV,
+                dtype=str,
+                sep=None,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            )
+        except Exception as e:
+            st.error(f"❌ Errore durante la lettura dei contratti: {e}")
+            df = pd.DataFrame(columns=CONTRATTI_COLS)
+    else:
+        df = pd.DataFrame(columns=CONTRATTI_COLS)
+        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
+
+    # Pulisce valori testuali e garantisce colonne
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+    df = ensure_columns(df, CONTRATTI_COLS)
+
+    # Conversione coerente delle date
+    for c in ["DataInizio", "DataFine"]:
+        if c in df.columns:
+            df[c] = df[c].apply(parse_date_safe)
+
+    return df
+
+
+# =====================================
+# FUNZIONI DI CARICAMENTO DATI (VERSIONE DEFINITIVA 2025)
+# =====================================
+
+def normalize_cliente_id(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalizza la colonna ClienteID rimuovendo zeri iniziali e spazi."""
+    if "ClienteID" not in df.columns:
+        return df
+    df["ClienteID"] = (
+        df["ClienteID"]
+        .astype(str)
+        .str.strip()
+        .str.replace(r"^0+", "", regex=True)
+        .replace({"": None})
+    )
+    return df
+
+
+def load_clienti() -> pd.DataFrame:
+    """Carica i dati dei clienti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
+    import pandas as pd
+
+    try:
+        if CLIENTI_CSV.exists():
+            df = pd.read_csv(
+                CLIENTI_CSV,
+                dtype=str,
+                sep=None,              # autodetect ; or ,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            )
+        else:
+            df = pd.DataFrame(columns=CLIENTI_COLS)
+    except Exception as e:
+        st.error(f"❌ Errore durante la lettura dei clienti: {e}")
+        df = pd.DataFrame(columns=CLIENTI_COLS)
+
+    # Pulizia e normalizzazione
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+    df = ensure_columns(df, CLIENTI_COLS)
+    df = normalize_cliente_id(df)
+
+    # Conversione date coerente
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        if c in df.columns:
+            df[c] = to_date_series(df[c])
+
+    return df
+
+
+def load_contratti() -> pd.DataFrame:
+    """Carica i dati dei contratti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
+    import pandas as pd
+
+    try:
+        if CONTRATTI_CSV.exists():
+            df = pd.read_csv(
+                CONTRATTI_CSV,
+                dtype=str,
+                sep=None,              # autodetect ; or ,
+                engine="python",
+                encoding="utf-8-sig",
+                on_bad_lines="skip"
+            )
+        else:
+            df = pd.DataFrame(columns=CONTRATTI_COLS)
+    except Exception as e:
+        st.error(f"❌ Errore durante la lettura dei contratti: {e}")
+        df = pd.DataFrame(columns=CONTRATTI_COLS)
+
+    # Pulizia e normalizzazione
+    df = (
+        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
+        .fillna("")
+    )
+    df = ensure_columns(df, CONTRATTI_COLS)
+    df = normalize_cliente_id(df)
+
+    # Conversione date coerente
+    for c in ["DataInizio", "DataFine"]:
+        if c in df.columns:
+            df[c] = to_date_series(df[c])
+
+    return df
+
+
+# =====================================
+# LOGIN FULLSCREEN
 # =====================================
 def do_login_fullscreen():
-    """Login elegante con sfondo fullscreen + storage multiutente + sync periodico Supabase"""
-    import threading
-    import time
-
+    """Login elegante con sfondo fullscreen"""
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # --- Stile ---
     st.markdown("""
     <style>
     div[data-testid="stAppViewContainer"] {padding-top:0 !important;}
@@ -704,8 +438,7 @@ def do_login_fullscreen():
     </style>
     """, unsafe_allow_html=True)
 
-    # --- UI ---
-    login_col1, login_col2, _ = st.columns([1, 2, 1])
+    login_col1, login_col2, _ = st.columns([1,2,1])
     with login_col2:
         st.markdown("<div class='login-card'>", unsafe_allow_html=True)
         st.image(LOGO_URL, width=140)
@@ -715,133 +448,60 @@ def do_login_fullscreen():
         login_btn = st.button("Entra")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- Login ---
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
         users = st.secrets["auth"]["users"]
-
         if username in users and users[username]["password"] == password:
             st.session_state.update({
                 "user": username,
                 "role": users[username].get("role", "viewer"),
                 "logged_in": True
             })
-
-            # =====================================
-            # STORAGE MULTIUTENTE AUTOMATICO
-            # =====================================
-            from pathlib import Path
-            base_storage = Path("storage")
-            user = username.lower()
-
-            # Fabio lavora nella root
-            if user == "fabio":
-                user_storage = base_storage
-            else:
-                user_storage = base_storage / user
-                user_storage.mkdir(parents=True, exist_ok=True)
-
-            # === Percorsi personali ===
-            CLIENTI_CSV = user_storage / "clienti.csv"
-            CONTRATTI_CSV = user_storage / "contratti_clienti.csv"
-            PREVENTIVI_CSV = user_storage / "preventivi.csv"
-
-            # === Struttura colonne ===
-            CLIENTI_COLS = [
-                "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
-                "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
-                "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
-                "TMK", "NoteCliente", "owner"
-            ]
-            CONTRATTI_COLS = [
-                "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
-                "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-                "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato", "owner"
-            ]
-
-            # === Crea i CSV se non esistono ===
-            for path, cols in [
-                (CLIENTI_CSV, CLIENTI_COLS),
-                (CONTRATTI_CSV, CONTRATTI_COLS),
-                (PREVENTIVI_CSV, [])
-            ]:
-                if not path.exists():
-                    import pandas as pd
-                    pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig")
-
-            # === Salva nel session_state ===
-            st.session_state["CLIENTI_CSV"] = CLIENTI_CSV
-            st.session_state["CONTRATTI_CSV"] = CONTRATTI_CSV
-            st.session_state["PREVENTIVI_CSV"] = PREVENTIVI_CSV
-            st.session_state["CLIENTI_COLS"] = CLIENTI_COLS
-            st.session_state["CONTRATTI_COLS"] = CONTRATTI_COLS
-
-            # =====================================
-            # 🔄 AVVIO SINCRONIZZAZIONE AUTOMATICA SUPABASE
-            # =====================================
-            if "sync_thread_started" not in st.session_state:
-                threading.Thread(target=sync_supabase_periodico, daemon=True).start()
-                st.session_state["sync_thread_started"] = True
-
-            # =====================================
             st.success(f"✅ Benvenuto {username}!")
             time.sleep(0.3)
             st.rerun()
-
         else:
             st.error("❌ Credenziali non valide.")
             st.session_state["_login_checked"] = False
 
     st.stop()
-
 # =====================================
-# KPI CARD — grafica con colore e icona
+# KPI CARD (riutilizzata)
 # =====================================
-def kpi_card(titolo: str, valore, icona: str, colore: str = "#2563eb") -> str:
-    """Crea una card colorata per i KPI della dashboard."""
+def kpi_card(label: str, value, icon: str, color: str) -> str:
     return f"""
     <div style="
-        background:{colore}10;
-        border-left:6px solid {colore};
-        border-radius:10px;
-        padding:1rem 1.2rem;
-        box-shadow:0 2px 8px rgba(0,0,0,0.06);
-        height:100%;
-    ">
-        <div style="font-size:1.6rem;">{icona}</div>
-        <div style="font-size:0.9rem;font-weight:600;color:#444;">{titolo}</div>
-        <div style="font-size:1.8rem;font-weight:700;color:{colore};">{valore}</div>
+        background-color:{color};
+        padding:18px;
+        border-radius:12px;
+        text-align:center;
+        color:white;">
+        <div style="font-size:26px;">{icon}</div>
+        <div style="font-size:22px;font-weight:700;">{value}</div>
+        <div style="font-size:14px;">{label}</div>
     </div>
     """
 
 # =====================================
-# PAGINA DASHBOARD — VERSIONE 2025 (stabile e coerente)
+# PAGINA DASHBOARD
 # =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    st.image(globals().get("LOGO_URL", ""), width=120)
+    st.image(LOGO_URL, width=120)
     st.markdown("<h2>📊 Gestionale SHT</h2>", unsafe_allow_html=True)
     st.divider()
 
     # === KPI principali ===
-    if df_ct.empty and df_cli.empty:
-        st.warning("⚠️ Nessun dato disponibile. Importa prima clienti e contratti.")
-        return
-
-    stato = df_ct.get("Stato", pd.Series([], dtype=str)).fillna("").astype(str).str.lower()
+    stato = df_ct["Stato"].fillna("").astype(str).str.lower()
     total_clients = len(df_cli)
-    active_contracts = int((stato != "chiuso").sum()) if not stato.empty else 0
-    closed_contracts = int((stato == "chiuso").sum()) if not stato.empty else 0
+    active_contracts = int((stato != "chiuso").sum())
+    closed_contracts = int((stato == "chiuso").sum())
     now = pd.Timestamp.now().normalize()
 
-    if "DataInizio" in df_ct.columns:
-        df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
-    else:
-        df_ct["DataInizio"] = pd.NaT
-
+    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
     new_contracts = df_ct[
         (df_ct["DataInizio"].notna()) &
         (df_ct["DataInizio"] >= pd.Timestamp(year=now.year, month=1, day=1))
-    ] if not df_ct.empty else pd.DataFrame()
+    ]
 
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(kpi_card("Clienti attivi", total_clients, "👥", "#1976D2"), unsafe_allow_html=True)
@@ -850,7 +510,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c4.markdown(kpi_card("Nuovi contratti anno", len(new_contracts), "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-    # === CREAZIONE NUOVO CLIENTE + CONTRATTO ===
+    # === CREAZIONE NUOVO CLIENTE + CONTRATTO (VERSIONE COMPLETA 2025) ===
     with st.expander("➕ Crea Nuovo Cliente + Contratto"):
         with st.form("frm_new_cliente"):
             st.markdown("#### 📇 Dati Cliente")
@@ -873,30 +533,40 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     "👩‍💼 TMK di riferimento",
                     ["", "Giulia", "Antonella", "Annalisa", "Laura"],
                     index=0
-                )
-
+            )
             # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")
+            
             colc1, colc2, colc3 = st.columns(3)
             num = colc1.text_input("📄 Numero Contratto")
             data_inizio = colc2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
             durata = colc3.selectbox("📆 Durata (mesi)", DURATE_MESI, index=2)
+            
             desc = st.text_area("🧾 Descrizione Prodotto", height=80)
+            
             colp1, colp2, colp3 = st.columns(3)
             nf = colp1.text_input("🏦 NOL_FIN")
             ni = colp2.text_input("🏢 NOL_INT")
             tot = colp3.text_input("💰 Tot Rata")
-
+            
+            # 🔹 Copie e costi extra nello stesso blocco (senza intestazione e senza + / -)
             colx1, colx2, colx3, colx4 = st.columns(4)
-            copie_bn = colx1.text_input("📄 Copie incluse B/N", value="", key="copie_bn")
-            ecc_bn = colx2.text_input("💰 Costo extra B/N (€)", value="", key="ecc_bn")
-            copie_col = colx3.text_input("🖨️ Copie incluse Colore", value="", key="copie_col")
-            ecc_col = colx4.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
+            with colx1:
+                copie_bn = st.text_input("📄 Copie incluse B/N", value="", key="copie_bn")
+            with colx2:
+                ecc_bn = st.text_input("💰 Costo extra B/N (€)", value="", key="ecc_bn")
+            with colx3:
+                copie_col = st.text_input("🖨️ Copie incluse Colore", value="", key="copie_col")
+            with colx4:
+                ecc_col = st.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
+
 
             # === SALVA CLIENTE + CONTRATTO ===
             if st.form_submit_button("💾 Crea Cliente e Contratto"):
                 try:
                     new_id = str(len(df_cli) + 1)
+
+                    # --- CREA NUOVO CLIENTE ---
                     nuovo_cliente = {
                         "ClienteID": new_id,
                         "RagioneSociale": ragione,
@@ -920,6 +590,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
                     save_clienti(df_cli)
 
+                    # --- CREA NUOVO CONTRATTO ---
                     data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
                     nuovo_contratto = {
                         "ClienteID": new_id,
@@ -968,6 +639,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         (df_ct["Stato"].astype(str).str.lower() != "chiuso")
     ].copy()
 
+    # Se manca RagioneSociale nei contratti, la aggiunge
     if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
         scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
@@ -978,32 +650,48 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         scadenze = scadenze.sort_values("DataFine")
 
         st.markdown(f"📅 **{len(scadenze)} contratti in scadenza entro 6 mesi:**")
+
+        # Intestazione tabella
         head_cols = st.columns([2, 1, 1, 1, 0.8])
         head_cols[0].markdown("**Cliente**")
         head_cols[1].markdown("**Contratto**")
         head_cols[2].markdown("**Scadenza**")
         head_cols[3].markdown("**Stato**")
         head_cols[4].markdown("**Azioni**")
+
         st.markdown("---")
 
+        # Righe tabella (zebra + pulsante funzionante)
         for i, r in scadenze.iterrows():
             bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
             col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
-            col1.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
-            col2.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
-            col3.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-            col4.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
-            if col5.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                st.session_state.update({
-                    "selected_cliente": str(r.get("ClienteID")),
-                    "nav_target": "Contratti",
-                    "_go_contratti_now": True
-                })
-                st.rerun()
+            with col1:
+                st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+            with col4:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
+            with col5:
+                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                    # 🔹 Pulisce eventuali flag di modifica prima di cambiare pagina
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
+                            del st.session_state[k]
 
-    # === CONTRATTI SENZA DATA FINE ===
+                    st.session_state.update({
+                        "selected_cliente": str(r.get("ClienteID")),
+                        "nav_target": "Contratti",
+                        "_go_contratti_now": True
+                    })
+                    st.rerun()
+
+    # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
     st.divider()
     st.markdown("### ⚠️ Contratti recenti senza data di fine")
+
+    oggi = pd.Timestamp.now().normalize()
 
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
@@ -1018,35 +706,54 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.success("✅ Tutti i contratti recenti hanno una data di fine.")
     else:
         st.warning(f"⚠️ {len(contratti_senza_fine)} contratti inseriti da oggi non hanno ancora una data di fine:")
-        if "RagioneSociale" not in contratti_senza_fine.columns:
-            contratti_senza_fine = contratti_senza_fine.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+
+        if "RagioneSociale" not in contratti_senza_fine.columns or contratti_senza_fine["RagioneSociale"].eq("").any():
+            contratti_senza_fine = contratti_senza_fine.merge(
+                df_cli[["ClienteID", "RagioneSociale"]],
+                on="ClienteID", how="left"
+            )
+
         contratti_senza_fine["DataInizio"] = contratti_senza_fine["DataInizio"].apply(fmt_date)
         contratti_senza_fine = contratti_senza_fine.sort_values("DataInizio", ascending=False)
 
+        # Intestazione
         head_cols = st.columns([2.5, 1, 1.2, 2.5, 0.8])
         head_cols[0].markdown("**Cliente**")
         head_cols[1].markdown("**Contratto**")
         head_cols[2].markdown("**Inizio**")
         head_cols[3].markdown("**Descrizione**")
         head_cols[4].markdown("**Azioni**")
+
         st.markdown("---")
 
+        # Righe
         for i, r in contratti_senza_fine.iterrows():
             bg = "#fffdf5" if i % 2 == 0 else "#ffffff"
             col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
-            col1.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
-            col2.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
-            col3.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
-            desc = str(r.get('DescrizioneProdotto', '—'))
-            if len(desc) > 60: desc = desc[:60] + "…"
-            col4.markdown(f"<div style='background:{bg};padding:6px'>{desc}</div>", unsafe_allow_html=True)
-            if col5.button("📂 Apri", key=f"open_ndf_{i}", use_container_width=True):
-                st.session_state.update({
-                    "selected_cliente": str(r.get("ClienteID")),
-                    "nav_target": "Contratti",
-                    "_go_contratti_now": True
-                })
-                st.rerun()
+            with col1:
+                st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
+            with col3:
+                st.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
+            with col4:
+                desc = str(r.get('DescrizioneProdotto', '—'))
+                if len(desc) > 60:
+                    desc = desc[:60] + "…"
+                st.markdown(f"<div style='background:{bg};padding:6px'>{desc}</div>", unsafe_allow_html=True)
+            with col5:
+                if st.button("📂 Apri", key=f"open_ndf_{i}", use_container_width=True):
+                    # 🔹 Pulisce eventuali flag di modifica prima di cambiare pagina
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
+                            del st.session_state[k]
+
+                    st.session_state.update({
+                        "selected_cliente": str(r.get("ClienteID")),
+                        "nav_target": "Contratti",
+                        "_go_contratti_now": True
+                    })
+                    st.rerun()
 
 
 
@@ -1413,443 +1120,428 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
 
-
-
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 (completa e funzionante con modali)
+# PAGINA CONTRATTI — DASHBOARD ELEGANTE DEFINITIVA 2025
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    # === Gestione permessi per ruoli ===
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
 
-    st.markdown("## 📄 Gestione Contratti")
+    if permessi_limitati:
+        st.info("👁️ Modalità sola lettura: puoi visualizzare i contratti ma non modificarli o crearne di nuovi.")
 
-    # === Selezione cliente ===
+    # 🔹 Reset automatico session state
+    for k in list(st.session_state.keys()):
+        if k.startswith("edit_ct_"):
+            del st.session_state[k]
+
+    st.markdown("""
+    <style>
+      .card{background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);padding:1.2rem 1.4rem;margin-bottom:1rem;}
+      .card h3{color:#2563eb;margin:0 0 .8rem 0;}
+      .pill-open{background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px;font-weight:600;}
+      .pill-closed{background:#ffebee;color:#b71c1c;padding:2px 8px;border-radius:8px;font-weight:600;}
+      .tbl-head{font-weight:700;border-bottom:1px solid #e5e7eb;padding:.4rem 0;margin-top:.2rem}
+      .tbl-row{border-bottom:1px solid #f0f2f5;padding:.35rem 0;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<h2>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
+
+    # === Selezione Cliente ===
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
 
-    # 🔹 Preselezione automatica cliente (da Dashboard)
-    selected_cliente = st.session_state.get("selected_cliente")
-    clienti_ids = df_cli["ClienteID"].astype(str).tolist()
-    clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1).tolist()
+    labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
+    cliente_ids = df_cli["ClienteID"].astype(str).tolist()
 
-    if selected_cliente and selected_cliente in clienti_ids:
-        idx_preselezionato = clienti_ids.index(selected_cliente)
+    selected_cliente_id = st.session_state.pop("selected_cliente", None)
+    if selected_cliente_id and str(selected_cliente_id) in cliente_ids:
+        sel_index = cliente_ids.index(str(selected_cliente_id))
     else:
-        idx_preselezionato = 0
+        sel_index = 0
 
-    sel_label = st.selectbox("Seleziona Cliente", clienti_labels, index=idx_preselezionato)
-    sel_id = clienti_ids[clienti_labels.index(sel_label)]
+    sel_label = st.selectbox("Seleziona Cliente", labels.tolist(), index=sel_index, key="sel_cliente_contratti")
+    sel_id = cliente_ids[labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
-    # === Header e pulsante aggiunta ===
+    # Titolo cliente evidenziato
     st.markdown(
-        f"""
-        <div style='display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:20px;'>
-            <h3 style='margin:0;color:#2563eb;'>🏢 {rag_soc}</h3>
-        </div>
-        """, unsafe_allow_html=True
+        f"<h3 style='text-align:center;color:#2563eb;margin-bottom:0;'>{rag_soc}</h3>"
+        f"<p style='text-align:center;color:#555;'>ID Cliente: {sel_id}</p>",
+        unsafe_allow_html=True
     )
 
-    # 🔹 Pulsante "Aggiungi Contratto"
-    if not permessi_limitati:
-        if st.button("➕ Aggiungi Contratto", key="btn_add_contract", use_container_width=False):
-            st.session_state["selected_contratto"] = None
-            st.session_state["open_modal"] = "new"
-            # La modale verrà gestita subito sotto
-
-    # === GESTIONE MODALE (nuovo/modifica) ===
-    _open = st.session_state.get("open_modal")
-    _sel = st.session_state.get("selected_contratto")
-
-    if _open == "new":
-        show_contract_modal({}, df_ct, df_cli, rag_soc)
-        st.stop()
-
-    elif _open == "edit" and _sel:
-        row = df_ct[df_ct["NumeroContratto"].astype(str) == str(_sel)]
-        if not row.empty:
-            show_contract_modal(row.iloc[0], df_ct, df_cli, rag_soc)
-            st.stop()
-
-    # === Filtra contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+    ct = ct.reset_index().rename(columns={"index": "_gidx"})
+
+    # === EXPANDER: NUOVO CONTRATTO ===
+    with st.expander("➕ Crea Nuovo Contratto", expanded=False):
+        if permessi_limitati:
+            st.warning("🔒 Non hai i permessi per creare nuovi contratti.")
+        else:
+            with st.form(f"frm_new_contract_{sel_id}"):
+                c1, c2, c3, c4 = st.columns(4)
+                num = c1.text_input("Numero Contratto")
+                din = c2.date_input("Data Inizio", format="DD/MM/YYYY")
+                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+                stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0)
+
+                desc = st.text_area("Descrizione Prodotto", height=80)
+
+                c5, c6, c7 = st.columns(3)
+                nf = c5.text_input("NOL_FIN")
+                ni = c6.text_input("NOL_INT")
+                tot = c7.text_input("TotRata")
+
+                c8, c9, c10, c11 = st.columns(4)
+                copie_bn = c8.text_input("Copie incluse B/N", value="")
+                ecc_bn = c9.text_input("Costo extra B/N (€)", value="")
+                copie_col = c10.text_input("Copie incluse Colore", value="")
+                ecc_col = c11.text_input("Costo extra Colore (€)", value="")
+
+                if st.form_submit_button("💾 Crea contratto"):
+                    try:
+                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                        new_row = {
+                            "ClienteID": sel_id,
+                            "RagioneSociale": rag_soc,
+                            "NumeroContratto": num,
+                            "DataInizio": fmt_date(din),
+                            "DataFine": fmt_date(data_fine),
+                            "Durata": durata,
+                            "DescrizioneProdotto": desc,
+                            "NOL_FIN": nf,
+                            "NOL_INT": ni,
+                            "TotRata": tot,
+                            "CopieBN": copie_bn, "EccBN": ecc_bn,
+                            "CopieCol": copie_col, "EccCol": ecc_col,
+                            "Stato": stato_new or "aperto",
+                        }
+                        df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
+                        save_contratti(df_ct)
+                        st.success("✅ Contratto creato con successo.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore creazione contratto: {e}")
+
+    # === TABELLA CONTRATTI ESISTENTI ===
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>📋 Contratti Esistenti</h3>", unsafe_allow_html=True)
+
     if ct.empty:
-        st.info("Nessun contratto registrato per questo cliente.")
+        st.info("Nessun contratto per questo cliente.")
+        st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    # === Formatta dati ===
     for c in ["DataInizio", "DataFine"]:
         ct[c] = ct[c].apply(fmt_date)
     for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
         ct[c] = ct[c].apply(money)
 
-    # === Intestazione tabella ===
-    st.markdown("""
-    <style>
-      .tbl-wrapper { overflow-x:auto; }
-      .tbl-header, .tbl-row {
-          display:grid;
-          grid-template-columns: 
-            1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.6fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 1.2fr;
-          padding:8px 14px; font-size:14px; align-items:center;
-      }
-      .tbl-header { background:#f8fafc; font-weight:600; border-bottom:1px solid #e5e7eb; }
-      .tbl-row:nth-child(even) { background:#ffffff; }
-      .tbl-row:nth-child(odd) { background:#fdfdfd; }
-      .tbl-row.chiuso { background:#ffebee !important; }
-      .pill-open { background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:12px; font-weight:600; font-size:12px; }
-      .pill-closed { background:#ffebee; color:#b71c1c; padding:2px 8px; border-radius:12px; font-weight:600; font-size:12px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown(
-        """
-        <div class='tbl-header'>
-            <div>📄 Numero</div>
-            <div>📅 Inizio</div>
-            <div>📅 Fine</div>
-            <div>📆 Durata</div>
-            <div>💰 Tot Rata</div>
-            <div>🧾 Descrizione</div>
-            <div>📄 Copie B/N</div>
-            <div>💶 Extra B/N</div>
-            <div>🖨️ Copie Col</div>
-            <div>💶 Extra Col</div>
-            <div>🏦 NOL_FIN</div>
-            <div>🏢 NOL_INT</div>
-            <div>🟢 Stato</div>
-            <div>⚙️ Azioni</div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # === Righe tabella ===
     for i, r in ct.iterrows():
+        gidx = int(r["_gidx"])  # indice reale nel df_ct
+        rid = f"{r['ClienteID']}_{r.get('NumeroContratto','')}_{gidx}".replace("/", "_").replace(" ", "_")
+
         stato = str(r.get("Stato", "")).lower()
-        bg_class = "chiuso" if stato == "chiuso" else ""
-        numero = r.get("NumeroContratto", "—")
+        bg = "#ffcdd2" if stato == "chiuso" else ("#f8fbff" if i % 2 == 0 else "#ffffff")
 
-        stato_badge = (
-            f"<span class='pill-closed'>Chiuso</span>" if stato == "chiuso"
-            else f"<span class='pill-open'>Aperto</span>"
-        )
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 0.9, 0.9, 0.6, 1.2, 0.8, 2.0, 0.9])
+        with c1: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','')}</div>", unsafe_allow_html=True)
+        with c2: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('DataInizio','')}</div>", unsafe_allow_html=True)
+        with c3: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('DataFine','')}</div>", unsafe_allow_html=True)
+        with c4: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
+        with c5: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('TotRata','')}</div>", unsafe_allow_html=True)
 
-        # Riga base
-        st.markdown(
-            f"""
-            <div class='tbl-row {bg_class}'>
-                <div>{r.get('NumeroContratto','—')}</div>
-                <div>{r.get('DataInizio','')}</div>
-                <div>{r.get('DataFine','')}</div>
-                <div>{r.get('Durata','')}</div>
-                <div>{r.get('TotRata','')}</div>
-                <div>{r.get('DescrizioneProdotto','')}</div>
-                <div>{r.get('CopieBN','')}</div>
-                <div>{r.get('EccBN','')}</div>
-                <div>{r.get('CopieCol','')}</div>
-                <div>{r.get('EccCol','')}</div>
-                <div>{r.get('NOL_FIN','')}</div>
-                <div>{r.get('NOL_INT','')}</div>
-                <div>{stato_badge}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        stato_tag = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
+        with c6: st.markdown(f"<div style='background:{bg};padding:6px'>{stato_tag}</div>", unsafe_allow_html=True)
 
-        # === Pulsanti Azione ===
-        if not permessi_limitati:
-            c1, c2 = st.columns(2)
-            if c1.button("✏️ Modifica", key=f"edit_{i}_{sel_id}"):
-                st.session_state["selected_contratto"] = r.get("NumeroContratto")
-                st.session_state["open_modal"] = "edit"
+        desc_short = str(r.get("DescrizioneProdotto", "")) or "—"
+        if len(desc_short) > 80: desc_short = desc_short[:80] + "…"
+
+        with c7:
+            st.markdown(f"<div style='background:{bg};padding:6px'>", unsafe_allow_html=True)
+            if st.button(desc_short, key=f"desc_{rid}", use_container_width=True):
+                st.session_state["desc_popup"] = r.get("DescrizioneProdotto", "")
+                st.session_state["desc_popup_title"] = r.get("NumeroContratto", "")
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with c8:
+            st.markdown(f"<div style='background:{bg};padding:6px'>", unsafe_allow_html=True)
+            colE, colD = st.columns(2)
+            if permessi_limitati:
+                colE.button("✏️", key=f"edit_{rid}", use_container_width=True, disabled=True)
+                colD.button("🗑️", key=f"del_{rid}", use_container_width=True, disabled=True)
+            else:
+                if colE.button("✏️", key=f"edit_{rid}", use_container_width=True):
+                    st.session_state["edit_gidx"] = gidx
+                    st.rerun()
+                if colD.button("🗑️", key=f"del_{rid}", use_container_width=True):
+                    st.session_state["delete_gidx"] = gidx
+                    st.session_state["ask_delete_now"] = True
+                    st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+    # === MODIFICA CONTRATTO SELEZIONATO ===
+    if st.session_state.get("edit_gidx") is not None:
+        gidx = st.session_state["edit_gidx"]
+        if gidx in df_ct.index:
+            contratto = df_ct.loc[gidx]
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}", unsafe_allow_html=True)
+
+            with st.form(f"frm_edit_ct_{gidx}"):
+                c1, c2, c3, c4 = st.columns(4)
+                num = c1.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
+                din = c2.date_input(
+                    "Data Inizio",
+                    value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
+                        if contratto.get("DataInizio") else pd.Timestamp.now(),
+                    format="DD/MM/YYYY"
+                )
+                durata = c3.text_input("Durata (mesi)", contratto.get("Durata", ""))
+                stato = c4.selectbox("Stato", ["aperto", "chiuso"],
+                                    index=0 if str(contratto.get("Stato","")).lower()!="chiuso" else 1)
+
+                desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+
+                c5, c6, c7 = st.columns(3)
+                nf  = c5.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
+                ni  = c6.text_input("NOL_INT", contratto.get("NOL_INT", ""))
+                tot = c7.text_input("Tot Rata", contratto.get("TotRata", ""))
+
+                c8, c9, c10, c11 = st.columns(4)
+                copie_bn = c8.text_input("Copie incluse B/N", contratto.get("CopieBN", ""))
+                ecc_bn   = c9.text_input("Costo extra B/N (€)", contratto.get("EccBN", ""))
+                copie_col= c10.text_input("Copie incluse Colore", contratto.get("CopieCol", ""))
+                ecc_col  = c11.text_input("Costo extra Colore (€)", contratto.get("EccCol", ""))
+
+                salva = st.form_submit_button("💾 Salva Modifiche")
+                if salva:
+                    try:
+                        durata_val = int(durata) if str(durata).isdigit() else 12
+                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=durata_val)
+                        df_ct.loc[gidx, [
+                            "NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto",
+                            "NOL_FIN","NOL_INT","TotRata","CopieBN","EccBN","CopieCol","EccCol","Stato"
+                        ]] = [
+                            num, fmt_date(din), fmt_date(data_fine), durata, desc,
+                            nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
+                        ]
+                        save_contratti(df_ct)
+                        st.success("✅ Contratto aggiornato con successo.")
+                        st.session_state.pop("edit_gidx", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore durante il salvataggio: {e}")
+
+            if st.button("❌ Annulla Modifica", key=f"cancel_edit_{gidx}", use_container_width=True):
+                st.session_state.pop("edit_gidx", None)
                 st.rerun()
 
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            if c2.button("❌ Chiudi", key=f"close_{i}_{sel_id}"):
-                num = r.get("NumeroContratto")
-                idx = df_ct.index[df_ct["NumeroContratto"].astype(str) == str(num)]
-                if len(idx) > 0:
-                    df_ct.loc[idx[0], "Stato"] = "chiuso"
-                    save_contratti(df_ct)
-                    st.success(f"✅ Contratto {num} chiuso correttamente.")
-                    st.session_state.pop("open_modal", None)
-                    st.session_state.pop("selected_contratto", None)
+    # === CONFERMA ELIMINAZIONE CONTRATTO ===
+    if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
+        gidx = st.session_state["delete_gidx"]
+        if gidx in df_ct.index:
+            contratto = df_ct.loc[gidx]
+            numero = contratto.get("NumeroContratto", "Senza numero")
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            st.markdown(f"### 🗑️ Eliminazione Contratto {numero}", unsafe_allow_html=True)
+            st.warning(f"Sei sicuro di voler eliminare definitivamente il contratto **{numero}** del cliente **{rag_soc}**?")
+
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ Sì, elimina", use_container_width=True, key=f"confirm_del_{gidx}"):
+                    try:
+                        df_ct = df_ct.drop(index=gidx).copy()
+                        save_contratti(df_ct)
+                        st.success("🗑️ Contratto eliminato con successo.")
+                        st.session_state.pop("ask_delete_now", None)
+                        st.session_state.pop("delete_gidx", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore durante l'eliminazione: {e}")
+            with c2:
+                if st.button("❌ Annulla", use_container_width=True, key=f"cancel_del_{gidx}"):
+                    st.session_state.pop("ask_delete_now", None)
+                    st.session_state.pop("delete_gidx", None)
+                    st.info("Eliminazione annullata.")
                     st.rerun()
 
+            st.markdown('</div>', unsafe_allow_html=True)
+    # === ESPORTAZIONI (Excel + PDF migliorati) ===
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>📤 Esportazioni</h3>", unsafe_allow_html=True)
+    cex1, cex2 = st.columns(2)    
 
-
-    # === ESPORTAZIONI ===
-    st.markdown("---")
-    st.markdown("### 📤 Esportazioni")
-
-    if ct.empty:
-        st.info("Nessun contratto da esportare.")
-        return
-
-    cex1, cex2 = st.columns(2)
-
+    # --- EXCEL ---
     with cex1:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+        from openpyxl.utils import get_column_letter
+        from io import BytesIO
         try:
+            disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+            disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+            disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = f"Contratti {rag_soc}"
+            ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+            ws.page_setup.paperSize = ws.PAPERSIZE_A4
+
+            ws.merge_cells("A1:M1")
+            title = ws["A1"]
+            title.value = f"Contratti Cliente: {rag_soc}"
+            title.font = Font(size=14, bold=True, color="2563EB")
+            title.alignment = Alignment(horizontal="center", vertical="center")
+
+            headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
+                       "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"]
+            ws.append(headers)
+
+            head_font = Font(bold=True, color="FFFFFF")
+            head_fill = PatternFill("solid", fgColor="2563EB")
+            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            thin = Border(left=Side(style="thin"), right=Side(style="thin"),
+                          top=Side(style="thin"), bottom=Side(style="thin"))
+
+            # Intestazioni colorate
+            for col_num, h in enumerate(headers, 1):
+                c = ws.cell(row=2, column=col_num)
+                c.font = head_font
+                c.fill = head_fill
+                c.alignment = center
+                c.border = thin
+
+            # Righe
+            for _, row in disp.iterrows():
+                ws.append([str(row.get(h, "")) for h in headers])
+                stato = str(row.get("Stato", "")).lower()
+                row_idx = ws.max_row
+                for col_idx in range(1, len(headers) + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.alignment = center
+                    cell.border = thin
+                    if stato == "chiuso":
+                        cell.fill = PatternFill("solid", fgColor="FFCDD2")
+
+            for i, h in enumerate(headers, 1):
+                ws.column_dimensions[get_column_letter(i)].width = 25
+
+            bio = BytesIO()
+            wb.save(bio)
             st.download_button(
                 "📘 Esporta Excel",
-                export_excel_contratti(df_ct, sel_id, rag_soc),
+                bio.getvalue(),
                 file_name=f"Contratti_{rag_soc}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                use_container_width=True,
+                key=f"xlsx_{sel_id}"
             )
         except Exception as e:
-            st.warning(f"⚠️ Errore durante l'esportazione Excel: {e}")
+            st.error(f"❌ Errore export Excel: {e}")
 
+    # --- PDF ---
     with cex2:
+        from fpdf import FPDF
+        from io import BytesIO
+
+        class TablePDF(FPDF):
+            def header_row(self, headers, widths):
+                self.set_fill_color(37, 99, 235)
+                self.set_text_color(255)
+                self.set_font("Arial", "B", 9)
+                for i, h in enumerate(headers):
+                    self.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
+                self.ln()
+                self.set_text_color(0)
+                self.set_font("Arial", "", 8)
+
+            def nb_lines(self, w, txt):
+                if not txt:
+                    return 1
+                text = str(txt)
+                cw = self.get_string_width
+                lines = 0
+                for line in text.split("\n"):
+                    current = ""
+                    for word in line.split(" "):
+                        test = (current + " " + word).strip()
+                        if cw(test) <= w:
+                            current = test
+                        else:
+                            lines += 1
+                            current = word
+                    lines += 1
+                return max(lines, 1)
+
+            def row(self, vals, widths, line_h=6, fill=False):
+                max_lines = max(self.nb_lines(widths[i], v) for i, v in enumerate(vals))
+                row_h = line_h * max_lines
+                if self.get_y() + row_h > self.h - self.b_margin:
+                    self.add_page()
+                    self.header_row(headers, widths)
+
+                x0 = self.get_x()
+                y0 = self.get_y()
+                if fill:
+                    self.set_fill_color(255, 205, 210)
+
+                for i, v in enumerate(vals):
+                    w = widths[i]
+                    x = self.get_x()
+                    y = self.get_y()
+                    self.rect(x, y, w, row_h)
+                    align = "L" if headers[i] == "DescrizioneProdotto" else "C"
+                    self.multi_cell(w, line_h, safe_text(v), border=0, align=align, fill=fill)
+                    self.set_xy(x + w, y)
+                self.set_xy(x0, y0 + row_h)
+
         try:
+            disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+            disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+            disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+            headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
+                       "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"]
+            widths = [18, 18, 18, 12, 70, 14, 14, 18, 14, 16, 14, 16, 15]
+
+            pdf = TablePDF(orientation="L", unit="mm", format="A4")
+            pdf.set_auto_page_break(auto=False)
+            pdf.add_page()
+            pdf.set_margins(10, 10, 10)
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
+            pdf.ln(2)
+            pdf.header_row(headers, widths)
+
+            for _, row in disp.iterrows():
+                vals = [row.get(h, "") for h in headers]
+                stato_chiuso = str(row.get("Stato", "")).lower() == "chiuso"
+                pdf.row(vals, widths, line_h=6, fill=stato_chiuso)
+
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
                 "📗 Esporta PDF",
-                export_pdf_contratti(df_ct, sel_id, rag_soc),
+                data=pdf_bytes,
                 file_name=f"Contratti_{rag_soc}.pdf",
                 mime="application/pdf",
-                use_container_width=True
+                use_container_width=True,
+                key=f"pdf_{sel_id}"
             )
         except Exception as e:
-            st.warning(f"⚠️ Errore durante l'esportazione PDF: {e}")
+            st.error(f"❌ Errore export PDF: {e}")
 
-# =====================================
-# MODALE CONTRATTO — VERSIONE 2025 (completa: nuova creazione + modifica)
-# =====================================
-def show_contract_modal(contratto, df_ct, df_cli, rag_soc):
-    import datetime
-
-    ruolo_scrittura = st.session_state.get("ruolo_scrittura", "viewer")
-    permessi_limitati = ruolo_scrittura == "limitato"
-
-    is_new = st.session_state.get("open_modal") == "new"
-    numero = contratto.get("NumeroContratto", "") if not is_new else ""
-    titolo = "➕ Nuovo Contratto" if is_new else f"✏️ Modifica Contratto #{numero}"
-
-    st.markdown(
-        f"""
-        <div style='padding:15px 20px;border-radius:12px;background:#f8fafc;margin-top:10px;'>
-            <h4 style='margin:0 0 10px 0;color:#2563eb;'>{titolo}</h4>
-        </div>
-        """, unsafe_allow_html=True
-    )
-
-    with st.form(f"form_contratto_{numero or 'new'}"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            din = st.date_input(
-                "📅 Data Inizio",
-                value=(
-                    pd.to_datetime(contratto.get("DataInizio"), errors="coerce").date()
-                    if not is_new and pd.notna(contratto.get("DataInizio"))
-                    else datetime.date.today()
-                ),
-                format="DD/MM/YYYY"
-            )
-        with col2:
-            dfi = st.date_input(
-                "📅 Data Fine",
-                value=(
-                    pd.to_datetime(contratto.get("DataFine"), errors="coerce").date()
-                    if not is_new and pd.notna(contratto.get("DataFine"))
-                    else datetime.date.today() + datetime.timedelta(days=365)
-                ),
-                format="DD/MM/YYYY"
-            )
-        with col3:
-            durata = st.selectbox(
-                "📆 Durata (mesi)",
-                DURATE_MESI,
-                index=(
-                    DURATE_MESI.index(str(contratto.get("Durata", "12")))
-                    if not is_new and str(contratto.get("Durata", "12")) in DURATE_MESI
-                    else 2
-                )
-            )
-
-        desc = st.text_area(
-            "🧾 Descrizione Prodotto",
-            contratto.get("DescrizioneProdotto", "") if not is_new else "",
-            height=100
-        )
-
-        colp1, colp2, colp3 = st.columns(3)
-        with colp1:
-            nf = st.text_input("🏦 NOL_FIN", contratto.get("NOL_FIN", "") if not is_new else "")
-        with colp2:
-            ni = st.text_input("🏢 NOL_INT", contratto.get("NOL_INT", "") if not is_new else "")
-        with colp3:
-            tot = st.text_input("💰 Tot Rata", contratto.get("TotRata", "") if not is_new else "")
-
-        colx1, colx2, colx3, colx4 = st.columns(4)
-        with colx1:
-            copie_bn = st.text_input("📄 Copie incluse B/N", contratto.get("CopieBN", "") if not is_new else "")
-        with colx2:
-            ecc_bn = st.text_input("💶 Costo extra B/N (€)", contratto.get("EccBN", "") if not is_new else "")
-        with colx3:
-            copie_col = st.text_input("🖨️ Copie incluse Colore", contratto.get("CopieCol", "") if not is_new else "")
-        with colx4:
-            ecc_col = st.text_input("💶 Costo extra Colore (€)", contratto.get("EccCol", "") if not is_new else "")
-
-        stato = st.selectbox(
-            "🟢 Stato Contratto",
-            ["aperto", "chiuso"],
-            index=0 if is_new or str(contratto.get("Stato", "")).lower() != "chiuso" else 1
-        )
-
-        st.markdown("---")
-
-        cbtn1, cbtn2, cbtn3 = st.columns([1, 1, 2])
-        with cbtn1:
-            salva = st.form_submit_button("💾 Salva", use_container_width=True, disabled=permessi_limitati)
-        with cbtn2:
-            annulla = st.form_submit_button("❌ Chiudi", use_container_width=True)
-
-    # === LOGICA SALVATAGGIO ===
-    if salva:
-        try:
-            if is_new:
-                new_num = str(len(df_ct) + 1)
-                new_contratto = {
-                    "ClienteID": st.session_state.get("selected_cliente", ""),
-                    "RagioneSociale": rag_soc,
-                    "NumeroContratto": new_num,
-                    "DataInizio": fmt_date(din),
-                    "DataFine": fmt_date(dfi),
-                    "Durata": durata,
-                    "DescrizioneProdotto": desc,
-                    "NOL_FIN": nf,
-                    "NOL_INT": ni,
-                    "TotRata": tot,
-                    "CopieBN": copie_bn,
-                    "EccBN": ecc_bn,
-                    "CopieCol": copie_col,
-                    "EccCol": ecc_col,
-                    "Stato": stato
-                }
-                df_ct = pd.concat([df_ct, pd.DataFrame([new_contratto])], ignore_index=True)
-                save_contratti(df_ct)
-                st.success(f"✅ Nuovo contratto creato correttamente ({rag_soc}).")
-
-            else:
-                idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-                if len(idx) == 0:
-                    st.error("Contratto non trovato nel DataFrame.")
-                    return
-                i = idx[0]
-                df_ct.loc[i, "DataInizio"] = fmt_date(din)
-                df_ct.loc[i, "DataFine"] = fmt_date(dfi)
-                df_ct.loc[i, "Durata"] = durata
-                df_ct.loc[i, "DescrizioneProdotto"] = desc
-                df_ct.loc[i, "NOL_FIN"] = nf
-                df_ct.loc[i, "NOL_INT"] = ni
-                df_ct.loc[i, "TotRata"] = tot
-                df_ct.loc[i, "CopieBN"] = copie_bn
-                df_ct.loc[i, "EccBN"] = ecc_bn
-                df_ct.loc[i, "CopieCol"] = copie_col
-                df_ct.loc[i, "EccCol"] = ecc_col
-                df_ct.loc[i, "Stato"] = stato
-                save_contratti(df_ct)
-                st.success(f"✅ Contratto {numero} aggiornato correttamente.")
-
-            time.sleep(0.4)
-            st.session_state.pop("open_modal", None)
-            st.session_state.pop("selected_contratto", None)
-            st.query_params.clear()
-            st.rerun()
-
-        except Exception as e:
-            st.error(f"❌ Errore durante il salvataggio: {e}")
-
-    elif annulla:
-        st.session_state.pop("open_modal", None)
-        st.session_state.pop("selected_contratto", None)
-        st.query_params.clear()
-        st.rerun()
-
-# =====================================
-# FUNZIONI DI ESPORTAZIONE (Excel + PDF)
-# =====================================
-def export_excel_contratti(df_ct, sel_id, rag_soc):
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
-    from openpyxl.utils import get_column_letter
-    from io import BytesIO
-
-    disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = f"Contratti {rag_soc}"
-    ws.merge_cells("A1:M1")
-    title = ws["A1"]
-    title.value = f"Contratti Cliente: {rag_soc}"
-    title.font = Font(size=14, bold=True, color="2563EB")
-    title.alignment = Alignment(horizontal="center")
-
-    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
-               "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"]
-    ws.append(headers)
-
-    head_font = Font(bold=True, color="FFFFFF")
-    head_fill = PatternFill("solid", fgColor="2563EB")
-    center = Alignment(horizontal="center", wrap_text=True)
-    thin = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
-
-    for i, h in enumerate(headers, 1):
-        c = ws.cell(row=2, column=i)
-        c.font = head_font; c.fill = head_fill; c.alignment = center; c.border = thin
-
-    for _, row in disp.iterrows():
-        ws.append([str(row.get(h, "")) for h in headers])
-        stato = str(row.get("Stato", "")).lower()
-        r_idx = ws.max_row
-        for j in range(1, len(headers)+1):
-            cell = ws.cell(row=r_idx, column=j)
-            cell.alignment = center
-            cell.border = thin
-            if stato == "chiuso":
-                cell.fill = PatternFill("solid", fgColor="FFCDD2")
-
-    for i in range(1, len(headers)+1):
-        ws.column_dimensions[get_column_letter(i)].width = 25
-
-    bio = BytesIO()
-    wb.save(bio)
-    return bio.getvalue()
-
-
-def export_pdf_contratti(df_ct, sel_id, rag_soc):
-    from fpdf import FPDF
-    disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "TotRata", "Stato"]
-    widths = [30, 25, 25, 15, 25, 20]
-
-    pdf = FPDF(orientation="L", unit="mm", format="A4")
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
-    pdf.set_font("Arial", "B", 10)
-    for i, h in enumerate(headers):
-        pdf.cell(widths[i], 8, safe_text(h), 1, 0, "C", True)
-    pdf.ln()
-    pdf.set_font("Arial", "", 9)
-    for _, r in disp.iterrows():
-        for i, h in enumerate(headers):
-            stato = str(r.get("Stato", "")).lower()
-            if stato == "chiuso":
-                pdf.set_fill_color(255, 235, 238)
-                pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C", fill=True)
-            else:
-                pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C")
-        pdf.ln()
-    return pdf.output(dest="S").encode("latin-1", errors="replace")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # =====================================
 # PAGINA RECALL E VISITE (aggiornata e coerente)
@@ -2126,109 +1818,64 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 
 
 # =====================================
-# MAIN APP — versione definitiva 2025 con filtro visibilità e loader sicuro
+# MAIN APP
 # =====================================
 def main():
-    global LOGO_URL  # 🔹 rende disponibile la variabile globale all’interno di main()
-    
     # --- LOGIN ---
     user, role = do_login_fullscreen()
     if not user:
         st.stop()
 
-    # 🔁 Riavvia thread sync se non attivo
-    if "sync_thread_started" not in st.session_state:
-        t = threading.Thread(target=sync_supabase_periodico, daemon=True)
-        t.start()
-        st.session_state["sync_thread_started"] = True
-
-    # --- Percorsi base ---
+    # --- Percorsi CSV ---
     global CLIENTI_CSV, CONTRATTI_CSV
     base_clienti = STORAGE_DIR / "clienti.csv"
     base_contratti = STORAGE_DIR / "contratti_clienti.csv"
     gabriele_clienti = STORAGE_DIR / "gabriele" / "clienti.csv"
     gabriele_contratti = STORAGE_DIR / "gabriele" / "contratti_clienti.csv"
 
-    # --- Ruolo e diritti ---
+    # === Definizione visibilità e ruoli ===
     if user == "fabio":
+        visibilita = "tutti"
         ruolo_scrittura = "full"
+        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
+
     elif user in ["emanuela", "claudia"]:
+        visibilita = "tutti"
         ruolo_scrittura = "full"
+
     elif user in ["giulia", "antonella"]:
+        visibilita = "tutti"
         ruolo_scrittura = "limitato"
+
     elif user in ["gabriele", "laura", "annalisa"]:
+        visibilita = "gabriele"
         ruolo_scrittura = "limitato"
+        CLIENTI_CSV, CONTRATTI_CSV = gabriele_clienti, gabriele_contratti
+
     else:
+        visibilita = "solo_propri"
         ruolo_scrittura = "limitato"
+        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
 
-    # --- Selettore visibilità (solo per Fabio, Giulia, Antonella) ---
-    if user in ["fabio", "giulia", "antonella"]:
-        default_view = "Miei"
-        visibilita_opzioni = ["Miei", "Gabriele", "Tutti"]
-        visibilita_scelta = st.sidebar.radio(
-            "📂 Visualizza clienti di:",
-            visibilita_opzioni,
-            index=visibilita_opzioni.index(default_view)
-        )
+    # --- Sidebar info ---
+    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
+    st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
+
+    # --- Caricamento dati ---
+    df_cli_main, df_ct_main = load_clienti(), load_contratti()
+    df_cli_gab, df_ct_gab = pd.DataFrame(), pd.DataFrame()
+
+    if visibilita == "tutti":
+        try:
+            df_cli_gab = pd.read_csv(gabriele_clienti, dtype=str).fillna("")
+            df_ct_gab = pd.read_csv(gabriele_contratti, dtype=str).fillna("")
+            df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
+            df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+        except Exception as e:
+            st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
+            df_cli, df_ct = df_cli_main, df_ct_main
     else:
-        visibilita_scelta = "Miei"
-
-    
-    # --- Caricamento dati base (da Supabase o CSV in fallback) ---
-    try:
-        if st.session_state.get("logged_in") and "user" in st.session_state:
-            user = st.session_state["user"]
-            df_cli_main, df_ct_main = carica_dati_supabase(user)
-            
-            # Se Supabase restituisce vuoto (es. prima connessione), fallback ai CSV locali
-            if df_cli_main.empty or df_ct_main.empty:
-                df_cli_main, df_ct_main = load_clienti(), load_contratti()
-        else:
-            df_cli_main, df_ct_main = load_clienti(), load_contratti()
-    except Exception as e:
-        st.warning(f"⚠️ Errore caricamento da Supabase, uso CSV locali: {e}")
-        df_cli_main, df_ct_main = load_clienti(), load_contratti()
-
-
-    # --- Caricamento CSV Gabriele (robusto) ---
-    try:
-        if gabriele_clienti.exists():
-            df_cli_gab = pd.read_csv(
-                gabriele_clienti,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            ).fillna("")
-        else:
-            df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
-
-        if gabriele_contratti.exists():
-            df_ct_gab = pd.read_csv(
-                gabriele_contratti,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            ).fillna("")
-        else:
-            df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
-
-    except Exception as e:
-        st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
-        df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
-        df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
-
-    # --- Applica filtro scelto ---
-    if visibilita_scelta == "Miei":
         df_cli, df_ct = df_cli_main, df_ct_main
-    elif visibilita_scelta == "Gabriele":
-        df_cli, df_ct = df_cli_gab, df_ct_gab
-    else:  # Tutti
-        df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
-        df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
 
     # --- Correzione date una sola volta ---
     if not st.session_state.get("_date_fix_done", False):
@@ -2243,13 +1890,9 @@ def main():
         except Exception as e:
             st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
-    # --- Sidebar info ---
-    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
-    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
-
     # --- Passaggio info ai moduli ---
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
-    st.session_state["visibilita"] = visibilita_scelta
+    st.session_state["visibilita"] = visibilita
 
     # --- Pagine ---
     PAGES = {
@@ -2262,30 +1905,20 @@ def main():
 
     # --- Menu ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
-
+    
     # --- Navigazione automatica da pulsanti interni ---
     if "nav_target" in st.session_state:
         target = st.session_state.pop("nav_target")
         if target in PAGES:
             page = target
-
+            
     # --- Esegui pagina ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
 
 # =====================================
-# 🔧 UTILITÀ AMMINISTRATIVE
-# =====================================
-if st.sidebar.button("🛠️ Correggi owner su Supabase (solo admin)"):
-    user = st.session_state.get("user", "")
-    if user.lower() == "fabio":
-        fix_supabase_owner(user)
-    else:
-        st.sidebar.warning("⚠️ Solo l'admin può eseguire questa operazione.")
-
-# =====================================
 # AVVIO APPLICAZIONE
 # =====================================
-if "main" in globals():
+if __name__ == "__main__":
     main()
 

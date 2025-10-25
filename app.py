@@ -15,9 +15,7 @@ from utils.data_io import *
 from utils.formatting import *
 from utils.auth import *
 from utils.exports import *
-
-
-
+from utils.fixes import *
 
 # =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE

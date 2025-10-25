@@ -118,4 +118,5 @@ def export_pdf_contratti(df_ct, sel_id, rag_soc):
         row_data = [str(r.get(h, "")) for h in headers]
         pdf.table_row(row_data, widths, wrap_index=headers.index("DescrizioneProdotto"), stato=stato)
 
-    return pdf.output(dest="S").encode("latin-1", errors="replace")
+    return pdf.output(dest="S").encode("utf-8", errors="ignore")
+

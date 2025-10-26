@@ -606,129 +606,78 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 STABILE CON AZIONI FUNZIONANTI
+# 📑 PAGINA CONTRATTI — VERSIONE CLASSICA + FIX FUNZIONI
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📄 Gestione Contratti")
 
+    # === Recupera cliente selezionato ===
     if "selected_cliente" not in st.session_state:
-        st.warning("🔍 Seleziona prima un cliente dalla pagina 'Clienti'.")
+        st.warning("🔍 Seleziona prima un cliente dalla pagina Clienti.")
         return
 
     sel_id = str(st.session_state["selected_cliente"])
-    cliente = df_cli[df_cli["ClienteID"].astype(str) == sel_id]
-    if cliente.empty:
+    cli = df_cli[df_cli["ClienteID"].astype(str) == sel_id]
+
+    if cli.empty:
         st.warning("❌ Cliente non trovato.")
         return
-    rag_soc = cliente.iloc[0]["RagioneSociale"]
 
-    # === HEADER ===
+    cliente = cli.iloc[0]
+    rag_soc = cliente["RagioneSociale"]
+
+    # === Header Cliente ===
     col1, col2 = st.columns([4, 1])
     with col1:
         st.markdown(f"## 🏢 {rag_soc}")
         st.caption(f"ID Cliente: {sel_id}")
     with col2:
         if st.button("↩️ Torna ai Clienti", use_container_width=True):
-            st.session_state.update({
-                "nav_target": "Clienti",
-                "_go_clienti_now": True
-            })
+            st.session_state.update({"nav_target": "Clienti"})
             st.rerun()
 
-    st.divider()
+    st.markdown("---")
 
-    # === CONTRATTI DEL CLIENTE ===
-    contratti = df_ct[df_ct["ClienteID"].astype(str) == sel_id].copy()
-
+    # === Filtra contratti cliente ===
+    contratti = df_ct[df_ct["ClienteID"].astype(str) == sel_id]
     if contratti.empty:
-        st.info("📭 Nessun contratto presente per questo cliente.")
+        st.info("📭 Nessun contratto registrato per questo cliente.")
     else:
-        contratti["DataInizio"] = pd.to_datetime(contratti["DataInizio"], errors="coerce", dayfirst=True)
-        contratti["DataFine"] = pd.to_datetime(contratti["DataFine"], errors="coerce", dayfirst=True)
         contratti = contratti.sort_values("DataInizio", ascending=False)
-
         st.markdown("### 📋 Elenco Contratti")
 
         for idx, r in contratti.iterrows():
-            stato = r.get("Stato", "").lower()
-            bg = "#f8fbff" if stato != "chiuso" else "#fff2f2"
-            num = r.get("NumeroContratto", "—")
+            stato = r.get("Stato", "aperto").lower()
+            bg_color = "#ffffff" if stato == "aperto" else "#ffecec"
+            border_color = "#2196f3" if stato == "aperto" else "#b71c1c"
 
-            with st.container():
-                st.markdown(f"<div style='background:{bg};padding:12px;border-radius:8px;margin-bottom:8px'>", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="background:{bg_color};padding:12px 16px;margin-bottom:10px;
+                        border-left:5px solid {border_color};border-radius:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <b>📄 N°</b> {r.get("NumeroContratto","—")} &nbsp;&nbsp;
+                        <b>🗓️ Inizio:</b> {r.get("DataInizio","—")} &nbsp;&nbsp;
+                        <b>🏁 Fine:</b> {r.get("DataFine","—")} &nbsp;&nbsp;
+                        <b>💰 Tot. Rata:</b> {r.get("TotRata","—")} &nbsp;&nbsp;
+                        <b>📄 Stato:</b> {"✅ Aperto" if stato=="aperto" else "❌ Chiuso"}
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-                col1, col2, col3, col4, col5 = st.columns([1.3, 1.3, 1.3, 3, 1.1])
-                col1.markdown(f"**N°** {num}")
-                col2.markdown(f"🗓️ **Inizio:** {fmt_date(r.get('DataInizio'))}")
-                col3.markdown(f"🏁 **Fine:** {fmt_date(r.get('DataFine'))}")
-                col4.markdown(f"💰 **Tot. Rata:** {r.get('TotRata','') or '—'}")
-                col5.markdown(f"📄 **Stato:** {'✅ Aperto' if stato!='chiuso' else '❌ Chiuso'}")
-
-                colA, colB = st.columns([0.15, 0.15])
-                with colA:
-                    if st.button("✏️", key=f"edit_ct_{idx}", use_container_width=True):
-                        st.session_state["edit_contract_id"] = idx
-                        st.session_state["editing_contract"] = True
-                        st.rerun()
-                with colB:
-                    if stato != "chiuso" and st.button("❌", key=f"close_ct_{idx}", use_container_width=True):
-                        df_ct.loc[idx, "Stato"] = "chiuso"
-                        save_contratti(df_ct)
-                        st.success(f"✅ Contratto {num} chiuso.")
-                        st.rerun()
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
-    st.divider()
-
-    # === CREAZIONE NUOVO CONTRATTO ===
-    st.markdown("### ➕ Crea Nuovo Contratto")
-    with st.form("frm_new_contratto"):
-        col1, col2, col3 = st.columns(3)
-        numero = col1.text_input("📄 Numero Contratto")
-        data_inizio = col2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
-        durata = col3.selectbox("📆 Durata (mesi)", [12, 24, 36, 48, 60], index=2)
-
-        desc = st.text_area("🧾 Descrizione Prodotto", height=80)
-
-        colx1, colx2, colx3, colx4 = st.columns(4)
-        copie_bn = colx1.text_input("📄 Copie incluse B/N", value="")
-        ecc_bn = colx2.text_input("💰 Costo extra B/N (€)", value="")
-        copie_col = colx3.text_input("🖨️ Copie incluse Colore", value="")
-        ecc_col = colx4.text_input("💰 Costo extra Colore (€)", value="")
-
-        colp1, colp2, colp3 = st.columns(3)
-        nf = colp1.text_input("🏦 NOL_FIN", value="")
-        ni = colp2.text_input("🏢 NOL_INT", value="")
-        tot = colp3.text_input("💰 Tot Rata", value="")
-
-        crea = st.form_submit_button("💾 Crea Contratto")
-        if crea:
-            try:
-                data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
-                nuovo = {
-                    "ClienteID": sel_id,
-                    "RagioneSociale": rag_soc,
-                    "NumeroContratto": numero,
-                    "DataInizio": fmt_date(data_inizio),
-                    "DataFine": fmt_date(data_fine),
-                    "Durata": durata,
-                    "DescrizioneProdotto": desc,
-                    "NOL_FIN": nf,
-                    "NOL_INT": ni,
-                    "TotRata": tot,
-                    "CopieBN": copie_bn,
-                    "EccBN": ecc_bn,
-                    "CopieCol": copie_col,
-                    "EccCol": ecc_col,
-                    "Stato": "aperto"
-                }
-                df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
-                save_contratti(df_ct)
-                st.success(f"✅ Nuovo contratto {numero} creato correttamente.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Errore creazione contratto: {e}")
+            c1, c2 = st.columns([0.1, 0.1])
+            with c1:
+                if st.button("✏️ Modifica", key=f"edit_{idx}", use_container_width=True):
+                    st.session_state["edit_contract_id"] = idx
+                    st.session_state["editing_contract"] = True
+                    st.rerun()
+            with c2:
+                if stato != "chiuso" and st.button("❌ Chiudi", key=f"close_{idx}", use_container_width=True):
+                    df_ct.loc[idx, "Stato"] = "chiuso"
+                    save_contratti(df_ct)
+                    st.success(f"✅ Contratto {r.get('NumeroContratto','')} chiuso con successo.")
+                    st.rerun()
 
     # === MODIFICA CONTRATTO ===
     if st.session_state.get("editing_contract"):
@@ -737,36 +686,61 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             c = df_ct.loc[idx]
             st.divider()
             st.markdown("### ✏️ Modifica Contratto")
-
             with st.form(f"frm_edit_{idx}"):
                 col1, col2, col3 = st.columns(3)
                 numero = col1.text_input("📄 Numero Contratto", c.get("NumeroContratto", ""))
-                data_inizio = col2.date_input("📅 Data Inizio", value=pd.to_datetime(c.get("DataInizio"), errors="coerce"), format="DD/MM/YYYY")
-                data_fine = col3.date_input("🏁 Data Fine", value=pd.to_datetime(c.get("DataFine"), errors="coerce"), format="DD/MM/YYYY")
+                data_inizio = col2.date_input("📅 Data Inizio", pd.to_datetime(c.get("DataInizio"), errors="coerce"), format="DD/MM/YYYY")
+                data_fine = col3.date_input("🏁 Data Fine", pd.to_datetime(c.get("DataFine"), errors="coerce"), format="DD/MM/YYYY")
 
-                desc = st.text_area("🧾 Descrizione Prodotto", c.get("DescrizioneProdotto", ""), height=80)
-                tot = st.text_input("💰 Tot Rata", c.get("TotRata", ""))
-                stato = st.selectbox("📄 Stato", ["aperto", "chiuso"], index=0 if c.get("Stato", "aperto") != "chiuso" else 1)
+                descrizione = st.text_area("🧾 Descrizione Prodotto", c.get("DescrizioneProdotto", ""), height=80)
+                tot_rata = st.text_input("💰 Tot. Rata", c.get("TotRata", ""))
+                stato = st.selectbox("📄 Stato", ["aperto", "chiuso"], index=0 if c.get("Stato","aperto")=="aperto" else 1)
 
                 salva = st.form_submit_button("💾 Salva Modifiche")
                 annulla = st.form_submit_button("❌ Annulla")
 
                 if salva:
-                    try:
-                        df_ct.loc[idx, ["NumeroContratto", "DataInizio", "DataFine", "DescrizioneProdotto", "TotRata", "Stato"]] = \
-                            [numero, fmt_date(data_inizio), fmt_date(data_fine), desc, tot, stato]
-                        save_contratti(df_ct)
-                        st.success("✅ Contratto aggiornato correttamente.")
-                        st.session_state["editing_contract"] = False
-                        st.session_state["edit_contract_id"] = None
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Errore salvataggio: {e}")
+                    df_ct.loc[idx, ["NumeroContratto","DataInizio","DataFine","DescrizioneProdotto","TotRata","Stato"]] = \
+                        [numero, fmt_date(data_inizio), fmt_date(data_fine), descrizione, tot_rata, stato]
+                    save_contratti(df_ct)
+                    st.success("✅ Modifiche salvate.")
+                    st.session_state["editing_contract"] = False
+                    st.session_state["edit_contract_id"] = None
+                    st.rerun()
 
                 if annulla:
                     st.session_state["editing_contract"] = False
                     st.session_state["edit_contract_id"] = None
-                    st.experimental_rerun()
+                    st.rerun()
+
+    # === CREAZIONE NUOVO CONTRATTO ===
+    st.divider()
+    st.markdown("### ➕ Crea Nuovo Contratto")
+    with st.form("frm_nuovo_contratto"):
+        col1, col2, col3 = st.columns(3)
+        numero = col1.text_input("📄 Numero Contratto")
+        data_inizio = col2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
+        durata = col3.selectbox("📆 Durata (mesi)", [12, 24, 36, 48, 60], index=2)
+        descrizione = st.text_area("🧾 Descrizione Prodotto", height=80)
+        tot = st.text_input("💰 Tot. Rata")
+
+        salva = st.form_submit_button("💾 Crea Contratto")
+        if salva:
+            fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
+            nuovo = {
+                "ClienteID": sel_id,
+                "RagioneSociale": rag_soc,
+                "NumeroContratto": numero,
+                "DataInizio": fmt_date(data_inizio),
+                "DataFine": fmt_date(fine),
+                "DescrizioneProdotto": descrizione,
+                "TotRata": tot,
+                "Stato": "aperto"
+            }
+            df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
+            save_contratti(df_ct)
+            st.success("✅ Nuovo contratto creato correttamente.")
+            st.rerun()
 
 
 

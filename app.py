@@ -597,7 +597,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 CON FADE, EXPORT, FIX E PERFORMANCE OTTIMIZZATA
+# PAGINA CONTRATTI — VERSIONE STABILE 2025 CON FIX RERUN E MODALE
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import time
@@ -609,6 +609,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     permessi_limitati = ruolo_scrittura == "limitato"
 
     st.markdown("## 📄 Gestione Contratti")
+
+    # === Fallback per modale bloccato ===
+    if st.session_state.get("modal_add_contract", False):
+        if time.time() - st.session_state.get("_modal_open_time", 0) > 5:
+            st.session_state["modal_add_contract"] = False
 
     # === Inizializza variabili modali ===
     if "modal_add_contract" not in st.session_state:
@@ -640,11 +645,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with colA:
         if not permessi_limitati:
             if st.button("➕ Aggiungi Contratto", use_container_width=True, key="btn_add_contract"):
-                # Delay minimo per garantire visibilità del modale prima del rerun
                 st.session_state["modal_add_contract"] = True
                 st.session_state["_modal_open_time"] = time.time()
                 st.rerun()
-
     with colB:
         if st.button("📤 Esporta Excel", use_container_width=True):
             xlsx_bytes = export_excel_contratti(df_ct, sel_id, rag_soc)
@@ -701,12 +704,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 </div>
             """, unsafe_allow_html=True)
 
-            # === DESCRIZIONE ESPANDIBILE ===
-            with st.expander("📖 Mostra descrizione completa"):
-                st.markdown(f"**Descrizione prodotto:** {r.get('DescrizioneProdotto','—')}")
-
             # === AZIONI ===
-            c1, c2, c3 = st.columns([0.15, 0.15, 0.7])
+            c1, c2, _ = st.columns([0.15, 0.15, 0.7])
             with c1:
                 if not permessi_limitati:
                     if st.button("✏️", key=f"edit_{numero}_{i}", use_container_width=True):
@@ -714,53 +713,35 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         st.rerun()
             with c2:
                 if not permessi_limitati:
-                    if stato == "aperto":
-                        if st.button("❌", key=f"close_{numero}_{i}", use_container_width=True):
-                            idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-                            if len(idx) > 0:
+                    idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                    if len(idx) > 0:
+                        if stato == "aperto":
+                            if st.button("❌", key=f"close_{numero}_{i}", use_container_width=True):
                                 df_ct.loc[idx[0], "Stato"] = "chiuso"
                                 save_contratti(df_ct)
                                 st.success(f"Contratto {numero} chiuso ✅")
                                 st.rerun()
-                    else:
-                        if st.button("🔓", key=f"reopen_{numero}_{i}", use_container_width=True):
-                            idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-                            if len(idx) > 0:
+                        else:
+                            if st.button("🔓", key=f"reopen_{numero}_{i}", use_container_width=True):
                                 df_ct.loc[idx[0], "Stato"] = "aperto"
                                 save_contratti(df_ct)
                                 st.success(f"Contratto {numero} riaperto ✅")
                                 st.rerun()
 
-    # === MODALE NUOVO CONTRATTO (con effetto fade-in) ===
+    # === MODALE NUOVO CONTRATTO ===
     if st.session_state.get("modal_add_contract", False):
         st.markdown("""
         <style>
-        @keyframes fadeIn {
-            from {opacity: 0;}
-            to {opacity: 1;}
-        }
-        @keyframes fadeOut {
-            from {opacity: 1;}
-            to {opacity: 0;}
-        }
+        @keyframes fadeIn {from{opacity:0;} to{opacity:1;}}
         .modal-bg {
-            position: fixed;
-            top:0; left:0;
-            width:100%; height:100%;
-            background: rgba(0,0,0,0.45);
-            z-index:9999;
-            display:flex;
-            justify-content:center;
-            align-items:center;
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.45); z-index:9999;
+            display:flex; justify-content:center; align-items:center;
             animation: fadeIn 0.25s ease-in-out;
         }
         .modal-box {
-            background:white;
-            border-radius:12px;
-            width:540px;
-            padding:1.8rem 2rem;
-            box-shadow:0 4px 20px rgba(0,0,0,0.25);
-            transform: scale(0.98);
+            background:white; border-radius:12px; width:540px;
+            padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25);
             animation: fadeIn 0.3s ease-out;
         }
         </style>
@@ -776,10 +757,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             tot = st.text_input("Totale Rata")
 
             col1, col2 = st.columns(2)
-            with col1:
-                salva = st.form_submit_button("💾 Salva")
-            with col2:
-                annulla = st.form_submit_button("❌ Annulla")
+            salva = col1.form_submit_button("💾 Salva")
+            annulla = col2.form_submit_button("❌ Annulla")
 
             if salva:
                 data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
@@ -823,8 +802,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         .modal-box {
             background:white; border-radius:12px; width:540px;
             padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25);
-            transform: scale(0.98);
-            animation: fadeIn 0.3s ease-out;
         }
         </style>
         <div class="modal-bg"><div class="modal-box">
@@ -838,10 +815,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                                  index=0 if contratto.get("Stato","")!="chiuso" else 1)
 
             col1, col2 = st.columns(2)
-            with col1:
-                salva = st.form_submit_button("💾 Salva")
-            with col2:
-                annulla = st.form_submit_button("❌ Annulla")
+            salva = col1.form_submit_button("💾 Salva")
+            annulla = col2.form_submit_button("❌ Annulla")
 
             if salva:
                 idx = df_ct.index[df_ct["NumeroContratto"] == numero][0]
@@ -857,17 +832,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
 
         st.markdown("</div></div>", unsafe_allow_html=True)
-        # Evita chiusura immediata del modale appena aperto
-        if st.session_state.get("modal_add_contract", False):
-            if "_modal_open_time" in st.session_state:
-                if time.time() - st.session_state["_modal_open_time"] < 0.5:
-                    pass  # lascialo aperto
-
-    # === FIX SICUREZZA MODALE ===
-    if st.session_state.get("modal_add_contract", False) and not st.session_state.get("modal_edit_contract"):
-        st.session_state["modal_add_contract"] = False
-    if st.session_state.get("modal_safety_lock", False):
-        st.session_state["modal_safety_lock"] = False
 
 
 

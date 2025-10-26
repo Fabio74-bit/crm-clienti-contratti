@@ -725,6 +725,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === MODALE AGGIUNGI CONTRATTO ===
     if st.session_state.get("modal_add_contract", False):
+
+        # CSS modale
         st.markdown("""
         <style>
         .modal-bg {
@@ -741,9 +743,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         """, unsafe_allow_html=True)
 
         st.markdown("### ➕ Nuovo Contratto")
+
         with st.form("form_add_contract"):
             num = st.text_input("Numero Contratto")
-            data_inizio = st.date_input("Data Inizio")
+            data_inizio = st.date_input("Data Inizio", value=pd.Timestamp.today())
             durata = st.selectbox("Durata (mesi)", [12, 24, 36, 48, 60], index=2)
             desc = st.text_area("Descrizione Prodotto", height=80)
             tot = st.text_input("Totale Rata")
@@ -755,27 +758,42 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 annulla = st.form_submit_button("❌ Annulla")
 
             if salva:
+                # Calcolo automatica data fine
                 data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
                 nuovo = {
                     "ClienteID": sel_id,
                     "RagioneSociale": rag_soc,
-                    "NumeroContratto": num,
+                    "NumeroContratto": num.strip(),
                     "DataInizio": fmt_date(data_inizio),
                     "DataFine": fmt_date(data_fine),
-                    "Durata": durata,
-                    "TotRata": tot,
-                    "DescrizioneProdotto": desc,
+                    "Durata": str(durata),
+                    "TotRata": tot.strip(),
+                    "DescrizioneProdotto": desc.strip(),
+                    "NOL_FIN": "",
+                    "NOL_INT": "",
+                    "CopieBN": "",
+                    "EccBN": "",
+                    "CopieCol": "",
+                    "EccCol": "",
                     "Stato": "aperto"
                 }
+
+                # Aggiunta e salvataggio
                 df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
                 save_contratti(df_ct)
+
+                # Chiude modale e mantiene cliente
                 st.session_state["modal_add_contract"] = False
+                st.session_state["contratti_sel_id"] = sel_id
+                st.session_state["contratti_sel_label"] = sel_label
                 st.success("✅ Contratto aggiunto con successo!")
                 time.sleep(0.5)
                 st.rerun()
 
             if annulla:
                 st.session_state["modal_add_contract"] = False
+                st.session_state["contratti_sel_id"] = sel_id
+                st.session_state["contratti_sel_label"] = sel_label
                 st.rerun()
 
         st.markdown("</div></div>", unsafe_allow_html=True)

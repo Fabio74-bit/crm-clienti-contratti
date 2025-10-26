@@ -788,77 +788,90 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# MODALE CREAZIONE NUOVO CONTRATTO
+# MODALE CREAZIONE NUOVO CONTRATTO — FIX VERSIONE STABILE
 # =====================================
 def show_new_contract_modal(df_ct, sel_id, rag_soc):
-    st.markdown("""
+    # Sfondo e box modale
+    modal_css = """
     <style>
-    .modal-bg { position: fixed; top:0; left:0; width:100%; height:100%;
-        background: rgba(0,0,0,0.4); z-index: 9998;
-        display: flex; align-items: center; justify-content: center; }
-    .modal-box { background: white; border-radius: 12px; width: 620px;
-        padding: 1.8rem 2rem; box-shadow: 0 4px 18px rgba(0,0,0,0.25); }
+    .modal-bg {
+        position: fixed; top:0; left:0; width:100%; height:100%;
+        background: rgba(0,0,0,0.45); z-index: 9998;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .modal-box {
+        background: #fff; border-radius: 12px;
+        width: 650px; padding: 1.8rem 2rem;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+        z-index: 9999;
+    }
     </style>
-    <div class="modal-bg"><div class="modal-box">
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(modal_css, unsafe_allow_html=True)
 
-    st.markdown(f"### ➕ Nuovo Contratto — {rag_soc}")
+    # Usa un container temporaneo per evitare loop di render
+    placeholder = st.empty()
+    with placeholder.container():
+        st.markdown("<div class='modal-bg'><div class='modal-box'>", unsafe_allow_html=True)
+        st.markdown(f"### ➕ Nuovo Contratto — {rag_soc}")
 
-    with st.form("frm_new_contract"):
-        col1, col2 = st.columns(2)
-        with col1:
-            numero = st.text_input("Numero Contratto")
-            data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
-            durata = st.text_input("Durata (mesi)", "36")
-        with col2:
-            tot = st.text_input("Tot Rata (€)")
-            nol_fin = st.text_input("NOL_FIN (€)")
-            nol_int = st.text_input("NOL_INT (€)")
+        with st.form("frm_new_contract"):
+            col1, col2 = st.columns(2)
+            with col1:
+                numero = st.text_input("Numero Contratto")
+                data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
+                durata = st.text_input("Durata (mesi)", "36")
+            with col2:
+                tot = st.text_input("Tot Rata (€)")
+                nol_fin = st.text_input("NOL_FIN (€)")
+                nol_int = st.text_input("NOL_INT (€)")
 
-        desc = st.text_area("Descrizione Prodotto", height=100)
-        colA, colB, colC, colD = st.columns(4)
-        copie_bn = colA.text_input("Copie B/N")
-        ecc_bn   = colB.text_input("Extra B/N (€)")
-        copie_col= colC.text_input("Copie Colore")
-        ecc_col  = colD.text_input("Extra Colore (€)")
+            desc = st.text_area("Descrizione Prodotto", height=100)
+            colA, colB, colC, colD = st.columns(4)
+            copie_bn = colA.text_input("Copie B/N")
+            ecc_bn   = colB.text_input("Extra B/N (€)")
+            copie_col= colC.text_input("Copie Colore")
+            ecc_col  = colD.text_input("Extra Colore (€)")
 
-        salva = st.form_submit_button("💾 Crea Contratto", use_container_width=True)
-        annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
+            salva = st.form_submit_button("💾 Crea Contratto", use_container_width=True)
+            annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
 
-        if salva:
-            fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
-            nuovo = {
-                "ClienteID": sel_id,
-                "RagioneSociale": rag_soc,
-                "NumeroContratto": numero,
-                "DataInizio": fmt_date(data_inizio),
-                "DataFine": fmt_date(fine),
-                "Durata": durata,
-                "TotRata": tot,
-                "DescrizioneProdotto": desc,
-                "CopieBN": copie_bn,
-                "EccBN": ecc_bn,
-                "CopieCol": copie_col,
-                "EccCol": ecc_col,
-                "NOL_FIN": nol_fin,
-                "NOL_INT": nol_int,
-                "Stato": "aperto"
-            }
-            df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
-            save_contratti(df_ct)
-            st.success("✅ Contratto creato con successo.")
-            time.sleep(0.6)
-            st.session_state.pop("open_modal", None)
-            st.rerun()
+            if salva:
+                try:
+                    fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
+                    nuovo = {
+                        "ClienteID": sel_id,
+                        "RagioneSociale": rag_soc,
+                        "NumeroContratto": numero,
+                        "DataInizio": fmt_date(data_inizio),
+                        "DataFine": fmt_date(fine),
+                        "Durata": durata,
+                        "TotRata": tot,
+                        "DescrizioneProdotto": desc,
+                        "CopieBN": copie_bn,
+                        "EccBN": ecc_bn,
+                        "CopieCol": copie_col,
+                        "EccCol": ecc_col,
+                        "NOL_FIN": nol_fin,
+                        "NOL_INT": nol_int,
+                        "Stato": "aperto"
+                    }
+                    df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
+                    save_contratti(df_ct)
+                    st.success("✅ Contratto creato con successo.")
+                    time.sleep(0.6)
+                    st.session_state.pop("open_modal", None)
+                    placeholder.empty()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore durante la creazione: {e}")
 
-        if annulla:
-            st.session_state.pop("open_modal", None)
-            st.rerun()
+            if annulla:
+                st.session_state.pop("open_modal", None)
+                placeholder.empty()
+                st.rerun()
 
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-
-
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
 # =====================================
 # FUNZIONE MODALE MODIFICA CONTRATTO

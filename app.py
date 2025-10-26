@@ -597,173 +597,162 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — BLOCCHI COMPLETI + FIX DuplicateWidgetID + EXPORT
+# PAGINA CONTRATTI — VERSIONE COMPLETA CON CARD, AZIONI ED ESPORTA
 # =====================================
-import streamlit as st
-import pandas as pd
-import time
-from utils.data_io import save_contratti
-from utils.formatting import fmt_date
-from utils.exports import export_excel_contratti, export_pdf_contratti
-
-def _safe(s):
-    return "" if pd.isna(s) else str(s)
-
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    import time
+    from utils.data_io import save_contratti
+    from utils.formatting import fmt_date
+    from utils.exports import export_excel_contratti, export_pdf_contratti
+
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
-    permessi_limitati = (ruolo_scrittura == "limitato")
+    permessi_limitati = ruolo_scrittura == "limitato"
 
     st.markdown("## 📄 Gestione Contratti")
+
+    # === Inizializza modali ===
+    if "modal_add_contract" not in st.session_state:
+        st.session_state["modal_add_contract"] = False
+    if "modal_edit_contract" not in st.session_state:
+        st.session_state["modal_edit_contract"] = None
 
     # === Selezione cliente ===
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
 
-    clienti_labels = df_cli.apply(lambda r: f"{_safe(r['ClienteID'])} — {_safe(r['RagioneSociale'])}", axis=1)
+    clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     clienti_ids = df_cli["ClienteID"].astype(str).tolist()
-    sel_label = st.selectbox("Seleziona Cliente", clienti_labels.tolist(), key="sel_cliente_contratti_blocks")
+    sel_label = st.selectbox("Seleziona Cliente", clienti_labels.tolist())
     sel_id = clienti_ids[clienti_labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
+    # === Titolo cliente ===
     st.markdown(
         f"""
         <div style='display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:20px;'>
             <h3 style='margin:0;color:#2563eb;'>🏢 {rag_soc}</h3>
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
 
-    # === Azioni globali (nuovo + export) ===
-    c1, c2, c3 = st.columns([0.25, 0.25, 0.5])
-    with c1:
+    # === Azioni globali ===
+    colA, colB, colC = st.columns([0.25, 0.25, 0.5])
+    with colA:
         if not permessi_limitati:
-            if st.button("➕ Nuovo Contratto", use_container_width=True, key="btn_new_contract"):
+            if st.button("➕ Aggiungi Contratto", key="btn_add_contract", use_container_width=True):
                 st.session_state["modal_add_contract"] = True
-    with c2:
-        if st.button("📤 Esporta Excel", use_container_width=True, key="btn_export_xlsx"):
+                st.rerun()
+    with colB:
+        if st.button("📤 Esporta Excel", use_container_width=True):
             xlsx_bytes = export_excel_contratti(df_ct, sel_id, rag_soc)
             st.download_button(
-                "⬇️ Scarica Excel",
+                label="⬇️ Scarica Excel",
                 data=xlsx_bytes,
                 file_name=f"Contratti_{rag_soc}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="dl_export_xlsx",
+                use_container_width=True
             )
-    with c3:
-        if st.button("📄 Esporta PDF", use_container_width=True, key="btn_export_pdf"):
-            pdf_buf = export_pdf_contratti(df_ct, sel_id, rag_soc)
-            if pdf_buf:
+    with colC:
+        if st.button("📄 Esporta PDF", use_container_width=True):
+            pdf_bytes = export_pdf_contratti(df_ct, sel_id, rag_soc)
+            if pdf_bytes:
                 st.download_button(
-                    "⬇️ Scarica PDF",
-                    data=pdf_buf,
+                    label="⬇️ Scarica PDF",
+                    data=pdf_bytes,
                     file_name=f"Contratti_{rag_soc}.pdf",
                     mime="application/pdf",
-                    key="dl_export_pdf",
+                    use_container_width=True
                 )
             else:
-                st.warning("Nessun contratto da esportare.")
+                st.warning("⚠️ Nessun contratto da esportare per questo cliente.")
 
-    # === Filtra contratti del cliente ===
+    # === Filtra contratti ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     if ct.empty:
         st.info("Nessun contratto registrato per questo cliente.")
         return
 
-    st.markdown("---")
-    st.markdown("### 📋 Elenco Contratti (dettaglio completo)")
+    # === Layout contratti a CARD ===
+    st.markdown("### 📋 Elenco Contratti")
 
-    # Colonne note tipiche; se mancano, non si rompe
-    all_fields = [
-        "NumeroContratto", "DataInizio", "DataFine", "Durata",
-        "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-        "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
-    ]
-    for f in all_fields:
-        if f not in ct.columns:
-            ct[f] = ""
+    for i, r in ct.iterrows():
+        stato = str(r.get("Stato", "aperto")).lower()
+        numero = r.get("NumeroContratto", "—")
+        colore_sfondo = "#ffebee" if stato == "chiuso" else "#ffffff"
+        bordo = "#b71c1c" if stato == "chiuso" else "#2563eb"
 
-    # === RENDER A BLOCCHI CON TUTTI I CAMPI + TASTI ===
-    for i, r in ct.reset_index(drop=True).iterrows():
-        num = _safe(r.get("NumeroContratto", ""))
-        stato_val = _safe(r.get("Stato", "aperto")).lower()
-        is_chiuso = (stato_val == "chiuso")
-        colore_sfondo = "#ffebee" if is_chiuso else "#ffffff"
-        colore_bordo = "#b71c1c" if is_chiuso else "#2563eb"
+        with st.container():
+            st.markdown(
+                f"""
+                <div style="background:{colore_sfondo};padding:10px 14px;
+                            border-radius:8px;margin-bottom:8px;
+                            border-left:5px solid {bordo};">
+                    <b>📄 {numero}</b> — {r.get('DescrizioneProdotto','—')}
+                    <br>📅 {r.get('DataInizio','—')} → {r.get('DataFine','—')}
+                    | 💰 <b>{r.get('TotRata','—')}</b>
+                    <br><b>Stato:</b> {"❌ Chiuso" if stato == 'chiuso' else "✅ Aperto"}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-        # intestazione + righe dati
-        body = f"""
-        <div style="background:{colore_sfondo};padding:12px 16px;border-radius:10px;margin-bottom:10px;
-                    border-left:6px solid {colore_bordo};box-shadow:0 2px 6px rgba(0,0,0,0.08);">
-            <div style="font-weight:700">📄 Contratto: {_safe(r.get('NumeroContratto','—'))}</div>
-            <div>📅 Inizio: {_safe(r.get('DataInizio','—'))} → Fine: {_safe(r.get('DataFine','—'))} — Durata: {_safe(r.get('Durata','—'))} mesi</div>
-            <div>🧾 Descrizione: {_safe(r.get('DescrizioneProdotto','—'))}</div>
-            <div>🏷️ NOL FIN: {_safe(r.get('NOL_FIN','—'))} — NOL INT: {_safe(r.get('NOL_INT','—'))} — 💰 Tot Rata: <b>{_safe(r.get('TotRata','—'))}</b></div>
-            <div>🖨️ Copie B/N: {_safe(r.get('CopieBN','—'))} (Ecc: {_safe(r.get('EccBN','—'))}) — Copie Col: {_safe(r.get('CopieCol','—'))} (Ecc: {_safe(r.get('EccCol','—'))})</div>
-            <div><b>Stato:</b> {"❌ Chiuso" if is_chiuso else "✅ Aperto"}</div>
-        </div>
-        """
-        st.markdown(body, unsafe_allow_html=True)
+            c1, c2, c3 = st.columns([0.15, 0.15, 0.7])
+            with c1:
+                if not permessi_limitati:
+                    if st.button("✏️", key=f"edit_{numero}_{i}", use_container_width=True):
+                        st.session_state["modal_edit_contract"] = numero
+                        st.rerun()
+            with c2:
+                if not permessi_limitati:
+                    if stato == "aperto":
+                        if st.button("❌", key=f"close_{numero}_{i}", use_container_width=True):
+                            idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                            if len(idx) > 0:
+                                df_ct.loc[idx[0], "Stato"] = "chiuso"
+                                save_contratti(df_ct)
+                                st.success(f"Contratto {numero} chiuso ✅")
+                                st.rerun()
+                    else:
+                        if st.button("🔓", key=f"reopen_{numero}_{i}", use_container_width=True):
+                            idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                            if len(idx) > 0:
+                                df_ct.loc[idx[0], "Stato"] = "aperto"
+                                save_contratti(df_ct)
+                                st.success(f"Contratto {numero} riaperto ✅")
+                                st.rerun()
 
-        # chiavi UNICHE per ogni riga (evita DuplicateWidgetID)
-        k_prefix = f"{sel_id}_{i}_{num.replace(' ', '_') or 'noNum'}"
-
-        col_a, col_b, col_c = st.columns([0.16, 0.16, 0.68])
-        with col_a:
-            if not permessi_limitati:
-                if st.button("✏️ Modifica", key=f"btn_edit_{k_prefix}", use_container_width=True):
-                    st.session_state["modal_edit_contract"] = num
-                    st.session_state["modal_edit_key"] = k_prefix
-                    st.rerun()
-        with col_b:
-            if not permessi_limitati:
-                if not is_chiuso:
-                    if st.button("❌ Chiudi", key=f"btn_close_{k_prefix}", use_container_width=True):
-                        idx = df_ct.index[df_ct["NumeroContratto"] == num]
-                        if len(idx) > 0:
-                            df_ct.loc[idx[0], "Stato"] = "chiuso"
-                            save_contratti(df_ct)
-                            st.success(f"Contratto {num} chiuso ✅")
-                            st.rerun()
-                else:
-                    if st.button("🔓 Riapri", key=f"btn_reopen_{k_prefix}", use_container_width=True):
-                        idx = df_ct.index[df_ct["NumeroContratto"] == num]
-                        if len(idx) > 0:
-                            df_ct.loc[idx[0], "Stato"] = "aperto"
-                            save_contratti(df_ct)
-                            st.success(f"Contratto {num} riaperto ✅")
-                            st.rerun()
-
-    # === MODALE NUOVO CONTRATTO ===
+    # === MODALE AGGIUNGI CONTRATTO ===
     if st.session_state.get("modal_add_contract", False):
         st.markdown("""
         <style>
-        .modal-bg { position: fixed; top:0; left:0; width:100%; height:100%;
-                    background: rgba(0,0,0,0.45); z-index:9999;
-                    display:flex; justify-content:center; align-items:center; }
-        .modal-box { background:white; border-radius:12px; width:560px;
-                     padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25); }
+        .modal-bg {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.45); z-index:9999;
+            display:flex; justify-content:center; align-items:center;
+        }
+        .modal-box {
+            background:white; border-radius:12px; width:520px;
+            padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25);
+        }
         </style>
         <div class="modal-bg"><div class="modal-box">
         """, unsafe_allow_html=True)
 
         st.markdown("### ➕ Nuovo Contratto")
-        with st.form("form_add_contract_blocks"):
+        with st.form("form_add_contract"):
             num = st.text_input("Numero Contratto")
             data_inizio = st.date_input("Data Inizio")
             durata = st.selectbox("Durata (mesi)", [12, 24, 36, 48, 60], index=2)
-            desc = st.text_area("Descrizione Prodotto", height=100)
-            nol_fin = st.text_input("NOL FIN", "")
-            nol_int = st.text_input("NOL INT", "")
+            desc = st.text_area("Descrizione Prodotto", height=80)
             tot = st.text_input("Totale Rata")
-            copie_bn = st.text_input("Copie B/N", "")
-            ecc_bn = st.text_input("Eccedenze B/N", "")
-            copie_col = st.text_input("Copie Colore", "")
-            ecc_col = st.text_input("Eccedenze Colore", "")
 
-            salva = st.form_submit_button("💾 Salva")
-            annulla = st.form_submit_button("❌ Annulla")
+            col1, col2 = st.columns(2)
+            with col1:
+                salva = st.form_submit_button("💾 Salva")
+            with col2:
+                annulla = st.form_submit_button("❌ Annulla")
 
             if salva:
                 data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
@@ -774,21 +763,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     "DataInizio": fmt_date(data_inizio),
                     "DataFine": fmt_date(data_fine),
                     "Durata": durata,
-                    "DescrizioneProdotto": desc,
-                    "NOL_FIN": nol_fin,
-                    "NOL_INT": nol_int,
                     "TotRata": tot,
-                    "CopieBN": copie_bn,
-                    "EccBN": ecc_bn,
-                    "CopieCol": copie_col,
-                    "EccCol": ecc_col,
-                    "Stato": "aperto",
+                    "DescrizioneProdotto": desc,
+                    "Stato": "aperto"
                 }
                 df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
                 save_contratti(df_ct)
                 st.session_state["modal_add_contract"] = False
                 st.success("✅ Contratto aggiunto con successo!")
-                time.sleep(0.4)
+                time.sleep(0.5)
                 st.rerun()
 
             if annulla:
@@ -799,64 +782,44 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === MODALE MODIFICA CONTRATTO ===
     if st.session_state.get("modal_edit_contract"):
-        num = st.session_state["modal_edit_contract"]
-        k_prefix = st.session_state.get("modal_edit_key", "edit")
-
-        # prendi il record corrente (se esiste)
-        subset = df_ct[df_ct["NumeroContratto"] == num]
-        if subset.empty:
-            st.warning("Il contratto da modificare non è più disponibile.")
-            st.session_state["modal_edit_contract"] = None
-            st.rerun()
-        contratto = subset.iloc[0]
+        numero = st.session_state["modal_edit_contract"]
+        contratto = df_ct[df_ct["NumeroContratto"] == numero].iloc[0]
 
         st.markdown("""
         <style>
-        .modal-bg { position: fixed; top:0; left:0; width:100%; height:100%;
-                    background: rgba(0,0,0,0.45); z-index:9999;
-                    display:flex; justify-content:center; align-items:center; }
-        .modal-box { background:white; border-radius:12px; width:560px;
-                     padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25); }
+        .modal-bg {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.45); z-index:9999;
+            display:flex; justify-content:center; align-items:center;
+        }
+        .modal-box {
+            background:white; border-radius:12px; width:520px;
+            padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25);
+        }
         </style>
         <div class="modal-bg"><div class="modal-box">
         """, unsafe_allow_html=True)
 
-        st.markdown(f"### ✏️ Modifica Contratto {num}")
-        with st.form(f"form_edit_contract_{k_prefix}"):
-            desc = st.text_area("Descrizione Prodotto", _safe(contratto.get("DescrizioneProdotto","")), height=100)
-            nol_fin = st.text_input("NOL FIN", _safe(contratto.get("NOL_FIN","")))
-            nol_int = st.text_input("NOL INT", _safe(contratto.get("NOL_INT","")))
-            tot = st.text_input("Totale Rata", _safe(contratto.get("TotRata","")))
-            durata = st.text_input("Durata (mesi)", _safe(contratto.get("Durata","")))
-            data_inizio = st.text_input("Data Inizio", _safe(contratto.get("DataInizio","")))
-            data_fine = st.text_input("Data Fine", _safe(contratto.get("DataFine","")))
-            copie_bn = st.text_input("Copie B/N", _safe(contratto.get("CopieBN","")))
-            ecc_bn = st.text_input("Eccedenze B/N", _safe(contratto.get("EccBN","")))
-            copie_col = st.text_input("Copie Colore", _safe(contratto.get("CopieCol","")))
-            ecc_col = st.text_input("Eccedenze Colore", _safe(contratto.get("EccCol","")))
-            stato = st.selectbox(
-                "Stato",
-                ["aperto", "chiuso"],
-                index=0 if _safe(contratto.get("Stato","")) != "chiuso" else 1
-            )
+        st.markdown(f"### ✏️ Modifica Contratto {numero}")
+        with st.form("form_edit_contract"):
+            desc = st.text_area("Descrizione", contratto.get("DescrizioneProdotto", ""), height=100)
+            tot = st.text_input("Totale Rata", contratto.get("TotRata", ""))
+            stato = st.selectbox("Stato", ["aperto", "chiuso"], index=0 if contratto.get("Stato","")!="chiuso" else 1)
 
-            salva = st.form_submit_button("💾 Salva")
-            annulla = st.form_submit_button("❌ Annulla")
+            col1, col2 = st.columns(2)
+            with col1:
+                salva = st.form_submit_button("💾 Salva")
+            with col2:
+                annulla = st.form_submit_button("❌ Annulla")
 
             if salva:
-                idx = df_ct.index[df_ct["NumeroContratto"] == num]
-                if len(idx) > 0:
-                    df_ct.loc[idx[0], [
-                        "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata", "Durata",
-                        "DataInizio", "DataFine", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
-                    ]] = [desc, nol_fin, nol_int, tot, durata, data_inizio, data_fine, copie_bn, ecc_bn, copie_col, ecc_col, stato]
-                    save_contratti(df_ct)
-                    st.session_state["modal_edit_contract"] = None
-                    st.success("✅ Contratto aggiornato!")
-                    time.sleep(0.4)
-                    st.rerun()
-                else:
-                    st.error("Impossibile aggiornare: riga non trovata.")
+                idx = df_ct.index[df_ct["NumeroContratto"] == numero][0]
+                df_ct.loc[idx, ["DescrizioneProdotto", "TotRata", "Stato"]] = [desc, tot, stato]
+                save_contratti(df_ct)
+                st.session_state["modal_edit_contract"] = None
+                st.success("✅ Contratto aggiornato!")
+                time.sleep(0.5)
+                st.rerun()
 
             if annulla:
                 st.session_state["modal_edit_contract"] = None

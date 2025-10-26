@@ -1013,6 +1013,11 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 # =====================================
 # MAIN APP — versione definitiva 2025 con filtro visibilità e loader sicuro
 # =====================================
+
+# 🧹 Pulizia cache automatica all’avvio (solo per debug o refresh completo)
+st.cache_data.clear()
+st.cache_resource.clear()
+
 def main():
     # --- FIX LAYOUT E STILE ---
     st.markdown("""

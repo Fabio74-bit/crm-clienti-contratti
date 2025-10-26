@@ -18,6 +18,8 @@ from utils.exports import *
 from utils.fixes import *
 from utils.pdf_builder import SHTPDF
 from utils.dashboard import page_dashboard
+from utils.dashboard_grafica import page_dashboard_grafica
+
 
 
 
@@ -1456,7 +1458,8 @@ def main():
 
     # --- Pagine ---
     PAGES = {
-        "📊 Dashboard grafica": page_dashboard,
+        "📋 Dashboard": page_dashboard,
+        "📊 Dashboard Grafica": page_dashboard_grafica,
         "Clienti": page_clienti,
         "Contratti": page_contratti,
         "📅 Recall e Visite": page_richiami_visite,

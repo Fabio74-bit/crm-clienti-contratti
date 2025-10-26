@@ -606,7 +606,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA STREAMLIT” (RIAPRI + FIX PULSANTI)
+# PAGINA CONTRATTI — VERSIONE FINALE 2025 COMPLETA
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -633,23 +633,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
     # === Header e pulsante aggiunta ===
-    st.markdown(
-        f"""
-        <div style='display:flex;align-items:center;justify-content:space-between;margin-top:10px;margin-bottom:20px;'>
-            <h3 style='margin:0;color:#2563eb;'>🏢 {rag_soc}</h3>
-        </div>
-        """, unsafe_allow_html=True
-    )
-
-    if not permessi_limitati:
-        if st.button("➕ Aggiungi Contratto", key="btn_add_contract"):
+    colh1, colh2 = st.columns([4, 1])
+    with colh1:
+        st.markdown(f"### 🏢 {rag_soc}")
+    with colh2:
+        if not permessi_limitati and st.button("➕ Aggiungi Contratto", use_container_width=True):
             st.session_state["open_modal"] = "new"
             st.rerun()
 
     # === Filtra contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     if ct.empty:
-        st.info("Nessun contratto registrato per questo cliente.")
+        st.info("📭 Nessun contratto registrato per questo cliente.")
         return
 
     # === Formatta dati ===
@@ -659,60 +654,50 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ct["NOL_FIN"] = ct["NOL_FIN"].apply(money)
     ct["NOL_INT"] = ct["NOL_INT"].apply(money)
 
-    # === Stile tabella ===
-    st.markdown("""
-    <style>
-      .tbl-wrapper { overflow-x:auto; }
-      .tbl-container {
-          border:1px solid #e0e0e0; border-radius:10px; overflow:hidden;
-          box-shadow:0 2px 6px rgba(0,0,0,0.05); min-width:1400px;
-      }
-      .tbl-header, .tbl-row {
-          display:grid;
-          grid-template-columns: 
-            1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr;
-          padding:8px 14px; font-size:14px; align-items:center;
-      }
-      .tbl-header { background:#f8fafc; font-weight:600; border-bottom:1px solid #e5e7eb; }
-      .tbl-row:nth-child(even) { background:#ffffff; }
-      .tbl-row:nth-child(odd) { background:#fdfdfd; }
-      .tbl-row.chiuso { background:#ffebee !important; }
-      .pill {
-          display:inline-block; padding:2px 8px; border-radius:999px; font-weight:600; font-size:12px;
-      }
-      .pill-open { background:#e8f5e9; color:#1b5e20; }
-      .pill-closed { background:#ffebee; color:#b71c1c; }
-      .action-btn { border:none; border-radius:6px; padding:4px 8px; cursor:pointer; color:white; font-weight:600; }
-      .edit { background:#1976d2; }
-      .del { background:#e53935; margin-left:6px; }
-      .reopen { background:#43a047; margin-left:6px; }
-      .desc-clip { display:block; max-width:380px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # === Tabella ===
-    st.markdown("<div class='tbl-wrapper'><div class='tbl-container'>", unsafe_allow_html=True)
+    # === Titoli tabella ===
+    st.markdown("### 📋 Elenco Contratti")
     st.markdown(
         """
-        <div class='tbl-header'>
-            <div>📄 Numero</div>
-            <div>📅 Inizio</div>
-            <div>📅 Fine</div>
-            <div>📆 Durata</div>
-            <div>💰 Tot Rata</div>
-            <div>🧾 Descrizione</div>
-            <div>📄 Copie B/N</div>
-            <div>💶 Extra B/N</div>
-            <div>🖨️ Copie Col</div>
-            <div>💶 Extra Col</div>
-            <div>🏦 NOL_FIN</div>
-            <div>🏢 NOL_INT</div>
-            <div>🟢 Stato</div>
-            <div>⚙️ Azioni</div>
-        </div>
+        <style>
+        .tbl-header {
+            display:grid;
+            grid-template-columns: 1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr;
+            padding:6px 10px; font-weight:600; font-size:14px;
+            background:#f8fafc; border-bottom:1px solid #e5e7eb;
+        }
+        .tbl-row {
+            display:grid;
+            grid-template-columns: 1.1fr 0.9fr 0.9fr 0.6fr 0.9fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr;
+            padding:6px 10px; font-size:14px; align-items:center;
+        }
+        .tbl-row.chiuso { background:#ffebee !important; }
+        .pill { padding:2px 8px; border-radius:999px; font-weight:600; font-size:12px; }
+        .pill-open { background:#e8f5e9; color:#1b5e20; }
+        .pill-closed { background:#ffebee; color:#b71c1c; }
+        </style>
         """, unsafe_allow_html=True
     )
 
+    st.markdown("""
+    <div class='tbl-header'>
+        <div>📄 Numero</div>
+        <div>📅 Inizio</div>
+        <div>📅 Fine</div>
+        <div>📆 Durata</div>
+        <div>💰 Tot Rata</div>
+        <div>🧾 Descrizione</div>
+        <div>📄 Copie B/N</div>
+        <div>💶 Extra B/N</div>
+        <div>🖨️ Copie Col</div>
+        <div>💶 Extra Col</div>
+        <div>🏦 NOL_FIN</div>
+        <div>🏢 NOL_INT</div>
+        <div>🟢 Stato</div>
+        <div>⚙️ Azioni</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # === Righe tabella ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "aperto")).lower()
         bg_class = "chiuso" if stato == "chiuso" else ""
@@ -725,52 +710,150 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             else "<span class='pill pill-open'>Aperto</span>"
         )
 
-        st.markdown(
-            f"""
-            <div class='tbl-row {bg_class}'>
-                <div>{r.get("NumeroContratto","—")}</div>
-                <div>{r.get("DataInizio","—")}</div>
-                <div>{r.get("DataFine","—")}</div>
-                <div>{r.get("Durata","—")}</div>
-                <div>{r.get("TotRata","—")}</div>
-                <div><span class='desc-clip' title="{desc.replace('"','&quot;')}">{desc_short}</span></div>
-                <div>{r.get("CopieBN","—")}</div>
-                <div>{r.get("EccBN","—")}</div>
-                <div>{r.get("CopieCol","—")}</div>
-                <div>{r.get("EccCol","—")}</div>
-                <div>{r.get("NOL_FIN","—")}</div>
-                <div>{r.get("NOL_INT","—")}</div>
-                <div>{stato_badge}</div>
-                <div style='display:flex;justify-content:center;gap:6px;'>
-            """, unsafe_allow_html=True
+        cols = st.columns([1.1, 0.9, 0.9, 0.6, 0.9, 1.2, 0.8, 0.8, 0.8, 0.8, 0.9, 0.9, 0.8, 0.9])
+        cols[0].write(r.get("NumeroContratto", "—"))
+        cols[1].write(r.get("DataInizio", "—"))
+        cols[2].write(r.get("DataFine", "—"))
+        cols[3].write(r.get("Durata", "—"))
+        cols[4].write(r.get("TotRata", "—"))
+        cols[5].write(desc_short)
+        cols[6].write(r.get("CopieBN", "—"))
+        cols[7].write(r.get("EccBN", "—"))
+        cols[8].write(r.get("CopieCol", "—"))
+        cols[9].write(r.get("EccCol", "—"))
+        cols[10].write(r.get("NOL_FIN", "—"))
+        cols[11].write(r.get("NOL_INT", "—"))
+        cols[12].markdown(stato_badge, unsafe_allow_html=True)
+
+        # === Azioni inline ===
+        with cols[13]:
+            b1, b2 = st.columns(2)
+            with b1:
+                if not permessi_limitati:
+                    if st.button("✏️", key=f"edit_{numero}", use_container_width=True):
+                        st.session_state["edit_contract"] = numero
+                        st.rerun()
+            with b2:
+                if not permessi_limitati:
+                    if stato == "aperto":
+                        if st.button("❌", key=f"close_{numero}", use_container_width=True):
+                            idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                            if len(idx) > 0:
+                                df_ct.loc[idx[0], "Stato"] = "chiuso"
+                                save_contratti(df_ct)
+                                st.rerun()
+                    else:
+                        if st.button("🔓", key=f"reopen_{numero}", use_container_width=True):
+                            idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                            if len(idx) > 0:
+                                df_ct.loc[idx[0], "Stato"] = "aperto"
+                                save_contratti(df_ct)
+                                st.rerun()
+
+    # === SEZIONE ESPORTAZIONI ===
+    st.markdown("---")
+    st.markdown("### 📤 Esporta Dati Contratti")
+
+    cex1, cex2 = st.columns(2)
+    with cex1:
+        st.download_button(
+            "📘 Esporta Excel",
+            export_excel_contratti(df_ct, sel_id, rag_soc),
+            file_name=f"Contratti_{rag_soc}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    with cex2:
+        st.download_button(
+            "📗 Esporta PDF",
+            export_pdf_contratti(df_ct, sel_id, rag_soc),
+            file_name=f"Contratti_{rag_soc}.pdf",
+            mime="application/pdf",
+            use_container_width=True
         )
 
-        # 🔹 Pulsanti sulla stessa riga
-        if not permessi_limitati:
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✏️", key=f"edit_{numero}", help="Modifica contratto"):
-                    st.session_state["edit_contract"] = numero
-                    st.rerun()
-            with c2:
-                if stato == "aperto":
-                    if st.button("❌", key=f"close_{numero}", help="Chiudi contratto"):
-                        idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-                        if len(idx) > 0:
-                            df_ct.loc[idx[0], "Stato"] = "chiuso"
-                            save_contratti(df_ct)
-                            st.success(f"✅ Contratto {numero} chiuso correttamente.")
-                            st.rerun()
-                else:
-                    if st.button("🔓", key=f"reopen_{numero}", help="Riapri contratto"):
-                        idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-                        if len(idx) > 0:
-                            df_ct.loc[idx[0], "Stato"] = "aperto"
-                            save_contratti(df_ct)
-                            st.success(f"🔓 Contratto {numero} riaperto correttamente.")
-                            st.rerun()
+    # === MODALE NUOVO CONTRATTO ===
+    if st.session_state.get("open_modal") == "new" and not permessi_limitati:
+        show_new_contract_modal(df_ct, sel_id, rag_soc)
 
-        st.markdown("</div></div>", unsafe_allow_html=True)
+    # === MODALE MODIFICA CONTRATTO ===
+    if st.session_state.get("edit_contract") and not permessi_limitati:
+        num_cont = st.session_state["edit_contract"]
+        contratto = df_ct[df_ct["NumeroContratto"] == num_cont]
+        if not contratto.empty:
+            contratto = contratto.iloc[0]
+            show_contract_modal(contratto, df_ct, df_cli, rag_soc)
+        else:
+            st.warning("Contratto non trovato.")
+
+
+# =====================================
+# MODALE CREAZIONE NUOVO CONTRATTO
+# =====================================
+def show_new_contract_modal(df_ct, sel_id, rag_soc):
+    st.markdown("""
+    <style>
+    .modal-bg { position: fixed; top:0; left:0; width:100%; height:100%;
+        background: rgba(0,0,0,0.4); z-index: 9998;
+        display: flex; align-items: center; justify-content: center; }
+    .modal-box { background: white; border-radius: 12px; width: 620px;
+        padding: 1.8rem 2rem; box-shadow: 0 4px 18px rgba(0,0,0,0.25); }
+    </style>
+    <div class="modal-bg"><div class="modal-box">
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"### ➕ Nuovo Contratto — {rag_soc}")
+
+    with st.form("frm_new_contract"):
+        col1, col2 = st.columns(2)
+        with col1:
+            numero = st.text_input("Numero Contratto")
+            data_inizio = st.date_input("Data Inizio", format="DD/MM/YYYY")
+            durata = st.text_input("Durata (mesi)", "36")
+        with col2:
+            tot = st.text_input("Tot Rata (€)")
+            nol_fin = st.text_input("NOL_FIN (€)")
+            nol_int = st.text_input("NOL_INT (€)")
+
+        desc = st.text_area("Descrizione Prodotto", height=100)
+        colA, colB, colC, colD = st.columns(4)
+        copie_bn = colA.text_input("Copie B/N")
+        ecc_bn   = colB.text_input("Extra B/N (€)")
+        copie_col= colC.text_input("Copie Colore")
+        ecc_col  = colD.text_input("Extra Colore (€)")
+
+        salva = st.form_submit_button("💾 Crea Contratto", use_container_width=True)
+        annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
+
+        if salva:
+            fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
+            nuovo = {
+                "ClienteID": sel_id,
+                "RagioneSociale": rag_soc,
+                "NumeroContratto": numero,
+                "DataInizio": fmt_date(data_inizio),
+                "DataFine": fmt_date(fine),
+                "Durata": durata,
+                "TotRata": tot,
+                "DescrizioneProdotto": desc,
+                "CopieBN": copie_bn,
+                "EccBN": ecc_bn,
+                "CopieCol": copie_col,
+                "EccCol": ecc_col,
+                "NOL_FIN": nol_fin,
+                "NOL_INT": nol_int,
+                "Stato": "aperto"
+            }
+            df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
+            save_contratti(df_ct)
+            st.success("✅ Contratto creato con successo.")
+            time.sleep(0.6)
+            st.session_state.pop("open_modal", None)
+            st.rerun()
+
+        if annulla:
+            st.session_state.pop("open_modal", None)
+            st.rerun()
 
     st.markdown("</div></div>", unsafe_allow_html=True)
 

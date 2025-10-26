@@ -35,14 +35,9 @@ st.markdown("""
     max-width: 95% !important;
     padding-left: 2rem !important;
     padding-right: 2rem !important;
-    background-color: #f5f5f5 !important;
 }
-[data-testid="stAppViewContainer"] {
-    background-color: #f5f5f5 !important;
-}
-[data-testid="stHeader"] {
-    background: transparent !important;
-}
+[data-testid="stAppViewContainer"] { background-color: #f7f8fa !important; }
+[data-testid="stHeader"] { background: transparent !important; }
 </style>
 """, unsafe_allow_html=True)
 

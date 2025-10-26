@@ -606,7 +606,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# 📑 PAGINA CONTRATTI — VERSIONE CLASSICA + FIX FUNZIONI
+# 📑 PAGINA CONTRATTI — VERSIONE CLASSICA + FIX FUNZIONI COMPLETA
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📄 Gestione Contratti")
@@ -666,7 +666,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             </div>
             """, unsafe_allow_html=True)
 
-            c1, c2 = st.columns([0.1, 0.1])
+            c1, c2 = st.columns([0.15, 0.15])
             with c1:
                 if st.button("✏️ Modifica", key=f"edit_{idx}", use_container_width=True):
                     st.session_state["edit_contract_id"] = idx
@@ -674,10 +674,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.rerun()
             with c2:
                 if stato != "chiuso" and st.button("❌ Chiudi", key=f"close_{idx}", use_container_width=True):
-                    df_ct.loc[idx, "Stato"] = "chiuso"
-                    save_contratti(df_ct)
-                    st.success(f"✅ Contratto {r.get('NumeroContratto','')} chiuso con successo.")
-                    st.rerun()
+                    try:
+                        df_ct.loc[idx, "Stato"] = "chiuso"
+                        save_contratti(df_ct)
+                        st.success(f"✅ Contratto {r.get('NumeroContratto','')} chiuso correttamente.")
+                        st.session_state["editing_contract"] = False
+                        st.session_state["edit_contract_id"] = None
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore durante la chiusura: {e}")
 
     # === MODIFICA CONTRATTO ===
     if st.session_state.get("editing_contract"):
@@ -689,24 +694,43 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with st.form(f"frm_edit_{idx}"):
                 col1, col2, col3 = st.columns(3)
                 numero = col1.text_input("📄 Numero Contratto", c.get("NumeroContratto", ""))
-                data_inizio = col2.date_input("📅 Data Inizio", pd.to_datetime(c.get("DataInizio"), errors="coerce"), format="DD/MM/YYYY")
-                data_fine = col3.date_input("🏁 Data Fine", pd.to_datetime(c.get("DataFine"), errors="coerce"), format="DD/MM/YYYY")
+                data_inizio = col2.date_input(
+                    "📅 Data Inizio",
+                    pd.to_datetime(c.get("DataInizio"), errors="coerce"),
+                    format="DD/MM/YYYY"
+                )
+                data_fine = col3.date_input(
+                    "🏁 Data Fine",
+                    pd.to_datetime(c.get("DataFine"), errors="coerce"),
+                    format="DD/MM/YYYY"
+                )
 
                 descrizione = st.text_area("🧾 Descrizione Prodotto", c.get("DescrizioneProdotto", ""), height=80)
                 tot_rata = st.text_input("💰 Tot. Rata", c.get("TotRata", ""))
-                stato = st.selectbox("📄 Stato", ["aperto", "chiuso"], index=0 if c.get("Stato","aperto")=="aperto" else 1)
+                stato = st.selectbox(
+                    "📄 Stato", ["aperto", "chiuso"],
+                    index=0 if c.get("Stato", "aperto") == "aperto" else 1
+                )
 
                 salva = st.form_submit_button("💾 Salva Modifiche")
                 annulla = st.form_submit_button("❌ Annulla")
 
                 if salva:
-                    df_ct.loc[idx, ["NumeroContratto","DataInizio","DataFine","DescrizioneProdotto","TotRata","Stato"]] = \
-                        [numero, fmt_date(data_inizio), fmt_date(data_fine), descrizione, tot_rata, stato]
-                    save_contratti(df_ct)
-                    st.success("✅ Modifiche salvate.")
-                    st.session_state["editing_contract"] = False
-                    st.session_state["edit_contract_id"] = None
-                    st.rerun()
+                    try:
+                        df_ct.loc[idx, [
+                            "NumeroContratto", "DataInizio", "DataFine",
+                            "DescrizioneProdotto", "TotRata", "Stato"
+                        ]] = [
+                            numero, fmt_date(data_inizio), fmt_date(data_fine),
+                            descrizione, tot_rata, stato
+                        ]
+                        save_contratti(df_ct)
+                        st.success("✅ Modifiche salvate correttamente.")
+                        st.session_state["editing_contract"] = False
+                        st.session_state["edit_contract_id"] = None
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore durante il salvataggio: {e}")
 
                 if annulla:
                     st.session_state["editing_contract"] = False
@@ -726,21 +750,26 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         salva = st.form_submit_button("💾 Crea Contratto")
         if salva:
-            fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
-            nuovo = {
-                "ClienteID": sel_id,
-                "RagioneSociale": rag_soc,
-                "NumeroContratto": numero,
-                "DataInizio": fmt_date(data_inizio),
-                "DataFine": fmt_date(fine),
-                "DescrizioneProdotto": descrizione,
-                "TotRata": tot,
-                "Stato": "aperto"
-            }
-            df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
-            save_contratti(df_ct)
-            st.success("✅ Nuovo contratto creato correttamente.")
-            st.rerun()
+            try:
+                fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
+                nuovo = {
+                    "ClienteID": sel_id,
+                    "RagioneSociale": rag_soc,
+                    "NumeroContratto": numero,
+                    "DataInizio": fmt_date(data_inizio),
+                    "DataFine": fmt_date(fine),
+                    "DescrizioneProdotto": descrizione,
+                    "TotRata": tot,
+                    "Durata": durata,
+                    "Stato": "aperto"
+                }
+                df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
+                save_contratti(df_ct)
+                st.success("✅ Nuovo contratto creato correttamente.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Errore durante la creazione del contratto: {e}")
+
 
 
 

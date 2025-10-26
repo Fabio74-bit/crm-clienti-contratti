@@ -1121,121 +1121,92 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — LAYOUT A CARD ELEGANTE (VERSIONE COMPLETA 2025)
+# PAGINA CONTRATTI — VERSIONE COMPLETA A CARD ELEGANTE (FIXATA 2025)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
 
-    # === STILE GRAFICO ===
+    # === STILE ===
     st.markdown("""
     <style>
-      .contract-card {
-          background:#fff;
-          border-radius:12px;
-          box-shadow:0 2px 10px rgba(0,0,0,0.08);
-          padding:1.2rem 1.5rem;
-          margin-bottom:1.2rem;
-          border-left:6px solid #2563eb;
-          transition: all 0.2s ease-in-out;
+      .contratto-card {
+        background: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 1.2rem 1.5rem;
+        margin-bottom: 1.2rem;
+        border-left: 6px solid #2563eb;
       }
-      .contract-card:hover {box-shadow:0 4px 16px rgba(0,0,0,0.12);}
-      .contract-header {
-          display:flex;
-          justify-content:space-between;
-          align-items:center;
-          margin-bottom:0.6rem;
+      .contratto-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: .8rem;
       }
-      .contract-title {
-          font-size:1.1rem;
-          font-weight:600;
-          color:#2563eb;
+      .contratto-num {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2563eb;
       }
-      .contract-status {
-          font-weight:700;
-          padding:4px 10px;
-          border-radius:8px;
-          font-size:0.85rem;
+      .contratto-stato {
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 0.85rem;
       }
-      .open {background:#e8f5e9;color:#1b5e20;}
-      .closed {background:#ffebee;color:#b71c1c;}
-      .contract-info {
-          font-size:0.9rem;
-          color:#333;
-          line-height:1.6;
+      .aperto {background:#e8f5e9;color:#1b5e20;}
+      .chiuso {background:#ffebee;color:#b71c1c;}
+      .contratto-body {
+        font-size: 0.9rem;
+        color: #333;
+        line-height: 1.6;
       }
-      .contract-actions button {
-          width:100%;
-          font-size:0.85rem;
-          border:none;
-          border-radius:6px;
+      .contratto-buttons button {
+        flex: 1;
+        border: none !important;
+        border-radius: 6px !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
       }
-      .btn-edit > button {
-          background:#e3f2fd;
-          color:#0d47a1;
-      }
-      .btn-del > button {
-          background:#ffebee;
-          color:#b71c1c;
-      }
-      .btn-desc > button {
-          background:#f5f5f5;
-          color:#333;
-      }
-      .popup-desc {
-          background:#fff;
-          padding:1.5rem;
-          border-radius:12px;
-          box-shadow:0 4px 20px rgba(0,0,0,0.15);
-      }
+      .btn-det > button {background:#f5f5f5 !important; color:#333 !important;}
+      .btn-mod > button {background:#e3f2fd !important; color:#0d47a1 !important;}
+      .btn-del > button {background:#ffebee !important; color:#b71c1c !important;}
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("<h2>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
     st.divider()
 
-    # === SELEZIONE CLIENTE ===
+    # === Selezione Cliente ===
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
 
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
-    cliente_ids = df_cli["ClienteID"].astype(str).tolist()
+    ids = df_cli["ClienteID"].astype(str).tolist()
 
-    selected_cliente_id = st.session_state.pop("selected_cliente", None)
-    if selected_cliente_id and str(selected_cliente_id) in cliente_ids:
-        sel_index = cliente_ids.index(str(selected_cliente_id))
-    else:
-        sel_index = 0
-
-    sel_label = st.selectbox("Seleziona Cliente", labels.tolist(), index=sel_index, key="sel_cliente_contratti")
-    sel_id = cliente_ids[labels.tolist().index(sel_label)]
+    sel_label = st.selectbox("Seleziona Cliente", labels, index=0, key="sel_cli_ct")
+    sel_id = sel_label.split(" — ")[0]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
-    # === TITOLO CLIENTE ===
-    st.markdown(
-        f"<h3 style='text-align:center;color:#2563eb;margin-bottom:0;'>{rag_soc}</h3>"
-        f"<p style='text-align:center;color:#555;'>ID Cliente: {sel_id}</p>",
-        unsafe_allow_html=True
-    )
+    st.markdown(f"<h3 style='text-align:center;color:#2563eb'>{rag_soc}</h3>", unsafe_allow_html=True)
+    st.caption(f"ID Cliente: {sel_id}")
 
-    # === CONTRATTI CLIENTE ===
-    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy().reset_index().rename(columns={"index": "_gidx"})
+    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
 
-    # === EXPANDER: NUOVO CONTRATTO ===
+    # === CREAZIONE NUOVO CONTRATTO ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
         if permessi_limitati:
-            st.warning("🔒 Non hai i permessi per creare nuovi contratti.")
+            st.warning("🔒 Accesso sola lettura")
         else:
-            with st.form(f"frm_new_contract_{sel_id}"):
+            with st.form(f"new_ct_{sel_id}"):
                 c1, c2, c3, c4 = st.columns(4)
                 num = c1.text_input("Numero Contratto")
                 din = c2.date_input("Data Inizio", format="DD/MM/YYYY")
                 durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
                 stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0)
-
                 desc = st.text_area("Descrizione Prodotto", height=80)
-
                 c5, c6, c7 = st.columns(3)
                 nf = c5.text_input("NOL_FIN")
                 ni = c6.text_input("NOL_INT")
@@ -1249,90 +1220,81 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 if st.form_submit_button("💾 Crea contratto"):
                     try:
-                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-                        new_row = {
-                            "ClienteID": sel_id,
-                            "RagioneSociale": rag_soc,
+                        fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                        nuovo = {
+                            "ClienteID": sel_id, "RagioneSociale": rag_soc,
                             "NumeroContratto": num,
                             "DataInizio": fmt_date(din),
-                            "DataFine": fmt_date(data_fine),
+                            "DataFine": fmt_date(fine),
                             "Durata": durata,
                             "DescrizioneProdotto": desc,
-                            "NOL_FIN": nf,
-                            "NOL_INT": ni,
-                            "TotRata": tot,
-                            "CopieBN": copie_bn, "EccBN": ecc_bn,
+                            "NOL_FIN": nf, "NOL_INT": ni,
+                            "TotRata": tot, "CopieBN": copie_bn, "EccBN": ecc_bn,
                             "CopieCol": copie_col, "EccCol": ecc_col,
-                            "Stato": stato_new or "aperto",
+                            "Stato": stato_new
                         }
-                        df_ct = pd.concat([df_ct, pd.DataFrame([new_row])], ignore_index=True)
+                        df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
                         save_contratti(df_ct)
-                        st.success("✅ Contratto creato con successo.")
+                        st.success("✅ Contratto creato.")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Errore creazione contratto: {e}")
+                        st.error(f"Errore: {e}")
 
     st.divider()
     st.markdown("### 📋 Contratti del Cliente")
 
     if ct.empty:
-        st.info("Nessun contratto per questo cliente.")
+        st.info("Nessun contratto registrato.")
         return
 
-    # === VISUALIZZAZIONE CARD CONTRATTI ===
+    # === VISUALIZZAZIONE CONTRATTI A CARD ===
     for i, r in ct.iterrows():
-        gidx = int(r["_gidx"])
-        stato = str(r.get("Stato", "")).lower()
-        stato_class = "closed" if stato == "chiuso" else "open"
+        stato = str(r.get("Stato", "aperto")).lower()
+        stato_class = "chiuso" if stato == "chiuso" else "aperto"
 
-        st.markdown(f"<div class='contract-card'>", unsafe_allow_html=True)
+        st.markdown(f"<div class='contratto-card'>", unsafe_allow_html=True)
         st.markdown(f"""
-            <div class='contract-header'>
-                <div class='contract-title'>📄 Contratto {r.get('NumeroContratto','')}</div>
-                <div class='contract-status {stato_class}'>{stato.capitalize()}</div>
-            </div>
-            <div class='contract-info'>
-                <b>📅 Inizio:</b> {fmt_date(r.get('DataInizio'))}  
-                <b>🕓 Fine:</b> {fmt_date(r.get('DataFine'))}  
-                <b>⏱ Durata:</b> {r.get('Durata','')} mesi  
-                <b>💰 Tot. Rata:</b> {money(r.get('TotRata'))}
-                <br>
-                <b>📦 Prodotto:</b> {r.get('DescrizioneProdotto','—')}
-            </div>
+        <div class='contratto-header'>
+          <div class='contratto-num'>📄 Contratto {r.get('NumeroContratto','')}</div>
+          <div class='contratto-stato {stato_class}'>{stato.capitalize()}</div>
+        </div>
+        <div class='contratto-body'>
+          <b>📅 Inizio:</b> {fmt_date(r.get('DataInizio'))} &nbsp;&nbsp;
+          <b>🕓 Fine:</b> {fmt_date(r.get('DataFine'))} &nbsp;&nbsp;
+          <b>⏱ Durata:</b> {r.get('Durata','')} mesi &nbsp;&nbsp;
+          <b>💰 Tot. Rata:</b> {money(r.get('TotRata'))}<br>
+          <b>📦 Prodotto:</b> {r.get('DescrizioneProdotto','—')}
+        </div>
         """, unsafe_allow_html=True)
 
-        # === PULSANTI AZIONE ===
-        c1, c2, c3 = st.columns([0.3, 0.3, 0.4])
+        c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown('<div class="btn-desc">', unsafe_allow_html=True)
-            if st.button("📖 Dettagli", key=f"desc_{gidx}", use_container_width=True):
+            st.markdown("<div class='btn-det'>", unsafe_allow_html=True)
+            if st.button("📖 Dettagli", key=f"det_{i}"):
                 st.session_state["desc_popup"] = r.get("DescrizioneProdotto", "")
                 st.session_state["desc_popup_title"] = r.get("NumeroContratto", "")
             st.markdown("</div>", unsafe_allow_html=True)
-
         with c2:
-            st.markdown('<div class="btn-edit">', unsafe_allow_html=True)
-            if st.button("✏️ Modifica", key=f"edit_{gidx}", use_container_width=True, disabled=permessi_limitati):
-                st.session_state["edit_gidx"] = gidx
+            st.markdown("<div class='btn-mod'>", unsafe_allow_html=True)
+            if st.button("✏️ Modifica", key=f"edit_{i}", disabled=permessi_limitati):
+                st.session_state["edit_gidx"] = r.name
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
-
         with c3:
-            st.markdown('<div class="btn-del">', unsafe_allow_html=True)
-            if st.button("🗑️ Elimina", key=f"del_{gidx}", use_container_width=True, disabled=permessi_limitati):
-                st.session_state["delete_gidx"] = gidx
+            st.markdown("<div class='btn-del'>", unsafe_allow_html=True)
+            if st.button("🗑️ Elimina", key=f"del_{i}", disabled=permessi_limitati):
+                st.session_state["delete_gidx"] = r.name
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
-
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # === POPUP DESCRIZIONE (dettagli contratto) ===
+    # === POPUP DETTAGLIO DESCRIZIONE ===
     if "desc_popup" in st.session_state:
-        st.markdown("<div class='popup-desc'>", unsafe_allow_html=True)
-        st.markdown(f"### 🧾 Dettagli Contratto {st.session_state.get('desc_popup_title','')}")
+        st.markdown("<div style='background:#fff;padding:1.5rem;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.15);'>", unsafe_allow_html=True)
+        st.markdown(f"### 🧾 Dettagli Contratto {st.session_state['desc_popup_title']}")
         st.write(st.session_state["desc_popup"])
-        if st.button("❌ Chiudi Dettagli", key="close_desc_popup", use_container_width=True):
+        if st.button("❌ Chiudi", key="close_det_popup", use_container_width=True):
             del st.session_state["desc_popup"]
             del st.session_state["desc_popup_title"]
             st.rerun()
@@ -1387,7 +1349,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state.pop("edit_gidx", None)
                 st.rerun()
 
-    # === CONFERMA ELIMINAZIONE ===
+    # === ELIMINAZIONE CONTRATTO ===
     if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
         gidx = st.session_state["delete_gidx"]
         if gidx in df_ct.index:
@@ -1410,18 +1372,16 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.info("Eliminazione annullata.")
                     st.rerun()
 
-    # === ESPORTAZIONI (Excel + PDF migliorati) ===
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("<h3>📤 Esportazioni</h3>", unsafe_allow_html=True)
-    cex1, cex2 = st.columns(2)    
+    # === ESPORTAZIONI ===
+    st.divider()
+    st.markdown("### 📤 Esportazioni")
 
-    # --- EXCEL ---
+    cex1, cex2 = st.columns(2)
     with cex1:
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
-        from openpyxl.utils import get_column_letter
-        from io import BytesIO
         try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+            from io import BytesIO
             disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
             disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
             disp["DataFine"] = disp["DataFine"].apply(fmt_date)
@@ -1429,152 +1389,67 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             wb = Workbook()
             ws = wb.active
             ws.title = f"Contratti {rag_soc}"
-            ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
-            ws.page_setup.paperSize = ws.PAPERSIZE_A4
-
-            ws.merge_cells("A1:M1")
-            title = ws["A1"]
-            title.value = f"Contratti Cliente: {rag_soc}"
-            title.font = Font(size=14, bold=True, color="2563EB")
-            title.alignment = Alignment(horizontal="center", vertical="center")
 
             headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
                        "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"]
             ws.append(headers)
-
             head_font = Font(bold=True, color="FFFFFF")
-            head_fill = PatternFill("solid", fgColor="2563EB")
-            center = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            thin = Border(left=Side(style="thin"), right=Side(style="thin"),
-                          top=Side(style="thin"), bottom=Side(style="thin"))
-
-            # Intestazioni colorate
-            for col_num, h in enumerate(headers, 1):
-                c = ws.cell(row=2, column=col_num)
-                c.font = head_font
-                c.fill = head_fill
-                c.alignment = center
-                c.border = thin
-
-            # Righe
-            for _, row in disp.iterrows():
-                ws.append([str(row.get(h, "")) for h in headers])
-                stato = str(row.get("Stato", "")).lower()
-                row_idx = ws.max_row
-                for col_idx in range(1, len(headers) + 1):
-                    cell = ws.cell(row=row_idx, column=col_idx)
-                    cell.alignment = center
-                    cell.border = thin
-                    if stato == "chiuso":
-                        cell.fill = PatternFill("solid", fgColor="FFCDD2")
+            fill = PatternFill("solid", fgColor="2563EB")
+            align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
 
             for i, h in enumerate(headers, 1):
-                ws.column_dimensions[get_column_letter(i)].width = 25
-
-            bio = BytesIO()
-            wb.save(bio)
-            st.download_button(
-                "📘 Esporta Excel",
-                bio.getvalue(),
-                file_name=f"Contratti_{rag_soc}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key=f"xlsx_{sel_id}"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore export Excel: {e}")
-
-    # --- PDF ---
-    with cex2:
-        from fpdf import FPDF
-        from io import BytesIO
-
-        class TablePDF(FPDF):
-            def header_row(self, headers, widths):
-                self.set_fill_color(37, 99, 235)
-                self.set_text_color(255)
-                self.set_font("Arial", "B", 9)
-                for i, h in enumerate(headers):
-                    self.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
-                self.ln()
-                self.set_text_color(0)
-                self.set_font("Arial", "", 8)
-
-            def nb_lines(self, w, txt):
-                if not txt:
-                    return 1
-                text = str(txt)
-                cw = self.get_string_width
-                lines = 0
-                for line in text.split("\n"):
-                    current = ""
-                    for word in line.split(" "):
-                        test = (current + " " + word).strip()
-                        if cw(test) <= w:
-                            current = test
-                        else:
-                            lines += 1
-                            current = word
-                    lines += 1
-                return max(lines, 1)
-
-            def row(self, vals, widths, line_h=6, fill=False):
-                max_lines = max(self.nb_lines(widths[i], v) for i, v in enumerate(vals))
-                row_h = line_h * max_lines
-                if self.get_y() + row_h > self.h - self.b_margin:
-                    self.add_page()
-                    self.header_row(headers, widths)
-
-                x0 = self.get_x()
-                y0 = self.get_y()
-                if fill:
-                    self.set_fill_color(255, 205, 210)
-
-                for i, v in enumerate(vals):
-                    w = widths[i]
-                    x = self.get_x()
-                    y = self.get_y()
-                    self.rect(x, y, w, row_h)
-                    align = "L" if headers[i] == "DescrizioneProdotto" else "C"
-                    self.multi_cell(w, line_h, safe_text(v), border=0, align=align, fill=fill)
-                    self.set_xy(x + w, y)
-                self.set_xy(x0, y0 + row_h)
-
-        try:
-            disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-            disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-            disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-            headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
-                       "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"]
-            widths = [18, 18, 18, 12, 70, 14, 14, 18, 14, 16, 14, 16, 15]
-
-            pdf = TablePDF(orientation="L", unit="mm", format="A4")
-            pdf.set_auto_page_break(auto=False)
-            pdf.add_page()
-            pdf.set_margins(10, 10, 10)
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
-            pdf.ln(2)
-            pdf.header_row(headers, widths)
+                c = ws.cell(row=1, column=i)
+                c.font = head_font
+                c.fill = fill
+                c.alignment = align
+                c.border = border
 
             for _, row in disp.iterrows():
-                vals = [row.get(h, "") for h in headers]
-                stato_chiuso = str(row.get("Stato", "")).lower() == "chiuso"
-                pdf.row(vals, widths, line_h=6, fill=stato_chiuso)
-
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-            st.download_button(
-                "📗 Esporta PDF",
-                data=pdf_bytes,
-                file_name=f"Contratti_{rag_soc}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-                key=f"pdf_{sel_id}"
-            )
+                ws.append([str(row.get(h, "")) for h in headers])
+            bio = BytesIO()
+            wb.save(bio)
+            st.download_button("📘 Esporta Excel", bio.getvalue(), file_name=f"Contratti_{rag_soc}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         except Exception as e:
-            st.error(f"❌ Errore export PDF: {e}")
+            st.error(f"Errore export Excel: {e}")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    with cex2:
+        try:
+            from fpdf import FPDF
+            class PDF(FPDF):
+                def header_row(self, headers, widths):
+                    self.set_fill_color(37,99,235)
+                    self.set_text_color(255)
+                    self.set_font("Arial","B",9)
+                    for i,h in enumerate(headers):
+                        self.cell(widths[i],7,safe_text(h),1,0,"C",1)
+                    self.ln()
+                    self.set_text_color(0)
+                    self.set_font("Arial","",8)
+            disp = df_ct[df_ct["ClienteID"].astype(str)==str(sel_id)].copy()
+            disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+            disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+            headers = ["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","TotRata","Stato"]
+            widths = [22,22,22,15,80,25,20]
+            pdf = PDF("L","mm","A4")
+            pdf.add_page()
+            pdf.set_font("Arial","B",12)
+            pdf.cell(0,10,safe_text(f"Contratti Cliente: {rag_soc}"),ln=1,align="C")
+            pdf.header_row(headers,widths)
+            pdf.set_font("Arial","",8)
+            for _,r in disp.iterrows():
+                vals=[r.get(h,"") for h in headers]
+                stato_chiuso=str(r.get("Stato","")).lower()=="chiuso"
+                if stato_chiuso:
+                    pdf.set_fill_color(255,205,210)
+                else:
+                    pdf.set_fill_color(255,255,255)
+                for i,v in enumerate(vals):
+                    pdf.cell(widths[i],6,safe_text(v),1,0,"C",fill=stato_chiuso)
+                pdf.ln()
+            pdf_bytes=pdf.output(dest="S").encode("latin-1",errors="replace")
+            st.download_button("
+
 
 # =====================================
 # PAGINA RECALL E VISITE (aggiornata e coerente)

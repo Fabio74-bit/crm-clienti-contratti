@@ -434,6 +434,9 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
 # =====================================
 # PAGINA CLIENTI — VERSIONE FINALE STABILE
 # =====================================
+# =====================================
+# PAGINA CLIENTI — VERSIONE FINALE STABILE CORRETTA
+# =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
 
@@ -479,23 +482,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # --- Stile ---
     st.markdown("""
     <style>
-    .btn-blue > button {
-        background-color:#e3f2fd !important; color:#0d47a1 !important;
-        border:none !important; border-radius:6px !important; font-weight:500 !important;
-    }
-    .btn-yellow > button {
-        background-color:#fff8e1 !important; color:#ef6c00 !important;
-        border:none !important; border-radius:6px !important; font-weight:500 !important;
-    }
-    .btn-red > button {
-        background-color:#ffebee !important; color:#b71c1c !important;
-        border:none !important; border-radius:6px !important; font-weight:500 !important;
-    }
-    .info-box {
-        background:#fff; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,0.06);
-        padding:1.3rem 1.6rem; margin-top:0.8rem; margin-bottom:1.5rem;
-        font-size:15px; line-height:1.7; border-left:5px solid #2563eb;
-    }
+    .btn-blue > button { background-color:#e3f2fd !important; color:#0d47a1 !important; border:none !important; border-radius:6px !important; font-weight:500 !important; }
+    .btn-yellow > button { background-color:#fff8e1 !important; color:#ef6c00 !important; border:none !important; border-radius:6px !important; font-weight:500 !important; }
+    .btn-red > button { background-color:#ffebee !important; color:#b71c1c !important; border:none !important; border-radius:6px !important; font-weight:500 !important; }
+    .info-box { background:#fff; border-radius:12px; box-shadow:0 3px 10px rgba(0,0,0,0.06); padding:1.3rem 1.6rem; margin-top:0.8rem; margin-bottom:1.5rem; font-size:15px; line-height:1.7; border-left:5px solid #2563eb; }
     .info-title { color:#2563eb; font-size:17px; font-weight:600; margin-bottom:0.6rem; }
     .info-item { margin-bottom:0.3rem; }
     .info-label { font-weight:600; color:#0d1117; }
@@ -509,7 +499,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.caption(f"ID Cliente: {sel_id}")
 
     with col2:
-        # Vai ai contratti
         if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
             st.session_state.update({
                 "selected_cliente": sel_id,
@@ -518,11 +507,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             })
             st.rerun()
 
-        # Modifica anagrafica (NO rerun)
         if st.button("✏️ Modifica Anagrafica", use_container_width=True, key=f"edit_{sel_id}"):
             st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
 
-        # Cancella cliente
         if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
             st.session_state["confirm_delete_cliente"] = str(sel_id)
             st.rerun()
@@ -555,44 +542,41 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.divider()
         st.markdown("### ✏️ Modifica Anagrafica Cliente")
 
-with st.form(f"frm_anagrafica_{sel_id}"):
-    col1, col2 = st.columns(2)
-    with col1:
-        indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
-        citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
-        cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
-        telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
-        cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
-        email = st.text_input("✉️ Email", cliente.get("Email", ""))
-    with col2:
-        persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-        piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
-        iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
-        sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
+        with st.form(f"frm_anagrafica_{sel_id}"):
+            col1, col2 = st.columns(2)
+            with col1:
+                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
+                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+                email = st.text_input("✉️ Email", cliente.get("Email", ""))
+            with col2:
+                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
-        tmk_value = cliente.get("TMK", "")
-        if pd.isna(tmk_value) or tmk_value not in ["Giulia", "Antonella", "Annalisa", "Laura"]:
-            tmk_value = ""
-        tmk = st.selectbox(
-            "👩‍💼 TMK di riferimento",
-            ["", "Giulia", "Antonella", "Annalisa", "Laura"],
-            index=["", "Giulia", "Antonella", "Annalisa", "Laura"].index(tmk_value)
-        )
+                tmk_value = cliente.get("TMK", "")
+                if pd.isna(tmk_value) or tmk_value not in ["Giulia", "Antonella", "Annalisa", "Laura"]:
+                    tmk_value = ""
+                tmk = st.selectbox(
+                    "👩‍💼 TMK di riferimento",
+                    ["", "Giulia", "Antonella", "Annalisa", "Laura"],
+                    index=["", "Giulia", "Antonella", "Annalisa", "Laura"].index(tmk_value)
+                )
 
-    # ✅ pulsante submit obbligatorio per Streamlit
-    salva = st.form_submit_button("💾 Salva Modifiche")
-
-    if salva:
-        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-        df_cli.loc[idx, [
-            "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "Email",
-            "PersonaRiferimento", "PartitaIVA", "IBAN", "SDI", "TMK"
-        ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk]
-        save_clienti(df_cli)
-        st.success("✅ Anagrafica aggiornata.")
-        st.session_state[f"edit_cli_{sel_id}"] = False
-        st.rerun()
-
+            salva = st.form_submit_button("💾 Salva Modifiche")
+            if salva:
+                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                df_cli.loc[idx, [
+                    "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "Email",
+                    "PersonaRiferimento", "PartitaIVA", "IBAN", "SDI", "TMK"
+                ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk]
+                save_clienti(df_cli)
+                st.success("✅ Anagrafica aggiornata.")
+                st.session_state[f"edit_cli_{sel_id}"] = False
+                st.rerun()
 
         # --- NOTE CLIENTE ---
         st.divider()

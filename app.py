@@ -29,27 +29,40 @@ from utils.lista_clienti import page_lista_clienti
 # =====================================
 st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
 
+# 🔧 CSS: rimuove il margine/riquadro bianco e imposta sfondo uniforme
 st.markdown("""
 <style>
+html, body, [data-testid="stAppViewContainer"] {
+    background-color: #f0f4f8 !important; /* azzurro chiaro uniforme */
+    margin: 0 !important;
+    padding: 0 !important;
+}
 .block-container {
-    padding-left: 2rem;
-    padding-right: 2rem;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+    padding-top: 0 !important;
     max-width: 100% !important;
+    background-color: transparent !important; /* elimina rettangolo bianco */
 }
 section.main > div:first-child {
     margin-top: 0 !important;
     padding-top: 0 !important;
 }
+[data-testid="stHeader"] {
+    background: transparent !important; /* nasconde header bianco */
+}
 </style>
 """, unsafe_allow_html=True)
 
+# 🔧 Script per bloccare lo scroll iniziale
 st.markdown("""
 <script>
-    window.addEventListener('load', function() {
-        window.scrollTo(0, 0);
-    });
+window.addEventListener('load', function() {
+    window.scrollTo(0, 0);
+});
 </script>
 """, unsafe_allow_html=True)
+
 
 # =====================================
 # COSTANTI GLOBALI

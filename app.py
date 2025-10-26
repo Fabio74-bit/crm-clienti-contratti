@@ -555,37 +555,44 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.divider()
         st.markdown("### ✏️ Modifica Anagrafica Cliente")
 
-        with st.form(f"frm_anagrafica_{sel_id}"):
-            col1, col2 = st.columns(2)
-            with col1:
-                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
-                citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
-                cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
-                telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
-                cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
-                email = st.text_input("✉️ Email", cliente.get("Email", ""))
-            with col2:
-                persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
-                piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
-                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
-                sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
-                tmk = st.selectbox(
-                    "👩‍💼 TMK di riferimento",
-                    ["", "Giulia", "Antonella", "Annalisa", "Laura"],
-                    index=["", "Giulia", "Antonella", "Annalisa", "Laura"].index(cliente.get("TMK", "")) if cliente.get("TMK", "") in ["Giulia", "Antonella", "Annalisa", "Laura"] else 0
-                )
+with st.form(f"frm_anagrafica_{sel_id}"):
+    col1, col2 = st.columns(2)
+    with col1:
+        indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+        citta = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+        cap = st.text_input("📮 CAP", cliente.get("CAP", ""))
+        telefono = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+        cell = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+        email = st.text_input("✉️ Email", cliente.get("Email", ""))
+    with col2:
+        persona = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+        piva = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+        iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+        sdi = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
-            salva = st.form_submit_button("💾 Salva Modifiche")
-            if salva:
-                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                df_cli.loc[idx, [
-                    "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "Email",
-                    "PersonaRiferimento", "PartitaIVA", "IBAN", "SDI", "TMK"
-                ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk]
-                save_clienti(df_cli)
-                st.success("✅ Anagrafica aggiornata.")
-                st.session_state[f"edit_cli_{sel_id}"] = False
-                st.rerun()
+        tmk_value = cliente.get("TMK", "")
+        if pd.isna(tmk_value) or tmk_value not in ["Giulia", "Antonella", "Annalisa", "Laura"]:
+            tmk_value = ""
+        tmk = st.selectbox(
+            "👩‍💼 TMK di riferimento",
+            ["", "Giulia", "Antonella", "Annalisa", "Laura"],
+            index=["", "Giulia", "Antonella", "Annalisa", "Laura"].index(tmk_value)
+        )
+
+    # ✅ pulsante submit obbligatorio per Streamlit
+    salva = st.form_submit_button("💾 Salva Modifiche")
+
+    if salva:
+        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+        df_cli.loc[idx, [
+            "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "Email",
+            "PersonaRiferimento", "PartitaIVA", "IBAN", "SDI", "TMK"
+        ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk]
+        save_clienti(df_cli)
+        st.success("✅ Anagrafica aggiornata.")
+        st.session_state[f"edit_cli_{sel_id}"] = False
+        st.rerun()
+
 
         # --- NOTE CLIENTE ---
         st.divider()
@@ -638,57 +645,61 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         if st.button("➕ Aggiungi Contratto", use_container_width=False):
             st.session_state["modal_add_contract"] = True
 
-    # === Filtra contratti ===
-    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    if ct.empty:
-        st.info("Nessun contratto registrato per questo cliente.")
-    else:
-        # === Righe tabella ===
-        st.markdown("---")
-        st.markdown("### 📋 Elenco Contratti")
+# === Filtra contratti ===
+ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
 
-        for i, r in ct.iterrows():
-            stato = str(r.get("Stato", "aperto")).lower()
-            numero = r.get("NumeroContratto", "—")
-            colore_sfondo = "#ffebee" if stato == "chiuso" else "#ffffff"
+if ct.empty:
+    st.info("Nessun contratto registrato per questo cliente.")
+else:
+    st.markdown("### 📋 Elenco Contratti")
 
-            with st.container():
-                st.markdown(
-                    f"""
-                    <div style="background:{colore_sfondo};padding:10px 14px;
-                                border-radius:8px;margin-bottom:8px;
-                                border-left:5px solid {'#b71c1c' if stato=='chiuso' else '#2563eb'};">
-                        <b>📄 {numero}</b> — {r.get('DescrizioneProdotto','—')}  
-                        <br>📅 {r.get('DataInizio','—')} → {r.get('DataFine','—')} | 💰 {r.get('TotRata','—')}  
-                        <b>Stato:</b> {"❌ Chiuso" if stato == 'chiuso' else "✅ Aperto"}
-                    </div>
-                    """, unsafe_allow_html=True
-                )
+    # --- Imposta tabella interattiva ---
+    gb = GridOptionsBuilder.from_dataframe(ct)
+    gb.configure_pagination(enabled=True)
+    gb.configure_default_column(editable=False, groupable=True, resizable=True)
+    gb.configure_selection('single')
+    grid_options = gb.build()
 
-                c1, c2, c3 = st.columns([0.15, 0.15, 0.7])
-                with c1:
-                    if not permessi_limitati:
-                        if st.button("✏️", key=f"edit_{numero}", use_container_width=True):
-                            st.session_state["modal_edit_contract"] = numero
-                            st.rerun()
-                with c2:
-                    if not permessi_limitati:
-                        if stato == "aperto":
-                            if st.button("❌", key=f"close_{numero}", use_container_width=True):
-                                idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-                                if len(idx) > 0:
-                                    df_ct.loc[idx[0], "Stato"] = "chiuso"
-                                    save_contratti(df_ct)
-                                    st.success(f"Contratto {numero} chiuso ✅")
-                                    st.rerun()
-                        else:
-                            if st.button("🔓", key=f"reopen_{numero}", use_container_width=True):
-                                idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-                                if len(idx) > 0:
-                                    df_ct.loc[idx[0], "Stato"] = "aperto"
-                                    save_contratti(df_ct)
-                                    st.success(f"Contratto {numero} riaperto ✅")
-                                    st.rerun()
+    grid_response = AgGrid(
+        ct,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        height=300,
+        fit_columns_on_grid_load=True,
+        allow_unsafe_jscode=True
+    )
+
+    selected = grid_response['selected_rows']
+    if selected:
+        contratto = selected[0]
+        numero = contratto.get("NumeroContratto", "—")
+        stato = contratto.get("Stato", "aperto").lower()
+
+        st.markdown(f"### ✏️ Azioni su contratto {numero}")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✏️ Modifica", key=f"edit_{numero}", use_container_width=True):
+                st.session_state["modal_edit_contract"] = numero
+                st.rerun()
+
+        with col2:
+            if stato == "aperto":
+                if st.button("❌ Chiudi Contratto", key=f"close_{numero}", use_container_width=True):
+                    idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                    if len(idx) > 0:
+                        df_ct.loc[idx[0], "Stato"] = "chiuso"
+                        save_contratti(df_ct)
+                        st.success(f"Contratto {numero} chiuso ✅")
+                        st.rerun()
+            else:
+                if st.button("🔓 Riapri Contratto", key=f"reopen_{numero}", use_container_width=True):
+                    idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                    if len(idx) > 0:
+                        df_ct.loc[idx[0], "Stato"] = "aperto"
+                        save_contratti(df_ct)
+                        st.success(f"Contratto {numero} riaperto ✅")
+                        st.rerun()
 
     # === MODALE NUOVO CONTRATTO ===
     if st.session_state.get("modal_add_contract", False):

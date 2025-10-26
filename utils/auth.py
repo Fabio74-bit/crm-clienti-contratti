@@ -2,20 +2,20 @@ import streamlit as st
 import time
 
 # =====================================
-# LOGIN FULLSCREEN — versione 2025 corretta
+# LOGIN FULLSCREEN — versione 2025 corretta (senza fascia bianca + logo fisso)
 # =====================================
 def do_login_fullscreen():
-    """Login elegante con sfondo fullscreen"""
-    # Se l’utente è già loggato, ritorna subito
+    """Login elegante fullscreen con logo locale"""
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # --- Stile ---
+    # --- Stile globale ---
     st.markdown("""
     <style>
-    header[data-testid="stHeader"] {
-        display: none !important;
-    }
+    header[data-testid="stHeader"] {display: none !important;}
+    div[data-testid="stToolbar"] {display: none !important;}
+    [data-testid="stDecoration"] {display: none !important;}
+    div[data-testid="stStatusWidget"] {display: none !important;}
     div[data-testid="stAppViewContainer"] {
         padding-top: 0 !important;
         background-color: #f8fafc;
@@ -26,14 +26,15 @@ def do_login_fullscreen():
         justify-content: center;
         align-items: center;
         height: 100vh;
+        padding-top: 0 !important;
     }
     .login-card {
-        background: #fff;
+        background: #ffffff;
         border: 1px solid #e5e7eb;
-        border-radius: 12px;
+        border-radius: 14px;
         box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-        padding: 2rem 2.5rem;
-        width: 360px;
+        padding: 2.5rem;
+        width: 380px;
         text-align: center;
     }
     .login-title {
@@ -61,15 +62,22 @@ def do_login_fullscreen():
 
     # --- Contenuto del login ---
     st.markdown("<div class='login-card'>", unsafe_allow_html=True)
-    st.image("https://i.ibb.co/pnWhbYP/logo-sht.png", width=140)
+
+    # 🔹 Mostra logo locale (presente in cartella /assets o /images)
+    try:
+        st.image("assets/logo-sht.png", width=160)
+    except:
+        st.markdown("<h2 style='color:#2563eb;'>S.H.T.</h2>", unsafe_allow_html=True)
+
     st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
     username = st.text_input("Nome utente", key="login_user").strip().lower()
     password = st.text_input("Password", type="password", key="login_pass")
     login_btn = st.button("Entra")
+
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- Gestione autenticazione ---
+    # --- Gestione login ---
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
         try:
@@ -90,5 +98,4 @@ def do_login_fullscreen():
             st.error(f"⚠️ Errore durante il login: {e}")
             st.session_state["_login_checked"] = False
 
-    # Ferma l’app finché non avviene il login
     st.stop()

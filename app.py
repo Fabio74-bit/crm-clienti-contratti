@@ -1121,7 +1121,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE TABELLA CLASSICA STABILE
+# PAGINA CONTRATTI — VERSIONE CLASSICA STABILE CON ICONE AZIONE
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1133,6 +1133,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
       .tbl-row {border-bottom:1px solid #f0f2f5;padding:4px 0;}
       .pill-open{background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px;font-weight:600;}
       .pill-closed{background:#ffebee;color:#b71c1c;padding:2px 8px;border-radius:8px;font-weight:600;}
+      .action-btn {
+          background:none;border:none;color:#2563eb;font-size:1rem;
+          cursor:pointer;margin:0 4px;padding:2px;
+      }
+      .action-btn:disabled {opacity:0.4;cursor:not-allowed;}
+      .action-container {display:flex;justify-content:center;align-items:center;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1146,7 +1152,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
     ids = df_cli["ClienteID"].astype(str).tolist()
-
     sel_label = st.selectbox("Seleziona Cliente", labels, index=0, key="sel_cli_ct")
     sel_id = sel_label.split(" — ")[0]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
@@ -1154,6 +1159,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"<h3 style='text-align:center;color:#2563eb'>{rag_soc}</h3>", unsafe_allow_html=True)
     st.caption(f"ID Cliente: {sel_id}")
 
+    # === Filtra i contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     ct = ct.reset_index().rename(columns={"index": "_gidx"})
 
@@ -1201,42 +1207,49 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === INTESTAZIONE ===
-    h = st.columns([1.1, 1, 1, 0.7, 1.2, 0.8, 2.5, 0.7])
+    # === INTESTAZIONE TABELLA ===
+    header_cols = st.columns([1.1, 1, 1, 0.7, 1.2, 0.8, 2.5, 1])
     for col, label in zip(
-        h,
+        header_cols,
         ["N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato", "Descrizione", "Azioni"]
     ):
         col.markdown(f"<div class='tbl-head'>{label}</div>", unsafe_allow_html=True)
 
-    # === RIGHE ===
+    # === RIGHE CONTRATTI ===
     for i, r in ct.iterrows():
         bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
-        stato = str(r.get("Stato", "")).lower()
-        stato_html = (
-            "<span class='pill-open'>Aperto</span>"
-            if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
-        )
+        stato = str(r.get("Stato", "aperto")).lower()
+        stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
 
-        cols = st.columns([1.1, 1, 1, 0.7, 1.2, 0.8, 2.5, 0.7])
-        cols[0].markdown(f"<div style='background:{bg};padding:4px'>{r.get('NumeroContratto','')}</div>", unsafe_allow_html=True)
-        cols[1].markdown(f"<div style='background:{bg};padding:4px'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
-        cols[2].markdown(f"<div style='background:{bg};padding:4px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-        cols[3].markdown(f"<div style='background:{bg};padding:4px'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
-        cols[4].markdown(f"<div style='background:{bg};padding:4px'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
-        cols[5].markdown(f"<div style='background:{bg};padding:4px'>{stato_html}</div>", unsafe_allow_html=True)
+        cols = st.columns([1.1, 1, 1, 0.7, 1.2, 0.8, 2.5, 1])
+        cols[0].markdown(f"<div style='background:{bg};padding:5px'>{r.get('NumeroContratto','')}</div>", unsafe_allow_html=True)
+        cols[1].markdown(f"<div style='background:{bg};padding:5px'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
+        cols[2].markdown(f"<div style='background:{bg};padding:5px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+        cols[3].markdown(f"<div style='background:{bg};padding:5px'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
+        cols[4].markdown(f"<div style='background:{bg};padding:5px'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
+        cols[5].markdown(f"<div style='background:{bg};padding:5px'>{stato_html}</div>", unsafe_allow_html=True)
 
         desc = str(r.get("DescrizioneProdotto", "—"))
         if len(desc) > 70:
             desc = desc[:70] + "…"
-        cols[6].markdown(f"<div style='background:{bg};padding:4px'>{desc}</div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div style='background:{bg};padding:5px;text-align:left'>{desc}</div>", unsafe_allow_html=True)
 
         with cols[7]:
-            cE, cD = st.columns(2)
-            if cE.button("✏️", key=f"edit_{i}", use_container_width=True, disabled=permessi_limitati):
+            colA, colB, colC = st.columns([1, 1, 1])
+            # ✏️ Modifica
+            if colA.button("✏️", key=f"edit_{i}", use_container_width=True, disabled=permessi_limitati):
                 st.session_state["edit_gidx"] = r["_gidx"]
                 st.rerun()
-            if cD.button("🗑️", key=f"del_{i}", use_container_width=True, disabled=permessi_limitati):
+            # 🔒 / 🟢 Chiudi / Riapri
+            label = "🔒" if stato != "chiuso" else "🟢"
+            tooltip = "Chiudi contratto" if stato != "chiuso" else "Riapri contratto"
+            if colB.button(label, key=f"lock_{i}", use_container_width=True, disabled=permessi_limitati):
+                df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+                save_contratti(df_ct)
+                st.toast(f"{tooltip} eseguito per {r.get('NumeroContratto')}", icon="🔁")
+                st.rerun()
+            # 🗑️ Elimina
+            if colC.button("🗑️", key=f"del_{i}", use_container_width=True, disabled=permessi_limitati):
                 st.session_state["delete_gidx"] = r["_gidx"]
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
@@ -1338,107 +1351,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
 
-
-# =====================================
-# PAGINA RECALL E VISITE (aggiornata e coerente)
-# =====================================
-def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    st.image(LOGO_URL, width=120)
-    st.markdown("<h2>📅 Gestione Recall e Visite</h2>", unsafe_allow_html=True)
-    st.divider()
-
-    col1, col2 = st.columns(2)
-    filtro_nome = col1.text_input("🔍 Cerca per nome cliente")
-    filtro_citta = col2.text_input("🏙️ Cerca per città")
-
-    df = df_cli.copy()
-    if filtro_nome:
-        df = df[df["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
-    if filtro_citta:
-        df = df[df["Citta"].str.contains(filtro_citta, case=False, na=False)]
-    if df.empty:
-        st.warning("❌ Nessun cliente trovato.")
-        return
-
-    oggi = pd.Timestamp.now().normalize()
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
-
-    # === Imminenti (entro 30 giorni) ===
-    st.markdown("### 🔔 Recall e Visite imminenti (entro 30 giorni)")
-    imminenti = df[
-        (df["ProssimoRecall"].between(oggi, oggi + pd.DateOffset(days=30))) |
-        (df["ProssimaVisita"].between(oggi, oggi + pd.DateOffset(days=30)))
-    ]
-
-    if imminenti.empty:
-        st.success("✅ Nessun richiamo o visita imminente.")
-    else:
-        for i, r in imminenti.iterrows():
-            c1, c2, c3, c4 = st.columns([2, 1, 1, 0.7])
-            c1.markdown(f"**{r['RagioneSociale']}**")
-            c2.markdown(fmt_date(r["ProssimoRecall"]))
-            c3.markdown(fmt_date(r["ProssimaVisita"]))
-            if c4.button("📂 Apri", key=f"imm_{i}", use_container_width=True):
-                st.session_state.update({
-                    "selected_cliente": r["ClienteID"],
-                    "nav_target": "Clienti",
-                    "_go_clienti_now": True
-                })
-                st.rerun()
-
-    st.divider()
-
-    # === Recall e visite in ritardo ===
-    st.markdown("### ⚠️ Recall e Visite scaduti")
-    recall_vecchi = df[
-        df["UltimoRecall"].notna() & (df["UltimoRecall"] < oggi - pd.DateOffset(months=3))
-    ]
-    visite_vecchie = df[
-        df["UltimaVisita"].notna() & (df["UltimaVisita"] < oggi - pd.DateOffset(months=6))
-    ]
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("#### 📞 Recall > 3 mesi fa")
-        if recall_vecchi.empty:
-            st.info("✅ Nessun recall scaduto.")
-        else:
-            for i, r in recall_vecchi.iterrows():
-                c1, c2, c3 = st.columns([2.5, 1.2, 0.8])
-                c1.markdown(f"**{r['RagioneSociale']}**")
-                c2.markdown(fmt_date(r["UltimoRecall"]))
-                if c3.button("📂 Apri", key=f"rec_{i}", use_container_width=True):
-                    st.session_state.update({
-                        "selected_cliente": r["ClienteID"],
-                        "nav_target": "Clienti",
-                        "_go_clienti_now": True
-                    })
-                    st.rerun()
-
-    with col2:
-        st.markdown("#### 👣 Visite > 6 mesi fa")
-        if visite_vecchie.empty:
-            st.info("✅ Nessuna visita scaduta.")
-        else:
-            for i, r in visite_vecchie.iterrows():
-                c1, c2, c3 = st.columns([2.5, 1.2, 0.8])
-                c1.markdown(f"**{r['RagioneSociale']}**")
-                c2.markdown(fmt_date(r["UltimaVisita"]))
-                if c3.button("📂 Apri", key=f"vis_{i}", use_container_width=True):
-                    st.session_state.update({
-                        "selected_cliente": r["ClienteID"],
-                        "nav_target": "Clienti",
-                        "_go_clienti_now": True
-                    })
-                    st.rerun()
-
-    st.divider()
-    st.markdown("### 🧾 Storico Recall e Visite")
-    tabella = df[["RagioneSociale", "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]].copy()
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        tabella[c] = tabella[c].apply(fmt_date)
-    st.dataframe(tabella, use_container_width=True, hide_index=True)
 
 
 

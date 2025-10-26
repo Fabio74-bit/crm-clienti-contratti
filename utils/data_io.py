@@ -5,7 +5,12 @@ from __future__ import annotations
 import pandas as pd
 from pathlib import Path
 import streamlit as st
-from datetime import datetime
+from utils.fixes import (
+    fix_inverted_dates,
+    normalize_cliente_id,
+    parse_date_safe,
+    to_date_series,
+)
 
 # =====================================
 # CONFIGURAZIONE STORAGE
@@ -41,75 +46,6 @@ def ensure_columns(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
         if c not in df.columns:
             df[c] = pd.NA
     return df[cols]
-
-
-# =====================================
-# CORREZIONE DATE (uso interno)
-# =====================================
-def fix_inverted_dates(series: pd.Series, col_name: str = "") -> pd.Series:
-    """
-    Corregge automaticamente le date invertite (MM/DD/YYYY → DD/MM/YYYY)
-    e mostra un log nel frontend Streamlit.
-    """
-    fixed = []
-    fixed_count = 0
-    total = len(series)
-
-    for val in series:
-        if pd.isna(val) or str(val).strip() == "":
-            fixed.append("")
-            continue
-
-        s = str(val).strip()
-        parsed = None
-
-        try:
-            d1 = pd.to_datetime(s, dayfirst=True, errors="coerce")
-            d2 = pd.to_datetime(s, dayfirst=False, errors="coerce")
-
-            if not pd.isna(d1) and not pd.isna(d2) and d1 != d2:
-                if d1.day <= 12 and d2.day > 12:
-                    parsed = d2
-                    fixed_count += 1
-                else:
-                    parsed = d1
-            elif not pd.isna(d1):
-                parsed = d1
-            elif not pd.isna(d2):
-                parsed = d2
-        except Exception:
-            parsed = None
-
-        if parsed is not None:
-            fixed.append(parsed.strftime("%d/%m/%Y"))
-        else:
-            fixed.append("")
-
-    if fixed_count > 0:
-        st.info(f"🔄 {fixed_count}/{total} date corrette automaticamente nella colonna **{col_name}**.")
-
-    return pd.Series(fixed)
-
-
-# =====================================
-# PARSE E FORMAT DATE (compatibile CSV)
-# =====================================
-def parse_date_safe(val: str) -> str:
-    """Converte una data in formato coerente DD/MM/YYYY, accettando formati misti."""
-    if not val or str(val).strip() in ["nan", "NaN", "None", "NaT", ""]:
-        return ""
-    val = str(val).strip()
-    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"):
-        try:
-            return datetime.strptime(val, fmt).strftime("%d/%m/%Y")
-        except ValueError:
-            continue
-    return val
-
-
-def to_date_series(series: pd.Series) -> pd.Series:
-    """Applica parse_date_safe a una serie pandas."""
-    return series.apply(parse_date_safe)
 
 
 # =====================================

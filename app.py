@@ -597,7 +597,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE COMPLETA UNIVERSALE (CARD + EXPORT + MODIFICA)
+# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 CON FADE, EXPORT, FIX E PERFORMANCE OTTIMIZZATA
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     import time
@@ -677,16 +677,16 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for i, r in ct.iterrows():
         numero = r.get("NumeroContratto", "—")
         stato = str(r.get("Stato", "aperto")).lower()
-        colore_sfondo = "#ffebee" if stato == "chiuso" else "#ffffff"
-        bordo = "#b71c1c" if stato == "chiuso" else "#2563eb"
+        colore_sfondo = "#f9f9f9" if stato == "aperto" else "#ffebee"
+        bordo = "#2563eb" if stato == "aperto" else "#b71c1c"
 
         # === CARD CONTRATTO ===
         with st.container():
             st.markdown(f"""
                 <div style="background:{colore_sfondo};padding:12px 16px;
-                            border-radius:8px;margin-bottom:10px;
+                            border-radius:10px;margin-bottom:10px;
                             border-left:6px solid {bordo};
-                            box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                            box-shadow:0 2px 6px rgba(0,0,0,0.05);">
                     <b>📄 Contratto {numero}</b> — <i>{r.get('DescrizioneProdotto','—')}</i><br>
                     <b>📅 Periodo:</b> {r.get('DataInizio','—')} → {r.get('DataFine','—')}  
                     | <b>Durata:</b> {r.get('Durata','—')} mesi  
@@ -694,7 +694,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     <br><b>Copie B/N:</b> {r.get('CopieBN','—')} | <b>Ecc. B/N:</b> {r.get('EccBN','—')}
                     | <b>Copie Colore:</b> {r.get('CopieCol','—')} | <b>Ecc. Colore:</b> {r.get('EccCol','—')}
                     <br><b>NOL Fin:</b> {r.get('NOL_FIN','—')} | <b>NOL Int:</b> {r.get('NOL_INT','—')}
-                    <br><b>Stato:</b> {"❌ Chiuso" if stato == "chiuso" else "✅ Aperto"}
+                    <br><b>Stato:</b> {"✅ Aperto" if stato == "aperto" else "❌ Chiuso"}
                 </div>
             """, unsafe_allow_html=True)
 
@@ -728,15 +728,38 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                                 st.success(f"Contratto {numero} riaperto ✅")
                                 st.rerun()
 
-    # === MODALE NUOVO CONTRATTO ===
+    # === MODALE NUOVO CONTRATTO (con effetto fade-in) ===
     if st.session_state.get("modal_add_contract", False):
         st.markdown("""
         <style>
-        .modal-bg { position: fixed; top:0; left:0; width:100%; height:100%;
-                    background: rgba(0,0,0,0.45); z-index:9999;
-                    display:flex; justify-content:center; align-items:center; }
-        .modal-box { background:white; border-radius:12px; width:540px;
-                     padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25); }
+        @keyframes fadeIn {
+            from {opacity: 0;}
+            to {opacity: 1;}
+        }
+        @keyframes fadeOut {
+            from {opacity: 1;}
+            to {opacity: 0;}
+        }
+        .modal-bg {
+            position: fixed;
+            top:0; left:0;
+            width:100%; height:100%;
+            background: rgba(0,0,0,0.45);
+            z-index:9999;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            animation: fadeIn 0.25s ease-in-out;
+        }
+        .modal-box {
+            background:white;
+            border-radius:12px;
+            width:540px;
+            padding:1.8rem 2rem;
+            box-shadow:0 4px 20px rgba(0,0,0,0.25);
+            transform: scale(0.98);
+            animation: fadeIn 0.3s ease-out;
+        }
         </style>
         <div class="modal-bg"><div class="modal-box">
         """, unsafe_allow_html=True)
@@ -788,11 +811,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         st.markdown("""
         <style>
-        .modal-bg { position: fixed; top:0; left:0; width:100%; height:100%;
-                    background: rgba(0,0,0,0.45); z-index:9999;
-                    display:flex; justify-content:center; align-items:center; }
-        .modal-box { background:white; border-radius:12px; width:540px;
-                     padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25); }
+        .modal-bg {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.45); z-index:9999;
+            display:flex; justify-content:center; align-items:center;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .modal-box {
+            background:white; border-radius:12px; width:540px;
+            padding:1.8rem 2rem; box-shadow:0 4px 20px rgba(0,0,0,0.25);
+            transform: scale(0.98);
+            animation: fadeIn 0.3s ease-out;
+        }
         </style>
         <div class="modal-bg"><div class="modal-box">
         """, unsafe_allow_html=True)
@@ -824,6 +854,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
 
         st.markdown("</div></div>", unsafe_allow_html=True)
+
+    # === FIX SICUREZZA MODALE ===
+    if st.session_state.get("modal_add_contract", False) and not st.session_state.get("modal_edit_contract"):
+        st.session_state["modal_add_contract"] = False
+    if st.session_state.get("modal_safety_lock", False):
+        st.session_state["modal_safety_lock"] = False
+
 
 
 # =====================================

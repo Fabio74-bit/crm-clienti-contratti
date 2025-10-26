@@ -7,18 +7,27 @@ import pandas as pd
 import time
 from datetime import datetime
 from pathlib import Path
-from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from docx import Document
 from docx.shared import Pt
-from utils.data_io import *
-from utils.formatting import *
-from utils.auth import *
-from utils.exports import *
-from utils.fixes import *
-from utils.pdf_builder import SHTPDF
+
+from utils.auth import do_login_fullscreen
 from utils.dashboard import page_dashboard
 from utils.dashboard_grafica import page_dashboard_grafica
+from utils.data_io import (
+    CLIENTI_COLS,
+    CLIENTI_CSV,
+    CONTRATTI_COLS,
+    CONTRATTI_CSV,
+    STORAGE_DIR,
+    load_clienti,
+    load_contratti,
+    save_clienti,
+    save_contratti,
+)
+from utils.exports import export_excel_contratti, export_pdf_contratti
+from utils.fixes import fix_inverted_dates
+from utils.formatting import fmt_date
 from utils.lista_clienti import page_lista_clienti
 
 
@@ -47,11 +56,6 @@ st.markdown("""
 # =====================================
 APP_TITLE = "GESTIONALE CLIENTI – SHT"
 LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
-STORAGE_DIR = Path(st.secrets.get("LOCAL_STORAGE_DIR", "storage"))
-STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-
-CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
-CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
 PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
 PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -62,356 +66,6 @@ TEMPLATE_OPTIONS = {
     "Centralino": "Offerta_Centralino.docx",
     "Varie": "Offerta_Varie.docx",
 }
-
-
-DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
-# =====================================
-# COLONNE STANDARD CSV
-# =====================================
-CLIENTI_COLS = [
-    "ClienteID", "RagioneSociale", "PersonaRiferimento", "Indirizzo", "Citta", "CAP",
-    "Telefono", "Cell", "Email", "PartitaIVA", "IBAN", "SDI",
-    "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita",
-    "TMK", "NoteCliente"
-]
-
-
-CONTRATTI_COLS = [
-    "ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "Durata",
-    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-    "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
-]
-# =====================================
-# FUNZIONI UTILITY
-# =====================================
-def fmt_date(d) -> str:
-    """Ritorna una data in formato DD/MM/YYYY"""
-    import datetime as dt
-    if d in (None, "", "nan", "NaN"):
-        return ""
-    try:
-        if isinstance(d, (dt.date, dt.datetime, pd.Timestamp)):
-            return pd.to_datetime(d).strftime("%d/%m/%Y")
-        parsed = pd.to_datetime(str(d), errors="coerce", dayfirst=True)
-        return "" if pd.isna(parsed) else parsed.strftime("%d/%m/%Y")
-    except Exception:
-        return ""
-
-def money(x):
-    """Formatta numeri in valuta italiana"""
-    try:
-        v = float(pd.to_numeric(x, errors="coerce"))
-        if pd.isna(v): return ""
-        return f"{v:,.2f} €"
-    except Exception:
-        return ""
-
-def safe_text(txt):
-    """Rimuove caratteri non compatibili con PDF latin-1"""
-    if pd.isna(txt) or txt is None: return ""
-    s = str(txt)
-    replacements = {"€": "EUR", "–": "-", "—": "-", "“": '"', "”": '"', "‘": "'", "’": "'"}
-    for k, v in replacements.items():
-        s = s.replace(k, v)
-    return s.encode("latin-1", "replace").decode("latin-1")
-
-def ensure_columns(df, cols):
-    for c in cols:
-        if c not in df.columns:
-            df[c] = pd.NA
-    return df[cols]
-def fix_inverted_dates(series: pd.Series, col_name: str = "") -> pd.Series:
-    """
-    Corregge automaticamente le date invertite (MM/DD/YYYY → DD/MM/YYYY)
-    e mostra un log nel frontend Streamlit.
-    """
-    fixed = []
-    fixed_count = 0
-    total = len(series)
-
-    for val in series:
-        if pd.isna(val) or str(val).strip() == "":
-            fixed.append("")
-            continue
-
-        s = str(val).strip()
-        parsed = None
-
-        try:
-            # 1️⃣ Tentativo in formato italiano
-            d1 = pd.to_datetime(s, dayfirst=True, errors="coerce")
-            # 2️⃣ Tentativo in formato americano
-            d2 = pd.to_datetime(s, dayfirst=False, errors="coerce")
-
-            # Se entrambe valide e diverse → probabile inversione
-            if not pd.isna(d1) and not pd.isna(d2) and d1 != d2:
-                if d1.day <= 12 and d2.day > 12:
-                    parsed = d2
-                    fixed_count += 1
-                else:
-                    parsed = d1
-            elif not pd.isna(d1):
-                parsed = d1
-            elif not pd.isna(d2):
-                parsed = d2
-            else:
-                parsed = None
-        except Exception:
-            parsed = None
-
-        if parsed is not None:
-            fixed.append(parsed.strftime("%d/%m/%Y"))
-        else:
-            fixed.append("")
-
-    # Mostra log su Streamlit (solo se ha corretto qualcosa)
-    if fixed_count > 0:
-        st.info(f"🔄 {fixed_count}/{total} date corrette automaticamente nella colonna **{col_name}**.")
-
-    return pd.Series(fixed)
-
-# =====================================
-# CARICAMENTO E SALVATAGGIO DATI
-# =====================================
-def load_csv(path: Path, cols: list[str]) -> pd.DataFrame:
-    if path.exists():
-        df = pd.read_csv(path, dtype=str, encoding="utf-8-sig").fillna("")
-    else:
-        df = pd.DataFrame(columns=cols)
-        df.to_csv(path, index=False, encoding="utf-8-sig")
-    df = ensure_columns(df, cols)
-    return df
-
-def save_csv(df: pd.DataFrame, path: Path, date_cols=None):
-    out = df.copy()
-    if date_cols:
-        for c in date_cols:
-            out[c] = out[c].apply(fmt_date)
-    out.to_csv(path, index=False, encoding="utf-8-sig")
-
-
-def save_if_changed(df_new, path: Path, original_df):
-    """Salva solo se i dati sono effettivamente cambiati."""
-    import pandas as pd
-    try:
-        if not original_df.equals(df_new):
-            df_new.to_csv(path, index=False, encoding='utf-8-sig')
-            return True
-        return False
-    except Exception:
-        df_new.to_csv(path, index=False, encoding='utf-8-sig')
-        return True
-
-# =====================================
-# FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
-# =====================================
-def save_clienti(df: pd.DataFrame):
-    """Salva il CSV clienti correggendo e formattando le date."""
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if c in df.columns:
-            df[c] = fix_inverted_dates(df[c], col_name=c)
-    save_csv(df, CLIENTI_CSV, date_cols=["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"])
-
-
-def save_contratti(df: pd.DataFrame):
-    """Salva il CSV contratti correggendo e formattando le date."""
-    for c in ["DataInizio", "DataFine"]:
-        if c in df.columns:
-            df[c] = fix_inverted_dates(df[c], col_name=c)
-    save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
-
-# =====================================
-# CONVERSIONE SICURA DATE ITALIANE (VERSIONE DEFINITIVA 2025)
-# =====================================
-from datetime import datetime
-
-def parse_date_safe(val: str) -> str:
-    """Converte una data in formato coerente DD/MM/YYYY, accettando formati misti."""
-    if not val or str(val).strip() in ["nan", "NaN", "None", "NaT", ""]:
-        return ""
-    val = str(val).strip()
-    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"):
-        try:
-            return datetime.strptime(val, fmt).strftime("%d/%m/%Y")
-        except ValueError:
-            continue
-    return val
-
-
-def to_date_series(series: pd.Series) -> pd.Series:
-    """Compatibilità retroattiva: applica parse_date_safe a una serie pandas."""
-    return series.apply(parse_date_safe)
-
-
-# =====================================
-# CARICAMENTO CLIENTI (senza salvataggio automatico)
-# =====================================
-def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (solo lettura, coerente con date italiane)."""
-    import pandas as pd
-
-    if CLIENTI_CSV.exists():
-        try:
-            df = pd.read_csv(
-                CLIENTI_CSV,
-                dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei clienti: {e}")
-            df = pd.DataFrame(columns=CLIENTI_COLS)
-    else:
-        df = pd.DataFrame(columns=CLIENTI_COLS)
-        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
-
-    # Normalizza valori vuoti o errati
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-
-    # Garantisce che tutte le colonne standard esistano
-    df = ensure_columns(df, CLIENTI_COLS)
-
-    # Conversione coerente delle date (senza salvarle)
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if c in df.columns:
-            df[c] = df[c].apply(parse_date_safe)
-
-    return df
-
-
-# =====================================
-# CARICAMENTO CONTRATTI (senza salvataggio automatico)
-# =====================================
-def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (solo lettura, coerente con date italiane)."""
-    import pandas as pd
-
-    if CONTRATTI_CSV.exists():
-        try:
-            df = pd.read_csv(
-                CONTRATTI_CSV,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei contratti: {e}")
-            df = pd.DataFrame(columns=CONTRATTI_COLS)
-    else:
-        df = pd.DataFrame(columns=CONTRATTI_COLS)
-        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
-
-    # Pulisce valori testuali e garantisce colonne
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-    df = ensure_columns(df, CONTRATTI_COLS)
-
-    # Conversione coerente delle date
-    for c in ["DataInizio", "DataFine"]:
-        if c in df.columns:
-            df[c] = df[c].apply(parse_date_safe)
-
-    return df
-
-
-# =====================================
-# FUNZIONI DI CARICAMENTO DATI (VERSIONE DEFINITIVA 2025)
-# =====================================
-
-def normalize_cliente_id(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalizza la colonna ClienteID rimuovendo zeri iniziali e spazi."""
-    if "ClienteID" not in df.columns:
-        return df
-    df["ClienteID"] = (
-        df["ClienteID"]
-        .astype(str)
-        .str.strip()
-        .str.replace(r"^0+", "", regex=True)
-        .replace({"": None})
-    )
-    return df
-
-
-def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
-    import pandas as pd
-
-    try:
-        if CLIENTI_CSV.exists():
-            df = pd.read_csv(
-                CLIENTI_CSV,
-                dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        else:
-            df = pd.DataFrame(columns=CLIENTI_COLS)
-    except Exception as e:
-        st.error(f"❌ Errore durante la lettura dei clienti: {e}")
-        df = pd.DataFrame(columns=CLIENTI_COLS)
-
-    # Pulizia e normalizzazione
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-    df = ensure_columns(df, CLIENTI_COLS)
-    df = normalize_cliente_id(df)
-
-    # Conversione date coerente
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if c in df.columns:
-            df[c] = to_date_series(df[c])
-
-    return df
-
-
-def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
-    import pandas as pd
-
-    try:
-        if CONTRATTI_CSV.exists():
-            df = pd.read_csv(
-                CONTRATTI_CSV,
-                dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        else:
-            df = pd.DataFrame(columns=CONTRATTI_COLS)
-    except Exception as e:
-        st.error(f"❌ Errore durante la lettura dei contratti: {e}")
-        df = pd.DataFrame(columns=CONTRATTI_COLS)
-
-    # Pulizia e normalizzazione
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-    df = ensure_columns(df, CONTRATTI_COLS)
-    df = normalize_cliente_id(df)
-
-    # Conversione date coerente
-    for c in ["DataInizio", "DataFine"]:
-        if c in df.columns:
-            df[c] = to_date_series(df[c])
-
-    return df
-
 
 
 # =====================================
@@ -600,10 +254,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CONTRATTI — VERSIONE COMPLETA CON CARD, AZIONI ED ESPORTA
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    import time
-    from utils.data_io import save_contratti
-    from utils.formatting import fmt_date
-    from utils.exports import export_excel_contratti, export_pdf_contratti
 
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
@@ -621,10 +271,26 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
-    clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
+    clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1).tolist()
     clienti_ids = df_cli["ClienteID"].astype(str).tolist()
-    sel_label = st.selectbox("Seleziona Cliente", clienti_labels.tolist())
-    sel_id = clienti_ids[clienti_labels.tolist().index(sel_label)]
+
+    default_index = 0
+    stored_id = st.session_state.get("contratti_sel_id")
+    stored_label = st.session_state.get("contratti_sel_label")
+    if stored_label in clienti_labels:
+        default_index = clienti_labels.index(stored_label)
+    elif stored_id is not None and str(stored_id) in clienti_ids:
+        default_index = clienti_ids.index(str(stored_id))
+
+    sel_label = st.selectbox(
+        "Seleziona Cliente",
+        clienti_labels,
+        index=default_index,
+        key="contratti_cliente_select",
+    )
+    sel_id = clienti_ids[clienti_labels.index(sel_label)]
+    st.session_state["contratti_sel_id"] = sel_id
+    st.session_state["contratti_sel_label"] = sel_label
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
     # === Titolo cliente ===
@@ -645,9 +311,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         if not permessi_limitati:
             if st.button("➕ Aggiungi Contratto", key="btn_add_contract", use_container_width=True):
                 st.session_state["modal_add_contract"] = True
-                # memorizza il cliente selezionato per non perderlo al rerun
-                st.session_state["contratti_sel_id"] = sel_id
-                st.session_state["contratti_sel_label"] = sel_label
                 st.rerun()
 
     # ✅ Esporta Excel (scarica diretto)
@@ -800,16 +463,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 # Chiude modale e mantiene cliente
                 st.session_state["modal_add_contract"] = False
-                st.session_state["contratti_sel_id"] = sel_id
-                st.session_state["contratti_sel_label"] = sel_label
                 st.success("✅ Contratto aggiunto con successo!")
                 time.sleep(0.5)
                 st.rerun()
 
             if annulla:
                 st.session_state["modal_add_contract"] = False
-                st.session_state["contratti_sel_id"] = sel_id
-                st.session_state["contratti_sel_label"] = sel_label
                 st.rerun()
 
         st.markdown("</div></div>", unsafe_allow_html=True)
@@ -817,7 +476,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === MODALE MODIFICA CONTRATTO ===
     if st.session_state.get("modal_edit_contract"):
         numero = st.session_state["modal_edit_contract"]
-        contratto = df_ct[df_ct["NumeroContratto"] == numero].iloc[0]
+        contratti_match = df_ct[df_ct["NumeroContratto"] == numero]
+        if contratti_match.empty:
+            st.session_state["modal_edit_contract"] = None
+            st.warning("⚠️ Il contratto selezionato non esiste più.")
+            st.rerun()
+            return
+
+        contratto = contratti_match.iloc[0]
 
         st.markdown("""
         <style>
@@ -847,7 +513,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 annulla = st.form_submit_button("❌ Annulla")
 
             if salva:
-                idx = df_ct.index[df_ct["NumeroContratto"] == numero][0]
+                idx = contratti_match.index[0]
                 df_ct.loc[idx, ["DescrizioneProdotto", "TotRata", "Stato"]] = [desc, tot, stato]
                 save_contratti(df_ct)
                 st.session_state["modal_edit_contract"] = None

@@ -1121,35 +1121,80 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — DASHBOARD ELEGANTE DEFINITIVA 2025
+# PAGINA CONTRATTI — LAYOUT A CARD ELEGANTE (VERSIONE COMPLETA 2025)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-    # === Gestione permessi per ruoli ===
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
 
-    if permessi_limitati:
-        st.info("👁️ Modalità sola lettura: puoi visualizzare i contratti ma non modificarli o crearne di nuovi.")
-
-    # 🔹 Reset automatico session state
-    for k in list(st.session_state.keys()):
-        if k.startswith("edit_ct_"):
-            del st.session_state[k]
-
+    # === STILE GRAFICO ===
     st.markdown("""
     <style>
-      .card{background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);padding:1.2rem 1.4rem;margin-bottom:1rem;}
-      .card h3{color:#2563eb;margin:0 0 .8rem 0;}
-      .pill-open{background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px;font-weight:600;}
-      .pill-closed{background:#ffebee;color:#b71c1c;padding:2px 8px;border-radius:8px;font-weight:600;}
-      .tbl-head{font-weight:700;border-bottom:1px solid #e5e7eb;padding:.4rem 0;margin-top:.2rem}
-      .tbl-row{border-bottom:1px solid #f0f2f5;padding:.35rem 0;}
+      .contract-card {
+          background:#fff;
+          border-radius:12px;
+          box-shadow:0 2px 10px rgba(0,0,0,0.08);
+          padding:1.2rem 1.5rem;
+          margin-bottom:1.2rem;
+          border-left:6px solid #2563eb;
+          transition: all 0.2s ease-in-out;
+      }
+      .contract-card:hover {box-shadow:0 4px 16px rgba(0,0,0,0.12);}
+      .contract-header {
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin-bottom:0.6rem;
+      }
+      .contract-title {
+          font-size:1.1rem;
+          font-weight:600;
+          color:#2563eb;
+      }
+      .contract-status {
+          font-weight:700;
+          padding:4px 10px;
+          border-radius:8px;
+          font-size:0.85rem;
+      }
+      .open {background:#e8f5e9;color:#1b5e20;}
+      .closed {background:#ffebee;color:#b71c1c;}
+      .contract-info {
+          font-size:0.9rem;
+          color:#333;
+          line-height:1.6;
+      }
+      .contract-actions button {
+          width:100%;
+          font-size:0.85rem;
+          border:none;
+          border-radius:6px;
+      }
+      .btn-edit > button {
+          background:#e3f2fd;
+          color:#0d47a1;
+      }
+      .btn-del > button {
+          background:#ffebee;
+          color:#b71c1c;
+      }
+      .btn-desc > button {
+          background:#f5f5f5;
+          color:#333;
+      }
+      .popup-desc {
+          background:#fff;
+          padding:1.5rem;
+          border-radius:12px;
+          box-shadow:0 4px 20px rgba(0,0,0,0.15);
+      }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("<h2>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
+    st.divider()
 
-    # === Selezione Cliente ===
+    # === SELEZIONE CLIENTE ===
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
@@ -1167,15 +1212,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     sel_id = cliente_ids[labels.tolist().index(sel_label)]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
-    # Titolo cliente evidenziato
+    # === TITOLO CLIENTE ===
     st.markdown(
         f"<h3 style='text-align:center;color:#2563eb;margin-bottom:0;'>{rag_soc}</h3>"
         f"<p style='text-align:center;color:#555;'>ID Cliente: {sel_id}</p>",
         unsafe_allow_html=True
     )
 
-    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    ct = ct.reset_index().rename(columns={"index": "_gidx"})
+    # === CONTRATTI CLIENTE ===
+    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy().reset_index().rename(columns={"index": "_gidx"})
 
     # === EXPANDER: NUOVO CONTRATTO ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
@@ -1227,90 +1272,87 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     except Exception as e:
                         st.error(f"❌ Errore creazione contratto: {e}")
 
-    # === TABELLA CONTRATTI ESISTENTI ===
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("<h3>📋 Contratti Esistenti</h3>", unsafe_allow_html=True)
+    st.divider()
+    st.markdown("### 📋 Contratti del Cliente")
 
     if ct.empty:
         st.info("Nessun contratto per questo cliente.")
-        st.markdown('</div>', unsafe_allow_html=True)
         return
 
-    for c in ["DataInizio", "DataFine"]:
-        ct[c] = ct[c].apply(fmt_date)
-    for c in ["TotRata", "NOL_FIN", "NOL_INT"]:
-        ct[c] = ct[c].apply(money)
-
+    # === VISUALIZZAZIONE CARD CONTRATTI ===
     for i, r in ct.iterrows():
-        gidx = int(r["_gidx"])  # indice reale nel df_ct
-        rid = f"{r['ClienteID']}_{r.get('NumeroContratto','')}_{gidx}".replace("/", "_").replace(" ", "_")
-
+        gidx = int(r["_gidx"])
         stato = str(r.get("Stato", "")).lower()
-        bg = "#ffcdd2" if stato == "chiuso" else ("#f8fbff" if i % 2 == 0 else "#ffffff")
+        stato_class = "closed" if stato == "chiuso" else "open"
 
-        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([1.1, 0.9, 0.9, 0.6, 1.2, 0.8, 2.0, 0.9])
-        with c1: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','')}</div>", unsafe_allow_html=True)
-        with c2: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('DataInizio','')}</div>", unsafe_allow_html=True)
-        with c3: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('DataFine','')}</div>", unsafe_allow_html=True)
-        with c4: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
-        with c5: st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('TotRata','')}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='contract-card'>", unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class='contract-header'>
+                <div class='contract-title'>📄 Contratto {r.get('NumeroContratto','')}</div>
+                <div class='contract-status {stato_class}'>{stato.capitalize()}</div>
+            </div>
+            <div class='contract-info'>
+                <b>📅 Inizio:</b> {fmt_date(r.get('DataInizio'))}  
+                <b>🕓 Fine:</b> {fmt_date(r.get('DataFine'))}  
+                <b>⏱ Durata:</b> {r.get('Durata','')} mesi  
+                <b>💰 Tot. Rata:</b> {money(r.get('TotRata'))}
+                <br>
+                <b>📦 Prodotto:</b> {r.get('DescrizioneProdotto','—')}
+            </div>
+        """, unsafe_allow_html=True)
 
-        stato_tag = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
-        with c6: st.markdown(f"<div style='background:{bg};padding:6px'>{stato_tag}</div>", unsafe_allow_html=True)
-
-        desc_short = str(r.get("DescrizioneProdotto", "")) or "—"
-        if len(desc_short) > 80: desc_short = desc_short[:80] + "…"
-
-        with c7:
-            st.markdown(f"<div style='background:{bg};padding:6px'>", unsafe_allow_html=True)
-            if st.button(desc_short, key=f"desc_{rid}", use_container_width=True):
+        # === PULSANTI AZIONE ===
+        c1, c2, c3 = st.columns([0.3, 0.3, 0.4])
+        with c1:
+            st.markdown('<div class="btn-desc">', unsafe_allow_html=True)
+            if st.button("📖 Dettagli", key=f"desc_{gidx}", use_container_width=True):
                 st.session_state["desc_popup"] = r.get("DescrizioneProdotto", "")
                 st.session_state["desc_popup_title"] = r.get("NumeroContratto", "")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with c2:
+            st.markdown('<div class="btn-edit">', unsafe_allow_html=True)
+            if st.button("✏️ Modifica", key=f"edit_{gidx}", use_container_width=True, disabled=permessi_limitati):
+                st.session_state["edit_gidx"] = gidx
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
-        with c8:
-            st.markdown(f"<div style='background:{bg};padding:6px'>", unsafe_allow_html=True)
-            colE, colD = st.columns(2)
-            if permessi_limitati:
-                colE.button("✏️", key=f"edit_{rid}", use_container_width=True, disabled=True)
-                colD.button("🗑️", key=f"del_{rid}", use_container_width=True, disabled=True)
-            else:
-                if colE.button("✏️", key=f"edit_{rid}", use_container_width=True):
-                    st.session_state["edit_gidx"] = gidx
-                    st.rerun()
-                if colD.button("🗑️", key=f"del_{rid}", use_container_width=True):
-                    st.session_state["delete_gidx"] = gidx
-                    st.session_state["ask_delete_now"] = True
-                    st.rerun()
+        with c3:
+            st.markdown('<div class="btn-del">', unsafe_allow_html=True)
+            if st.button("🗑️ Elimina", key=f"del_{gidx}", use_container_width=True, disabled=permessi_limitati):
+                st.session_state["delete_gidx"] = gidx
+                st.session_state["ask_delete_now"] = True
+                st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
+    # === POPUP DESCRIZIONE (dettagli contratto) ===
+    if "desc_popup" in st.session_state:
+        st.markdown("<div class='popup-desc'>", unsafe_allow_html=True)
+        st.markdown(f"### 🧾 Dettagli Contratto {st.session_state.get('desc_popup_title','')}")
+        st.write(st.session_state["desc_popup"])
+        if st.button("❌ Chiudi Dettagli", key="close_desc_popup", use_container_width=True):
+            del st.session_state["desc_popup"]
+            del st.session_state["desc_popup_title"]
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.divider()
 
-    # === MODIFICA CONTRATTO SELEZIONATO ===
+    # === MODIFICA CONTRATTO ===
     if st.session_state.get("edit_gidx") is not None:
         gidx = st.session_state["edit_gidx"]
         if gidx in df_ct.index:
             contratto = df_ct.loc[gidx]
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}", unsafe_allow_html=True)
-
+            st.markdown("### ✏️ Modifica Contratto")
             with st.form(f"frm_edit_ct_{gidx}"):
                 c1, c2, c3, c4 = st.columns(4)
                 num = c1.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
-                din = c2.date_input(
-                    "Data Inizio",
-                    value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
-                        if contratto.get("DataInizio") else pd.Timestamp.now(),
-                    format="DD/MM/YYYY"
-                )
+                din = c2.date_input("Data Inizio", value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce") if contratto.get("DataInizio") else pd.Timestamp.now(), format="DD/MM/YYYY")
                 durata = c3.text_input("Durata (mesi)", contratto.get("Durata", ""))
-                stato = c4.selectbox("Stato", ["aperto", "chiuso"],
-                                    index=0 if str(contratto.get("Stato","")).lower()!="chiuso" else 1)
+                stato = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if str(contratto.get("Stato","")).lower()!="chiuso" else 1)
 
                 desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
-
                 c5, c6, c7 = st.columns(3)
                 nf  = c5.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
                 ni  = c6.text_input("NOL_INT", contratto.get("NOL_INT", ""))
@@ -1345,38 +1387,29 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state.pop("edit_gidx", None)
                 st.rerun()
 
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    # === CONFERMA ELIMINAZIONE CONTRATTO ===
+    # === CONFERMA ELIMINAZIONE ===
     if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
         gidx = st.session_state["delete_gidx"]
         if gidx in df_ct.index:
             contratto = df_ct.loc[gidx]
             numero = contratto.get("NumeroContratto", "Senza numero")
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown(f"### 🗑️ Eliminazione Contratto {numero}", unsafe_allow_html=True)
-            st.warning(f"Sei sicuro di voler eliminare definitivamente il contratto **{numero}** del cliente **{rag_soc}**?")
-
+            st.warning(f"Sei sicuro di voler eliminare definitivamente il contratto **{numero}**?")
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("✅ Sì, elimina", use_container_width=True, key=f"confirm_del_{gidx}"):
-                    try:
-                        df_ct = df_ct.drop(index=gidx).copy()
-                        save_contratti(df_ct)
-                        st.success("🗑️ Contratto eliminato con successo.")
-                        st.session_state.pop("ask_delete_now", None)
-                        st.session_state.pop("delete_gidx", None)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Errore durante l'eliminazione: {e}")
+                if st.button("✅ Sì, elimina", use_container_width=True):
+                    df_ct = df_ct.drop(index=gidx).copy()
+                    save_contratti(df_ct)
+                    st.success("🗑️ Contratto eliminato con successo.")
+                    st.session_state.pop("ask_delete_now", None)
+                    st.session_state.pop("delete_gidx", None)
+                    st.rerun()
             with c2:
-                if st.button("❌ Annulla", use_container_width=True, key=f"cancel_del_{gidx}"):
+                if st.button("❌ Annulla", use_container_width=True):
                     st.session_state.pop("ask_delete_now", None)
                     st.session_state.pop("delete_gidx", None)
                     st.info("Eliminazione annullata.")
                     st.rerun()
 
-            st.markdown('</div>', unsafe_allow_html=True)
     # === ESPORTAZIONI (Excel + PDF migliorati) ===
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown("<h3>📤 Esportazioni</h3>", unsafe_allow_html=True)

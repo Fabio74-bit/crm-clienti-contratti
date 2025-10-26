@@ -1524,6 +1524,106 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 
     return df_cli, df_ct
 
+# =====================================
+# PAGINA RECALL E VISITE (aggiornata e coerente)
+# =====================================
+def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    st.image(LOGO_URL, width=120)
+    st.markdown("<h2>📅 Gestione Recall e Visite</h2>", unsafe_allow_html=True)
+    st.divider()
+
+    col1, col2 = st.columns(2)
+    filtro_nome = col1.text_input("🔍 Cerca per nome cliente")
+    filtro_citta = col2.text_input("🏙️ Cerca per città")
+
+    df = df_cli.copy()
+    if filtro_nome:
+        df = df[df["RagioneSociale"].str.contains(filtro_nome, case=False, na=False)]
+    if filtro_citta:
+        df = df[df["Citta"].str.contains(filtro_citta, case=False, na=False)]
+    if df.empty:
+        st.warning("❌ Nessun cliente trovato.")
+        return
+
+    oggi = pd.Timestamp.now().normalize()
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        df[c] = pd.to_datetime(df[c], errors="coerce", dayfirst=True)
+
+    # === Imminenti (entro 30 giorni) ===
+    st.markdown("### 🔔 Recall e Visite imminenti (entro 30 giorni)")
+    imminenti = df[
+        (df["ProssimoRecall"].between(oggi, oggi + pd.DateOffset(days=30))) |
+        (df["ProssimaVisita"].between(oggi, oggi + pd.DateOffset(days=30)))
+    ]
+
+    if imminenti.empty:
+        st.success("✅ Nessun richiamo o visita imminente.")
+    else:
+        for i, r in imminenti.iterrows():
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 0.7])
+            c1.markdown(f"**{r['RagioneSociale']}**")
+            c2.markdown(fmt_date(r["ProssimoRecall"]))
+            c3.markdown(fmt_date(r["ProssimaVisita"]))
+            if c4.button("📂 Apri", key=f"imm_{i}", use_container_width=True):
+                st.session_state.update({
+                    "selected_cliente": r["ClienteID"],
+                    "nav_target": "Clienti",
+                    "_go_clienti_now": True
+                })
+                st.rerun()
+
+    st.divider()
+
+    # === Recall e visite in ritardo ===
+    st.markdown("### ⚠️ Recall e Visite scaduti")
+    recall_vecchi = df[
+        df["UltimoRecall"].notna() & (df["UltimoRecall"] < oggi - pd.DateOffset(months=3))
+    ]
+    visite_vecchie = df[
+        df["UltimaVisita"].notna() & (df["UltimaVisita"] < oggi - pd.DateOffset(months=6))
+    ]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### 📞 Recall > 3 mesi fa")
+        if recall_vecchi.empty:
+            st.info("✅ Nessun recall scaduto.")
+        else:
+            for i, r in recall_vecchi.iterrows():
+                c1, c2, c3 = st.columns([2.5, 1.2, 0.8])
+                c1.markdown(f"**{r['RagioneSociale']}**")
+                c2.markdown(fmt_date(r["UltimoRecall"]))
+                if c3.button("📂 Apri", key=f"rec_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": r["ClienteID"],
+                        "nav_target": "Clienti",
+                        "_go_clienti_now": True
+                    })
+                    st.rerun()
+
+    with col2:
+        st.markdown("#### 👣 Visite > 6 mesi fa")
+        if visite_vecchie.empty:
+            st.info("✅ Nessuna visita scaduta.")
+        else:
+            for i, r in visite_vecchie.iterrows():
+                c1, c2, c3 = st.columns([2.5, 1.2, 0.8])
+                c1.markdown(f"**{r['RagioneSociale']}**")
+                c2.markdown(fmt_date(r["UltimaVisita"]))
+                if c3.button("📂 Apri", key=f"vis_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": r["ClienteID"],
+                        "nav_target": "Clienti",
+                        "_go_clienti_now": True
+                    })
+                    st.rerun()
+
+    st.divider()
+    st.markdown("### 🧾 Storico Recall e Visite")
+    tabella = df[["RagioneSociale", "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]].copy()
+    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+        tabella[c] = tabella[c].apply(fmt_date)
+    st.dataframe(tabella, use_container_width=True, hide_index=True)
 
 # =====================================
 # MAIN APP

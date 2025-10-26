@@ -1121,24 +1121,33 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE CLASSICA STABILE CON ICONE AZIONE
+# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 (TABELLA ELEGANTE)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
 
+    # === Stile tabella elegante ===
     st.markdown("""
     <style>
-      .tbl-head {font-weight:700;border-bottom:1px solid #e5e7eb;padding:6px 0;margin-bottom:4px;}
-      .tbl-row {border-bottom:1px solid #f0f2f5;padding:4px 0;}
-      .pill-open{background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px;font-weight:600;}
-      .pill-closed{background:#ffebee;color:#b71c1c;padding:2px 8px;border-radius:8px;font-weight:600;}
-      .action-btn {
-          background:none;border:none;color:#2563eb;font-size:1rem;
-          cursor:pointer;margin:0 4px;padding:2px;
-      }
-      .action-btn:disabled {opacity:0.4;cursor:not-allowed;}
-      .action-container {display:flex;justify-content:center;align-items:center;}
+    .contract-table {
+        width:100%; border-collapse:collapse; margin-top:0.5rem;
+    }
+    .contract-table th {
+        background-color:#2563eb; color:white; padding:8px;
+        text-align:center; font-weight:600; border:1px solid #d0d7de;
+    }
+    .contract-table td {
+        border:1px solid #e5e7eb; padding:6px 8px; text-align:center;
+        vertical-align:middle;
+    }
+    .contract-table tr:nth-child(even) {background:#f8fafc;}
+    .contract-table tr:hover {background:#f1f5f9;}
+    .pill-open {background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:8px; font-weight:600;}
+    .pill-closed {background:#ffebee; color:#b71c1c; padding:2px 8px; border-radius:8px; font-weight:600;}
+    .actions button {
+        background:none; border:none; cursor:pointer; font-size:1.1rem; margin:0 2px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1207,45 +1216,26 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === INTESTAZIONE TABELLA ===
-    st.markdown("""
-    <style>
-    .contract-table {
-        width:100%; border-collapse:collapse; margin-top:0.5rem;
-    }
-    .contract-table th {
-        background-color:#2563eb; color:white; padding:8px;
-        text-align:center; font-weight:600; border:1px solid #d0d7de;
-    }
-    .contract-table td {
-        border:1px solid #e5e7eb; padding:6px 8px; text-align:center;
-        vertical-align:middle;
-    }
-    .contract-table tr:nth-child(even) {background:#f8fafc;}
-    .contract-table tr:hover {background:#f1f5f9;}
-    .pill-open {background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:8px; font-weight:600;}
-    .pill-closed {background:#ffebee; color:#b71c1c; padding:2px 8px; border-radius:8px; font-weight:600;}
-    .actions button {
-        background:none; border:none; cursor:pointer; font-size:1.1rem; margin:0 2px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # === RENDER TABELLA CONTRATTI ===
+    # === COSTRUISCE TABELLA CONTRATTI ===
     html_rows = ""
     for i, r in ct.iterrows():
+        def val(x):
+            x = str(x).strip()
+            return "—" if x in ["", "nan", "NaN", "None"] else x
+
         stato = str(r.get("Stato", "aperto")).lower()
         stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
-        desc = str(r.get("DescrizioneProdotto", "—"))
-        if len(desc) > 60:
-            desc = desc[:60] + "…"
+
+        desc = val(r.get("DescrizioneProdotto"))
+        if len(desc) > 80:
+            desc = desc[:80] + "…"
 
         html_rows += f"""
         <tr>
-            <td>{r.get('NumeroContratto','')}</td>
+            <td>{val(r.get('NumeroContratto'))}</td>
             <td>{fmt_date(r.get('DataInizio'))}</td>
             <td>{fmt_date(r.get('DataFine'))}</td>
-            <td>{r.get('Durata','')}</td>
+            <td>{val(r.get('Durata'))}</td>
             <td>{money(r.get('TotRata'))}</td>
             <td>{stato_html}</td>
             <td style='text-align:left'>{desc}</td>
@@ -1279,66 +1269,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     </table>
     """, unsafe_allow_html=True)
 
-
-    # === MODIFICA CONTRATTO ===
-    if st.session_state.get("edit_gidx") is not None:
-        gidx = st.session_state["edit_gidx"]
-        if gidx in df_ct.index:
-            contratto = df_ct.loc[gidx]
-            st.divider()
-            st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}")
-            with st.form(f"frm_edit_ct_{gidx}"):
-                c1, c2, c3, c4 = st.columns(4)
-                num = c1.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
-                din = c2.date_input(
-                    "Data Inizio",
-                    value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
-                    if contratto.get("DataInizio") else pd.Timestamp.now(),
-                    format="DD/MM/YYYY"
-                )
-                durata = c3.text_input("Durata (mesi)", contratto.get("Durata", ""))
-                stato = c4.selectbox("Stato", ["aperto", "chiuso"],
-                                    index=0 if str(contratto.get("Stato","")).lower()!="chiuso" else 1)
-                desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
-
-                salva = st.form_submit_button("💾 Salva Modifiche")
-                if salva:
-                    try:
-                        durata_val = int(durata) if str(durata).isdigit() else 12
-                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=durata_val)
-                        df_ct.loc[gidx, [
-                            "NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","Stato"
-                        ]] = [num, fmt_date(din), fmt_date(data_fine), durata, desc, stato]
-                        save_contratti(df_ct)
-                        st.success("✅ Contratto aggiornato.")
-                        st.session_state.pop("edit_gidx", None)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Errore salvataggio: {e}")
-
-    # === ELIMINAZIONE CONTRATTO ===
-    if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
-        gidx = st.session_state["delete_gidx"]
-        if gidx in df_ct.index:
-            contratto = df_ct.loc[gidx]
-            numero = contratto.get("NumeroContratto", "Senza numero")
-            st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✅ Sì, elimina", use_container_width=True):
-                    df_ct = df_ct.drop(index=gidx).copy()
-                    save_contratti(df_ct)
-                    st.success("🗑️ Contratto eliminato.")
-                    st.session_state.pop("ask_delete_now", None)
-                    st.session_state.pop("delete_gidx", None)
-                    st.rerun()
-            with c2:
-                if st.button("❌ Annulla", use_container_width=True):
-                    st.session_state.pop("ask_delete_now", None)
-                    st.session_state.pop("delete_gidx", None)
-                    st.info("Annullato.")
-                    st.rerun()
-
     # === ESPORTAZIONI (Excel + PDF) ===
     st.divider()
     st.markdown("### 📤 Esportazioni")
@@ -1347,7 +1277,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with cex1:
         try:
             from openpyxl import Workbook
-            from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
             from io import BytesIO
             wb = Workbook()
             ws = wb.active
@@ -1376,6 +1305,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.download_button("📗 Esporta PDF", pdf_bytes, file_name=f"Contratti_{rag_soc}.pdf", mime="application/pdf")
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
+
 
 
 

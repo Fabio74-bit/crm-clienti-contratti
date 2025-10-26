@@ -1,40 +1,38 @@
+# =====================================
+# utils/auth.py — Login Fullscreen pulito con logo locale
+# =====================================
 import streamlit as st
 import time
 
-# =====================================
-# LOGIN FULLSCREEN — versione 2025 corretta (senza fascia bianca + logo fisso)
-# =====================================
 def do_login_fullscreen():
-    """Login elegante fullscreen con logo locale"""
+    """Login elegante fullscreen senza rettangolo bianco"""
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # --- Stile globale ---
+    # CSS per fullscreen + rimozione padding + stile moderno
     st.markdown("""
     <style>
-    header[data-testid="stHeader"] {display: none !important;}
-    div[data-testid="stToolbar"] {display: none !important;}
-    [data-testid="stDecoration"] {display: none !important;}
-    div[data-testid="stStatusWidget"] {display: none !important;}
+    /* Rimuove margini e padding generali */
     div[data-testid="stAppViewContainer"] {
         padding-top: 0 !important;
-        background-color: #f8fafc;
     }
     .block-container {
+        padding: 0 !important;
+        margin: 0 !important;
         display: flex;
-        flex-direction: column;
         justify-content: center;
         align-items: center;
         height: 100vh;
-        padding-top: 0 !important;
+        background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
     }
+    /* Card login */
     .login-card {
-        background: #ffffff;
+        background: white;
         border: 1px solid #e5e7eb;
-        border-radius: 14px;
+        border-radius: 12px;
         box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-        padding: 2.5rem;
-        width: 380px;
+        padding: 2rem 2.5rem;
+        width: 360px;
         text-align: center;
     }
     .login-title {
@@ -51,51 +49,36 @@ def do_login_fullscreen():
         border: none;
         border-radius: 6px;
         padding: 0.5rem 0;
-        transition: all 0.2s ease;
-    }
-    .stButton>button:hover {
-        transform: scale(1.02);
-        background-color: #1e4ed8;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Contenuto del login ---
+    # --- Layout login ---
     st.markdown("<div class='login-card'>", unsafe_allow_html=True)
-
-    # 🔹 Mostra logo locale (presente in cartella /assets o /images)
-    try:
-        st.image("assets/logo-sht.png", width=160)
-    except:
-        st.markdown("<h2 style='color:#2563eb;'>S.H.T.</h2>", unsafe_allow_html=True)
-
+    st.image("assets/logo-sht.png", width=160)
     st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
     username = st.text_input("Nome utente", key="login_user").strip().lower()
     password = st.text_input("Password", type="password", key="login_pass")
     login_btn = st.button("Entra")
-
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- Gestione login ---
+    # --- Validazione login ---
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
-        try:
-            users = st.secrets["auth"]["users"]
-            if username in users and users[username]["password"] == password:
-                st.session_state.update({
-                    "user": username,
-                    "role": users[username].get("role", "viewer"),
-                    "logged_in": True
-                })
-                st.success(f"✅ Benvenuto {username}!")
-                time.sleep(0.3)
-                st.rerun()
-            else:
-                st.error("❌ Credenziali non valide.")
-                st.session_state["_login_checked"] = False
-        except Exception as e:
-            st.error(f"⚠️ Errore durante il login: {e}")
+        users = st.secrets["auth"]["users"]
+
+        if username in users and users[username]["password"] == password:
+            st.session_state.update({
+                "user": username,
+                "role": users[username].get("role", "viewer"),
+                "logged_in": True
+            })
+            st.success(f"✅ Benvenuto {username}!")
+            time.sleep(0.3)
+            st.rerun()
+        else:
+            st.error("❌ Credenziali non valide.")
             st.session_state["_login_checked"] = False
 
     st.stop()

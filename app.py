@@ -639,34 +639,50 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === Azioni globali ===
     colA, colB, colC = st.columns([0.25, 0.25, 0.5])
+
+    # ✅ Aggiungi Contratto
     with colA:
         if not permessi_limitati:
             if st.button("➕ Aggiungi Contratto", key="btn_add_contract", use_container_width=True):
                 st.session_state["modal_add_contract"] = True
+                # memorizza il cliente selezionato per non perderlo al rerun
+                st.session_state["contratti_sel_id"] = sel_id
+                st.session_state["contratti_sel_label"] = sel_label
                 st.rerun()
+
+    # ✅ Esporta Excel (scarica diretto)
     with colB:
-        if st.button("📤 Esporta Excel", use_container_width=True):
+        try:
             xlsx_bytes = export_excel_contratti(df_ct, sel_id, rag_soc)
             st.download_button(
-                label="⬇️ Scarica Excel",
+                label="📤 Esporta Excel",
                 data=xlsx_bytes,
                 file_name=f"Contratti_{rag_soc}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"dl_xlsx_{sel_id}",
                 use_container_width=True
             )
+        except Exception as e:
+            st.warning(f"⚠️ Errore durante l'esportazione Excel: {e}")
+
+    # ✅ Esporta PDF (scarica diretto)
     with colC:
-        if st.button("📄 Esporta PDF", use_container_width=True):
+        try:
             pdf_bytes = export_pdf_contratti(df_ct, sel_id, rag_soc)
             if pdf_bytes:
                 st.download_button(
-                    label="⬇️ Scarica PDF",
+                    label="📄 Esporta PDF",
                     data=pdf_bytes,
                     file_name=f"Contratti_{rag_soc}.pdf",
                     mime="application/pdf",
+                    key=f"dl_pdf_{sel_id}",
                     use_container_width=True
                 )
             else:
-                st.warning("⚠️ Nessun contratto da esportare per questo cliente.")
+                st.button("📄 Esporta PDF", disabled=True, use_container_width=True, key=f"dl_pdf_disabled_{sel_id}")
+        except Exception as e:
+            st.warning(f"⚠️ Errore durante l'esportazione PDF: {e}")
+
 
     # === Filtra contratti ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()

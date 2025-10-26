@@ -27,14 +27,16 @@ def do_login_fullscreen():
     }
     /* Card login */
     .login-card {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        background: rgba(255, 255, 255, 0.6);  /* bianco trasparente */
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 14px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
         padding: 2rem 2.5rem;
         width: 360px;
         text-align: center;
+        backdrop-filter: blur(6px);  /* effetto vetro satinato */
     }
+
     .login-title {
         font-size: 1.3rem;
         font-weight: 600;
@@ -55,7 +57,6 @@ def do_login_fullscreen():
 
     # --- Layout login ---
     st.markdown("<div class='login-card'>", unsafe_allow_html=True)
-    st.image("assets/logo-sht.png", width=160)
     st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
 
     username = st.text_input("Nome utente", key="login_user").strip().lower()

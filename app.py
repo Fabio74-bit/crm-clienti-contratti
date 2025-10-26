@@ -1208,51 +1208,77 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         return
 
     # === INTESTAZIONE TABELLA ===
-    header_cols = st.columns([1.1, 1, 1, 0.7, 1.2, 0.8, 2.5, 1])
-    for col, label in zip(
-        header_cols,
-        ["N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato", "Descrizione", "Azioni"]
-    ):
-        col.markdown(f"<div class='tbl-head'>{label}</div>", unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+    .contract-table {
+        width:100%; border-collapse:collapse; margin-top:0.5rem;
+    }
+    .contract-table th {
+        background-color:#2563eb; color:white; padding:8px;
+        text-align:center; font-weight:600; border:1px solid #d0d7de;
+    }
+    .contract-table td {
+        border:1px solid #e5e7eb; padding:6px 8px; text-align:center;
+        vertical-align:middle;
+    }
+    .contract-table tr:nth-child(even) {background:#f8fafc;}
+    .contract-table tr:hover {background:#f1f5f9;}
+    .pill-open {background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:8px; font-weight:600;}
+    .pill-closed {background:#ffebee; color:#b71c1c; padding:2px 8px; border-radius:8px; font-weight:600;}
+    .actions button {
+        background:none; border:none; cursor:pointer; font-size:1.1rem; margin:0 2px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # === RIGHE CONTRATTI ===
+    # === RENDER TABELLA CONTRATTI ===
+    html_rows = ""
     for i, r in ct.iterrows():
-        bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
         stato = str(r.get("Stato", "aperto")).lower()
         stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
-
-        cols = st.columns([1.1, 1, 1, 0.7, 1.2, 0.8, 2.5, 1])
-        cols[0].markdown(f"<div style='background:{bg};padding:5px'>{r.get('NumeroContratto','')}</div>", unsafe_allow_html=True)
-        cols[1].markdown(f"<div style='background:{bg};padding:5px'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
-        cols[2].markdown(f"<div style='background:{bg};padding:5px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-        cols[3].markdown(f"<div style='background:{bg};padding:5px'>{r.get('Durata','')}</div>", unsafe_allow_html=True)
-        cols[4].markdown(f"<div style='background:{bg};padding:5px'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
-        cols[5].markdown(f"<div style='background:{bg};padding:5px'>{stato_html}</div>", unsafe_allow_html=True)
-
         desc = str(r.get("DescrizioneProdotto", "—"))
-        if len(desc) > 70:
-            desc = desc[:70] + "…"
-        cols[6].markdown(f"<div style='background:{bg};padding:5px;text-align:left'>{desc}</div>", unsafe_allow_html=True)
+        if len(desc) > 60:
+            desc = desc[:60] + "…"
 
-        with cols[7]:
-            colA, colB, colC = st.columns([1, 1, 1])
-            # ✏️ Modifica
-            if colA.button("✏️", key=f"edit_{i}", use_container_width=True, disabled=permessi_limitati):
-                st.session_state["edit_gidx"] = r["_gidx"]
-                st.rerun()
-            # 🔒 / 🟢 Chiudi / Riapri
-            label = "🔒" if stato != "chiuso" else "🟢"
-            tooltip = "Chiudi contratto" if stato != "chiuso" else "Riapri contratto"
-            if colB.button(label, key=f"lock_{i}", use_container_width=True, disabled=permessi_limitati):
-                df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
-                save_contratti(df_ct)
-                st.toast(f"{tooltip} eseguito per {r.get('NumeroContratto')}", icon="🔁")
-                st.rerun()
-            # 🗑️ Elimina
-            if colC.button("🗑️", key=f"del_{i}", use_container_width=True, disabled=permessi_limitati):
-                st.session_state["delete_gidx"] = r["_gidx"]
-                st.session_state["ask_delete_now"] = True
-                st.rerun()
+        html_rows += f"""
+        <tr>
+            <td>{r.get('NumeroContratto','')}</td>
+            <td>{fmt_date(r.get('DataInizio'))}</td>
+            <td>{fmt_date(r.get('DataFine'))}</td>
+            <td>{r.get('Durata','')}</td>
+            <td>{money(r.get('TotRata'))}</td>
+            <td>{stato_html}</td>
+            <td style='text-align:left'>{desc}</td>
+            <td>
+                <div class='actions'>
+                    <form action='#' method='post'>
+                        <button onClick="window.location.reload();" title='Modifica'>✏️</button>
+                        <button onClick="window.location.reload();" title='Chiudi/Riapri'>{'🔒' if stato != 'chiuso' else '🟢'}</button>
+                        <button onClick="window.location.reload();" title='Elimina'>🗑️</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        """
+
+    st.markdown(f"""
+    <table class='contract-table'>
+        <thead>
+            <tr>
+                <th>N°</th>
+                <th>Inizio</th>
+                <th>Fine</th>
+                <th>Durata</th>
+                <th>Tot. Rata</th>
+                <th>Stato</th>
+                <th>Descrizione</th>
+                <th>Azioni</th>
+            </tr>
+        </thead>
+        <tbody>{html_rows}</tbody>
+    </table>
+    """, unsafe_allow_html=True)
+
 
     # === MODIFICA CONTRATTO ===
     if st.session_state.get("edit_gidx") is not None:

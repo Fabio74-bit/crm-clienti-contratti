@@ -29,32 +29,71 @@ from utils.lista_clienti import page_lista_clienti
 # =====================================
 st.set_page_config(page_title="GESTIONALE CLIENTI – SHT", layout="wide")
 
-# 🔧 CSS: rimuove il margine/riquadro bianco e imposta sfondo uniforme
-st.markdown("""
+# === LOGO CENTRALE E STILE BASE ===
+LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
+
+# CSS per rimuovere il rettangolo bianco e centrare logo/login
+st.markdown(f"""
 <style>
-html, body, [data-testid="stAppViewContainer"] {
-    background-color: #f0f4f8 !important; /* azzurro chiaro uniforme */
+/* Sfondo uniforme */
+html, body, [data-testid="stAppViewContainer"] {{
+    background-color: #f0f4f8 !important;
     margin: 0 !important;
     padding: 0 !important;
-}
-.block-container {
+}}
+/* Contenitore principale */
+.block-container {{
     padding-left: 2rem !important;
     padding-right: 2rem !important;
     padding-top: 0 !important;
     max-width: 100% !important;
-    background-color: transparent !important; /* elimina rettangolo bianco */
-}
-section.main > div:first-child {
+    background-color: transparent !important; /* elimina riquadro bianco */
+}}
+/* Rimuove il padding del top */
+section.main > div:first-child {{
     margin-top: 0 !important;
     padding-top: 0 !important;
-}
-[data-testid="stHeader"] {
-    background: transparent !important; /* nasconde header bianco */
-}
+}}
+/* Header Streamlit invisibile */
+[data-testid="stHeader"] {{
+    background: transparent !important;
+    height: 0 !important;
+}}
+/* Logo centrato */
+.login-logo {{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 50px;
+    margin-bottom: 20px;
+}}
+.login-logo img {{
+    width: 180px;
+    height: auto;
+    filter: drop-shadow(0px 3px 8px rgba(0,0,0,0.15));
+}}
+/* Centra il form di login */
+[data-testid="stForm"] {{
+    margin-left: auto !important;
+    margin-right: auto !important;
+    width: 420px !important;
+    background: white;
+    padding: 2rem 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+}}
 </style>
 """, unsafe_allow_html=True)
 
-# 🔧 Script per bloccare lo scroll iniziale
+# Mostra il logo centrato solo nella pagina di login
+if "user_logged" not in st.session_state or not st.session_state["user_logged"]:
+    st.markdown(f"""
+    <div class="login-logo">
+        <img src="{LOGO_URL}" alt="SHT Logo">
+    </div>
+    """, unsafe_allow_html=True)
+
+# Script per evitare scroll all’apertura
 st.markdown("""
 <script>
 window.addEventListener('load', function() {

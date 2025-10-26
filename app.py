@@ -1382,6 +1382,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             from openpyxl import Workbook
             from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
             from io import BytesIO
+
             disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
             disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
             disp["DataFine"] = disp["DataFine"].apply(fmt_date)
@@ -1393,10 +1394,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
                        "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"]
             ws.append(headers)
+
             head_font = Font(bold=True, color="FFFFFF")
             fill = PatternFill("solid", fgColor="2563EB")
             align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+            border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                            top=Side(style="thin"), bottom=Side(style="thin"))
 
             for i, h in enumerate(headers, 1):
                 c = ws.cell(row=1, column=i)
@@ -1407,60 +1410,74 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             for _, row in disp.iterrows():
                 ws.append([str(row.get(h, "")) for h in headers])
+
             bio = BytesIO()
             wb.save(bio)
-            st.download_button("📘 Esporta Excel", bio.getvalue(), file_name=f"Contratti_{rag_soc}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+            st.download_button(
+                label="📘 Esporta Excel",
+                data=bio.getvalue(),
+                file_name=f"Contratti_{rag_soc}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+
         except Exception as e:
-            st.error(f"Errore export Excel: {e}")
+            st.error(f"❌ Errore export Excel: {e}")
 
     with cex2:
         try:
             from fpdf import FPDF
+
             class PDF(FPDF):
                 def header_row(self, headers, widths):
-                    self.set_fill_color(37,99,235)
+                    self.set_fill_color(37, 99, 235)
                     self.set_text_color(255)
-                    self.set_font("Arial","B",9)
-                    for i,h in enumerate(headers):
-                        self.cell(widths[i],7,safe_text(h),1,0,"C",1)
+                    self.set_font("Arial", "B", 9)
+                    for i, h in enumerate(headers):
+                        self.cell(widths[i], 7, safe_text(h), border=1, align="C", fill=True)
                     self.ln()
                     self.set_text_color(0)
-                    self.set_font("Arial","",8)
-            disp = df_ct[df_ct["ClienteID"].astype(str)==str(sel_id)].copy()
+                    self.set_font("Arial", "", 8)
+
+            disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
             disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
             disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-            headers = ["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","TotRata","Stato"]
-            widths = [22,22,22,15,80,25,20]
-            pdf = PDF("L","mm","A4")
+
+            headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata",
+                       "DescrizioneProdotto", "TotRata", "Stato"]
+            widths = [22, 22, 22, 15, 80, 25, 20]
+
+            pdf = PDF("L", "mm", "A4")
             pdf.add_page()
-            pdf.set_font("Arial","B",12)
-            pdf.cell(0,10,safe_text(f"Contratti Cliente: {rag_soc}"),ln=1,align="C")
-            pdf.header_row(headers,widths)
-            pdf.set_font("Arial","",8)
-            for _,r in disp.iterrows():
-                vals=[r.get(h,"") for h in headers]
-                stato_chiuso=str(r.get("Stato","")).lower()=="chiuso"
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
+            pdf.header_row(headers, widths)
+
+            for _, r in disp.iterrows():
+                vals = [r.get(h, "") for h in headers]
+                stato_chiuso = str(r.get("Stato", "")).lower() == "chiuso"
                 if stato_chiuso:
-                    pdf.set_fill_color(255,205,210)
+                    pdf.set_fill_color(255, 205, 210)
                 else:
-                    pdf.set_fill_color(255,255,255)
-                for i,v in enumerate(vals):
-                    pdf.cell(widths[i],6,safe_text(v),1,0,"C",fill=stato_chiuso)
+                    pdf.set_fill_color(255, 255, 255)
+                for i, v in enumerate(vals):
+                    pdf.cell(widths[i], 6, safe_text(v), border=1, align="C", fill=stato_chiuso)
                 pdf.ln()
-            pdf_bytes=pdf.output(dest="S").encode("latin-1",errors="replace")
-            st.download_button("
+
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+
             st.download_button(
-                "📗 Esporta PDF",
+                label="📗 Esporta PDF",
                 data=pdf_bytes,
                 file_name=f"Contratti_{rag_soc}.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
+
         except Exception as e:
             st.error(f"❌ Errore export PDF: {e}")
 
-    st.markdown("<br>", unsafe_allow_html=True)
     st.info("💡 Usa i pulsanti sopra per esportare i contratti del cliente in Excel o PDF.")
 
 

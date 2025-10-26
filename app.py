@@ -606,11 +606,18 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA STREAMLIT” (FIX PULSANTI)
+# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA STREAMLIT” (RIAPRI + FIX PULSANTI)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
+
+    # Nasconde sidebar automaticamente
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
     st.markdown("## 📄 Gestione Contratti")
 
@@ -675,14 +682,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
       }
       .pill-open { background:#e8f5e9; color:#1b5e20; }
       .pill-closed { background:#ffebee; color:#b71c1c; }
-      .action-btn { border:none; border-radius:6px; padding:3px 6px; color:white; cursor:pointer; }
+      .action-btn { border:none; border-radius:6px; padding:4px 8px; cursor:pointer; color:white; font-weight:600; }
       .edit { background:#1976d2; }
       .del { background:#e53935; margin-left:6px; }
+      .reopen { background:#43a047; margin-left:6px; }
       .desc-clip { display:block; max-width:380px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     </style>
     """, unsafe_allow_html=True)
 
-    # === Tabelle contratti ===
+    # === Tabella ===
     st.markdown("<div class='tbl-wrapper'><div class='tbl-container'>", unsafe_allow_html=True)
     st.markdown(
         """
@@ -705,11 +713,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         """, unsafe_allow_html=True
     )
 
-    # === Loop righe ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "aperto")).lower()
         bg_class = "chiuso" if stato == "chiuso" else ""
-        numero = r.get("NumeroContratto", "")
+        numero = r.get("NumeroContratto", "—")
         desc = str(r.get("DescrizioneProdotto", "") or "—")
         desc_short = (desc[:80] + "…") if len(desc) > 80 else desc
 
@@ -718,12 +725,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             else "<span class='pill pill-open'>Aperto</span>"
         )
 
-        # 🔹 Bottoni reali Streamlit, no onclick JS
-        col = st.columns([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
-        with col[0]:
-            st.markdown(f"<div class='tbl-row {bg_class}'><div>{numero}</div>", unsafe_allow_html=True)
-
-        # non servono colonne statiche HTML qui, quindi appendiamo la riga HTML normale
         st.markdown(
             f"""
             <div class='tbl-row {bg_class}'>
@@ -740,41 +741,39 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 <div>{r.get("NOL_FIN","—")}</div>
                 <div>{r.get("NOL_INT","—")}</div>
                 <div>{stato_badge}</div>
-                <div style='text-align:center;'>
-            """,
-            unsafe_allow_html=True
+                <div style='display:flex;justify-content:center;gap:6px;'>
+            """, unsafe_allow_html=True
         )
 
+        # 🔹 Pulsanti sulla stessa riga
         if not permessi_limitati:
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("✏️", key=f"edit_{numero}", help="Modifica contratto"):
                     st.session_state["edit_contract"] = numero
-                    st.session_state.pop("close_contract", None)
                     st.rerun()
             with c2:
-                if stato != "chiuso" and st.button("❌", key=f"close_{numero}", help="Chiudi contratto"):
-                    idx = df_ct.index[df_ct["NumeroContratto"] == numero]
-                    if len(idx) > 0:
-                        df_ct.loc[idx[0], "Stato"] = "chiuso"
-                        save_contratti(df_ct)
-                        st.success(f"✅ Contratto {numero} chiuso correttamente.")
-                        st.session_state.pop("edit_contract", None)
-                        st.rerun()
+                if stato == "aperto":
+                    if st.button("❌", key=f"close_{numero}", help="Chiudi contratto"):
+                        idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                        if len(idx) > 0:
+                            df_ct.loc[idx[0], "Stato"] = "chiuso"
+                            save_contratti(df_ct)
+                            st.success(f"✅ Contratto {numero} chiuso correttamente.")
+                            st.rerun()
+                else:
+                    if st.button("🔓", key=f"reopen_{numero}", help="Riapri contratto"):
+                        idx = df_ct.index[df_ct["NumeroContratto"] == numero]
+                        if len(idx) > 0:
+                            df_ct.loc[idx[0], "Stato"] = "aperto"
+                            save_contratti(df_ct)
+                            st.success(f"🔓 Contratto {numero} riaperto correttamente.")
+                            st.rerun()
 
         st.markdown("</div></div>", unsafe_allow_html=True)
 
     st.markdown("</div></div>", unsafe_allow_html=True)
 
-    # === MODIFICA CONTRATTO ===
-    if st.session_state.get("edit_contract") and not permessi_limitati:
-        num_cont = st.session_state["edit_contract"]
-        contratto = df_ct[df_ct["NumeroContratto"] == num_cont]
-        if not contratto.empty:
-            contratto = contratto.iloc[0]
-            show_contract_modal(contratto, df_ct, df_cli, rag_soc)
-        else:
-            st.warning("Contratto non trovato.")
 
 
 

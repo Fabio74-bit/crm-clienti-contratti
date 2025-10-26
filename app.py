@@ -1356,6 +1356,31 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 # MAIN APP — versione definitiva 2025 con filtro visibilità e loader sicuro
 # =====================================
 def main():
+    # --- FIX LAYOUT E STILE ---
+    st.markdown("""
+    <style>
+    .block-container {
+        max-width: 95% !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }
+    [data-testid="stAppViewContainer"] {
+        background-color: #f8fafc;
+    }
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    .stButton>button:hover {
+        transform: scale(1.02);
+    }
+    div[data-testid="stHorizontalBlock"] > div {
+        overflow-x: auto !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # --- LOGIN ---
     user, role = do_login_fullscreen()
     if not user:
@@ -1373,21 +1398,17 @@ def main():
         ruolo_scrittura = "full"
     elif user in ["emanuela", "claudia"]:
         ruolo_scrittura = "full"
-    elif user in ["giulia", "antonella"]:
-        ruolo_scrittura = "limitato"
-    elif user in ["gabriele", "laura", "annalisa"]:
+    elif user in ["giulia", "antonella", "gabriele", "laura", "annalisa"]:
         ruolo_scrittura = "limitato"
     else:
         ruolo_scrittura = "limitato"
 
     # --- Selettore visibilità (solo per Fabio, Giulia, Antonella) ---
     if user in ["fabio", "giulia", "antonella"]:
-        default_view = "Miei"
-        visibilita_opzioni = ["Miei", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
             "📂 Visualizza clienti di:",
-            visibilita_opzioni,
-            index=visibilita_opzioni.index(default_view)
+            ["Miei", "Gabriele", "Tutti"],
+            index=0
         )
     else:
         visibilita_scelta = "Miei"
@@ -1398,29 +1419,18 @@ def main():
     # --- Caricamento CSV Gabriele (robusto) ---
     try:
         if gabriele_clienti.exists():
-            df_cli_gab = pd.read_csv(
-                gabriele_clienti,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            ).fillna("")
+            df_cli_gab = pd.read_csv(gabriele_clienti, dtype=str, sep=None,
+                                     engine="python", encoding="utf-8-sig",
+                                     on_bad_lines="skip").fillna("")
         else:
             df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
 
         if gabriele_contratti.exists():
-            df_ct_gab = pd.read_csv(
-                gabriele_contratti,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            ).fillna("")
+            df_ct_gab = pd.read_csv(gabriele_contratti, dtype=str, sep=None,
+                                    engine="python", encoding="utf-8-sig",
+                                    on_bad_lines="skip").fillna("")
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
-
     except Exception as e:
         st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
@@ -1431,7 +1441,7 @@ def main():
         df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
         df_cli, df_ct = df_cli_gab, df_ct_gab
-    else:  # Tutti
+    else:
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
 
@@ -1452,7 +1462,14 @@ def main():
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
 
-    # --- Passaggio info ai moduli ---
+    # --- Stato globale per navigazione ---
+    if "nav_target" not in st.session_state:
+        st.session_state["nav_target"] = None
+    if "selected_cliente" not in st.session_state:
+        st.session_state["selected_cliente"] = None
+    if "_go_contratti_now" not in st.session_state:
+        st.session_state["_go_contratti_now"] = False
+
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
@@ -1466,11 +1483,14 @@ def main():
         "📋 Lista Clienti": page_lista_clienti,
     }
 
-    # --- Menu ---
+    # --- Menu principale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
     # --- Navigazione automatica da pulsanti interni ---
-    if "nav_target" in st.session_state:
+    if "_go_contratti_now" in st.session_state and st.session_state["_go_contratti_now"]:
+        page = "Contratti"
+        st.session_state["_go_contratti_now"] = False
+    elif "nav_target" in st.session_state and st.session_state["nav_target"]:
         target = st.session_state.pop("nav_target")
         if target in PAGES:
             page = target

@@ -1523,6 +1523,7 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
         st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     return df_cli, df_ct
+import streamlit as st  # ensure st not shadowed
 
 # =====================================
 # PAGINA RECALL E VISITE (aggiornata e coerente)

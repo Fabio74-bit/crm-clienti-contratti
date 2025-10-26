@@ -1121,7 +1121,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE COMPLETA A CARD ELEGANTE (FIXATA 2025)
+# PAGINA CONTRATTI — VERSIONE DEFINITIVA CARD STABILI 2025
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1162,16 +1162,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         color: #333;
         line-height: 1.6;
       }
-      .contratto-buttons button {
-        flex: 1;
-        border: none !important;
-        border-radius: 6px !important;
-        font-size: 0.85rem !important;
-        font-weight: 500 !important;
-      }
-      .btn-det > button {background:#f5f5f5 !important; color:#333 !important;}
-      .btn-mod > button {background:#e3f2fd !important; color:#0d47a1 !important;}
-      .btn-del > button {background:#ffebee !important; color:#b71c1c !important;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1247,7 +1237,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === VISUALIZZAZIONE CONTRATTI A CARD ===
+    # === VISUALIZZAZIONE CARD STABILI ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "aperto")).lower()
         stato_class = "chiuso" if stato == "chiuso" else "aperto"
@@ -1267,29 +1257,25 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         </div>
         """, unsafe_allow_html=True)
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown("<div class='btn-det'>", unsafe_allow_html=True)
-            if st.button("📖 Dettagli", key=f"det_{i}"):
+        # --- pulsanti in riga stabili ---
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col1:
+            if st.button("📖 Dettagli", key=f"det_{i}", use_container_width=True):
                 st.session_state["desc_popup"] = r.get("DescrizioneProdotto", "")
                 st.session_state["desc_popup_title"] = r.get("NumeroContratto", "")
-            st.markdown("</div>", unsafe_allow_html=True)
-        with c2:
-            st.markdown("<div class='btn-mod'>", unsafe_allow_html=True)
-            if st.button("✏️ Modifica", key=f"edit_{i}", disabled=permessi_limitati):
+        with col2:
+            if st.button("✏️ Modifica", key=f"edit_{i}", use_container_width=True, disabled=permessi_limitati):
                 st.session_state["edit_gidx"] = r.name
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-        with c3:
-            st.markdown("<div class='btn-del'>", unsafe_allow_html=True)
-            if st.button("🗑️ Elimina", key=f"del_{i}", disabled=permessi_limitati):
+        with col3:
+            if st.button("🗑️ Elimina", key=f"del_{i}", use_container_width=True, disabled=permessi_limitati):
                 st.session_state["delete_gidx"] = r.name
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # === POPUP DETTAGLIO DESCRIZIONE ===
+    # === POPUP DETTAGLIO ===
     if "desc_popup" in st.session_state:
         st.markdown("<div style='background:#fff;padding:1.5rem;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.15);'>", unsafe_allow_html=True)
         st.markdown(f"### 🧾 Dettagli Contratto {st.session_state['desc_popup_title']}")

@@ -606,7 +606,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# 📑 PAGINA CONTRATTI — CLASSICA + RIGA ROSSA ALLA CHIUSURA
+# 📑 PAGINA CONTRATTI — LAYOUT ORIGINALE + FIX PULSANTI + RIGA ROSSA CHIUSI
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📄 Gestione Contratti")
@@ -618,7 +618,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     sel_id = str(st.session_state["selected_cliente"])
     cli = df_cli[df_cli["ClienteID"].astype(str) == sel_id]
-
     if cli.empty:
         st.warning("❌ Cliente non trovato.")
         return
@@ -647,8 +646,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown("### 📋 Elenco Contratti")
 
         for idx, r in contratti.iterrows():
-            stato = r.get("Stato", "aperto").lower()
-            # 🔹 Evidenzia riga rossa se chiuso
+            stato = str(r.get("Stato", "aperto")).lower()
+            # 🔹 Colori dinamici
             bg_color = "#ffffff" if stato == "aperto" else "#ffe5e5"
             border_color = "#2196f3" if stato == "aperto" else "#b71c1c"
 
@@ -667,7 +666,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             </div>
             """, unsafe_allow_html=True)
 
-            c1, c2 = st.columns([0.15, 0.15])
+            c1, c2 = st.columns([0.1, 0.1])
             with c1:
                 if st.button("✏️ Modifica", key=f"edit_{idx}", use_container_width=True):
                     st.session_state["edit_contract_id"] = idx
@@ -678,25 +677,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     try:
                         df_ct.loc[idx, "Stato"] = "chiuso"
                         save_contratti(df_ct)
-                        st.session_state["highlight_closed"] = idx  # 🔸 memorizza contratto chiuso
+                        st.session_state["highlight_closed"] = idx
                         st.success(f"✅ Contratto {r.get('NumeroContratto','')} chiuso con successo.")
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Errore durante la chiusura: {e}")
-
-        # 🔹 Mostra effetto visivo di highlight post-chiusura
-        if st.session_state.get("highlight_closed") is not None:
-            closed_idx = st.session_state["highlight_closed"]
-            if closed_idx in df_ct.index:
-                st.markdown("""
-                    <style>
-                        div[data-testid="stVerticalBlock"] div.row-widget.stButton button {
-                            background-color: #b71c1c !important;
-                            color: white !important;
-                            font-weight: bold;
-                        }
-                    </style>
-                """, unsafe_allow_html=True)
 
     # === MODIFICA CONTRATTO ===
     if st.session_state.get("editing_contract"):
@@ -726,8 +711,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     index=0 if c.get("Stato", "aperto") == "aperto" else 1
                 )
 
-                salva = st.form_submit_button("💾 Salva Modifiche")
-                annulla = st.form_submit_button("❌ Annulla")
+                colb1, colb2 = st.columns([0.2, 0.2])
+                salva = colb1.form_submit_button("💾 Salva Modifiche")
+                annulla = colb2.form_submit_button("❌ Annulla")
 
                 if salva:
                     try:

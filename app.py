@@ -1449,6 +1449,19 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.ln()
             pdf_bytes=pdf.output(dest="S").encode("latin-1",errors="replace")
             st.download_button("
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+            st.download_button(
+                "📗 Esporta PDF",
+                data=pdf_bytes,
+                file_name=f"Contratti_{rag_soc}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"❌ Errore export PDF: {e}")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.info("💡 Usa i pulsanti sopra per esportare i contratti del cliente in Excel o PDF.")
 
 
 # =====================================

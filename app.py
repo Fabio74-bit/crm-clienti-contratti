@@ -639,9 +639,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     colA, colB, colC = st.columns([0.25, 0.25, 0.5])
     with colA:
         if not permessi_limitati:
-            if st.button("➕ Aggiungi Contratto", use_container_width=True):
+            if st.button("➕ Aggiungi Contratto", use_container_width=True, key="btn_add_contract"):
+                # Delay minimo per garantire visibilità del modale prima del rerun
                 st.session_state["modal_add_contract"] = True
-                st.rerun()
+                st.session_state["_modal_open_time"] = time.time()
+                st.experimental_rerun()
+
     with colB:
         if st.button("📤 Esporta Excel", use_container_width=True):
             xlsx_bytes = export_excel_contratti(df_ct, sel_id, rag_soc)
@@ -854,6 +857,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
 
         st.markdown("</div></div>", unsafe_allow_html=True)
+        # Evita chiusura immediata del modale appena aperto
+        if st.session_state.get("modal_add_contract", False):
+            if "_modal_open_time" in st.session_state:
+                if time.time() - st.session_state["_modal_open_time"] < 0.5:
+                    pass  # lascialo aperto
 
     # === FIX SICUREZZA MODALE ===
     if st.session_state.get("modal_add_contract", False) and not st.session_state.get("modal_edit_contract"):

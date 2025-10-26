@@ -95,46 +95,57 @@ def export_excel_contratti(df_ct, sel_id, rag_soc):
 
 
 # =====================================
-# 📗 ESPORTAZIONE IN PDF
+# EXPORT CONTRATTI → PDF (UTF-8 SAFE)
 # =====================================
-def export_pdf_contratti(df_ct, sel_id, rag_soc):
-    from fpdf import FPDF
-    import unicodedata
+from fpdf import FPDF
+import pandas as pd
+from io import BytesIO
 
-    def safe_text(txt):
-        """Rimuove o sostituisce caratteri non compatibili con FPDF (latin-1)."""
-        if not isinstance(txt, str):
-            txt = str(txt)
-        # normalizza e sostituisce caratteri non latin-1
-        return unicodedata.normalize("NFKD", txt).encode("latin-1", "ignore").decode("latin-1")
+def export_pdf_contratti(df_ct: pd.DataFrame, sel_id: str, rag_soc: str):
+    """Genera PDF dei contratti cliente — compatibile UTF-8 senza errori di codifica"""
+    df = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)]
+    if df.empty:
+        return None
 
-    disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "TotRata", "Stato"]
-    widths = [30, 25, 25, 15, 25, 20]
-
+    # --- Imposta il PDF ---
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 10, f"Contratti Cliente: {rag_soc}", ln=True, align="C")
 
-    pdf.set_font("Arial", "B", 10)
-    for i, h in enumerate(headers):
-        pdf.cell(widths[i], 8, safe_text(h), 1, 0, "C", True)
+    pdf.ln(8)
+    pdf.set_font("Helvetica", "B", 10)
+    headers = ["Numero", "Data Inizio", "Data Fine", "Durata", "Descrizione", "Tot Rata", "Stato"]
+    col_widths = [25, 30, 30, 20, 120, 25, 25]
+
+    # --- Intestazione tabella ---
+    for h, w in zip(headers, col_widths):
+        pdf.cell(w, 8, h, border=1, align="C")
     pdf.ln()
 
-    pdf.set_font("Arial", "", 9)
-    for _, r in disp.iterrows():
-        for i, h in enumerate(headers):
-            stato = str(r.get("Stato", "")).lower()
-            testo = safe_text(r.get(h, ""))
-            if stato == "chiuso":
-                pdf.set_fill_color(255, 235, 238)
-                pdf.cell(widths[i], 7, testo, 1, 0, "C", fill=True)
-            else:
-                pdf.cell(widths[i], 7, testo, 1, 0, "C")
+    # --- Righe contratti ---
+    pdf.set_font("Helvetica", "", 9)
+    for _, row in df.iterrows():
+        descr = str(row.get("DescrizioneProdotto", "")).replace("\n", " ")
+        if len(descr) > 90:
+            descr = descr[:90] + "…"
+        valori = [
+            str(row.get("NumeroContratto", "")),
+            str(row.get("DataInizio", "")),
+            str(row.get("DataFine", "")),
+            str(row.get("Durata", "")),
+            descr,
+            str(row.get("TotRata", "")),
+            str(row.get("Stato", ""))
+        ]
+        for val, w in zip(valori, col_widths):
+            pdf.cell(w, 7, val.encode("latin-1", "replace").decode("latin-1"), border=1)
         pdf.ln()
 
-    # ora latin-1 è sicuro
-    return pdf.output(dest="S").encode("latin-1")
+    # --- Output buffer UTF-8 safe ---
+    buffer = BytesIO()
+    pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
+    buffer.write(pdf_bytes)
+    buffer.seek(0)
+    return buffer

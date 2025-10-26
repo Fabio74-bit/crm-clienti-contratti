@@ -98,25 +98,43 @@ def export_excel_contratti(df_ct, sel_id, rag_soc):
 # 📗 ESPORTAZIONE IN PDF
 # =====================================
 def export_pdf_contratti(df_ct, sel_id, rag_soc):
-    """Esporta i contratti di un cliente in PDF usando il layout SHTPDF."""
+    from fpdf import FPDF
+    import unicodedata
+
+    def safe_text(txt):
+        """Rimuove o sostituisce caratteri non compatibili con FPDF (latin-1)."""
+        if not isinstance(txt, str):
+            txt = str(txt)
+        # normalizza e sostituisce caratteri non latin-1
+        return unicodedata.normalize("NFKD", txt).encode("latin-1", "ignore").decode("latin-1")
+
     disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
     disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "TotRata", "Stato"]
+    widths = [30, 25, 25, 15, 25, 20]
 
-    headers = [
-        "NumeroContratto", "DataInizio", "DataFine",
-        "Durata", "DescrizioneProdotto", "TotRata", "Stato"
-    ]
-    widths = [30, 25, 25, 20, 95, 25, 25]  # proporzioni perfette per A4 landscape
-
-    pdf = SHTPDF(title=f"Contratti Cliente: {rag_soc}")
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
-    pdf.table_header(headers, widths)
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
 
+    pdf.set_font("Arial", "B", 10)
+    for i, h in enumerate(headers):
+        pdf.cell(widths[i], 8, safe_text(h), 1, 0, "C", True)
+    pdf.ln()
+
+    pdf.set_font("Arial", "", 9)
     for _, r in disp.iterrows():
-        stato = str(r.get("Stato", "")).lower()
-        row_data = [str(r.get(h, "")) for h in headers]
-        pdf.table_row(row_data, widths, wrap_index=headers.index("DescrizioneProdotto"), stato=stato)
+        for i, h in enumerate(headers):
+            stato = str(r.get("Stato", "")).lower()
+            testo = safe_text(r.get(h, ""))
+            if stato == "chiuso":
+                pdf.set_fill_color(255, 235, 238)
+                pdf.cell(widths[i], 7, testo, 1, 0, "C", fill=True)
+            else:
+                pdf.cell(widths[i], 7, testo, 1, 0, "C")
+        pdf.ln()
 
-    return pdf.output(dest="S").encode("utf-8", errors="ignore")
-
+    # ora latin-1 è sicuro
+    return pdf.output(dest="S").encode("latin-1")

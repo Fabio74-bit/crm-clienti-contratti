@@ -1499,6 +1499,22 @@ def main():
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
 
+# --- Fix layout globale dopo caricamento pagina ---
+st.markdown("""
+<style>
+.block-container {
+    max-width: 90% !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
+}
+[data-testid="stSidebarNav"] {
+    padding-top: 1rem;
+}
+[data-testid="stAppViewContainer"] {
+    background-color: #f8fafc;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =====================================
 # AVVIO APPLICAZIONE

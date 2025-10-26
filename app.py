@@ -643,7 +643,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 # Delay minimo per garantire visibilità del modale prima del rerun
                 st.session_state["modal_add_contract"] = True
                 st.session_state["_modal_open_time"] = time.time()
-                st.experimental_rerun()
+                st.rerun()
 
     with colB:
         if st.button("📤 Esporta Excel", use_container_width=True):

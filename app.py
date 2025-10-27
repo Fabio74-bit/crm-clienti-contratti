@@ -1900,64 +1900,60 @@ def main():
 
     # --- Percorsi CSV ---
     global CLIENTI_CSV, CONTRATTI_CSV
-    base_clienti = STORAGE_DIR / "clienti.csv"
-    base_contratti = STORAGE_DIR / "contratti_clienti.csv"
-    gabriele_clienti = STORAGE_DIR / "gabriele" / "clienti.csv"
-    gabriele_contratti = STORAGE_DIR / "gabriele" / "contratti_clienti.csv"
+    CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
+    CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
 
-    # === Definizione visibilità e ruoli ===
+    # --- Ruoli e permessi base ---
     if user == "fabio":
-        visibilita = "tutti"
         ruolo_scrittura = "full"
-        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
-
-    elif user in ["emanuela", "claudia"]:
-        visibilita = "tutti"
-        ruolo_scrittura = "full"
-        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
-
-    elif user in ["giulia", "antonella"]:
-        visibilita = "tutti"
+    elif user == "gabriele":
         ruolo_scrittura = "limitato"
-        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
-
-    elif user in ["gabriele", "laura", "annalisa"]:
-        visibilita = "gabriele"
-        ruolo_scrittura = "limitato"
-        CLIENTI_CSV, CONTRATTI_CSV = gabriele_clienti, gabriele_contratti
-
     else:
-        visibilita = "solo_propri"
         ruolo_scrittura = "limitato"
-        CLIENTI_CSV, CONTRATTI_CSV = base_clienti, base_contratti
 
     # --- Sidebar info ---
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
 
-    # --- Caricamento dati sicuro e cache ---
-    df_cli_main = load_clienti_cached(CLIENTI_CSV)
-    df_ct_main = load_contratti_cached(CONTRATTI_CSV)
-    df_cli_gab, df_ct_gab = pd.DataFrame(), pd.DataFrame()
+    # --- Caricamento sicuro e cache ---
+    df_cli = load_clienti_cached(CLIENTI_CSV)
+    df_ct = load_contratti_cached(CONTRATTI_CSV)
 
-    # --- Unione se visibilità = tutti ---
-    if visibilita == "tutti":
-        try:
-            df_cli_gab = load_clienti_cached(gabriele_clienti)
-            df_ct_gab = load_contratti_cached(gabriele_contratti)
-            df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
-            df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
-        except Exception as e:
-            st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
-            df_cli, df_ct = df_cli_main, df_ct_main
-    else:
-        df_cli, df_ct = df_cli_main, df_ct_main
-
-    # ✅ Aggiunge RowID univoco se manca
+    # ✅ Aggiunge RowID se manca
     if "RowID" not in df_ct.columns:
         df_ct = df_ct.reset_index(drop=True)
         df_ct["RowID"] = range(1, len(df_ct) + 1)
         save_contratti(df_ct)
+
+    # =====================================
+    # 🔍 FILTRO PER PROPRIETARIO (FABIO / GABRIELE / TUTTI)
+    # =====================================
+    st.sidebar.markdown("### 👤 Filtro Proprietario")
+
+    if "Proprietario" in df_cli.columns:
+        proprietari_disponibili = sorted(df_cli["Proprietario"].dropna().unique().tolist())
+    else:
+        proprietari_disponibili = []
+
+    opzioni_filtro = ["Tutti"] + proprietari_disponibili
+
+    # Imposta filtro automatico in base al login
+    if user.lower() in [p.lower() for p in proprietari_disponibili]:
+        filtro_predefinito = user.lower()
+    else:
+        filtro_predefinito = "Tutti"
+
+    scelta_proprietario = st.sidebar.selectbox(
+        "Visualizza dati di:",
+        options=opzioni_filtro,
+        index=opzioni_filtro.index(filtro_predefinito),
+        help="Filtra i dati per proprietario"
+    )
+
+    # Applica il filtro
+    if scelta_proprietario != "Tutti":
+        df_cli = df_cli[df_cli["Proprietario"].str.lower() == scelta_proprietario.lower()]
+        df_ct = df_ct[df_ct["Proprietario"].str.lower() == scelta_proprietario.lower()]
 
     # --- Correzione date una sola volta ---
     if not st.session_state.get("_date_fix_done", False):
@@ -1974,7 +1970,7 @@ def main():
 
     # --- Passaggio info ai moduli ---
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
-    st.session_state["visibilita"] = visibilita
+    st.session_state["visibilita"] = scelta_proprietario
 
     # --- Pagine ---
     PAGES = {

@@ -1344,28 +1344,41 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["edit_gidx"] = i
                 st.rerun()
 
-            # 🔒 Chiudi / Riapri (fix duplicazioni)
-            if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
-                try:
-                    # Identificazione unica: ClienteID + NumeroContratto + DataInizio + DataFine
-                    mask = (
-                        (df_ct["ClienteID"].astype(str) == str(sel_id))
-                        & (df_ct["NumeroContratto"].astype(str) == str(r.get("NumeroContratto", "")))
-                        & (df_ct["DataInizio"].astype(str) == str(r.get("DataInizio", "")))
-                        & (df_ct["DataFine"].astype(str) == str(r.get("DataFine", "")))
-                    )
-                    mask &= df_ct["NumeroContratto"].astype(str).str.strip() != ""
+# 🔒 Chiudi / Riapri
+if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
+    try:
+        # 🔹 Funzione per uniformare le date in formato "DD/MM/YYYY"
+        def normalize_date(val):
+            try:
+                return pd.to_datetime(val, dayfirst=True, errors="coerce").strftime("%d/%m/%Y")
+            except Exception:
+                return str(val).strip()
 
-                    idx = df_ct.index[mask].tolist()
-                    if len(idx) > 0:
-                        df_ct.at[idx[0], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
-                        save_contratti(df_ct)
-                        st.toast("🔁 Stato contratto aggiornato", icon="✅")
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Nessuna riga valida trovata per questo contratto.")
-                except Exception as e:
-                    st.error(f"❌ Errore aggiornamento stato: {e}")
+        # 🔹 Identificazione unica, con confronto robusto delle date
+        mask = (
+            (df_ct["ClienteID"].astype(str) == str(sel_id))
+            & (df_ct["NumeroContratto"].astype(str) == str(r.get("NumeroContratto", "")))
+            & (df_ct["DataInizio"].apply(normalize_date) == normalize_date(r.get("DataInizio", "")))
+            & (df_ct["DataFine"].apply(normalize_date) == normalize_date(r.get("DataFine", "")))
+        )
+        mask &= df_ct["NumeroContratto"].astype(str).str.strip() != ""
+
+        idx = df_ct.index[mask].tolist()
+
+        if len(idx) > 0:
+            # 🔁 Inverti stato
+            nuovo_stato = "chiuso" if stato != "chiuso" else "aperto"
+            df_ct.at[idx[0], "Stato"] = nuovo_stato
+
+            # 🔄 Salva e aggiorna
+            save_contratti(df_ct)
+            st.toast(f"🔁 Stato contratto aggiornato: {nuovo_stato.upper()}", icon="✅")
+            st.rerun()
+        else:
+            st.warning("⚠️ Nessuna riga valida trovata per questo contratto.")
+    except Exception as e:
+        st.error(f"❌ Errore aggiornamento stato: {e}")
+
 
             # 🗑️ Elimina
             if b3.button("🗑️", key=f"del_{i}", help="Elimina contratto", disabled=permessi_limitati):

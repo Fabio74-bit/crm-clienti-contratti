@@ -498,7 +498,7 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
     """
 
 # =====================================
-# PAGINA DASHBOARD
+# PAGINA DASHBOARD (VERSIONE COMPLETA E CORRETTA 2025)
 # =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
@@ -525,7 +525,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c4.markdown(kpi_card("Nuovi contratti anno", len(new_contracts), "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-    # === CREAZIONE NUOVO CLIENTE + CONTRATTO (VERSIONE COMPLETA 2025) ===
+    # === CREAZIONE NUOVO CLIENTE + CONTRATTO ===
     with st.expander("➕ Crea Nuovo Cliente + Contratto"):
         with st.form("frm_new_cliente"):
             st.markdown("#### 📇 Dati Cliente")
@@ -548,23 +548,21 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     "👩‍💼 TMK di riferimento",
                     ["", "Giulia", "Antonella", "Annalisa", "Laura"],
                     index=0
-            )
+                )
+
             # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")
-            
             colc1, colc2, colc3 = st.columns(3)
             num = colc1.text_input("📄 Numero Contratto")
             data_inizio = colc2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
             durata = colc3.selectbox("📆 Durata (mesi)", DURATE_MESI, index=2)
-            
             desc = st.text_area("🧾 Descrizione Prodotto", height=80)
-            
+
             colp1, colp2, colp3 = st.columns(3)
             nf = colp1.text_input("🏦 NOL_FIN")
             ni = colp2.text_input("🏢 NOL_INT")
             tot = colp3.text_input("💰 Tot Rata")
-            
-            # 🔹 Copie e costi extra nello stesso blocco (senza intestazione e senza + / -)
+
             colx1, colx2, colx3, colx4 = st.columns(4)
             with colx1:
                 copie_bn = st.text_input("📄 Copie incluse B/N", value="", key="copie_bn")
@@ -575,8 +573,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with colx4:
                 ecc_col = st.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
 
-
-            # === SALVA CLIENTE + CONTRATTO ===
             if st.form_submit_button("💾 Crea Cliente e Contratto"):
                 try:
                     new_id = str(len(df_cli) + 1)
@@ -634,7 +630,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "_go_contratti_now": True
                     })
                     st.rerun()
-
                 except Exception as e:
                     st.error(f"❌ Errore creazione cliente: {e}")
 
@@ -642,12 +637,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === CONTRATTI IN SCADENZA O SENZA DATA FINE (entro 6 mesi o aperti) ===
     st.markdown("### ⚠️ Contratti in scadenza o senza data di fine")
-    
+
     oggi = pd.Timestamp.now().normalize()
     entro_6_mesi = oggi + pd.DateOffset(months=6)
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
-    
-    # Mostra tutti i contratti aperti, anche senza DataFine
+
     scadenze = df_ct[
         (df_ct["Stato"].astype(str).str.lower() != "chiuso") &
         (
@@ -655,31 +649,27 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             ((df_ct["DataFine"] >= oggi) & (df_ct["DataFine"] <= entro_6_mesi))
         )
     ].copy()
-    
-    # Se manca RagioneSociale, la aggiunge
+
     if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
         scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
-    
-    # Nessun contratto trovato
+
     if scadenze.empty:
         st.success("✅ Nessun contratto aperto o in scadenza nei prossimi 6 mesi.")
     else:
-        # Formattazione tabella
         scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
         scadenze = scadenze.sort_values("DataFine", na_position="last")
-    
+
         st.markdown(f"📅 **{len(scadenze)} contratti aperti o in scadenza:**")
-    
-        # Intestazione
+
         head_cols = st.columns([2, 1, 1, 1, 0.8])
         head_cols[0].markdown("**Cliente**")
         head_cols[1].markdown("**Contratto**")
         head_cols[2].markdown("**Scadenza**")
         head_cols[3].markdown("**Stato**")
         head_cols[4].markdown("**Azioni**")
-    
+
         st.markdown("---")
-    
+
         for i, r in scadenze.iterrows():
             bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
             col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
@@ -705,74 +695,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     })
                     st.rerun()
 
-
-    # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
-    st.divider()
-    st.markdown("### ⚠️ Contratti recenti senza data di fine")
-
-    oggi = pd.Timestamp.now().normalize()
-
-    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
-    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
-
-    contratti_senza_fine = df_ct[
-        (df_ct["DataFine"].isna()) &
-        (df_ct["DataInizio"].notna()) &
-        (df_ct["DataInizio"] >= oggi)
-    ].copy()
-
-    if contratti_senza_fine.empty:
-        st.success("✅ Tutti i contratti recenti hanno una data di fine.")
-    else:
-        st.warning(f"⚠️ {len(contratti_senza_fine)} contratti inseriti da oggi non hanno ancora una data di fine:")
-
-        if "RagioneSociale" not in contratti_senza_fine.columns or contratti_senza_fine["RagioneSociale"].eq("").any():
-            contratti_senza_fine = contratti_senza_fine.merge(
-                df_cli[["ClienteID", "RagioneSociale"]],
-                on="ClienteID", how="left"
-            )
-
-        contratti_senza_fine["DataInizio"] = contratti_senza_fine["DataInizio"].apply(fmt_date)
-        contratti_senza_fine = contratti_senza_fine.sort_values("DataInizio", ascending=False)
-
-        # Intestazione
-        head_cols = st.columns([2.5, 1, 1.2, 2.5, 0.8])
-        head_cols[0].markdown("**Cliente**")
-        head_cols[1].markdown("**Contratto**")
-        head_cols[2].markdown("**Inizio**")
-        head_cols[3].markdown("**Descrizione**")
-        head_cols[4].markdown("**Azioni**")
-
-        st.markdown("---")
-
-        # Righe
-        for i, r in contratti_senza_fine.iterrows():
-            bg = "#fffdf5" if i % 2 == 0 else "#ffffff"
-            col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
-            with col1:
-                st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
-            with col2:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
-            with col4:
-                desc = str(r.get('DescrizioneProdotto', '—'))
-                if len(desc) > 60:
-                    desc = desc[:60] + "…"
-                st.markdown(f"<div style='background:{bg};padding:6px'>{desc}</div>", unsafe_allow_html=True)
-            with col5:
-                if st.button("📂 Apri", key=f"open_ndf_{i}", use_container_width=True):
-                    # 🔹 Pulisce eventuali flag di modifica prima di cambiare pagina
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
-                            del st.session_state[k]
-
-                    st.session_state.update({
-                        "selected_cliente": str(r.get("ClienteID")),
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
-                    st.rerun()
 
 
 

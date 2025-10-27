@@ -1292,9 +1292,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === RIGHE ===
     for i, r in ct.iterrows():
-        bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
         stato = str(r.get("Stato", "aperto")).lower()
-        stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
+        
+        # 🔹 Colore riga: rosso chiaro se chiuso, alternato se aperto
+        if stato == "chiuso":
+            bg = "#ffecec"  # 🔴 rosso chiaro per contratti chiusi
+        else:
+            bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
+
+        stato_html = (
+            "<span class='pill-open'>Aperto</span>"
+            if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
+        )
 
         # testo descrizione (troncato)
         desc_txt = str(r.get("DescrizioneProdotto", "—")).strip()

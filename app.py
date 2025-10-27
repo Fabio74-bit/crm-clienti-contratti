@@ -1174,7 +1174,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 (COMPLETA)
+# PAGINA CONTRATTI — VERSIONE STABILE 2025 (FIX FILTRO + COMPLETA)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1189,7 +1189,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         return
 
     labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
-    ids = df_cli["ClienteID"].astype(str).tolist()
     sel_label = st.selectbox("Seleziona Cliente", labels, index=0, key="sel_cli_ct")
     sel_id = sel_label.split(" — ")[0]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
@@ -1199,13 +1198,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === Filtra contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    
-    # Mostra anche quelli senza numero ma con descrizione
-    ct = ct[
-        (ct["NumeroContratto"].astype(str).str.strip() != "") |
-        (ct["DescrizioneProdotto"].astype(str).str.strip() != "")
-    ]
-    ct = ct.dropna(how="all").reset_index(drop=True)
+
+    # 🔹 Mostra anche contratti senza numero ma con descrizione
+    if not ct.empty:
+        ct = ct[
+            (ct["NumeroContratto"].astype(str).str.strip() != "") |
+            (ct["DescrizioneProdotto"].astype(str).str.strip() != "")
+        ]
+        ct = ct.dropna(how="all").reset_index(drop=True)
 
     # === CREA NUOVO CONTRATTO ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
@@ -1278,28 +1278,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
           padding:8px;
           border:1px solid #d0d7de;
       }
-      .tbl-row {
-          font-size:14px;
-          border-bottom:1px solid #e5e7eb;
-      }
-      .tbl-row div {
-          padding:6px;
-          text-align:center;
-      }
-      .pill-open {
-          background:#e8f5e9;
-          color:#1b5e20;
-          padding:2px 8px;
-          border-radius:8px;
-          font-weight:600;
-      }
-      .pill-closed {
-          background:#ffebee;
-          color:#b71c1c;
-          padding:2px 8px;
-          border-radius:8px;
-          font-weight:600;
-      }
+      .tbl-row {font-size:14px;border-bottom:1px solid #e5e7eb;}
+      .tbl-row div {padding:6px;text-align:center;}
+      .pill-open {background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px;font-weight:600;}
+      .pill-closed {background:#ffebee;color:#b71c1c;padding:2px 8px;border-radius:8px;font-weight:600;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1309,7 +1291,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === INTESTAZIONE COMPLETA ===
+    # === INTESTAZIONE ===
     header_cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 1.8, 1])
     headers = [
         "N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato",
@@ -1352,6 +1334,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["delete_gidx"] = i
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
+
 
     # === MODIFICA CONTRATTO ===
     if st.session_state.get("edit_gidx") is not None:

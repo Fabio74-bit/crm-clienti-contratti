@@ -1743,56 +1743,122 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # MAIN APP — Versione definitiva 2025 (veloce e stabile)
 # =====================================
+# =====================================
+# CARICAMENTO CSV ROBUSTO (anti ParserError)
+# =====================================
+import io
 import streamlit as st
 import pandas as pd
 from pathlib import Path
-# ✅ Caching dei CSV — velocizza i caricamenti e gestisce errori di formattazione
+
 @st.cache_data(ttl=60)
-def load_clienti_cached(path):
-    """Carica clienti, supportando CSV con ; o ,"""
+def load_csv_safe(path: Path) -> pd.DataFrame:
+    """Legge un CSV in modo sicuro e flessibile (supporta ; , | e ignora righe corrotte)."""
     if not path.exists():
         return pd.DataFrame()
+
+    bad_lines_count = 0
+    for sep_try in [";", ",", "|", "\t"]:
+        try:
+            df = pd.read_csv(
+                path,
+                dtype=str,
+                sep=sep_try,
+                encoding="utf-8-sig",
+                on_bad_lines="skip",
+                engine="python"
+            ).fillna("")
+            if df.shape[1] > 1:
+                return df
+        except pd.errors.ParserError as e:
+            bad_lines_count += 1
+            continue
+        except Exception:
+            continue
+
+    # 🔹 se ancora fallisce, proviamo a pulire il testo grezzo
     try:
-        return pd.read_csv(
-            path,
-            dtype=str,
-            sep=None,            # rileva automaticamente , o ;
-            engine="python",     # serve per sep=None
-            encoding="utf-8-sig",
-            on_bad_lines="skip"  # ignora eventuali righe rotte
-        ).fillna("")
+        raw = path.read_text(encoding="utf-8-sig", errors="ignore")
+        cleaned = "\n".join(line.replace(";", ",") for line in raw.splitlines())
+        df = pd.read_csv(io.StringIO(cleaned), dtype=str, on_bad_lines="skip").fillna("")
+        if bad_lines_count > 0:
+            st.warning(f"⚠️ Alcune righe danneggiate sono state ignorate in {path.name}.")
+        return df
     except Exception as e:
-        st.error(f"❌ Errore caricamento clienti: {e}")
+        st.error(f"❌ Impossibile leggere {path.name}: {e}")
         return pd.DataFrame()
+
+
+@st.cache_data(ttl=60)
+def load_clienti_cached(path):
+    return load_csv_safe(path)
+
 
 @st.cache_data(ttl=60)
 def load_contratti_cached(path):
-    """Carica contratti, supportando CSV con ; o ,"""
+    return load_csv_safe(path)
+
+
+
+# =====================================
+# CARICAMENTO CSV ROBUSTO (anti ParserError)
+# =====================================
+import io
+import streamlit as st
+import pandas as pd
+from pathlib import Path
+
+@st.cache_data(ttl=60)
+def load_csv_safe(path: Path) -> pd.DataFrame:
+    """Legge un CSV in modo sicuro e flessibile (supporta ; , | e ignora righe corrotte)."""
     if not path.exists():
         return pd.DataFrame()
+
+    bad_lines_count = 0
+    for sep_try in [";", ",", "|", "\t"]:
+        try:
+            df = pd.read_csv(
+                path,
+                dtype=str,
+                sep=sep_try,
+                encoding="utf-8-sig",
+                on_bad_lines="skip",
+                engine="python"
+            ).fillna("")
+            if df.shape[1] > 1:
+                return df
+        except pd.errors.ParserError as e:
+            bad_lines_count += 1
+            continue
+        except Exception:
+            continue
+
+    # 🔹 se ancora fallisce, proviamo a pulire il testo grezzo
     try:
-        return pd.read_csv(
-            path,
-            dtype=str,
-            sep=None,
-            engine="python",
-            encoding="utf-8-sig",
-            on_bad_lines="skip"
-        ).fillna("")
+        raw = path.read_text(encoding="utf-8-sig", errors="ignore")
+        cleaned = "\n".join(line.replace(";", ",") for line in raw.splitlines())
+        df = pd.read_csv(io.StringIO(cleaned), dtype=str, on_bad_lines="skip").fillna("")
+        if bad_lines_count > 0:
+            st.warning(f"⚠️ Alcune righe danneggiate sono state ignorate in {path.name}.")
+        return df
     except Exception as e:
-        st.error(f"❌ Errore caricamento contratti: {e}")
+        st.error(f"❌ Impossibile leggere {path.name}: {e}")
         return pd.DataFrame()
 
-# ✅ Caching dei CSV — velocizza i caricamenti di 40-50%
+
 @st.cache_data(ttl=60)
 def load_clienti_cached(path):
-    return pd.read_csv(path, dtype=str).fillna("") if path.exists() else pd.DataFrame()
+    return load_csv_safe(path)
+
 
 @st.cache_data(ttl=60)
 def load_contratti_cached(path):
-    return pd.read_csv(path, dtype=str).fillna("") if path.exists() else pd.DataFrame()
+    return load_csv_safe(path)
 
 
+# =====================================
+# MAIN APP — Versione definitiva 2025 (veloce, sicura e stabile)
+# =====================================
 def main():
     # --- LOGIN ---
     user, role = do_login_fullscreen()
@@ -1836,11 +1902,12 @@ def main():
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
 
-    # --- Caricamento dati veloce con cache ---
+    # --- Caricamento dati sicuro e cache ---
     df_cli_main = load_clienti_cached(CLIENTI_CSV)
     df_ct_main = load_contratti_cached(CONTRATTI_CSV)
-
     df_cli_gab, df_ct_gab = pd.DataFrame(), pd.DataFrame()
+
+    # --- Unione se visibilità = tutti ---
     if visibilita == "tutti":
         try:
             df_cli_gab = load_clienti_cached(gabriele_clienti)
@@ -1853,7 +1920,7 @@ def main():
     else:
         df_cli, df_ct = df_cli_main, df_ct_main
 
-    # ✅ AGGIUNGE RowID UNIVOCO (una volta sola)
+    # ✅ Aggiunge RowID univoco se manca
     if "RowID" not in df_ct.columns:
         df_ct = df_ct.reset_index(drop=True)
         df_ct["RowID"] = range(1, len(df_ct) + 1)

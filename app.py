@@ -498,7 +498,7 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
     """
 
 # =====================================
-# PAGINA DASHBOARD (VERSIONE MULTI-PROPRIETARIO 2025)
+# PAGINA DASHBOARD (MULTI-PROPRIETARIO con salvataggio automatico)
 # =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
@@ -609,9 +609,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "Proprietario": proprietario
                     }
 
-                    df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
-                    save_clienti(df_cli)
-
                     # --- CREA NUOVO CONTRATTO ---
                     data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
                     nuovo_contratto = {
@@ -633,10 +630,25 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "Proprietario": proprietario
                     }
 
-                    df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
-                    save_contratti(df_ct)
+                    # --- SALVATAGGIO AUTOMATICO NEL FILE CORRETTO ---
+                    if proprietario == "fabio":
+                        path_cli = CLIENTI_CSV
+                        path_ct = CONTRATTI_CSV
+                    else:  # gabriele
+                        path_cli = GABRIELE_CLIENTI
+                        path_ct = GABRIELE_CONTRATTI
 
-                    st.success(f"✅ Cliente '{ragione}' assegnato a **{proprietario.upper()}** e contratto creati correttamente!")
+                    # Carica e salva in append
+                    df_cli_target = pd.read_csv(path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("") if path_cli.exists() else pd.DataFrame(columns=df_cli.columns)
+                    df_ct_target = pd.read_csv(path_ct, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("") if path_ct.exists() else pd.DataFrame(columns=df_ct.columns)
+
+                    df_cli_target = pd.concat([df_cli_target, pd.DataFrame([nuovo_cliente])], ignore_index=True)
+                    df_ct_target = pd.concat([df_ct_target, pd.DataFrame([nuovo_contratto])], ignore_index=True)
+
+                    df_cli_target.to_csv(path_cli, index=False, encoding="utf-8-sig")
+                    df_ct_target.to_csv(path_ct, index=False, encoding="utf-8-sig")
+
+                    st.success(f"✅ Cliente '{ragione}' assegnato a **{proprietario.upper()}** e contratto salvati nel file corretto!")
                     st.session_state.update({
                         "selected_cliente": new_id,
                         "nav_target": "Contratti",
@@ -648,8 +660,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === SCADENZE & INCOMPLETI (contratti aperti in scadenza o senza DataFine) ===
-    st.divider()
+    # === SCADENZE & INCOMPLETI ===
     st.markdown("### ⚠️ Scadenze & Contratti Incompleti")
 
     oggi = pd.Timestamp.now().normalize()
@@ -712,6 +723,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "_go_contratti_now": True
                     })
                     st.rerun()
+
 
 
 
@@ -862,33 +874,85 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     index=["", "Giulia", "Antonella", "Annalisa", "Laura"].index(cliente.get("TMK", "")) if cliente.get("TMK", "") in ["Giulia", "Antonella", "Annalisa", "Laura"] else 0
                 )
 
-            salva = st.form_submit_button("💾 Salva Modifiche")
             if salva:
-                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-                df_cli.loc[idx, [
-                    "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "Email",
-                    "PersonaRiferimento", "PartitaIVA", "IBAN", "SDI", "TMK"
-                ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk]
-                save_clienti(df_cli)
-                st.success("✅ Anagrafica aggiornata.")
-                st.session_state[f"edit_cli_{sel_id}"] = False
-                st.rerun()
+                try:
+                    idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                    df_cli.loc[idx, [
+                        "Indirizzo", "Citta", "CAP", "Telefono", "Cell", "Email",
+                        "PersonaRiferimento", "PartitaIVA", "IBAN", "SDI", "TMK"
+                    ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk]
+            
+                    # 🧩 Identifica il proprietario del cliente (per salvare nel file corretto)
+                    proprietario = str(df_cli.loc[idx, "Proprietario"]).strip().lower() if "Proprietario" in df_cli.columns else "fabio"
+            
+                    if proprietario == "gabriele":
+                        path_cli = GABRIELE_CLIENTI
+                    else:
+                        path_cli = CLIENTI_CSV
+
+        # Ricarica dataframe principale, aggiorna e salva in file giusto
+        df_target = pd.read_csv(path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("") if path_cli.exists() else pd.DataFrame(columns=df_cli.columns)
+
+        if "ClienteID" in df_target.columns and sel_id in df_target["ClienteID"].astype(str).tolist():
+            df_target.loc[df_target["ClienteID"] == sel_id, df_cli.columns] = df_cli.loc[idx].values
+        else:
+            df_target = pd.concat([df_target, pd.DataFrame([df_cli.loc[idx]])], ignore_index=True)
+
+        df_target.to_csv(path_cli, index=False, encoding="utf-8-sig")
+
+        st.success(f"✅ Anagrafica aggiornata nel file di **{proprietario.upper()}**.")
+        st.session_state[f"edit_cli_{sel_id}"] = False
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"❌ Errore durante il salvataggio delle modifiche: {e}")
+
 
         # === NOTE CLIENTE ===
         st.divider()
         st.markdown("### 📝 Note Cliente")
-        note_attuali = cliente.get("NoteCliente", "")
-        nuove_note = st.text_area("Modifica note cliente:", note_attuali, height=160, key=f"note_{sel_id}_{int(time.time()*1000)}")
 
+        note_attuali = cliente.get("NoteCliente", "")
+        nuove_note = st.text_area(
+            "Modifica note cliente:",
+            note_attuali,
+            height=160,
+            key=f"note_{sel_id}_{int(time.time()*1000)}"
+        )
+
+        # 💾 SALVATAGGIO AUTOMATICO NEL FILE CORRETTO (Fabio / Gabriele)
         if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}_{int(time.time()*1000)}", use_container_width=True):
             try:
                 idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
                 df_cli.loc[idx_row, "NoteCliente"] = nuove_note
-                save_clienti(df_cli)
-                st.success("✅ Note aggiornate correttamente!")
+
+                # 🧩 Identifica a chi appartiene il cliente
+                proprietario = str(df_cli.loc[idx_row, "Proprietario"]).strip().lower() if "Proprietario" in df_cli.columns else "fabio"
+
+                if proprietario == "gabriele":
+                    path_cli = GABRIELE_CLIENTI
+                else:
+                    path_cli = CLIENTI_CSV
+
+                # 🔄 Carica il file corretto, aggiorna e salva
+                if path_cli.exists():
+                    df_target = pd.read_csv(path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+                else:
+                    df_target = pd.DataFrame(columns=df_cli.columns)
+
+                if "ClienteID" in df_target.columns and sel_id in df_target["ClienteID"].astype(str).tolist():
+                    df_target.loc[df_target["ClienteID"] == sel_id, "NoteCliente"] = nuove_note
+                else:
+                    df_target = pd.concat([df_target, pd.DataFrame([df_cli.loc[idx_row]])], ignore_index=True)
+
+                df_target.to_csv(path_cli, index=False, encoding="utf-8-sig")
+
+                st.success(f"✅ Note salvate correttamente nel file di **{proprietario.upper()}**.")
                 st.rerun()
+
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio delle note: {e}")
+
 
         # === RECALL E VISITE ===
         st.divider()
@@ -1715,10 +1779,18 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 def main():
     st.write("✅ Avvio CRM SHT — modalità GitHub + Streamlit Cloud")
 
-    # --- LOGIN ---
-    user, role = do_login_fullscreen()
-    if not user:
+    # --- LOGIN (mostra schermata se non autenticato) ---
+    if not st.session_state.get("logged_in", False):
+        do_login_fullscreen()
         st.stop()
+
+    user = st.session_state.get("user", "")
+    role = st.session_state.get("role", "")
+
+    if not user:
+        st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
+        st.stop()
+
 
     # --- Ruolo e diritti di scrittura ---
     if user == "fabio":

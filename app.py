@@ -1724,7 +1724,7 @@ def main():
 
     # --- Selettore visibilità ---
     if user in ["fabio", "giulia", "antonella"]:
-        visibilita_opzioni = ["Miei", "Gabriele", "Tutti"]
+        visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
             "📂 Visualizza clienti di:",
             visibilita_opzioni,

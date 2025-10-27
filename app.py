@@ -218,26 +218,30 @@ def save_contratti(df: pd.DataFrame):
     save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
 
 # =====================================
-# CONVERSIONE SICURA DATE ITALIANE (VERSIONE DEFINITIVA 2025)
+# CONVERSIONE SICURA DATE ITALIANE — VERSIONE DEFINITIVA 2025
 # =====================================
-from datetime import datetime
+def parse_date_safe(val) -> str:
+    """Converte una data in formato coerente DD/MM/YYYY, accettando formati misti e valori vuoti."""
+    import pandas as pd
+    from datetime import datetime
 
-def parse_date_safe(val: str) -> str:
-    """Converte una data in formato coerente DD/MM/YYYY, accettando formati misti."""
-    if not val or str(val).strip() in ["nan", "NaN", "None", "NaT", ""]:
+    # Evita crash con valori speciali Pandas (pd.NA, NaT, ecc.)
+    if pd.isna(val):
         return ""
-    val = str(val).strip()
+
+    s = str(val).strip()
+    if s in ["", "nan", "NaN", "None", "NaT", "NULL", "null"]:
+        return ""
+
+    # Prova diversi formati comuni
     for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"):
         try:
-            return datetime.strptime(val, fmt).strftime("%d/%m/%Y")
+            return datetime.strptime(s, fmt).strftime("%d/%m/%Y")
         except ValueError:
             continue
-    return val
 
-
-def to_date_series(series: pd.Series) -> pd.Series:
-    """Compatibilità retroattiva: applica parse_date_safe a una serie pandas."""
-    return series.apply(parse_date_safe)
+    # Se fallisce tutto, ritorna il valore originale
+    return s
 
 # =====================================
 # FUNZIONI DI CARICAMENTO DATI (VERSIONE DEFINITIVA 2025)
@@ -1393,9 +1397,17 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === Prepara i dati contratti ===
     df_ct = df_ct.copy()
+    
+    # ✅ Conversione sicura delle date di fine contratto
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+    
+    # Se necessario, crea anche DataInizio coerente
+    if "DataInizio" in df_ct.columns:
+        df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+    
     df_ct["Stato"] = df_ct["Stato"].astype(str).str.lower().fillna("")
     attivi = df_ct[df_ct["Stato"] != "chiuso"]
+
 
     # === Calcola la prima scadenza per ogni cliente ===
     prime_scadenze = (
@@ -1779,12 +1791,21 @@ def main():
     # --- Caricamento sicuro e cache coerente ---
     df_cli = load_clienti_cached()
     df_ct = load_contratti_cached()
-
-    # ✅ Aggiunge RowID se manca
-    if "RowID" not in df_ct.columns:
-        df_ct = df_ct.reset_index(drop=True)
-        df_ct["RowID"] = range(1, len(df_ct) + 1)
-        save_contratti(df_ct)
+    # =====================================
+    # FIX: garantisce colonna "Proprietario" e filtro utente
+    # =====================================
+    if "Proprietario" not in df_cli.columns:
+        df_cli["Proprietario"] = ""
+    
+    # 🔹 Assegna automaticamente il proprietario all'utente loggato se mancante
+    if user.lower() in ["fabio", "gabriele"]:
+        df_cli.loc[df_cli["Proprietario"] == "", "Proprietario"] = user.capitalize()
+    
+        # ✅ Aggiunge RowID se manca
+        if "RowID" not in df_ct.columns:
+            df_ct = df_ct.reset_index(drop=True)
+            df_ct["RowID"] = range(1, len(df_ct) + 1)
+            save_contratti(df_ct)
 
     # =====================================
     # 🔍 FILTRO PER PROPRIETARIO (FABIO / GABRIELE / TUTTI)

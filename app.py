@@ -338,60 +338,64 @@ def load_contratti() -> pd.DataFrame:
 
 
 # =====================================
-# LOGIN FULLSCREEN
+# FUNZIONE DI LOGIN A SCHERMO PIENO — VERSIONE SICURA
 # =====================================
 def do_login_fullscreen():
-    """Login elegante con sfondo fullscreen"""
-    if st.session_state.get("logged_in"):
+    """Gestisce il login senza mai bloccare l'app su pagina bianca."""
+    import streamlit as st
+
+    # 🔹 Se già loggato → ritorna subito utente e ruolo
+    if st.session_state.get("logged_in", False):
         return st.session_state["user"], st.session_state["role"]
 
-    st.markdown("""
-    <style>
-    div[data-testid="stAppViewContainer"] {padding-top:0 !important;}
-    .block-container {
-        display:flex;flex-direction:column;justify-content:center;
-        align-items:center;height:100vh;background-color:#f8fafc;
-    }
-    .login-card {
-        background:#fff;border:1px solid #e5e7eb;border-radius:12px;
-        box-shadow:0 4px 16px rgba(0,0,0,0.08);
-        padding:2rem 2.5rem;width:360px;text-align:center;
-    }
-    .login-title {font-size:1.3rem;font-weight:600;color:#2563eb;margin:1rem 0 1.4rem;}
-    .stButton>button {
-        width:260px;font-size:0.9rem;background-color:#2563eb;color:white;
-        border:none;border-radius:6px;padding:0.5rem 0;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style='text-align:center; margin-top:5rem;'>
+            <h2>🔐 Accesso Gestionale SHT</h2>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    login_col1, login_col2, _ = st.columns([1,2,1])
-    with login_col2:
-        st.markdown("<div class='login-card'>", unsafe_allow_html=True)
-        st.image(LOGO_URL, width=140)
-        st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
-        username = st.text_input("Nome utente", key="login_user").strip().lower()
-        password = st.text_input("Password", type="password", key="login_pass")
-        login_btn = st.button("Entra")
-        st.markdown("</div>", unsafe_allow_html=True)
+    with st.form("login_form"):
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            username = st.text_input("👤 Nome utente")
+        with c2:
+            password = st.text_input("🔑 Password", type="password")
 
-    if login_btn or (username and password and not st.session_state.get("_login_checked")):
-        st.session_state["_login_checked"] = True
+        login_btn = st.form_submit_button("🔓 Entra")
+
+    # === UTENTI LOCALI DI DEFAULT (se manca secrets.toml) ===
+    utenti_default = {
+        "fabio": {"password": "1234", "role": "full"},
+        "gabriele": {"password": "1234", "role": "limitato"},
+    }
+
+    # === Carica utenti da secrets se disponibile ===
+    try:
         users = st.secrets["auth"]["users"]
-        if username in users and users[username]["password"] == password:
+    except Exception:
+        users = utenti_default
+
+    # === Verifica login ===
+    if login_btn:
+        user_data = users.get(username.lower())
+        if user_data and password == user_data.get("password"):
             st.session_state.update({
-                "user": username,
-                "role": users[username].get("role", "viewer"),
-                "logged_in": True
+                "logged_in": True,
+                "user": username.capitalize(),
+                "role": user_data.get("role", "viewer")
             })
-            st.success(f"✅ Benvenuto {username}!")
-            time.sleep(0.3)
+            st.success(f"✅ Benvenuto {username.capitalize()}!")
+            st.experimental_set_query_params(login="ok")
             st.rerun()
         else:
-            st.error("❌ Credenziali non valide.")
-            st.session_state["_login_checked"] = False
+            st.error("❌ Credenziali non valide. Riprova.")
 
-    st.stop()
+    # 🔹 Se non loggato → ritorna None, None invece di bloccare
+    return None, None
+
 # =====================================
 # KPI CARD (riutilizzata)
 # =====================================

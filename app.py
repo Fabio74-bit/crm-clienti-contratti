@@ -1746,6 +1746,42 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 import streamlit as st
 import pandas as pd
 from pathlib import Path
+# ✅ Caching dei CSV — velocizza i caricamenti e gestisce errori di formattazione
+@st.cache_data(ttl=60)
+def load_clienti_cached(path):
+    """Carica clienti, supportando CSV con ; o ,"""
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(
+            path,
+            dtype=str,
+            sep=None,            # rileva automaticamente , o ;
+            engine="python",     # serve per sep=None
+            encoding="utf-8-sig",
+            on_bad_lines="skip"  # ignora eventuali righe rotte
+        ).fillna("")
+    except Exception as e:
+        st.error(f"❌ Errore caricamento clienti: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def load_contratti_cached(path):
+    """Carica contratti, supportando CSV con ; o ,"""
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(
+            path,
+            dtype=str,
+            sep=None,
+            engine="python",
+            encoding="utf-8-sig",
+            on_bad_lines="skip"
+        ).fillna("")
+    except Exception as e:
+        st.error(f"❌ Errore caricamento contratti: {e}")
+        return pd.DataFrame()
 
 # ✅ Caching dei CSV — velocizza i caricamenti di 40-50%
 @st.cache_data(ttl=60)

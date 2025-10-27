@@ -1290,14 +1290,26 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for col, h in zip(header_cols, headers):
         col.markdown(f"<div class='tbl-header'>{h}</div>", unsafe_allow_html=True)
 
+    # === STILE RIGA CHIUSA DEFINITO ===
+    st.markdown("""
+    <style>
+      .row-closed {
+          background-color:#ffe5e5 !important;        /* rosso chiaro */
+          border-top:2px solid #c62828 !important;    /* bordo rosso scuro sopra */
+          border-bottom:2px solid #c62828 !important; /* bordo rosso scuro sotto */
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
     # === RIGHE CONTRATTI ===
     for i, r in ct.iterrows():
-        # 🔹 Colore di sfondo in base allo stato
         stato = str(r.get("Stato", "aperto")).lower()
         if stato == "chiuso":
-            bg = "#ffe5e5"  # 🔴 rosso chiaro per contratti chiusi
+            bg = "#ffe5e5"
+            row_class = "row-closed"
         else:
             bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
+            row_class = ""
 
         stato_html = (
             "<span class='pill-open'>Aperto</span>"
@@ -1310,18 +1322,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             desc_txt = desc_txt[:90] + "…"
 
         cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 2.2, 1])
-        cols[0].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
-        cols[1].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
-        cols[2].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-        cols[3].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('Durata','—')}</div>", unsafe_allow_html=True)
-        cols[4].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
-        cols[5].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{stato_html}</div>", unsafe_allow_html=True)
-        cols[6].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_FIN','')}</div>", unsafe_allow_html=True)
-        cols[7].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_INT','')}</div>", unsafe_allow_html=True)
-        cols[8].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
-        cols[9].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
-        cols[10].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
-        cols[11].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc_txt}</div>", unsafe_allow_html=True)
+        cols[0].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
+        cols[1].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
+        cols[2].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+        cols[3].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{r.get('Durata','—')}</div>", unsafe_allow_html=True)
+        cols[4].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
+        cols[5].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{stato_html}</div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_FIN','')}</div>", unsafe_allow_html=True)
+        cols[7].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_INT','')}</div>", unsafe_allow_html=True)
+        cols[8].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
+        cols[9].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
+        cols[10].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:left'>{desc_txt}</div>", unsafe_allow_html=True)
 
         # === Azioni ===
         with cols[12]:
@@ -1332,25 +1344,26 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["edit_gidx"] = i
                 st.rerun()
 
-            # 🔒 Chiudi / Riapri
+            # 🔒 Chiudi / Riapri (fix duplicazioni)
             if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
                 try:
-                    # Trova esattamente la riga da aggiornare
+                    # Identificazione unica: ClienteID + NumeroContratto + DataInizio + DataFine
                     mask = (
                         (df_ct["ClienteID"].astype(str) == str(sel_id))
                         & (df_ct["NumeroContratto"].astype(str) == str(r.get("NumeroContratto", "")))
                         & (df_ct["DataInizio"].astype(str) == str(r.get("DataInizio", "")))
+                        & (df_ct["DataFine"].astype(str) == str(r.get("DataFine", "")))
                     )
-            
-                    # Se per caso ci sono più corrispondenze, aggiorna solo la prima
+                    mask &= df_ct["NumeroContratto"].astype(str).str.strip() != ""
+
                     idx = df_ct.index[mask].tolist()
-                    if idx:
+                    if len(idx) > 0:
                         df_ct.at[idx[0], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
                         save_contratti(df_ct)
                         st.toast("🔁 Stato contratto aggiornato", icon="✅")
                         st.rerun()
                     else:
-                        st.warning("⚠️ Contratto non trovato nel file originale.")
+                        st.warning("⚠️ Nessuna riga valida trovata per questo contratto.")
                 except Exception as e:
                     st.error(f"❌ Errore aggiornamento stato: {e}")
 
@@ -1359,10 +1372,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["delete_gidx"] = i
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
-
-
-
-
 
 
     # === MODIFICA CONTRATTO ===

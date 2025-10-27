@@ -1825,12 +1825,21 @@ def main():
     else:
         filtro_predefinito = "Tutti"
 
+    # =====================================
+    # FIX: selectbox sicuro per filtro Proprietario
+    # =====================================
+    try:
+        default_index = opzioni_filtro.index(filtro_predefinito)
+    except ValueError:
+        default_index = 0  # fallback su "Tutti" se non trovato
+    
     scelta_proprietario = st.sidebar.selectbox(
         "Visualizza dati di:",
         options=opzioni_filtro,
-        index=opzioni_filtro.index(filtro_predefinito),
+        index=default_index,
         help="Filtra i dati per proprietario"
     )
+
 
     # Applica il filtro
     if scelta_proprietario != "Tutti":

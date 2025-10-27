@@ -483,7 +483,7 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
     """
 
 # =====================================
-# PAGINA DASHBOARD
+# PAGINA DASHBOARD — VERSIONE DEFINITIVA 2025
 # =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
@@ -533,33 +533,26 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     "👩‍💼 TMK di riferimento",
                     ["", "Giulia", "Antonella", "Annalisa", "Laura"],
                     index=0
-            )
+                )
+
             # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")
-            
             colc1, colc2, colc3 = st.columns(3)
             num = colc1.text_input("📄 Numero Contratto")
             data_inizio = colc2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
             durata = colc3.selectbox("📆 Durata (mesi)", DURATE_MESI, index=2)
-            
+
             desc = st.text_area("🧾 Descrizione Prodotto", height=80)
-            
             colp1, colp2, colp3 = st.columns(3)
             nf = colp1.text_input("🏦 NOL_FIN")
             ni = colp2.text_input("🏢 NOL_INT")
             tot = colp3.text_input("💰 Tot Rata")
-            
-            # 🔹 Copie e costi extra nello stesso blocco (senza intestazione e senza + / -)
-            colx1, colx2, colx3, colx4 = st.columns(4)
-            with colx1:
-                copie_bn = st.text_input("📄 Copie incluse B/N", value="", key="copie_bn")
-            with colx2:
-                ecc_bn = st.text_input("💰 Costo extra B/N (€)", value="", key="ecc_bn")
-            with colx3:
-                copie_col = st.text_input("🖨️ Copie incluse Colore", value="", key="copie_col")
-            with colx4:
-                ecc_col = st.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
 
+            colx1, colx2, colx3, colx4 = st.columns(4)
+            copie_bn = colx1.text_input("📄 Copie incluse B/N", value="", key="copie_bn")
+            ecc_bn = colx2.text_input("💰 Costo extra B/N (€)", value="", key="ecc_bn")
+            copie_col = colx3.text_input("🖨️ Copie incluse Colore", value="", key="copie_col")
+            ecc_col = colx4.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
 
             # === SALVA CLIENTE + CONTRATTO ===
             if st.form_submit_button("💾 Crea Cliente e Contratto"):
@@ -590,12 +583,46 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
                     save_clienti(df_cli)
 
-    # === CREAZIONE NUOVO CONTRATTO ===
+                    # --- CREA CONTRATTO ---
+                    data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
+                    nuovo_contratto = {
+                        "ClienteID": new_id,
+                        "RagioneSociale": ragione,
+                        "NumeroContratto": num,
+                        "DataInizio": fmt_date(data_inizio),
+                        "DataFine": fmt_date(data_fine),
+                        "Durata": durata,
+                        "DescrizioneProdotto": desc,
+                        "NOL_FIN": nf,
+                        "NOL_INT": ni,
+                        "TotRata": tot,
+                        "CopieBN": copie_bn,
+                        "EccBN": ecc_bn,
+                        "CopieCol": copie_col,
+                        "EccCol": ecc_col,
+                        "Stato": "aperto"
+                    }
+                    df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
+                    save_contratti(df_ct)
+
+                    st.success(f"✅ Cliente '{ragione}' e contratto creati correttamente!")
+                    st.session_state.update({
+                        "selected_cliente": new_id,
+                        "nav_target": "Contratti",
+                        "_go_contratti_now": True
+                    })
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Errore durante la creazione del cliente e contratto: {e}")
+
+    # === CREAZIONE NUOVO CONTRATTO (solo contratto separato) ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
+        permessi_limitati = role == "limitato"
         if permessi_limitati:
             st.warning("🔒 Accesso sola lettura")
         else:
-            with st.form(f"new_ct_{sel_id}"):
+            with st.form("new_ct_form"):
                 st.markdown("#### 📄 Dati Contratto")
                 c1, c2, c3, c4 = st.columns(4)
                 num = c1.text_input("Numero Contratto")
@@ -619,13 +646,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 if st.form_submit_button("💾 Crea contratto"):
                     try:
-                        # Calcola la data di fine contratto
                         fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-
-                        # Nuovo record
                         nuovo = {
-                            "ClienteID": sel_id,
-                            "RagioneSociale": rag_soc,
+                            "ClienteID": "",
+                            "RagioneSociale": "",
                             "NumeroContratto": num,
                             "DataInizio": fmt_date(din),
                             "DataFine": fmt_date(fine),
@@ -641,12 +665,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             "Stato": stato_new
                         }
 
-                        # Verifica che non sia vuoto
                         if not num.strip() and not desc.strip():
                             st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
                         else:
                             df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
-                            # Rimuove eventuali righe completamente vuote
                             df_ct = df_ct.dropna(how="all").reset_index(drop=True)
                             save_contratti(df_ct)
                             st.success("✅ Contratto creato correttamente.")
@@ -654,6 +676,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                     except Exception as e:
                         st.error(f"❌ Errore durante la creazione del contratto: {e}")
+
 
     # === CONTRATTI IN SCADENZA ENTRO 6 MESI ===
     st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")

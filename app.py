@@ -338,63 +338,45 @@ def load_contratti() -> pd.DataFrame:
 
 
 # =====================================
-# FUNZIONE DI LOGIN A SCHERMO PIENO — VERSIONE SICURA
+# LOGIN SEMPLICE E STABILE (mai pagina bianca)
 # =====================================
 def do_login_fullscreen():
-    """Gestisce il login senza mai bloccare l'app su pagina bianca."""
+    """Login semplice e sicuro."""
     import streamlit as st
-
-    # 🔹 Se già loggato → ritorna subito utente e ruolo
-    if st.session_state.get("logged_in", False):
+    if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    st.markdown(
-        """
-        <div style='text-align:center; margin-top:5rem;'>
-            <h2>🔐 Accesso Gestionale SHT</h2>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
+    st.markdown("<h2 style='text-align:center;'>🔐 Accesso Gestionale SHT</h2>", unsafe_allow_html=True)
     with st.form("login_form"):
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            username = st.text_input("👤 Nome utente")
-        with c2:
-            password = st.text_input("🔑 Password", type="password")
+        username = st.text_input("👤 Nome utente").strip().lower()
+        password = st.text_input("🔑 Password", type="password")
+        login = st.form_submit_button("Entra")
 
-        login_btn = st.form_submit_button("🔓 Entra")
-
-    # === UTENTI LOCALI DI DEFAULT (se manca secrets.toml) ===
-    utenti_default = {
+    default_users = {
         "fabio": {"password": "1234", "role": "full"},
         "gabriele": {"password": "1234", "role": "limitato"},
     }
-
-    # === Carica utenti da secrets se disponibile ===
     try:
         users = st.secrets["auth"]["users"]
     except Exception:
-        users = utenti_default
+        users = default_users
 
-    # === Verifica login ===
-    if login_btn:
-        user_data = users.get(username.lower())
-        if user_data and password == user_data.get("password"):
+    if login:
+        if username in users and password == users[username]["password"]:
             st.session_state.update({
                 "logged_in": True,
-                "user": username.capitalize(),
-                "role": user_data.get("role", "viewer")
+                "user": username,
+                "role": users[username].get("role", "viewer")
             })
             st.success(f"✅ Benvenuto {username.capitalize()}!")
-            st.experimental_set_query_params(login="ok")
+            st.experimental_set_query_params(refresh="ok")
             st.rerun()
         else:
-            st.error("❌ Credenziali non valide. Riprova.")
+            st.error("❌ Credenziali non valide")
 
-    # 🔹 Se non loggato → ritorna None, None invece di bloccare
     return None, None
+
+
 
 # =====================================
 # KPI CARD (riutilizzata)
@@ -1778,14 +1760,13 @@ def load_contratti_cached():
 # MAIN APP — Versione definitiva 2025 (con filtro Proprietario corretto)
 # =====================================
 def main():
-    st.write("✅ main avviato")  # 👈 DEBUG
-
+    st.write("✅ main avviato")        # debug 1
     user, role = do_login_fullscreen()
-    st.write("👤 utente:", user, "ruolo:", role)  # 👈 DEBUG
-
+    st.write("👤 utente:", user, "ruolo:", role)  # debug 2
     if not user:
-        st.write("⏹️ Login non completato → stop")  # 👈 DEBUG
+        st.write("⏹️ Login non completato → stop")  # debug 3
         st.stop()
+
 
     # --- LOGIN ---
     user, role = do_login_fullscreen()

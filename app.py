@@ -640,67 +640,71 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === CONTRATTI IN SCADENZA ENTRO 6 MESI ===
-    st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")
+# === CONTRATTI IN SCADENZA O SENZA DATA FINE (entro 6 mesi o aperti) ===
+st.markdown("### ⚠️ Contratti in scadenza o senza data di fine")
 
-    oggi = pd.Timestamp.now().normalize()
-    entro_6_mesi = oggi + pd.DateOffset(months=6)
-    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+oggi = pd.Timestamp.now().normalize()
+entro_6_mesi = oggi + pd.DateOffset(months=6)
+df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
 
-    scadenze = df_ct[
-        (df_ct["DataFine"].notna()) &
-        (df_ct["DataFine"] >= oggi) &
-        (df_ct["DataFine"] <= entro_6_mesi) &
-        (df_ct["Stato"].astype(str).str.lower() != "chiuso")
-    ].copy()
+# Mostra tutti i contratti aperti, anche senza DataFine
+scadenze = df_ct[
+    (df_ct["Stato"].astype(str).str.lower() != "chiuso") &
+    (
+        df_ct["DataFine"].isna() |
+        ((df_ct["DataFine"] >= oggi) & (df_ct["DataFine"] <= entro_6_mesi))
+    )
+].copy()
 
-    # Se manca RagioneSociale nei contratti, la aggiunge
-    if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
-        scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
+# Se manca RagioneSociale, la aggiunge
+if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
+    scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
-    if scadenze.empty:
-        st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
-    else:
-        scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
-        scadenze = scadenze.sort_values("DataFine")
+# Nessun contratto trovato
+if scadenze.empty:
+    st.success("✅ Nessun contratto aperto o in scadenza nei prossimi 6 mesi.")
+else:
+    # Formattazione tabella
+    scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
+    scadenze = scadenze.sort_values("DataFine", na_position="last")
 
-        st.markdown(f"📅 **{len(scadenze)} contratti in scadenza entro 6 mesi:**")
+    st.markdown(f"📅 **{len(scadenze)} contratti aperti o in scadenza:**")
 
-        # Intestazione tabella
-        head_cols = st.columns([2, 1, 1, 1, 0.8])
-        head_cols[0].markdown("**Cliente**")
-        head_cols[1].markdown("**Contratto**")
-        head_cols[2].markdown("**Scadenza**")
-        head_cols[3].markdown("**Stato**")
-        head_cols[4].markdown("**Azioni**")
+    # Intestazione
+    head_cols = st.columns([2, 1, 1, 1, 0.8])
+    head_cols[0].markdown("**Cliente**")
+    head_cols[1].markdown("**Contratto**")
+    head_cols[2].markdown("**Scadenza**")
+    head_cols[3].markdown("**Stato**")
+    head_cols[4].markdown("**Azioni**")
 
-        st.markdown("---")
+    st.markdown("---")
 
-        # Righe tabella (zebra + pulsante funzionante)
-        for i, r in scadenze.iterrows():
-            bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
-            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
-            with col1:
-                st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
-            with col2:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
-            with col3:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-            with col4:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
-            with col5:
-                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                    # 🔹 Pulisce eventuali flag di modifica prima di cambiare pagina
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
-                            del st.session_state[k]
+    for i, r in scadenze.iterrows():
+        bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
+        col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
+        with col1:
+            st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
+        with col3:
+            data_fine = r.get("DataFine")
+            testo_scad = fmt_date(data_fine) if data_fine else "—"
+            st.markdown(f"<div style='background:{bg};padding:6px'>{testo_scad}</div>", unsafe_allow_html=True)
+        with col4:
+            st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
+        with col5:
+            if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
+                for k in list(st.session_state.keys()):
+                    if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
+                        del st.session_state[k]
+                st.session_state.update({
+                    "selected_cliente": str(r.get("ClienteID")),
+                    "nav_target": "Contratti",
+                    "_go_contratti_now": True
+                })
+                st.rerun()
 
-                    st.session_state.update({
-                        "selected_cliente": str(r.get("ClienteID")),
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
-                    st.rerun()
 
     # === CONTRATTI SENZA DATA FINE (solo inseriti da oggi in poi) ===
     st.divider()

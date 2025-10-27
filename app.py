@@ -437,117 +437,114 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c4.markdown(kpi_card("Nuovi contratti anno", len(new_contracts), "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-    # === CREAZIONE NUOVO CLIENTE + CONTRATTO (VERSIONE COMPLETA 2025) ===
-    with st.expander("➕ Crea Nuovo Cliente + Contratto"):
-        with st.form("frm_new_cliente"):
-            st.markdown("#### 📇 Dati Cliente")
-            col1, col2 = st.columns(2)
-            with col1:
-                ragione = st.text_input("🏢 Ragione Sociale")
-                persona = st.text_input("👤 Persona Riferimento")
-                indirizzo = st.text_input("📍 Indirizzo")
-                citta = st.text_input("🏙️ Città")
-                cap = st.text_input("📮 CAP")
-                telefono = st.text_input("📞 Telefono")
-                cell = st.text_input("📱 Cellulare")
-            with col2:
-                email = st.text_input("✉️ Email")
-                piva = st.text_input("💼 Partita IVA")
-                iban = st.text_input("🏦 IBAN")
-                sdi = st.text_input("📡 SDI")
-                note = st.text_area("📝 Note Cliente", height=70)
-                tmk = st.selectbox(
-                    "👩‍💼 TMK di riferimento",
-                    ["", "Giulia", "Antonella", "Annalisa", "Laura"],
-                    index=0
-                )
+# === CREAZIONE NUOVO CLIENTE + CONTRATTO ===
+with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
+    with st.form("frm_new_cliente"):   # 👈 il form inizia QUI
+        st.markdown("#### 📇 Dati Cliente")
 
-            # === SEZIONE CONTRATTO ===
-            st.markdown("#### 📄 Primo Contratto del Cliente")
-            colc1, colc2, colc3 = st.columns(3)
-            num = colc1.text_input("📄 Numero Contratto")
-            data_inizio = colc2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
-            durata = colc3.selectbox("📆 Durata (mesi)", DURATE_MESI, index=2)
+        col1, col2 = st.columns(2)
+        with col1:
+            ragione = st.text_input("🏢 Ragione Sociale")
+            persona = st.text_input("👤 Persona Riferimento")
+            indirizzo = st.text_input("📍 Indirizzo")
+            citta = st.text_input("🏙️ Città")
+            cap = st.text_input("📮 CAP")
+            telefono = st.text_input("📞 Telefono")
+            cell = st.text_input("📱 Cellulare")
 
-            desc = st.text_area("🧾 Descrizione Prodotto", height=80)
-            colp1, colp2, colp3 = st.columns(3)
-            nf = colp1.text_input("🏦 NOL_FIN")
-            ni = colp2.text_input("🏢 NOL_INT")
-            tot = colp3.text_input("💰 Tot Rata")
+        with col2:
+            email = st.text_input("✉️ Email")
+            piva = st.text_input("💼 Partita IVA")
+            iban = st.text_input("🏦 IBAN")
+            sdi = st.text_input("📡 SDI")
+            note = st.text_area("📝 Note Cliente", height=70)
+            tmk = st.selectbox(
+                "👩‍💼 TMK di riferimento",
+                ["", "Giulia", "Antonella", "Annalisa", "Laura"],
+                index=0
+            )
 
-            colx1, colx2, colx3, colx4 = st.columns(4)
-            copie_bn = colx1.text_input("📄 Copie incluse B/N", value="", key="copie_bn")
-            ecc_bn = colx2.text_input("💰 Costo extra B/N (€)", value="", key="ecc_bn")
-            copie_col = colx3.text_input("🖨️ Copie incluse Colore", value="", key="copie_col")
-            ecc_col = colx4.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
+        # === SEZIONE CONTRATTO ===
+        st.markdown("#### 📄 Primo Contratto del Cliente")
+        colc1, colc2, colc3 = st.columns(3)
+        num = colc1.text_input("📄 Numero Contratto")
+        data_inizio = colc2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
+        durata = colc3.selectbox("📆 Durata (mesi)", DURATE_MESI, index=2)
 
-# === SALVA CLIENTE + CONTRATTO ===
-if st.form_submit_button("💾 Crea Cliente e Contratto"):
-    try:
-        new_id = str(len(df_cli) + 1)
+        desc = st.text_area("🧾 Descrizione Prodotto", height=80)
+        colp1, colp2, colp3 = st.columns(3)
+        nf = colp1.text_input("🏦 NOL_FIN")
+        ni = colp2.text_input("🏢 NOL_INT")
+        tot = colp3.text_input("💰 Tot Rata")
 
-        # --- CREA NUOVO CLIENTE ---
-        nuovo_cliente = {
-            "ClienteID": new_id,
-            "RagioneSociale": ragione,
-            "PersonaRiferimento": persona,
-            "Indirizzo": indirizzo,
-            "Citta": citta,
-            "CAP": cap,
-            "Telefono": telefono,
-            "Cell": cell,
-            "Email": email,
-            "PartitaIVA": piva,
-            "IBAN": iban,
-            "SDI": sdi,
-            "UltimoRecall": "",
-            "ProssimoRecall": "",
-            "UltimaVisita": "",
-            "ProssimaVisita": "",
-            "TMK": tmk,
-            "NoteCliente": note,
-            # 🔹 assegna automaticamente il proprietario
-            "Proprietario": user.capitalize()
-        }
+        colx1, colx2, colx3, colx4 = st.columns(4)
+        copie_bn = colx1.text_input("📄 Copie incluse B/N", value="")
+        ecc_bn = colx2.text_input("💰 Costo extra B/N (€)", value="")
+        copie_col = colx3.text_input("🖨️ Copie incluse Colore", value="")
+        ecc_col = colx4.text_input("💰 Costo extra Colore (€)", value="")
 
-        df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
-        save_clienti(df_cli)
+        # === SALVA CLIENTE + CONTRATTO ===
+        submit = st.form_submit_button("💾 Crea Cliente e Contratto")  # 👈 DEVE stare DENTRO il form
+        if submit:
+            try:
+                new_id = str(len(df_cli) + 1)
 
-        # --- CREA CONTRATTO ---
-        data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
-        nuovo_contratto = {
-            "ClienteID": new_id,
-            "RagioneSociale": ragione,
-            "NumeroContratto": num,
-            "DataInizio": fmt_date(data_inizio),
-            "DataFine": fmt_date(data_fine),
-            "Durata": durata,
-            "DescrizioneProdotto": desc,
-            "NOL_FIN": nf,
-            "NOL_INT": ni,
-            "TotRata": tot,
-            "CopieBN": copie_bn,
-            "EccBN": ecc_bn,
-            "CopieCol": copie_col,
-            "EccCol": ecc_col,
-            "Stato": "aperto",
-            # 🔹 assegna automaticamente anche qui il proprietario
-            "Proprietario": user.capitalize()
-        }
+                nuovo_cliente = {
+                    "ClienteID": new_id,
+                    "RagioneSociale": ragione,
+                    "PersonaRiferimento": persona,
+                    "Indirizzo": indirizzo,
+                    "Citta": citta,
+                    "CAP": cap,
+                    "Telefono": telefono,
+                    "Cell": cell,
+                    "Email": email,
+                    "PartitaIVA": piva,
+                    "IBAN": iban,
+                    "SDI": sdi,
+                    "UltimoRecall": "",
+                    "ProssimoRecall": "",
+                    "UltimaVisita": "",
+                    "ProssimaVisita": "",
+                    "TMK": tmk,
+                    "NoteCliente": note,
+                    "Proprietario": user.capitalize()  # ✅ aggiunto
+                }
+                df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
+                save_clienti(df_cli)
 
-        df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
-        save_contratti(df_ct)
+                data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
+                nuovo_contratto = {
+                    "ClienteID": new_id,
+                    "RagioneSociale": ragione,
+                    "NumeroContratto": num,
+                    "DataInizio": fmt_date(data_inizio),
+                    "DataFine": fmt_date(data_fine),
+                    "Durata": durata,
+                    "DescrizioneProdotto": desc,
+                    "NOL_FIN": nf,
+                    "NOL_INT": ni,
+                    "TotRata": tot,
+                    "CopieBN": copie_bn,
+                    "EccBN": ecc_bn,
+                    "CopieCol": copie_col,
+                    "EccCol": ecc_col,
+                    "Stato": "aperto",
+                    "Proprietario": user.capitalize()  # ✅ aggiunto
+                }
+                df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
+                save_contratti(df_ct)
 
-        st.success(f"✅ Cliente '{ragione}' e contratto creati correttamente!")
-        st.session_state.update({
-            "selected_cliente": new_id,
-            "nav_target": "Contratti",
-            "_go_contratti_now": True
-        })
-        st.rerun()
+                st.success(f"✅ Cliente '{ragione}' e contratto creati correttamente!")
+                st.session_state.update({
+                    "selected_cliente": new_id,
+                    "nav_target": "Contratti",
+                    "_go_contratti_now": True
+                })
+                st.rerun()
 
-    except Exception as e:
-        st.error(f"❌ Errore durante la creazione del cliente e contratto: {e}")
+            except Exception as e:
+                st.error(f"❌ Errore durante la creazione del cliente e contratto: {e}")
 
 
 # === CREAZIONE NUOVO CONTRATTO (solo contratto separato) ===

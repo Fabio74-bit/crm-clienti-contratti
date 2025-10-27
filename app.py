@@ -282,7 +282,7 @@ def load_clienti() -> pd.DataFrame:
 
 
 # =====================================
-# CARICAMENTO CONTRATTI (senza salvataggio automatico)
+# CARICAMENTO CONTRATTI (versione aggiornata con RowID)
 # =====================================
 def load_contratti() -> pd.DataFrame:
     """Carica i dati dei contratti dal file CSV (solo lettura, coerente con date italiane)."""
@@ -317,7 +317,14 @@ def load_contratti() -> pd.DataFrame:
         if c in df.columns:
             df[c] = df[c].apply(parse_date_safe)
 
+    # ✅ Aggiunge colonna RowID univoca se manca
+    if "RowID" not in df.columns:
+        df = df.reset_index(drop=True)
+        df["RowID"] = range(1, len(df) + 1)
+        save_contratti(df)  # salva per mantenerla nel file CSV
+
     return df
+
 
 
 # =====================================
@@ -1337,15 +1344,11 @@ if ct.empty:
 # === RIGHE CONTRATTI ===
 for i, r in ct.iterrows():
     row_id = int(r.get("RowID")) if "RowID" in r else None
-
     stato = str(r.get("Stato", "aperto")).lower()
     row_class = "row-closed" if stato == "chiuso" else ""
 
-    # Colore di sfondo alternato solo per i contratti aperti
-    if stato == "chiuso":
-        bg = "#fdecea"  # rosso chiaro
-    else:
-        bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
+    # Colore sfondo alternato o rosso per chiusi
+    bg = "#fdecea" if stato == "chiuso" else ("#f8fafc" if i % 2 == 0 else "#ffffff")
 
     stato_html = (
         "<span class='pill-open'>Aperto</span>"
@@ -1371,43 +1374,35 @@ for i, r in ct.iterrows():
     cols[10].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:center'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
     cols[11].markdown(f"<div class='{row_class}' style='background:{bg};padding:4px;text-align:left'>{desc_txt}</div>", unsafe_allow_html=True)
 
-        # === Azioni ===
-with cols[12]:
-    b1, b2, b3 = st.columns(3)
+    # === Azioni ===
+    with cols[12]:
+        b1, b2, b3 = st.columns(3)
 
-    # ✏️ Modifica
-    if b1.button("✏️", key=f"edit_{i}", help="Modifica contratto", disabled=permessi_limitati):
-        st.session_state["edit_rowid"] = int(r.get("RowID", i))
-        st.rerun()
+        # ✏️ Modifica
+        if b1.button("✏️", key=f"edit_{row_id}", help="Modifica contratto", disabled=permessi_limitati):
+            st.session_state["edit_rowid"] = row_id
+            st.rerun()
 
-    # 🔒 Chiudi / Riapri
-    if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
-        try:
-            # Trova il contratto esatto (ID cliente + numero contratto)
-            mask = (
-                (df_ct["ClienteID"].astype(str) == str(sel_id))
-                & (df_ct["NumeroContratto"].astype(str) == str(r.get("NumeroContratto", "")))
-            )
+        # 🔒 Chiudi / Riapri
+        if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{row_id}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
+            try:
+                if row_id in df_ct["RowID"].values:
+                    nuovo_stato = "chiuso" if stato != "chiuso" else "aperto"
+                    df_ct.loc[df_ct["RowID"] == row_id, "Stato"] = nuovo_stato
+                    save_contratti(df_ct)
+                    st.toast(f"🔁 Contratto {r.get('NumeroContratto')} aggiornato ({nuovo_stato})", icon="✅")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Riga non trovata nel file contratti.")
+            except Exception as e:
+                st.error(f"❌ Errore aggiornamento stato: {e}")
 
-            if mask.any():
-                # Inverte lo stato
-                nuovo_stato = "chiuso" if stato != "chiuso" else "aperto"
-                df_ct.loc[mask, "Stato"] = nuovo_stato
+        # 🗑️ Elimina
+        if b3.button("🗑️", key=f"del_{row_id}", help="Elimina contratto", disabled=permessi_limitati):
+            st.session_state["delete_rowid"] = row_id
+            st.session_state["ask_delete_now"] = True
+            st.rerun()
 
-                # Aggiorna la tabella visualizzata e salva il file
-                save_contratti(df_ct)
-                st.session_state["last_action"] = f"Contratto {r.get('NumeroContratto','')} -> {nuovo_stato}"
-                st.rerun()
-            else:
-                st.warning("⚠️ Nessuna corrispondenza trovata per questo contratto.")
-        except Exception as e:
-            st.error(f"❌ Errore durante l’aggiornamento: {e}")
-
-    # 🗑️ Elimina
-    if b3.button("🗑️", key=f"del_{i}", help="Elimina contratto", disabled=permessi_limitati):
-        st.session_state["delete_rowid"] = int(r.get("RowID", i))
-        st.session_state["ask_delete_now"] = True
-        st.rerun()
 
 
 
@@ -1479,28 +1474,42 @@ with cols[12]:
                         st.error(f"❌ Errore durante il salvataggio: {e}")
 
 
-    # === ELIMINAZIONE CONTRATTO ===
-    if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
-        gidx = st.session_state["delete_gidx"]
-        if gidx in ct.index:
-            contratto = ct.loc[gidx]
-            numero = contratto.get("NumeroContratto", "Senza numero")
-            st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✅ Sì, elimina", use_container_width=True):
-                    df_ct = df_ct.drop(index=gidx).copy()
+# === ELIMINAZIONE CONTRATTO ===
+if st.session_state.get("ask_delete_now") and st.session_state.get("delete_rowid") is not None:
+    row_id = st.session_state["delete_rowid"]
+
+    if row_id in df_ct["RowID"].values:
+        contratto = df_ct.loc[df_ct["RowID"] == row_id].iloc[0]
+        numero = contratto.get("NumeroContratto", "Senza numero")
+
+        st.warning(f"⚠️ Eliminare definitivamente il contratto **{numero}**?")
+        c1, c2 = st.columns(2)
+
+        with c1:
+            if st.button("✅ Sì, elimina", use_container_width=True):
+                try:
+                    df_ct = df_ct[df_ct["RowID"] != row_id].copy().reset_index(drop=True)
+
+                    # 🔁 Riassegna RowID coerenti (evita duplicati nel file)
+                    df_ct["RowID"] = range(1, len(df_ct) + 1)
+
                     save_contratti(df_ct)
-                    st.success("🗑️ Contratto eliminato.")
+                    st.success(f"🗑️ Contratto {numero} eliminato correttamente.")
                     st.session_state.pop("ask_delete_now", None)
-                    st.session_state.pop("delete_gidx", None)
+                    st.session_state.pop("delete_rowid", None)
                     st.rerun()
-            with c2:
-                if st.button("❌ Annulla", use_container_width=True):
-                    st.session_state.pop("ask_delete_now", None)
-                    st.session_state.pop("delete_gidx", None)
-                    st.info("Annullato.")
-                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+
+        with c2:
+            if st.button("❌ Annulla", use_container_width=True):
+                st.session_state.pop("ask_delete_now", None)
+                st.session_state.pop("delete_rowid", None)
+                st.info("Annullato.")
+                st.rerun()
+    else:
+        st.warning("⚠️ Riga non trovata nel file contratti. Aggiorna la pagina.")
+
 
     # === ESPORTAZIONI (Excel + PDF) ===
     st.divider()

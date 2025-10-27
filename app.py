@@ -590,40 +590,67 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
                     save_clienti(df_cli)
 
-                    # --- CREA NUOVO CONTRATTO ---
-                    data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
-                    nuovo_contratto = {
-                        "ClienteID": new_id,
-                        "RagioneSociale": ragione,
-                        "NumeroContratto": num,
-                        "DataInizio": fmt_date(data_inizio),
-                        "DataFine": fmt_date(data_fine),
-                        "Durata": durata,
-                        "DescrizioneProdotto": desc,
-                        "NOL_FIN": nf,
-                        "NOL_INT": ni,
-                        "TotRata": tot,
-                        "CopieBN": copie_bn,
-                        "EccBN": ecc_bn,
-                        "CopieCol": copie_col,
-                        "EccCol": ecc_col,
-                        "Stato": "aperto"
-                    }
-                    df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
-                    save_contratti(df_ct)
+     # === CREAZIONE NUOVO CONTRATTO ===
+    with st.expander("➕ Crea Nuovo Contratto", expanded=False):
+        if permessi_limitati:
+            st.warning("🔒 Accesso sola lettura")
+        else:
+            with st.form(f"new_ct_{sel_id}"):
+                st.markdown("#### 📄 Dati Contratto")
+                c1, c2, c3, c4 = st.columns(4)
+                num = c1.text_input("Numero Contratto")
+                din = c2.date_input("Data Inizio", format="DD/MM/YYYY")
+                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+                stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0)
+                desc = st.text_area("Descrizione Prodotto", height=80)
 
-                    st.success(f"✅ Cliente '{ragione}' e contratto creati correttamente!")
-                    st.session_state.update({
-                        "selected_cliente": new_id,
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
-                    st.rerun()
+                st.markdown("#### 💰 Dati Economici")
+                c5, c6, c7 = st.columns(3)
+                nf = c5.text_input("NOL_FIN")
+                ni = c6.text_input("NOL_INT")
+                tot = c7.text_input("TotRata")
 
-                except Exception as e:
-                    st.error(f"❌ Errore creazione cliente: {e}")
+                st.markdown("#### 🖨️ Copie incluse e Eccedenze")
+                c8, c9, c10, c11 = st.columns(4)
+                copie_bn = c8.text_input("Copie incluse B/N", value="")
+                ecc_bn = c9.text_input("Eccedenza B/N (€)", value="")
+                copie_col = c10.text_input("Copie incluse Colore", value="")
+                ecc_col = c11.text_input("Eccedenza Colore (€)", value="")
 
-    st.divider()
+                if st.form_submit_button("💾 Crea contratto"):
+                    try:
+                        fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                        nuovo = {
+                            "ClienteID": sel_id,
+                            "RagioneSociale": rag_soc,
+                            "NumeroContratto": num,
+                            "DataInizio": fmt_date(din),
+                            "DataFine": fmt_date(fine),
+                            "Durata": durata,
+                            "DescrizioneProdotto": desc,
+                            "NOL_FIN": nf,
+                            "NOL_INT": ni,
+                            "TotRata": tot,
+                            "CopieBN": copie_bn,
+                            "EccBN": ecc_bn,
+                            "CopieCol": copie_col,
+                            "EccCol": ecc_col,
+                            "Stato": stato_new,
+                        }
+
+                        # 🔹 Evita righe duplicate o vuote
+                        if not num.strip() and not desc.strip():
+                            st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
+                        else:
+                            df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
+                            df_ct = df_ct.dropna(how="all").reset_index(drop=True)
+                            save_contratti(df_ct)
+                            st.success("✅ Contratto creato correttamente.")
+                            st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Errore: {e}")
+
 
     # === CONTRATTI IN SCADENZA ENTRO 6 MESI ===
     st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")
@@ -1218,17 +1245,18 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if ct.empty:
         st.info("Nessun contratto registrato.")
         return
+    ct = ct[ct["NumeroContratto"].astype(str).str.strip() != ""]
 
     # === INTESTAZIONE COMPLETA ===
-    header_cols = st.columns([0.8, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 1, 2.5, 1])
+    header_cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 1.8, 1])
     headers = [
         "N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato",
-        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col", "Descrizione", "Azioni"
+        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col", "Ecc. Col", "Azioni"
     ]
     for col, h in zip(header_cols, headers):
         col.markdown(f"<div class='tbl-header'>{h}</div>", unsafe_allow_html=True)
 
-    # === RIGHE CONTRATTI (COMPLETA) ===
+    # === RIGHE CONTRATTI ===
     for i, r in ct.iterrows():
         bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
         stato = str(r.get("Stato", "aperto")).lower()
@@ -1236,11 +1264,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             "<span class='pill-open'>Aperto</span>"
             if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
         )
-        desc = str(r.get("DescrizioneProdotto", "—"))
-        if len(desc) > 70:
-            desc = desc[:70] + "…"
 
-        cols = st.columns([0.8, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 1, 2.5, 1])
+        cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 1.8, 1])
         cols[0].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
         cols[1].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
         cols[2].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
@@ -1252,7 +1277,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cols[8].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
         cols[9].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
         cols[10].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
-        cols[11].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc}</div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccCol','')}</div>", unsafe_allow_html=True)
 
         with cols[12]:
             b1, b2, b3 = st.columns(3)

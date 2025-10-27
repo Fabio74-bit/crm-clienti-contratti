@@ -525,18 +525,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c4.markdown(kpi_card("Nuovi contratti anno", len(new_contracts), "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-    # === CREAZIONE NUOVO CLIENTE + CONTRATTO ===
+    # === CREAZIONE NUOVO CLIENTE + CONTRATTO (con Proprietario) ===
     with st.expander("➕ Crea Nuovo Cliente + Contratto"):
         with st.form("frm_new_cliente"):
             st.markdown("#### 📇 Dati Cliente")
-
-            # 🆕 Selezione Proprietario (fabio / gabriele)
-            proprietario = st.selectbox(
-                "👑 Proprietario del Cliente",
-                ["fabio", "gabriele"],
-                index=0 if st.session_state.get("utente_loggato") == "fabio" else 1,
-                help="Seleziona a chi appartiene il cliente"
-            )
 
             col1, col2 = st.columns(2)
             with col1:
@@ -558,6 +550,14 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     ["", "Giulia", "Antonella", "Annalisa", "Laura"],
                     index=0
                 )
+
+            # === Assegnazione Proprietario ===
+            proprietario = st.selectbox(
+                "👑 Proprietario del Cliente",
+                ["fabio", "gabriele", "altro"],
+                index=0,
+                help="Seleziona a chi appartiene questo cliente"
+            )
 
             # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")
@@ -582,11 +582,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with colx4:
                 ecc_col = st.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
 
+            # === SALVATAGGIO COMPLETO ===
             if st.form_submit_button("💾 Crea Cliente e Contratto"):
                 try:
                     new_id = str(len(df_cli) + 1)
+                    data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
 
-                    # --- CREA NUOVO CLIENTE ---
+                    # --- Nuovo cliente ---
                     nuovo_cliente = {
                         "ClienteID": new_id,
                         "RagioneSociale": ragione,
@@ -609,8 +611,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "Proprietario": proprietario
                     }
 
-                    # --- CREA NUOVO CONTRATTO ---
-                    data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
                     nuovo_contratto = {
                         "ClienteID": new_id,
                         "RagioneSociale": ragione,
@@ -630,35 +630,40 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "Proprietario": proprietario
                     }
 
-                    # --- SALVATAGGIO AUTOMATICO NEL FILE CORRETTO ---
-                    if proprietario == "fabio":
-                        path_cli = CLIENTI_CSV
-                        path_ct = CONTRATTI_CSV
-                    else:  # gabriele
+                    # --- Salva nel file corretto ---
+                    if proprietario == "gabriele":
                         path_cli = GABRIELE_CLIENTI
                         path_ct = GABRIELE_CONTRATTI
+                    else:
+                        path_cli = CLIENTI_CSV
+                        path_ct = CONTRATTI_CSV
 
-                    # Carica e salva in append
-                    df_cli_target = pd.read_csv(path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("") if path_cli.exists() else pd.DataFrame(columns=df_cli.columns)
-                    df_ct_target = pd.read_csv(path_ct, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("") if path_ct.exists() else pd.DataFrame(columns=df_ct.columns)
+                    # --- Aggiorna i file ---
+                    if path_cli.exists():
+                        df_exist = pd.read_csv(path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+                    else:
+                        df_exist = pd.DataFrame(columns=df_cli.columns)
+                    df_exist = pd.concat([df_exist, pd.DataFrame([nuovo_cliente])], ignore_index=True)
+                    df_exist.to_csv(path_cli, index=False, encoding="utf-8-sig")
 
-                    df_cli_target = pd.concat([df_cli_target, pd.DataFrame([nuovo_cliente])], ignore_index=True)
-                    df_ct_target = pd.concat([df_ct_target, pd.DataFrame([nuovo_contratto])], ignore_index=True)
+                    if path_ct.exists():
+                        df_ct_exist = pd.read_csv(path_ct, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+                    else:
+                        df_ct_exist = pd.DataFrame(columns=df_ct.columns)
+                    df_ct_exist = pd.concat([df_ct_exist, pd.DataFrame([nuovo_contratto])], ignore_index=True)
+                    df_ct_exist.to_csv(path_ct, index=False, encoding="utf-8-sig")
 
-                    df_cli_target.to_csv(path_cli, index=False, encoding="utf-8-sig")
-                    df_ct_target.to_csv(path_ct, index=False, encoding="utf-8-sig")
-
-                    st.success(f"✅ Cliente '{ragione}' assegnato a **{proprietario.upper()}** e contratto salvati nel file corretto!")
+                    st.success(f"✅ Cliente '{ragione}' assegnato a **{proprietario.upper()}** creato correttamente!")
                     st.session_state.update({
                         "selected_cliente": new_id,
                         "nav_target": "Contratti",
                         "_go_contratti_now": True
                     })
                     st.rerun()
+
                 except Exception as e:
                     st.error(f"❌ Errore creazione cliente: {e}")
 
-    st.divider()
 
     # === SCADENZE & INCOMPLETI ===
     st.markdown("### ⚠️ Scadenze & Contratti Incompleti")
@@ -1774,7 +1779,7 @@ def main():
         ruolo_scrittura = "limitato"
 
     # --- Selettore visibilità ---
-    if user in ["fabio", "giulia", "antonella", "emanuela"]:
+    if user in ["fabio", "giulia", "antonella"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
             "📂 Visualizza clienti di:",
@@ -1816,6 +1821,7 @@ def main():
     else:  # Tutti
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+
 
     # --- Correzione date automatica una sola volta ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)

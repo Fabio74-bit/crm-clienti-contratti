@@ -239,94 +239,6 @@ def to_date_series(series: pd.Series) -> pd.Series:
     """Compatibilità retroattiva: applica parse_date_safe a una serie pandas."""
     return series.apply(parse_date_safe)
 
-
-# =====================================
-# CARICAMENTO CLIENTI (senza salvataggio automatico)
-# =====================================
-def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (solo lettura, coerente con date italiane)."""
-    import pandas as pd
-
-    if CLIENTI_CSV.exists():
-        try:
-            df = pd.read_csv(
-                CLIENTI_CSV,
-                dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei clienti: {e}")
-            df = pd.DataFrame(columns=CLIENTI_COLS)
-    else:
-        df = pd.DataFrame(columns=CLIENTI_COLS)
-        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
-
-    # Normalizza valori vuoti o errati
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-
-    # Garantisce che tutte le colonne standard esistano
-    df = ensure_columns(df, CLIENTI_COLS)
-
-    # Conversione coerente delle date (senza salvarle)
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if c in df.columns:
-            df[c] = df[c].apply(parse_date_safe)
-
-    return df
-
-
-# =====================================
-# CARICAMENTO CONTRATTI (versione aggiornata con RowID)
-# =====================================
-def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (solo lettura, coerente con date italiane)."""
-    import pandas as pd
-
-    if CONTRATTI_CSV.exists():
-        try:
-            df = pd.read_csv(
-                CONTRATTI_CSV,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei contratti: {e}")
-            df = pd.DataFrame(columns=CONTRATTI_COLS)
-    else:
-        df = pd.DataFrame(columns=CONTRATTI_COLS)
-        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
-
-    # Pulisce valori testuali e garantisce colonne
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-    df = ensure_columns(df, CONTRATTI_COLS)
-
-    # Conversione coerente delle date
-    for c in ["DataInizio", "DataFine"]:
-        if c in df.columns:
-            df[c] = df[c].apply(parse_date_safe)
-
-    # ✅ Aggiunge colonna RowID univoca se manca
-    if "RowID" not in df.columns:
-        df = df.reset_index(drop=True)
-        df["RowID"] = range(1, len(df) + 1)
-        save_contratti(df)  # salva per mantenerla nel file CSV
-
-    return df
-
-
-
 # =====================================
 # FUNZIONI DI CARICAMENTO DATI (VERSIONE DEFINITIVA 2025)
 # =====================================
@@ -345,74 +257,78 @@ def normalize_cliente_id(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
-    import pandas as pd
+# =====================================
+# CARICAMENTO CLIENTI E CONTRATTI — VERSIONE STABILE 2025
+# =====================================
 
-    try:
-        if CLIENTI_CSV.exists():
+def load_clienti() -> pd.DataFrame:
+    """Carica i dati dei clienti dal CSV con sicurezza e formato coerente."""
+    if CLIENTI_CSV.exists():
+        try:
             df = pd.read_csv(
                 CLIENTI_CSV,
                 dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
+                sep=";",                  # ✅ separatore fisso
                 encoding="utf-8-sig",
                 on_bad_lines="skip"
             )
-        else:
+        except Exception as e:
+            st.error(f"❌ Errore durante la lettura di {CLIENTI_CSV.name}: {e}")
             df = pd.DataFrame(columns=CLIENTI_COLS)
-    except Exception as e:
-        st.error(f"❌ Errore durante la lettura dei clienti: {e}")
+    else:
         df = pd.DataFrame(columns=CLIENTI_COLS)
+        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
 
-    # Pulizia e normalizzazione
+    # 🔹 Pulisce e garantisce le colonne
     df = (
         df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
+          .fillna("")
     )
     df = ensure_columns(df, CLIENTI_COLS)
-    df = normalize_cliente_id(df)
 
-    # Conversione date coerente
+    # 🔹 Conversione coerente date
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         if c in df.columns:
-            df[c] = to_date_series(df[c])
+            df[c] = df[c].apply(parse_date_safe)
 
     return df
 
 
 def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (solo lettura, nessuna riscrittura automatica)."""
-    import pandas as pd
-
-    try:
-        if CONTRATTI_CSV.exists():
+    """Carica i dati dei contratti dal CSV con sicurezza e formato coerente."""
+    if CONTRATTI_CSV.exists():
+        try:
             df = pd.read_csv(
                 CONTRATTI_CSV,
                 dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
+                sep=";",                  # ✅ separatore fisso
                 encoding="utf-8-sig",
                 on_bad_lines="skip"
             )
-        else:
+        except Exception as e:
+            st.error(f"❌ Errore durante la lettura di {CONTRATTI_CSV.name}: {e}")
             df = pd.DataFrame(columns=CONTRATTI_COLS)
-    except Exception as e:
-        st.error(f"❌ Errore durante la lettura dei contratti: {e}")
+    else:
         df = pd.DataFrame(columns=CONTRATTI_COLS)
+        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
 
-    # Pulizia e normalizzazione
+    # 🔹 Pulisce e garantisce le colonne
     df = (
         df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
+          .fillna("")
     )
     df = ensure_columns(df, CONTRATTI_COLS)
-    df = normalize_cliente_id(df)
 
-    # Conversione date coerente
+    # 🔹 Conversione coerente date
     for c in ["DataInizio", "DataFine"]:
         if c in df.columns:
-            df[c] = to_date_series(df[c])
+            df[c] = df[c].apply(parse_date_safe)
+
+    # 🔹 Aggiunge RowID se manca
+    if "RowID" not in df.columns:
+        df = df.reset_index(drop=True)
+        df["RowID"] = range(1, len(df) + 1)
+        save_contratti(df)
 
     return df
 
@@ -1818,36 +1734,31 @@ def load_csv_safe(path: Path) -> pd.DataFrame:
         st.error(f"❌ Impossibile leggere {path.name}: {e}")
         return pd.DataFrame()
 
-
 # =====================================
-# FUNZIONI CACHE WRAPPER
-# =====================================
-@st.cache_data(ttl=60)
-def load_clienti_cached(path):
-    return load_csv_safe(path)
-
-@st.cache_data(ttl=60)
-def load_contratti_cached(path):
-    return load_csv_safe(path)
-
-
-
-
-# =====================================
-# CARICAMENTO CSV ROBUSTO (anti ParserError)
+# CARICAMENTO CSV ROBUSTO (anti ParserError) — VERSIONE FINALE 2025
 # =====================================
 import io
+import re
 import streamlit as st
 import pandas as pd
 from pathlib import Path
 
 @st.cache_data(ttl=60)
 def load_csv_safe(path: Path) -> pd.DataFrame:
-    """Legge un CSV in modo sicuro e flessibile (supporta ; , | e ignora righe corrotte)."""
+    """
+    Legge un CSV in modo sicuro e flessibile.
+    - Supporta separatori ; , | \t
+    - Ignora righe corrotte
+    - Corregge virgolette malformate
+    - Rimuove righe vuote
+    """
     if not path.exists():
         return pd.DataFrame()
 
     bad_lines_count = 0
+    quote_fix_applied = False
+
+    # 1️⃣ Tentativo normale con vari separatori
     for sep_try in [";", ",", "|", "\t"]:
         try:
             df = pd.read_csv(
@@ -1859,34 +1770,60 @@ def load_csv_safe(path: Path) -> pd.DataFrame:
                 engine="python"
             ).fillna("")
             if df.shape[1] > 1:
+                # 🧹 Filtra righe completamente vuote
+                df = df[df.apply(lambda row: any(cell.strip() for cell in row), axis=1)]
                 return df
-        except pd.errors.ParserError as e:
+        except pd.errors.ParserError:
             bad_lines_count += 1
             continue
         except Exception:
             continue
 
-    # 🔹 se ancora fallisce, proviamo a pulire il testo grezzo
+    # 2️⃣ Fallback: lettura grezza e sanificazione del contenuto
     try:
         raw = path.read_text(encoding="utf-8-sig", errors="ignore")
-        cleaned = "\n".join(line.replace(";", ",") for line in raw.splitlines())
-        df = pd.read_csv(io.StringIO(cleaned), dtype=str, on_bad_lines="skip").fillna("")
-        if bad_lines_count > 0:
-            st.warning(f"⚠️ Alcune righe danneggiate sono state ignorate in {path.name}.")
+
+        cleaned_lines = []
+        for line in raw.splitlines():
+            # 🔧 Corregge virgolette doppie o triple
+            fixed = line.replace('"""', '"').replace('""', '"')
+            cleaned_lines.append(fixed)
+        cleaned_text = "\n".join(cleaned_lines)
+        quote_fix_applied = True
+
+        df = pd.read_csv(
+            io.StringIO(cleaned_text),
+            dtype=str,
+            sep=";",
+            on_bad_lines="skip",
+            engine="python"
+        ).fillna("")
+
+        # 🧹 Filtra righe completamente vuote
+        df = df[df.apply(lambda row: any(cell.strip() for cell in row), axis=1)]
+
+        if bad_lines_count > 0 or quote_fix_applied:
+            st.warning(f"⚠️ {path.name}: alcune righe o virgolette malformate sono state corrette automaticamente.")
+
         return df
+
     except Exception as e:
         st.error(f"❌ Impossibile leggere {path.name}: {e}")
         return pd.DataFrame()
 
 
+# =====================================
+# CACHE WRAPPER COERENTE — VERSIONE 2025
+# =====================================
 @st.cache_data(ttl=60)
-def load_clienti_cached(path):
-    return load_csv_safe(path)
-
+def load_clienti_cached():
+    """Versione cached coerente con load_clienti()."""
+    return load_clienti()
 
 @st.cache_data(ttl=60)
-def load_contratti_cached(path):
-    return load_csv_safe(path)
+def load_contratti_cached():
+    """Versione cached coerente con load_contratti()."""
+    return load_contratti()
 
 
 # =====================================
@@ -1915,9 +1852,9 @@ def main():
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
 
-    # --- Caricamento sicuro e cache ---
-    df_cli = load_clienti_cached(CLIENTI_CSV)
-    df_ct = load_contratti_cached(CONTRATTI_CSV)
+    # --- Caricamento sicuro e cache coerente ---
+    df_cli = load_clienti_cached()
+    df_ct = load_contratti_cached()
 
     # ✅ Aggiunge RowID se manca
     if "RowID" not in df_ct.columns:

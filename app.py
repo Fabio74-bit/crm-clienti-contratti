@@ -552,7 +552,7 @@ with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
 
 # === CREAZIONE NUOVO CONTRATTO (solo contratto separato) ===
 with st.expander("➕ Crea Nuovo Contratto", expanded=False):
-    permessi_limitati = role == "limitato"
+    permessi_limitati = st.session_state.get("ruolo_scrittura", "limitato") == "limitato"
     if permessi_limitati:
         st.warning("🔒 Accesso in sola lettura per il tuo profilo.")
     else:

@@ -1779,7 +1779,7 @@ def main():
         ruolo_scrittura = "limitato"
 
     # --- Selettore visibilità ---
-   if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
+    if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
             "📂 Visualizza clienti di:",
@@ -1788,6 +1788,7 @@ def main():
         )
     else:
         visibilita_scelta = "Fabio"
+
 
     # --- Caricamento dati base ---
     df_cli_main = load_clienti()

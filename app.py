@@ -1763,7 +1763,7 @@ def load_contratti_cached():
 
 
 # =====================================
-# MAIN APP — Versione definitiva 2025 (veloce, sicura e stabile)
+# MAIN APP — Versione definitiva 2025 (con filtro Proprietario corretto)
 # =====================================
 def main():
     # --- LOGIN ---
@@ -1791,21 +1791,24 @@ def main():
     # --- Caricamento sicuro e cache coerente ---
     df_cli = load_clienti_cached()
     df_ct = load_contratti_cached()
-    # =====================================
-    # FIX: garantisce colonna "Proprietario" e filtro utente
-    # =====================================
+
+    # ✅ Garantisce la presenza della colonna Proprietario in entrambi i file
     if "Proprietario" not in df_cli.columns:
         df_cli["Proprietario"] = ""
-    
+
+    if "Proprietario" not in df_ct.columns:
+        df_ct["Proprietario"] = ""
+
     # 🔹 Assegna automaticamente il proprietario all'utente loggato se mancante
     if user.lower() in ["fabio", "gabriele"]:
         df_cli.loc[df_cli["Proprietario"] == "", "Proprietario"] = user.capitalize()
-    
-        # ✅ Aggiunge RowID se manca
-        if "RowID" not in df_ct.columns:
-            df_ct = df_ct.reset_index(drop=True)
-            df_ct["RowID"] = range(1, len(df_ct) + 1)
-            save_contratti(df_ct)
+        df_ct.loc[df_ct["Proprietario"] == "", "Proprietario"] = user.capitalize()
+
+    # ✅ Aggiunge RowID se manca nei contratti
+    if "RowID" not in df_ct.columns:
+        df_ct = df_ct.reset_index(drop=True)
+        df_ct["RowID"] = range(1, len(df_ct) + 1)
+        save_contratti(df_ct)
 
     # =====================================
     # 🔍 FILTRO PER PROPRIETARIO (FABIO / GABRIELE / TUTTI)
@@ -1819,20 +1822,18 @@ def main():
 
     opzioni_filtro = ["Tutti"] + proprietari_disponibili
 
-    # Imposta filtro automatico in base al login
+    # Imposta filtro automatico in base all'utente loggato
     if user.lower() in [p.lower() for p in proprietari_disponibili]:
-        filtro_predefinito = user.lower()
+        filtro_predefinito = user.capitalize()
     else:
         filtro_predefinito = "Tutti"
 
-    # =====================================
-    # FIX: selectbox sicuro per filtro Proprietario
-    # =====================================
+    # ✅ FIX: selectbox sicuro (nessun ValueError)
     try:
         default_index = opzioni_filtro.index(filtro_predefinito)
     except ValueError:
         default_index = 0  # fallback su "Tutti" se non trovato
-    
+
     scelta_proprietario = st.sidebar.selectbox(
         "Visualizza dati di:",
         options=opzioni_filtro,
@@ -1840,8 +1841,7 @@ def main():
         help="Filtra i dati per proprietario"
     )
 
-
-    # Applica il filtro
+    # ✅ Applica il filtro in modo sicuro
     if scelta_proprietario != "Tutti":
         df_cli = df_cli[df_cli["Proprietario"].str.lower() == scelta_proprietario.lower()]
         df_ct = df_ct[df_ct["Proprietario"].str.lower() == scelta_proprietario.lower()]
@@ -1863,7 +1863,7 @@ def main():
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = scelta_proprietario
 
-    # --- Pagine ---
+    # --- Pagine disponibili ---
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -1872,7 +1872,7 @@ def main():
         "📋 Lista Clienti": page_lista_clienti,
     }
 
-    # --- Menu ---
+    # --- Menu principale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
     # --- Navigazione automatica ---
@@ -1881,13 +1881,6 @@ def main():
         if target in PAGES:
             page = target
 
-    # --- Esegui pagina ---
+    # --- Esegui la pagina selezionata ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-
-
-# =====================================
-# AVVIO APP
-# =====================================
-if __name__ == "__main__":
-    main()

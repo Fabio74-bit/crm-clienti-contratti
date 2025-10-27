@@ -40,19 +40,33 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =====================================
-# COSTANTI GLOBALI
+# COSTANTI GLOBALI (VERSIONE GITHUB + STREAMLIT CLOUD)
 # =====================================
+
 APP_TITLE = "GESTIONALE CLIENTI – SHT"
 LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
-STORAGE_DIR = Path(st.secrets.get("LOCAL_STORAGE_DIR", "storage"))
+
+# Percorsi base relativi (funziona su GitHub e Streamlit Cloud)
+STORAGE_DIR = Path(__file__).parent / "storage"
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
+# File CSV principali
 CLIENTI_CSV = STORAGE_DIR / "clienti.csv"
-CONTRATTI_CSV = STORAGE_DIR / "contratti_clienti.csv"
+CONTRATTI_CSV = STORAGE_DIR / "contratti.csv"
+
+# Cartella e file per Gabriele
+GABRIELE_DIR = STORAGE_DIR / "gabriele"
+GABRIELE_DIR.mkdir(parents=True, exist_ok=True)
+GABRIELE_CLIENTI = GABRIELE_DIR / "clienti.csv"
+GABRIELE_CONTRATTI = GABRIELE_DIR / "contratti.csv"
+
+# Cartella preventivi
 PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
 PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
 
-TEMPLATES_DIR = Path("templates")
+# Cartella template preventivi
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 TEMPLATE_OPTIONS = {
     "Offerta A4": "Offerta_A4.docx",
     "Offerta A3": "Offerta_A3.docx",
@@ -60,8 +74,9 @@ TEMPLATE_OPTIONS = {
     "Varie": "Offerta_Varie.docx",
 }
 
-
+# Durate standard contratti
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
+
 # =====================================
 # COLONNE STANDARD CSV
 # =====================================
@@ -1122,9 +1137,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA STREAMLIT (FIX DEFINITIVO)”
-# =====================================
-# =====================================
 # PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA STREAMLIT”
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
@@ -1754,80 +1766,62 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 
 
 # =====================================
-# MAIN APP — versione definitiva 2025 con filtro visibilità e loader sicuro
+# MAIN APP — versione 2025 GitHub + Streamlit Cloud (offline)
 # =====================================
 def main():
+    st.write("✅ Avvio CRM SHT — modalità GitHub + Streamlit Cloud")
+
     # --- LOGIN ---
     user, role = do_login_fullscreen()
     if not user:
         st.stop()
 
-    # --- Percorsi base ---
-    global CLIENTI_CSV, CONTRATTI_CSV
-    base_clienti = STORAGE_DIR / "clienti.csv"
-    base_contratti = STORAGE_DIR / "contratti_clienti.csv"
-    gabriele_clienti = STORAGE_DIR / "gabriele" / "clienti.csv"
-    gabriele_contratti = STORAGE_DIR / "gabriele" / "contratti_clienti.csv"
-
-    # --- Ruolo e diritti ---
+    # --- Ruolo e diritti di scrittura ---
     if user == "fabio":
         ruolo_scrittura = "full"
     elif user in ["emanuela", "claudia"]:
         ruolo_scrittura = "full"
-    elif user in ["giulia", "antonella"]:
-        ruolo_scrittura = "limitato"
-    elif user in ["gabriele", "laura", "annalisa"]:
+    elif user in ["giulia", "antonella", "gabriele", "laura", "annalisa"]:
         ruolo_scrittura = "limitato"
     else:
         ruolo_scrittura = "limitato"
 
-    # --- Selettore visibilità (solo per Fabio, Giulia, Antonella) ---
+    # --- Selettore visibilità ---
     if user in ["fabio", "giulia", "antonella"]:
-        default_view = "Miei"
         visibilita_opzioni = ["Miei", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
             "📂 Visualizza clienti di:",
             visibilita_opzioni,
-            index=visibilita_opzioni.index(default_view)
+            index=0
         )
     else:
         visibilita_scelta = "Miei"
 
-    # --- Caricamento CSV base ---
-    df_cli_main, df_ct_main = load_clienti(), load_contratti()
+    # --- Caricamento dati base ---
+    df_cli_main = load_clienti()
+    df_ct_main = load_contratti()
 
-    # --- Caricamento CSV Gabriele (robusto) ---
+    # --- Caricamento dati Gabriele ---
     try:
-        if gabriele_clienti.exists():
+        if GABRIELE_CLIENTI.exists():
             df_cli_gab = pd.read_csv(
-                gabriele_clienti,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
+                GABRIELE_CLIENTI, dtype=str, encoding="utf-8-sig", on_bad_lines="skip"
             ).fillna("")
         else:
             df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
 
-        if gabriele_contratti.exists():
+        if GABRIELE_CONTRATTI.exists():
             df_ct_gab = pd.read_csv(
-                gabriele_contratti,
-                dtype=str,
-                sep=None,
-                engine="python",
-                encoding="utf-8-sig",
-                on_bad_lines="skip"
+                GABRIELE_CONTRATTI, dtype=str, encoding="utf-8-sig", on_bad_lines="skip"
             ).fillna("")
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
-
     except Exception as e:
         st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
         df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-    # --- Applica filtro scelto ---
+    # --- Applica filtro visibilità ---
     if visibilita_scelta == "Miei":
         df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
@@ -1836,28 +1830,18 @@ def main():
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
 
-    # --- Correzione date una sola volta ---
-    if not st.session_state.get("_date_fix_done", False):
-        try:
-            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-                if c in df_cli.columns:
-                    df_cli[c] = fix_inverted_dates(df_cli[c], col_name=c)
-            for c in ["DataInizio", "DataFine"]:
-                if c in df_ct.columns:
-                    df_ct[c] = fix_inverted_dates(df_ct[c], col_name=c)
-            st.session_state["_date_fix_done"] = True
-        except Exception as e:
-            st.warning(f"⚠️ Correzione automatica date non completata: {e}")
+    # --- Correzione date automatica una sola volta ---
+    df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
     # --- Sidebar info ---
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
 
-    # --- Passaggio info ai moduli ---
+    # --- Salva contesto in sessione ---
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
-    # --- Pagine ---
+    # --- Pagine principali ---
     PAGES = {
         "Dashboard": page_dashboard,
         "Clienti": page_clienti,
@@ -1866,16 +1850,16 @@ def main():
         "📋 Lista Clienti": page_lista_clienti,
     }
 
-    # --- Menu ---
+    # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Navigazione automatica da pulsanti interni ---
+    # --- Navigazione automatica (dai pulsanti interni) ---
     if "nav_target" in st.session_state:
         target = st.session_state.pop("nav_target")
         if target in PAGES:
             page = target
 
-    # --- Esegui pagina ---
+    # --- Esecuzione pagina selezionata ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
 

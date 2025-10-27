@@ -590,7 +590,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
                     save_clienti(df_cli)
 
-     # === CREAZIONE NUOVO CONTRATTO ===
+    # === CREAZIONE NUOVO CONTRATTO ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
         if permessi_limitati:
             st.warning("🔒 Accesso sola lettura")
@@ -610,7 +610,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 ni = c6.text_input("NOL_INT")
                 tot = c7.text_input("TotRata")
 
-                st.markdown("#### 🖨️ Copie incluse e Eccedenze")
+                st.markdown("#### 🖨️ Copie incluse ed Eccedenze")
                 c8, c9, c10, c11 = st.columns(4)
                 copie_bn = c8.text_input("Copie incluse B/N", value="")
                 ecc_bn = c9.text_input("Eccedenza B/N (€)", value="")
@@ -619,46 +619,41 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 if st.form_submit_button("💾 Crea contratto"):
                     try:
+                        # Calcola la data di fine contratto
                         fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+
+                        # Nuovo record
                         nuovo = {
-                            "ClienteID": sel_id, "RagioneSociale": rag_soc,
+                            "ClienteID": sel_id,
+                            "RagioneSociale": rag_soc,
                             "NumeroContratto": num,
                             "DataInizio": fmt_date(din),
                             "DataFine": fmt_date(fine),
                             "Durata": durata,
                             "DescrizioneProdotto": desc,
-                            "NOL_FIN": nf, "NOL_INT": ni,
+                            "NOL_FIN": nf,
+                            "NOL_INT": ni,
                             "TotRata": tot,
-                            "CopieBN": copie_bn, "EccBN": ecc_bn,
-                            "CopieCol": copie_col, "EccCol": ecc_col,
+                            "CopieBN": copie_bn,
+                            "EccBN": ecc_bn,
+                            "CopieCol": copie_col,
+                            "EccCol": ecc_col,
                             "Stato": stato_new
                         }
-                
+
+                        # Verifica che non sia vuoto
                         if not num.strip() and not desc.strip():
                             st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
                         else:
                             df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
-                            df_ct = df_ct.dropna(how="all").reset_index(drop=True)
-                            save_contratti(df_ct)
-                            st.success("✅ Contratto creato correttamente.")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Errore: {e}")
-
-
-                        # 🔹 Evita righe duplicate o vuote
-                        if not num.strip() and not desc.strip():
-                            st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
-                        else:
-                            df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
+                            # Rimuove eventuali righe completamente vuote
                             df_ct = df_ct.dropna(how="all").reset_index(drop=True)
                             save_contratti(df_ct)
                             st.success("✅ Contratto creato correttamente.")
                             st.rerun()
 
                     except Exception as e:
-                        st.error(f"Errore: {e}")
-
+                        st.error(f"❌ Errore durante la creazione del contratto: {e}")
 
     # === CONTRATTI IN SCADENZA ENTRO 6 MESI ===
     st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")

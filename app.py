@@ -1324,7 +1324,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["edit_gidx"] = i
                 st.rerun()
             if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
-                df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+                df_ct.loc[df_ct.index[df_ct["NumeroContratto"] == r["NumeroContratto"]], "Stato"] = (
+                    "chiuso" if stato != "chiuso" else "aperto"
+                )
+
                 save_contratti(df_ct)
                 st.toast("🔁 Stato contratto aggiornato", icon="✅")
                 st.rerun()

@@ -1335,13 +1335,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             # 🔒 Chiudi / Riapri
             if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
                 try:
-                    # Trova esattamente il contratto nel DataFrame completo
+                    # Trova esattamente la riga da aggiornare
                     mask = (
                         (df_ct["ClienteID"].astype(str) == str(sel_id))
                         & (df_ct["NumeroContratto"].astype(str) == str(r.get("NumeroContratto", "")))
+                        & (df_ct["DataInizio"].astype(str) == str(r.get("DataInizio", "")))
                     )
-                    if mask.any():
-                        df_ct.loc[mask, "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+            
+                    # Se per caso ci sono più corrispondenze, aggiorna solo la prima
+                    idx = df_ct.index[mask].tolist()
+                    if idx:
+                        df_ct.at[idx[0], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
                         save_contratti(df_ct)
                         st.toast("🔁 Stato contratto aggiornato", icon="✅")
                         st.rerun()

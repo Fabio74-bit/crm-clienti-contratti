@@ -1349,10 +1349,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 try:
                     # 🔹 Funzione per uniformare le date in formato "DD/MM/YYYY"
                     def normalize_date(val):
+                        if pd.isna(val):
+                            return ""
                         try:
-                            return pd.to_datetime(val, dayfirst=True, errors="coerce").strftime("%d/%m/%Y")
+                            # accetta entrambi i formati 01/01/2024 o 2024-01-01
+                            return pd.to_datetime(str(val), errors="coerce", dayfirst=True).strftime("%Y-%m-%d")
                         except Exception:
                             return str(val).strip()
+
 
                     # 🔹 Identificazione unica, con confronto robusto delle date
                     mask = (

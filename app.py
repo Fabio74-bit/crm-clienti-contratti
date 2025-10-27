@@ -1174,7 +1174,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE STABILE 2025 (FIX FILTRO + COMPLETA)
+# PAGINA CONTRATTI — VERSIONE STABILE 2025 (con DESCRIZIONE)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1198,8 +1198,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === Filtra contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-
-    # 🔹 Mostra anche contratti senza numero ma con descrizione
     if not ct.empty:
         ct = ct[
             (ct["NumeroContratto"].astype(str).str.strip() != "") |
@@ -1254,7 +1252,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             "EccCol": ecc_col,
                             "Stato": stato_new
                         }
-
                         if not num.strip() and not desc.strip():
                             st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
                         else:
@@ -1263,21 +1260,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             save_contratti(df_ct)
                             st.success("✅ Contratto creato correttamente.")
                             st.rerun()
-
                     except Exception as e:
                         st.error(f"❌ Errore durante la creazione del contratto: {e}")
 
     # === STILE TABELLA ===
     st.markdown("""
     <style>
-      .tbl-header {
-          background:#2563eb;
-          color:white;
-          font-weight:600;
-          text-align:center;
-          padding:8px;
-          border:1px solid #d0d7de;
-      }
+      .tbl-header {background:#2563eb;color:white;font-weight:600;text-align:center;padding:8px;border:1px solid #d0d7de;}
       .tbl-row {font-size:14px;border-bottom:1px solid #e5e7eb;}
       .tbl-row div {padding:6px;text-align:center;}
       .pill-open {background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px;font-weight:600;}
@@ -1291,22 +1280,28 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === INTESTAZIONE ===
-    header_cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 1.8, 1])
+    # === INTESTAZIONE (aggiunta DESCRIZIONE) ===
+    header_cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 2.2, 1])
     headers = [
         "N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato",
-        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col", "Ecc. Col", "Azioni"
+        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col",
+        "Descrizione", "Azioni"
     ]
     for col, h in zip(header_cols, headers):
         col.markdown(f"<div class='tbl-header'>{h}</div>", unsafe_allow_html=True)
 
-    # === RIGHE CONTRATTI ===
+    # === RIGHE ===
     for i, r in ct.iterrows():
         bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
         stato = str(r.get("Stato", "aperto")).lower()
         stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
 
-        cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 1.8, 1])
+        # testo descrizione (troncato)
+        desc_txt = str(r.get("DescrizioneProdotto", "—")).strip()
+        if len(desc_txt) > 90:
+            desc_txt = desc_txt[:90] + "…"
+
+        cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 2.2, 1])
         cols[0].markdown(f"<div style='background:{bg}'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
         cols[1].markdown(f"<div style='background:{bg}'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
         cols[2].markdown(f"<div style='background:{bg}'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
@@ -1318,7 +1313,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cols[8].markdown(f"<div style='background:{bg}'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
         cols[9].markdown(f"<div style='background:{bg}'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
         cols[10].markdown(f"<div style='background:{bg}'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
-        cols[11].markdown(f"<div style='background:{bg}'>{r.get('EccCol','')}</div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div style='background:{bg};text-align:left'>{desc_txt}</div>", unsafe_allow_html=True)
 
         with cols[12]:
             b1, b2, b3 = st.columns(3)
@@ -1334,6 +1329,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["delete_gidx"] = i
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
+
 
 
     # === MODIFICA CONTRATTO ===

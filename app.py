@@ -453,7 +453,7 @@ def do_login_fullscreen():
     </style>
     """, unsafe_allow_html=True)
 
-    login_col1, login_col2, _ = st.columns([1,2,1])
+    login_col1, login_col2, _ = st.columns([1, 2, 1])
     with login_col2:
         st.markdown("<div class='login-card'>", unsafe_allow_html=True)
         st.image(LOGO_URL, width=140)
@@ -463,9 +463,28 @@ def do_login_fullscreen():
         login_btn = st.button("Entra")
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # 🔹 Carica credenziali compatibili con formato Streamlit Cloud
+    try:
+        users = st.secrets["auth"]["users"]
+    except Exception:
+        # compatibilità con sottosezioni [auth.users.nome]
+        users = st.secrets["auth"]["users"].to_dict() if hasattr(st.secrets["auth"]["users"], "to_dict") else st.secrets["auth"]["users"]
+        if not users:
+            users = {}
+        # 🔹 costruisci manualmente il dizionario
+        for k in st.secrets["auth"]["users"]:
+            users[k] = st.secrets["auth"]["users"][k]
+
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
-        users = st.secrets["auth"]["users"]
+
+        # 🔹 compatibile con [auth.users.nome]
+        if "auth" in st.secrets and "users" in st.secrets["auth"]:
+            users = st.secrets["auth"]["users"]
+        else:
+            users = st.secrets.get("auth.users", {})
+
+        # 🔹 login check
         if username in users and users[username]["password"] == password:
             st.session_state.update({
                 "user": username,
@@ -480,6 +499,7 @@ def do_login_fullscreen():
             st.session_state["_login_checked"] = False
 
     st.stop()
+
 # =====================================
 # KPI CARD (riutilizzata)
 # =====================================

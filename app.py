@@ -1212,31 +1212,42 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 if st.form_submit_button("💾 Crea contratto"):
                     try:
+                        # Calcola la data di fine contratto
                         fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+
+                        # Nuovo record contratto
                         nuovo = {
-                            "ClienteID": sel_id, "RagioneSociale": rag_soc,
+                            "ClienteID": sel_id,
+                            "RagioneSociale": rag_soc,
                             "NumeroContratto": num,
                             "DataInizio": fmt_date(din),
                             "DataFine": fmt_date(fine),
                             "Durata": durata,
                             "DescrizioneProdotto": desc,
-                            "NOL_FIN": nf, "NOL_INT": ni,
+                            "NOL_FIN": nf,
+                            "NOL_INT": ni,
                             "TotRata": tot,
-                            "CopieBN": copie_bn, "EccBN": ecc_bn,
-                            "CopieCol": copie_col, "EccCol": ecc_col,
+                            "CopieBN": copie_bn,
+                            "EccBN": ecc_bn,
+                            "CopieCol": copie_col,
+                            "EccCol": ecc_col,
                             "Stato": stato_new
                         }
 
+                        # Controllo minimo
                         if not num.strip() and not desc.strip():
                             st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
                         else:
                             df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
+                            # Rimuove eventuali righe vuote
                             df_ct = df_ct.dropna(how="all").reset_index(drop=True)
                             save_contratti(df_ct)
                             st.success("✅ Contratto creato correttamente.")
                             st.rerun()
+
                     except Exception as e:
-                        st.error(f"Errore: {e}")
+                        st.error(f"❌ Errore durante la creazione del contratto: {e}")
+
 
     # === STILE TABELLA ===
     st.markdown("""

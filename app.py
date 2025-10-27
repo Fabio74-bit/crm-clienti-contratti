@@ -554,15 +554,17 @@ with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
 with st.expander("➕ Crea Nuovo Contratto", expanded=False):
     permessi_limitati = role == "limitato"
     if permessi_limitati:
-        st.warning("🔒 Accesso sola lettura")
+        st.warning("🔒 Accesso in sola lettura per il tuo profilo.")
     else:
-        with st.form("new_ct_form"):
+        with st.form("frm_new_contratto"):  # 👈 tutto il blocco deve restare dentro al form
             st.markdown("#### 📄 Dati Contratto")
+
             c1, c2, c3, c4 = st.columns(4)
             num = c1.text_input("Numero Contratto")
             din = c2.date_input("Data Inizio", format="DD/MM/YYYY")
             durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
             stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0)
+
             desc = st.text_area("Descrizione Prodotto", height=80)
 
             st.markdown("#### 💰 Dati Economici")
@@ -578,7 +580,10 @@ with st.expander("➕ Crea Nuovo Contratto", expanded=False):
             copie_col = c10.text_input("Copie incluse Colore", value="")
             ecc_col = c11.text_input("Eccedenza Colore (€)", value="")
 
-            if st.form_submit_button("💾 Crea contratto"):
+            # --- PULSANTE SALVA CONTRATTO ---
+            submit_ct = st.form_submit_button("💾 Crea Contratto")  # 👈 deve stare dentro il form
+
+            if submit_ct:
                 try:
                     fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
                     nuovo = {
@@ -607,7 +612,7 @@ with st.expander("➕ Crea Nuovo Contratto", expanded=False):
                         df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
                         df_ct = df_ct.dropna(how="all").reset_index(drop=True)
                         save_contratti(df_ct)
-                        st.success("✅ Contratto creato correttamente.")
+                        st.success("✅ Contratto creato correttamente!")
                         st.rerun()
 
                 except Exception as e:

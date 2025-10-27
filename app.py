@@ -923,35 +923,44 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         # 💾 SALVATAGGIO AUTOMATICO NEL FILE CORRETTO (Fabio / Gabriele)
         if st.button("💾 Salva Note Cliente", key=f"save_note_{sel_id}_{int(time.time()*1000)}", use_container_width=True):
             try:
+                # Trova riga cliente
                 idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
                 df_cli.loc[idx_row, "NoteCliente"] = nuove_note
 
-                # 🧩 Identifica a chi appartiene il cliente
-                proprietario = str(df_cli.loc[idx_row, "Proprietario"]).strip().lower() if "Proprietario" in df_cli.columns else "fabio"
+                # 🔹 Identifica a chi appartiene il cliente
+                proprietario = (
+                    str(df_cli.loc[idx_row, "Proprietario"]).strip().lower()
+                    if "Proprietario" in df_cli.columns else "fabio"
+                )
 
-                if proprietario == "gabriele":
-                    path_cli = GABRIELE_CLIENTI
-                else:
-                    path_cli = CLIENTI_CSV
+                # 🔹 Seleziona il file corretto
+                path_cli = GABRIELE_CLIENTI if proprietario == "gabriele" else CLIENTI_CSV
 
-                # 🔄 Carica il file corretto, aggiorna e salva
+                # 🔹 Carica il file corretto
                 if path_cli.exists():
-                    df_target = pd.read_csv(path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+                    df_target = pd.read_csv(
+                        path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip"
+                    ).fillna("")
                 else:
                     df_target = pd.DataFrame(columns=df_cli.columns)
 
+                # 🔹 Aggiorna o aggiunge il cliente
                 if "ClienteID" in df_target.columns and sel_id in df_target["ClienteID"].astype(str).tolist():
                     df_target.loc[df_target["ClienteID"] == sel_id, "NoteCliente"] = nuove_note
                 else:
-                    df_target = pd.concat([df_target, pd.DataFrame([df_cli.loc[idx_row]])], ignore_index=True)
+                    df_target = pd.concat(
+                        [df_target, pd.DataFrame([df_cli.loc[idx_row]])], ignore_index=True
+                    )
 
+                # 🔹 Salva nel CSV corretto
                 df_target.to_csv(path_cli, index=False, encoding="utf-8-sig")
 
-                st.success(f"✅ Note salvate correttamente nel file di **{proprietario.upper()}**.")
+                st.success(f"✅ Note salvate nel file di **{proprietario.upper()}**.")
                 st.rerun()
 
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio delle note: {e}")
+
 
 
         # === RECALL E VISITE ===

@@ -1740,9 +1740,7 @@ def page_richiami_visite(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         tabella[c] = tabella[c].apply(fmt_date)
     st.dataframe(tabella, use_container_width=True, hide_index=True)
 
-# =====================================
-# MAIN APP — Versione definitiva 2025 (veloce e stabile)
-# =====================================
+
 # =====================================
 # CARICAMENTO CSV ROBUSTO (anti ParserError)
 # =====================================
@@ -1753,11 +1751,14 @@ from pathlib import Path
 
 @st.cache_data(ttl=60)
 def load_csv_safe(path: Path) -> pd.DataFrame:
-    """Legge un CSV in modo sicuro e flessibile (supporta ; , | e ignora righe corrotte)."""
+    """Legge un CSV in modo sicuro e flessibile (supporta ; , | e ignora righe corrotte o virgolette malformate)."""
     if not path.exists():
         return pd.DataFrame()
 
     bad_lines_count = 0
+    quote_fix_applied = False
+
+    # 1️⃣ Primo tentativo: parsing standard con diversi separatori
     for sep_try in [";", ",", "|", "\t"]:
         try:
             df = pd.read_csv(
@@ -1770,33 +1771,46 @@ def load_csv_safe(path: Path) -> pd.DataFrame:
             ).fillna("")
             if df.shape[1] > 1:
                 return df
-        except pd.errors.ParserError as e:
+        except pd.errors.ParserError:
             bad_lines_count += 1
             continue
         except Exception:
             continue
 
-    # 🔹 se ancora fallisce, proviamo a pulire il testo grezzo
+    # 2️⃣ Fallback: lettura grezza e pulizia delle virgolette problematiche
     try:
         raw = path.read_text(encoding="utf-8-sig", errors="ignore")
-        cleaned = "\n".join(line.replace(";", ",") for line in raw.splitlines())
-        df = pd.read_csv(io.StringIO(cleaned), dtype=str, on_bad_lines="skip").fillna("")
-        if bad_lines_count > 0:
-            st.warning(f"⚠️ Alcune righe danneggiate sono state ignorate in {path.name}.")
+
+        # 🔧 Sanificazione delle virgolette malformate
+        cleaned = []
+        for line in raw.splitlines():
+            # Rimuove o corregge doppie virgolette tipo 27"" → 27"
+            fixed = line.replace('""', '"')
+            # Evita casi ancora peggiori di tripli apici """ → "
+            fixed = fixed.replace('"""', '"')
+            cleaned.append(fixed)
+        cleaned_text = "\n".join(cleaned)
+        quote_fix_applied = True
+
+        # 🔹 Tentativo finale di parsing
+        df = pd.read_csv(
+            io.StringIO(cleaned_text),
+            dtype=str,
+            sep=";",
+            on_bad_lines="skip",
+            engine="python"
+        ).fillna("")
+
+        if bad_lines_count > 0 or quote_fix_applied:
+            st.warning(
+                f"⚠️ {path.name}: alcune righe o virgolette malformate sono state corrette automaticamente."
+            )
+
         return df
+
     except Exception as e:
         st.error(f"❌ Impossibile leggere {path.name}: {e}")
         return pd.DataFrame()
-
-
-@st.cache_data(ttl=60)
-def load_clienti_cached(path):
-    return load_csv_safe(path)
-
-
-@st.cache_data(ttl=60)
-def load_contratti_cached(path):
-    return load_csv_safe(path)
 
 
 

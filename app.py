@@ -1174,7 +1174,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 (TABELLA ELEGANTE + PULSANTI REALI)
+# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 (COMPLETA)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1197,9 +1197,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"<h3 style='text-align:center;color:#2563eb'>{rag_soc}</h3>", unsafe_allow_html=True)
     st.caption(f"ID Cliente: {sel_id}")
 
-    # === Filtra i contratti del cliente ===
+    # === Filtra contratti validi ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    ct = ct.reset_index().rename(columns={"index": "_gidx"})
+    ct = ct[ct["NumeroContratto"].astype(str).str.strip() != ""]
+    ct = ct.dropna(how="all").reset_index(drop=True)
 
     # === CREA NUOVO CONTRATTO ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
@@ -1230,10 +1231,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 if st.form_submit_button("💾 Crea contratto"):
                     try:
-                        # Calcola la data di fine contratto
                         fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-
-                        # Nuovo record contratto
                         nuovo = {
                             "ClienteID": sel_id,
                             "RagioneSociale": rag_soc,
@@ -1252,12 +1250,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             "Stato": stato_new
                         }
 
-                        # Controllo minimo
                         if not num.strip() and not desc.strip():
                             st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
                         else:
                             df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
-                            # Rimuove eventuali righe vuote
                             df_ct = df_ct.dropna(how="all").reset_index(drop=True)
                             save_contratti(df_ct)
                             st.success("✅ Contratto creato correttamente.")
@@ -1265,7 +1261,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                     except Exception as e:
                         st.error(f"❌ Errore durante la creazione del contratto: {e}")
-
 
     # === STILE TABELLA ===
     st.markdown("""
@@ -1277,6 +1272,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
           text-align:center;
           padding:8px;
           border:1px solid #d0d7de;
+      }
+      .tbl-row {
+          font-size:14px;
+          border-bottom:1px solid #e5e7eb;
+      }
+      .tbl-row div {
+          padding:6px;
+          text-align:center;
       }
       .pill-open {
           background:#e8f5e9;
@@ -1301,14 +1304,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # 🔹 Evita righe vuote
-    ct = ct[ct["NumeroContratto"].astype(str).str.strip() != ""]
-
     # === INTESTAZIONE COMPLETA ===
-    header_cols = st.columns([0.6, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 0.8, 1.8, 1])
+    header_cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 1.8, 1])
     headers = [
         "N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato",
-        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col", "Ecc. Col", "Descrizione", "Azioni"
+        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col", "Ecc. Col", "Azioni"
     ]
     for col, h in zip(header_cols, headers):
         col.markdown(f"<div class='tbl-header'>{h}</div>", unsafe_allow_html=True)
@@ -1317,48 +1317,122 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for i, r in ct.iterrows():
         bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
         stato = str(r.get("Stato", "aperto")).lower()
-        stato_html = (
-            "<span class='pill-open'>Aperto</span>"
-            if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
-        )
+        stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
 
-        desc = str(r.get("DescrizioneProdotto", "—"))
-        if len(desc) > 70:
-            desc = desc[:70] + "…"
+        cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 1.8, 1])
+        cols[0].markdown(f"<div style='background:{bg}'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
+        cols[1].markdown(f"<div style='background:{bg}'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
+        cols[2].markdown(f"<div style='background:{bg}'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+        cols[3].markdown(f"<div style='background:{bg}'>{r.get('Durata','—')}</div>", unsafe_allow_html=True)
+        cols[4].markdown(f"<div style='background:{bg}'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
+        cols[5].markdown(f"<div style='background:{bg}'>{stato_html}</div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div style='background:{bg}'>{r.get('NOL_FIN','')}</div>", unsafe_allow_html=True)
+        cols[7].markdown(f"<div style='background:{bg}'>{r.get('NOL_INT','')}</div>", unsafe_allow_html=True)
+        cols[8].markdown(f"<div style='background:{bg}'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
+        cols[9].markdown(f"<div style='background:{bg}'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
+        cols[10].markdown(f"<div style='background:{bg}'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div style='background:{bg}'>{r.get('EccCol','')}</div>", unsafe_allow_html=True)
 
-        cols = st.columns([0.6, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 0.8, 1.8, 1])
-        cols[0].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
-        cols[1].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
-        cols[2].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-        cols[3].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('Durata','—')}</div>", unsafe_allow_html=True)
-        cols[4].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
-        cols[5].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{stato_html}</div>", unsafe_allow_html=True)
-        cols[6].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_FIN','')}</div>", unsafe_allow_html=True)
-        cols[7].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_INT','')}</div>", unsafe_allow_html=True)
-        cols[8].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
-        cols[9].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
-        cols[10].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
-        cols[11].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccCol','')}</div>", unsafe_allow_html=True)
-        cols[12].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc}</div>", unsafe_allow_html=True)
-
-        with cols[13]:
+        with cols[12]:
             b1, b2, b3 = st.columns(3)
-            with b1:
-                if st.button("✏️", key=f"edit_{i}", help="Modifica contratto", disabled=permessi_limitati):
-                    st.session_state["edit_gidx"] = r["_gidx"]
-                    st.rerun()
-            with b2:
-                if st.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
-                    df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+            if b1.button("✏️", key=f"edit_{i}", help="Modifica contratto", disabled=permessi_limitati):
+                st.session_state["edit_gidx"] = i
+                st.rerun()
+            if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
+                df_ct.loc[i, "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+                save_contratti(df_ct)
+                st.toast("🔁 Stato contratto aggiornato", icon="✅")
+                st.rerun()
+            if b3.button("🗑️", key=f"del_{i}", help="Elimina contratto", disabled=permessi_limitati):
+                st.session_state["delete_gidx"] = i
+                st.session_state["ask_delete_now"] = True
+                st.rerun()
+
+    # === MODIFICA CONTRATTO ===
+    if st.session_state.get("edit_gidx") is not None:
+        gidx = st.session_state["edit_gidx"]
+        if gidx in ct.index:
+            contratto = ct.loc[gidx]
+            st.divider()
+            st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}")
+            with st.form(f"frm_edit_ct_{gidx}"):
+                c1, c2, c3, c4 = st.columns(4)
+                num = c1.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
+                din = c2.date_input("Data Inizio", value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce") if contratto.get("DataInizio") else pd.Timestamp.now(), format="DD/MM/YYYY")
+                durata = c3.text_input("Durata (mesi)", contratto.get("Durata", ""))
+                stato = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if str(contratto.get("Stato","")).lower() != "chiuso" else 1)
+                desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+
+                salva = st.form_submit_button("💾 Salva Modifiche")
+                if salva:
+                    try:
+                        durata_val = int(durata) if str(durata).isdigit() else 12
+                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=durata_val)
+                        df_ct.loc[gidx, ["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","Stato"]] = [num, fmt_date(din), fmt_date(data_fine), durata, desc, stato]
+                        save_contratti(df_ct)
+                        st.success("✅ Contratto aggiornato.")
+                        st.session_state.pop("edit_gidx", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore salvataggio: {e}")
+
+    # === ELIMINAZIONE CONTRATTO ===
+    if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
+        gidx = st.session_state["delete_gidx"]
+        if gidx in ct.index:
+            contratto = ct.loc[gidx]
+            numero = contratto.get("NumeroContratto", "Senza numero")
+            st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ Sì, elimina", use_container_width=True):
+                    df_ct = df_ct.drop(index=gidx).copy()
                     save_contratti(df_ct)
-                    st.toast("🔁 Stato contratto aggiornato", icon="✅")
+                    st.success("🗑️ Contratto eliminato.")
+                    st.session_state.pop("ask_delete_now", None)
+                    st.session_state.pop("delete_gidx", None)
                     st.rerun()
-            with b3:
-                if st.button("🗑️", key=f"del_{i}", help="Elimina contratto", disabled=permessi_limitati):
-                    st.session_state["delete_gidx"] = r["_gidx"]
-                    st.session_state["ask_delete_now"] = True
+            with c2:
+                if st.button("❌ Annulla", use_container_width=True):
+                    st.session_state.pop("ask_delete_now", None)
+                    st.session_state.pop("delete_gidx", None)
+                    st.info("Annullato.")
                     st.rerun()
 
+    # === ESPORTAZIONI (Excel + PDF) ===
+    st.divider()
+    st.markdown("### 📤 Esportazioni")
+    cex1, cex2 = st.columns(2)
+    with cex1:
+        try:
+            from openpyxl import Workbook
+            from io import BytesIO
+            wb = Workbook()
+            ws = wb.active
+            ws.title = f"Contratti {rag_soc}"
+            ws.append(list(ct.columns))
+            for _, row in ct.iterrows():
+                ws.append(row.tolist())
+            bio = BytesIO()
+            wb.save(bio)
+            st.download_button("📘 Esporta Excel", bio.getvalue(), file_name=f"Contratti_{rag_soc}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        except Exception as e:
+            st.error(f"Errore export Excel: {e}")
+
+    with cex2:
+        try:
+            from fpdf import FPDF
+            pdf = FPDF("L", "mm", "A4")
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
+            pdf.set_font("Arial", "", 8)
+            for _, r in ct.iterrows():
+                pdf.cell(0, 6, safe_text(f"{r['NumeroContratto']} - {r['DescrizioneProdotto']} ({r['DataInizio']} → {r['DataFine']})"), ln=1)
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+            st.download_button("📗 Esporta PDF", pdf_bytes, file_name=f"Contratti_{rag_soc}.pdf", mime="application/pdf")
+        except Exception as e:
+            st.error(f"Errore export PDF: {e}")
 
 # =====================================
 # 📇 PAGINA LISTA COMPLETA CLIENTI E SCADENZE (CON FILTRO TMK)

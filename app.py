@@ -1121,7 +1121,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 (TABELLA ELEGANTE)
+# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 (TABELLA ELEGANTE + AZIONI REALI)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
@@ -1145,9 +1145,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     .contract-table tr:hover {background:#f1f5f9;}
     .pill-open {background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:8px; font-weight:600;}
     .pill-closed {background:#ffebee; color:#b71c1c; padding:2px 8px; border-radius:8px; font-weight:600;}
-    .actions button {
-        background:none; border:none; cursor:pointer; font-size:1.1rem; margin:0 2px;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1168,11 +1165,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"<h3 style='text-align:center;color:#2563eb'>{rag_soc}</h3>", unsafe_allow_html=True)
     st.caption(f"ID Cliente: {sel_id}")
 
-    # === Filtra i contratti del cliente ===
+    # === Filtra contratti ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     ct = ct.reset_index().rename(columns={"index": "_gidx"})
 
-    # === CREAZIONE NUOVO CONTRATTO ===
+    # === Nuovo contratto ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
         if permessi_limitati:
             st.warning("🔒 Accesso sola lettura")
@@ -1216,63 +1213,127 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === COSTRUISCE TABELLA CONTRATTI ===
-    html_rows = ""
-    for i, r in ct.iterrows():
-        def val(x):
-            x = str(x).strip()
-            return "—" if x in ["", "nan", "NaN", "None"] else x
+    # === Tabella ===
+    html_table = "<table class='contract-table'><thead><tr>"
+    for h in ["N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato", "Descrizione", "Azioni"]:
+        html_table += f"<th>{h}</th>"
+    html_table += "</tr></thead><tbody>"
 
+    for i, r in ct.iterrows():
         stato = str(r.get("Stato", "aperto")).lower()
         stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
-
-        desc = val(r.get("DescrizioneProdotto"))
+        desc = str(r.get("DescrizioneProdotto", "—")).strip()
         if len(desc) > 80:
             desc = desc[:80] + "…"
 
-        html_rows += f"""
+        # --- Pulsanti azione ---
+        edit_key = f"edit_{i}"
+        toggle_key = f"toggle_{i}"
+        del_key = f"del_{i}"
+
+        html_table += f"""
         <tr>
-            <td>{val(r.get('NumeroContratto'))}</td>
+            <td>{r.get('NumeroContratto','—')}</td>
             <td>{fmt_date(r.get('DataInizio'))}</td>
             <td>{fmt_date(r.get('DataFine'))}</td>
-            <td>{val(r.get('Durata'))}</td>
+            <td>{r.get('Durata','—')}</td>
             <td>{money(r.get('TotRata'))}</td>
             <td>{stato_html}</td>
             <td style='text-align:left'>{desc}</td>
             <td>
-                <div class='actions'>
-                    <form action='#' method='post'>
-                        <button onClick="window.location.reload();" title='Modifica'>✏️</button>
-                        <button onClick="window.location.reload();" title='Chiudi/Riapri'>{'🔒' if stato != 'chiuso' else '🟢'}</button>
-                        <button onClick="window.location.reload();" title='Elimina'>🗑️</button>
-                    </form>
+                <div style='display:flex;justify-content:center;gap:6px;'>
+                    {st.button("✏️", key=edit_key, help='Modifica contratto', use_container_width=False, disabled=permessi_limitati)}
+                    {st.button("🔒" if stato != "chiuso" else "🟢", key=toggle_key, help='Chiudi/Riapri contratto', use_container_width=False, disabled=permessi_limitati)}
+                    {st.button("🗑️", key=del_key, help='Elimina contratto', use_container_width=False, disabled=permessi_limitati)}
                 </div>
             </td>
         </tr>
         """
 
-    st.markdown(f"""
-    <table class='contract-table'>
-        <thead>
-            <tr>
-                <th>N°</th>
-                <th>Inizio</th>
-                <th>Fine</th>
-                <th>Durata</th>
-                <th>Tot. Rata</th>
-                <th>Stato</th>
-                <th>Descrizione</th>
-                <th>Azioni</th>
-            </tr>
-        </thead>
-        <tbody>{html_rows}</tbody>
-    </table>
-    """, unsafe_allow_html=True)
+        # --- Logica azione ---
+        if st.session_state.get(edit_key):
+            st.session_state["edit_gidx"] = r["_gidx"]
+            st.session_state.pop(edit_key)
+            st.rerun()
 
-    # === ESPORTAZIONI (Excel + PDF) ===
+        if st.session_state.get(toggle_key):
+            df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+            save_contratti(df_ct)
+            st.toast(f"Contratto {'chiuso' if stato != 'chiuso' else 'riaperto'}", icon="🔁")
+            st.session_state.pop(toggle_key)
+            st.rerun()
+
+        if st.session_state.get(del_key):
+            st.session_state["delete_gidx"] = r["_gidx"]
+            st.session_state.pop(del_key)
+            st.session_state["ask_delete_now"] = True
+            st.rerun()
+
+    html_table += "</tbody></table>"
+    st.markdown(html_table, unsafe_allow_html=True)
+
+    # === Modifica Contratto ===
+    if st.session_state.get("edit_gidx") is not None:
+        gidx = st.session_state["edit_gidx"]
+        if gidx in df_ct.index:
+            contratto = df_ct.loc[gidx]
+            st.divider()
+            st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}")
+            with st.form(f"frm_edit_ct_{gidx}"):
+                c1, c2, c3, c4 = st.columns(4)
+                num = c1.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
+                din = c2.date_input(
+                    "Data Inizio",
+                    value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
+                    if contratto.get("DataInizio") else pd.Timestamp.now(),
+                    format="DD/MM/YYYY"
+                )
+                durata = c3.text_input("Durata (mesi)", contratto.get("Durata", ""))
+                stato = c4.selectbox("Stato", ["aperto", "chiuso"],
+                                    index=0 if str(contratto.get("Stato","")).lower()!="chiuso" else 1)
+                desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+
+                salva = st.form_submit_button("💾 Salva Modifiche")
+                if salva:
+                    try:
+                        durata_val = int(durata) if str(durata).isdigit() else 12
+                        data_fine = pd.to_datetime(din) + pd.DateOffset(months=durata_val)
+                        df_ct.loc[gidx, [
+                            "NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","Stato"
+                        ]] = [num, fmt_date(din), fmt_date(data_fine), durata, desc, stato]
+                        save_contratti(df_ct)
+                        st.success("✅ Contratto aggiornato.")
+                        st.session_state.pop("edit_gidx", None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore salvataggio: {e}")
+
+    # === Eliminazione Contratto ===
+    if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
+        gidx = st.session_state["delete_gidx"]
+        if gidx in df_ct.index:
+            contratto = df_ct.loc[gidx]
+            numero = contratto.get("NumeroContratto", "Senza numero")
+            st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ Sì, elimina", use_container_width=True):
+                    df_ct = df_ct.drop(index=gidx).copy()
+                    save_contratti(df_ct)
+                    st.success("🗑️ Contratto eliminato.")
+                    st.session_state.pop("ask_delete_now", None)
+                    st.session_state.pop("delete_gidx", None)
+                    st.rerun()
+            with c2:
+                if st.button("❌ Annulla", use_container_width=True):
+                    st.session_state.pop("ask_delete_now", None)
+                    st.session_state.pop("delete_gidx", None)
+                    st.info("Annullato.")
+                    st.rerun()
+
+    # === Esportazioni (Excel + PDF) ===
     st.divider()
     st.markdown("### 📤 Esportazioni")
-
     cex1, cex2 = st.columns(2)
     with cex1:
         try:

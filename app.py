@@ -1219,13 +1219,16 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === INTESTAZIONE ===
-    header_cols = st.columns([1.1, 1, 1, 0.7, 1.1, 0.8, 2.5, 1])
-    headers = ["N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato", "Descrizione", "Azioni"]
+    # === INTESTAZIONE COMPLETA ===
+    header_cols = st.columns([0.8, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 1, 2.5, 1])
+    headers = [
+        "N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato",
+        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col", "Descrizione", "Azioni"
+    ]
     for col, h in zip(header_cols, headers):
         col.markdown(f"<div class='tbl-header'>{h}</div>", unsafe_allow_html=True)
 
-    # === RIGHE CONTRATTI ===
+    # === RIGHE CONTRATTI (COMPLETA) ===
     for i, r in ct.iterrows():
         bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
         stato = str(r.get("Stato", "aperto")).lower()
@@ -1237,16 +1240,21 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         if len(desc) > 70:
             desc = desc[:70] + "…"
 
-        cols = st.columns([1.1, 1, 1, 0.7, 1.1, 0.8, 2.5, 1])
+        cols = st.columns([0.8, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 1, 2.5, 1])
         cols[0].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
         cols[1].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
         cols[2].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
         cols[3].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('Durata','—')}</div>", unsafe_allow_html=True)
         cols[4].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
         cols[5].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{stato_html}</div>", unsafe_allow_html=True)
-        cols[6].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc}</div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_FIN','')}</div>", unsafe_allow_html=True)
+        cols[7].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_INT','')}</div>", unsafe_allow_html=True)
+        cols[8].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
+        cols[9].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
+        cols[10].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc}</div>", unsafe_allow_html=True)
 
-        with cols[7]:
+        with cols[12]:
             b1, b2, b3 = st.columns(3)
             with b1:
                 if st.button("✏️", key=f"edit_{i}", help="Modifica contratto", disabled=permessi_limitati):
@@ -1263,6 +1271,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.session_state["delete_gidx"] = r["_gidx"]
                     st.session_state["ask_delete_now"] = True
                     st.rerun()
+
+
 
     # === MODIFICA CONTRATTO ===
     if st.session_state.get("edit_gidx") is not None:

@@ -1758,7 +1758,7 @@ def main():
         df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
     # --- Applica filtro visibilità ---
-    if visibilita_scelta == "Miei":
+    if visibilita_scelta == "Fabio":
         df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
         df_cli, df_ct = df_cli_gab, df_ct_gab

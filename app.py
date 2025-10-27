@@ -1282,6 +1282,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if ct.empty:
         st.info("Nessun contratto registrato.")
         return
+
+    # 🔹 Evita righe vuote
     ct = ct[ct["NumeroContratto"].astype(str).str.strip() != ""]
 
     # === INTESTAZIONE COMPLETA ===
@@ -1338,6 +1340,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.session_state["delete_gidx"] = r["_gidx"]
                     st.session_state["ask_delete_now"] = True
                     st.rerun()
+
 
 # =====================================
 # 📇 PAGINA LISTA COMPLETA CLIENTI E SCADENZE (CON FILTRO TMK)

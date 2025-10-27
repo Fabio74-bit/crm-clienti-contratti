@@ -1303,6 +1303,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === RIGHE CONTRATTI ===
     for i, r in ct.iterrows():
+        row_id = int(r.get("RowID")) if "RowID" in r else None
+
         stato = str(r.get("Stato", "aperto")).lower()
         if stato == "chiuso":
             bg = "#ffe5e5"
@@ -1393,32 +1395,72 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
     # === MODIFICA CONTRATTO ===
-    if st.session_state.get("edit_gidx") is not None:
-        gidx = st.session_state["edit_gidx"]
-        if gidx in ct.index:
-            contratto = ct.loc[gidx]
+    if st.session_state.get("edit_rowid") is not None:
+        row_id = int(st.session_state["edit_rowid"])
+        mask_edit = df_ct["RowID"].astype(int) == row_id
+
+        if mask_edit.any():
+            contratto = df_ct.loc[mask_edit].iloc[0]
             st.divider()
-            st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}")
-            with st.form(f"frm_edit_ct_{gidx}"):
+            st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto', '')}")
+
+            with st.form(f"frm_edit_ct_{row_id}"):
                 c1, c2, c3, c4 = st.columns(4)
                 num = c1.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
-                din = c2.date_input("Data Inizio", value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce") if contratto.get("DataInizio") else pd.Timestamp.now(), format="DD/MM/YYYY")
+                din = c2.date_input(
+                    "Data Inizio",
+                    value=pd.to_datetime(
+                        contratto.get("DataInizio"), errors="coerce", dayfirst=True
+                    ) if contratto.get("DataInizio") else pd.Timestamp.now(),
+                    format="DD/MM/YYYY"
+                )
                 durata = c3.text_input("Durata (mesi)", contratto.get("Durata", ""))
-                stato = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if str(contratto.get("Stato","")).lower() != "chiuso" else 1)
-                desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+                stato = c4.selectbox(
+                    "Stato",
+                    ["aperto", "chiuso"],
+                    index=0 if str(contratto.get("Stato", "")).lower() != "chiuso" else 1
+                )
+
+                st.markdown("#### 🧾 Descrizione e Copie")
+                desc = st.text_area(
+                    "Descrizione Prodotto",
+                    contratto.get("DescrizioneProdotto", ""),
+                    height=80,
+                )
+                c5, c6, c7, c8 = st.columns(4)
+                nf = c5.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
+                ni = c6.text_input("NOL_INT", contratto.get("NOL_INT", ""))
+                tot = c7.text_input("TotRata", contratto.get("TotRata", ""))
+                copie_bn = c8.text_input("Copie incluse B/N", contratto.get("CopieBN", ""))
+
+                c9, c10, c11, c12 = st.columns(4)
+                ecc_bn = c9.text_input("Eccedenza B/N (€)", contratto.get("EccBN", ""))
+                copie_col = c10.text_input("Copie incluse Colore", contratto.get("CopieCol", ""))
+                ecc_col = c11.text_input("Eccedenza Colore (€)", contratto.get("EccCol", ""))
 
                 salva = st.form_submit_button("💾 Salva Modifiche")
                 if salva:
                     try:
                         durata_val = int(durata) if str(durata).isdigit() else 12
                         data_fine = pd.to_datetime(din) + pd.DateOffset(months=durata_val)
-                        df_ct.loc[gidx, ["NumeroContratto","DataInizio","DataFine","Durata","DescrizioneProdotto","Stato"]] = [num, fmt_date(din), fmt_date(data_fine), durata, desc, stato]
+
+                        df_ct.loc[mask_edit, [
+                            "NumeroContratto", "DataInizio", "DataFine",
+                            "Durata", "DescrizioneProdotto", "NOL_FIN", "NOL_INT",
+                            "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+                        ]] = [
+                            num, fmt_date(din), fmt_date(data_fine),
+                            durata, desc, nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
+                        ]
+
                         save_contratti(df_ct)
-                        st.success("✅ Contratto aggiornato.")
-                        st.session_state.pop("edit_gidx", None)
+                        st.success("✅ Contratto aggiornato con successo.")
+                        st.session_state.pop("edit_rowid", None)
                         st.rerun()
+
                     except Exception as e:
-                        st.error(f"❌ Errore salvataggio: {e}")
+                        st.error(f"❌ Errore durante il salvataggio: {e}")
+
 
     # === ELIMINAZIONE CONTRATTO ===
     if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
@@ -1810,6 +1852,12 @@ def main():
     else:
         df_cli, df_ct = df_cli_main, df_ct_main
 
+    # ✅ AGGIUNGE RowID UNIVOCO (una volta sola)
+    if "RowID" not in df_ct.columns:
+        df_ct = df_ct.reset_index(drop=True)
+        df_ct["RowID"] = range(1, len(df_ct) + 1)
+        save_contratti(df_ct)
+
     # --- Correzione date una sola volta ---
     if not st.session_state.get("_date_fix_done", False):
         try:
@@ -1848,6 +1896,7 @@ def main():
     # --- Esegui pagina ---
     if page in PAGES:
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
+
 
 # =====================================
 # AVVIO APPLICAZIONE

@@ -1705,7 +1705,7 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 # MAIN APP — versione 2025 GitHub + Streamlit Cloud (offline)
 # =====================================
 def main():
-    st.write("✅ Avvio CRM SHT — modalità GitHub + Streamlit Cloud")
+    st.write("✅ Avvio CRM SHT — Buon Lavoro")
 
     # --- LOGIN ---
     user, role = do_login_fullscreen()

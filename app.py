@@ -498,7 +498,7 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
     """
 
 # =====================================
-# PAGINA DASHBOARD (VERSIONE COMPLETA E CORRETTA 2025)
+# PAGINA DASHBOARD (VERSIONE MULTI-PROPRIETARIO 2025)
 # =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
@@ -529,6 +529,15 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with st.expander("➕ Crea Nuovo Cliente + Contratto"):
         with st.form("frm_new_cliente"):
             st.markdown("#### 📇 Dati Cliente")
+
+            # 🆕 Selezione Proprietario (fabio / gabriele)
+            proprietario = st.selectbox(
+                "👑 Proprietario del Cliente",
+                ["fabio", "gabriele"],
+                index=0 if st.session_state.get("utente_loggato") == "fabio" else 1,
+                help="Seleziona a chi appartiene il cliente"
+            )
+
             col1, col2 = st.columns(2)
             with col1:
                 ragione = st.text_input("🏢 Ragione Sociale")
@@ -596,8 +605,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "UltimaVisita": "",
                         "ProssimaVisita": "",
                         "TMK": tmk,
-                        "NoteCliente": note
+                        "NoteCliente": note,
+                        "Proprietario": proprietario
                     }
+
                     df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
                     save_clienti(df_cli)
 
@@ -618,12 +629,14 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "EccBN": ecc_bn,
                         "CopieCol": copie_col,
                         "EccCol": ecc_col,
-                        "Stato": "aperto"
+                        "Stato": "aperto",
+                        "Proprietario": proprietario
                     }
+
                     df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
                     save_contratti(df_ct)
 
-                    st.success(f"✅ Cliente '{ragione}' e contratto creati correttamente!")
+                    st.success(f"✅ Cliente '{ragione}' assegnato a **{proprietario.upper()}** e contratto creati correttamente!")
                     st.session_state.update({
                         "selected_cliente": new_id,
                         "nav_target": "Contratti",
@@ -635,7 +648,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-       # === SCADENZE & INCOMPLETI (contratti aperti in scadenza o senza DataFine) ===
+    # === SCADENZE & INCOMPLETI (contratti aperti in scadenza o senza DataFine) ===
     st.divider()
     st.markdown("### ⚠️ Scadenze & Contratti Incompleti")
 
@@ -644,23 +657,18 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
 
-    # Filtra solo contratti aperti
     aperti = df_ct[df_ct["Stato"].astype(str).str.lower() != "chiuso"].copy()
-
-    # Condizione combinata: scadenza entro 6 mesi O data fine mancante
     scadenze = aperti[
         (aperti["DataFine"].isna()) |
         ((aperti["DataFine"] >= oggi) & (aperti["DataFine"] <= entro_6_mesi))
     ].copy()
 
-    # Aggiunge nome cliente se manca
     if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
         scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
     if scadenze.empty:
         st.success("✅ Nessun contratto aperto in scadenza o senza data di fine.")
     else:
-        # Formatta date
         scadenze["DataFineFmt"] = scadenze["DataFine"].apply(fmt_date)
         scadenze["DataInizioFmt"] = scadenze["DataInizio"].apply(fmt_date)
         scadenze = scadenze.sort_values(["DataFine", "DataInizio"], na_position="last")
@@ -691,8 +699,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     fine = "<span style='color:#d32f2f;font-weight:600;'>⚠️ Mancante</span>"
                 st.markdown(f"<div style='background:{bg};padding:6px'>{fine}</div>", unsafe_allow_html=True)
             with col5:
-                stato = str(r.get("Stato","—")).capitalize()
-                st.markdown(f"<div style='background:{bg};padding:6px'>{stato}</div>", unsafe_allow_html=True)
+                stato_txt = str(r.get("Stato","—")).capitalize()
+                st.markdown(f"<div style='background:{bg};padding:6px'>{stato_txt}</div>", unsafe_allow_html=True)
             with col6:
                 if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
                     for k in list(st.session_state.keys()):
@@ -1702,10 +1710,10 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 
 
 # =====================================
-# MAIN APP — versione 2025 GitHub + Streamlit Cloud (offline)
+# MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
 # =====================================
 def main():
-    st.write("✅ Avvio CRM SHT — Buon Lavoro")
+    st.write("✅ Avvio CRM SHT — modalità GitHub + Streamlit Cloud")
 
     # --- LOGIN ---
     user, role = do_login_fullscreen()
@@ -1723,7 +1731,7 @@ def main():
         ruolo_scrittura = "limitato"
 
     # --- Selettore visibilità ---
-    if user in ["fabio", "giulia", "antonella"]:
+    if user in ["fabio", "giulia", "antonella", "emanuela"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
             "📂 Visualizza clienti di:",
@@ -1731,7 +1739,7 @@ def main():
             index=0
         )
     else:
-        visibilita_scelta = "Miei"
+        visibilita_scelta = "Fabio"
 
     # --- Caricamento dati base ---
     df_cli_main = load_clienti()
@@ -1797,11 +1805,6 @@ def main():
 
     # --- Esecuzione pagina selezionata ---
     if page in PAGES:
+        # 🟢 Passa al form il ruolo e l’utente loggato (serve per assegnare il proprietario)
+        st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-
-
-# =====================================
-# AVVIO APPLICAZIONE
-# =====================================
-if __name__ == "__main__":
-    main()

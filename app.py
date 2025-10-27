@@ -1290,51 +1290,73 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for col, h in zip(header_cols, headers):
         col.markdown(f"<div class='tbl-header'>{h}</div>", unsafe_allow_html=True)
 
-    # === RIGHE ===
+    # === RIGHE CONTRATTI ===
     for i, r in ct.iterrows():
-        bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
+        # 🔹 Colore di sfondo in base allo stato
         stato = str(r.get("Stato", "aperto")).lower()
+        if stato == "chiuso":
+            bg = "#ffe5e5"  # 🔴 rosso chiaro per contratti chiusi
+        else:
+            bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
+
         stato_html = (
             "<span class='pill-open'>Aperto</span>"
             if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
         )
 
-        # testo descrizione (troncato)
+        # 🔹 Testo descrizione troncato
         desc_txt = str(r.get("DescrizioneProdotto", "—")).strip()
         if len(desc_txt) > 90:
             desc_txt = desc_txt[:90] + "…"
 
         cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 2.2, 1])
-        cols[0].markdown(f"<div style='background:{bg}'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
-        cols[1].markdown(f"<div style='background:{bg}'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
-        cols[2].markdown(f"<div style='background:{bg}'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
-        cols[3].markdown(f"<div style='background:{bg}'>{r.get('Durata','—')}</div>", unsafe_allow_html=True)
-        cols[4].markdown(f"<div style='background:{bg}'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
-        cols[5].markdown(f"<div style='background:{bg}'>{stato_html}</div>", unsafe_allow_html=True)
-        cols[6].markdown(f"<div style='background:{bg}'>{r.get('NOL_FIN','')}</div>", unsafe_allow_html=True)
-        cols[7].markdown(f"<div style='background:{bg}'>{r.get('NOL_INT','')}</div>", unsafe_allow_html=True)
-        cols[8].markdown(f"<div style='background:{bg}'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
-        cols[9].markdown(f"<div style='background:{bg}'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
-        cols[10].markdown(f"<div style='background:{bg}'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
-        cols[11].markdown(f"<div style='background:{bg};text-align:left'>{desc_txt}</div>", unsafe_allow_html=True)
+        cols[0].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
+        cols[1].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
+        cols[2].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+        cols[3].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('Durata','—')}</div>", unsafe_allow_html=True)
+        cols[4].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
+        cols[5].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{stato_html}</div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_FIN','')}</div>", unsafe_allow_html=True)
+        cols[7].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NOL_INT','')}</div>", unsafe_allow_html=True)
+        cols[8].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
+        cols[9].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
+        cols[10].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc_txt}</div>", unsafe_allow_html=True)
 
+        # === Azioni ===
         with cols[12]:
             b1, b2, b3 = st.columns(3)
+
+            # ✏️ Modifica
             if b1.button("✏️", key=f"edit_{i}", help="Modifica contratto", disabled=permessi_limitati):
                 st.session_state["edit_gidx"] = i
                 st.rerun()
-            if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
-                df_ct.loc[df_ct.index[df_ct["NumeroContratto"] == r["NumeroContratto"]], "Stato"] = (
-                    "chiuso" if stato != "chiuso" else "aperto"
-                )
 
-                save_contratti(df_ct)
-                st.toast("🔁 Stato contratto aggiornato", icon="✅")
-                st.rerun()
+            # 🔒 Chiudi / Riapri
+            if b2.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
+                try:
+                    # Trova esattamente il contratto nel DataFrame completo
+                    mask = (
+                        (df_ct["ClienteID"].astype(str) == str(sel_id))
+                        & (df_ct["NumeroContratto"].astype(str) == str(r.get("NumeroContratto", "")))
+                    )
+                    if mask.any():
+                        df_ct.loc[mask, "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+                        save_contratti(df_ct)
+                        st.toast("🔁 Stato contratto aggiornato", icon="✅")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Contratto non trovato nel file originale.")
+                except Exception as e:
+                    st.error(f"❌ Errore aggiornamento stato: {e}")
+
+            # 🗑️ Elimina
             if b3.button("🗑️", key=f"del_{i}", help="Elimina contratto", disabled=permessi_limitati):
                 st.session_state["delete_gidx"] = i
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
+
+
 
 
 

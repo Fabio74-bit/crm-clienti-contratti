@@ -993,12 +993,51 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         pv = c4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{uniq}")
 
         if st.button("💾 Salva Aggiornamenti", use_container_width=True, key=f"save_recall_{uniq}"):
-            idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-            df_cli.loc[idx, ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]] = \
-                [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
-            save_clienti(df_cli)
-            st.success("✅ Date aggiornate.")
-            st.rerun()
+            try:
+                idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+
+                # 🔹 Aggiorna nel DataFrame principale
+                df_cli.loc[idx, ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]] = [
+                    fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)
+                ]
+
+                # 🔹 Determina proprietario
+                proprietario = (
+                    str(df_cli.loc[idx, "Proprietario"]).strip().lower()
+                    if "Proprietario" in df_cli.columns else "fabio"
+                )
+
+                # 🔹 Seleziona il CSV corretto
+                path_cli = GABRIELE_CLIENTI if proprietario == "gabriele" else CLIENTI_CSV
+
+                # 🔹 Carica i dati dal CSV corretto
+                if path_cli.exists():
+                    df_target = pd.read_csv(
+                        path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip"
+                    ).fillna("")
+                else:
+                    df_target = pd.DataFrame(columns=df_cli.columns)
+
+                # 🔹 Aggiorna o aggiunge il cliente nel CSV corretto
+                if "ClienteID" in df_target.columns and sel_id in df_target["ClienteID"].astype(str).tolist():
+                    df_target.loc[df_target["ClienteID"] == sel_id, [
+                        "UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"
+                    ]] = [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
+                else:
+                    df_target = pd.concat(
+                        [df_target, pd.DataFrame([df_cli.loc[idx]])],
+                        ignore_index=True
+                    )
+
+                # 🔹 Salva nel file giusto
+                df_target.to_csv(path_cli, index=False, encoding="utf-8-sig")
+
+                st.success(f"✅ Aggiornamenti salvati nel file di **{proprietario.upper()}**.")
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"❌ Errore durante il salvataggio dei Recall/Visite: {e}")
+
 
         # === GENERA PREVENTIVO + ELENCO ===
         st.divider()

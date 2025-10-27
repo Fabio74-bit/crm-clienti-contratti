@@ -1760,18 +1760,10 @@ def load_contratti_cached():
 # MAIN APP — Versione definitiva 2025 (con filtro Proprietario corretto)
 # =====================================
 def main():
-    st.write("✅ main avviato")        # debug 1
-    user, role = do_login_fullscreen()
-    st.write("👤 utente:", user, "ruolo:", role)  # debug 2
-    if not user:
-        st.write("⏹️ Login non completato → stop")  # debug 3
-        st.stop()
-
-
     # --- LOGIN ---
     user, role = do_login_fullscreen()
     if not user:
-        st.stop()
+        return  # mostra il form di login e interrompe il resto finché non si accede
 
     # --- Percorsi CSV ---
     global CLIENTI_CSV, CONTRATTI_CSV
@@ -1825,7 +1817,7 @@ def main():
     opzioni_filtro = ["Tutti"] + proprietari_disponibili
 
     # Imposta filtro automatico in base all'utente loggato
-    if user.lower() in [p.lower() for p in proprietari_disponibili]:
+    if user.capitalize() in proprietari_disponibili:
         filtro_predefinito = user.capitalize()
     else:
         filtro_predefinito = "Tutti"

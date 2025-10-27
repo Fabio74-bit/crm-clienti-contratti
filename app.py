@@ -1774,6 +1774,15 @@ def load_contratti_cached():
 # MAIN APP — Versione definitiva 2025 (con filtro Proprietario corretto)
 # =====================================
 def main():
+    st.write("✅ main avviato")  # 👈 DEBUG
+
+    user, role = do_login_fullscreen()
+    st.write("👤 utente:", user, "ruolo:", role)  # 👈 DEBUG
+
+    if not user:
+        st.write("⏹️ Login non completato → stop")  # 👈 DEBUG
+        st.stop()
+
     # --- LOGIN ---
     user, role = do_login_fullscreen()
     if not user:

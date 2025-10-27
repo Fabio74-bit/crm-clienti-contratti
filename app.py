@@ -635,55 +635,65 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.divider()
 
-    # === CONTRATTI IN SCADENZA O SENZA DATA FINE (entro 6 mesi o aperti) ===
-    st.markdown("### ⚠️ Contratti in scadenza o senza data di fine")
+       # === SCADENZE & INCOMPLETI (contratti aperti in scadenza o senza DataFine) ===
+    st.divider()
+    st.markdown("### ⚠️ Scadenze & Contratti Incompleti")
 
     oggi = pd.Timestamp.now().normalize()
     entro_6_mesi = oggi + pd.DateOffset(months=6)
     df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
 
-    scadenze = df_ct[
-        (df_ct["Stato"].astype(str).str.lower() != "chiuso") &
-        (
-            df_ct["DataFine"].isna() |
-            ((df_ct["DataFine"] >= oggi) & (df_ct["DataFine"] <= entro_6_mesi))
-        )
+    # Filtra solo contratti aperti
+    aperti = df_ct[df_ct["Stato"].astype(str).str.lower() != "chiuso"].copy()
+
+    # Condizione combinata: scadenza entro 6 mesi O data fine mancante
+    scadenze = aperti[
+        (aperti["DataFine"].isna()) |
+        ((aperti["DataFine"] >= oggi) & (aperti["DataFine"] <= entro_6_mesi))
     ].copy()
 
+    # Aggiunge nome cliente se manca
     if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
         scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
     if scadenze.empty:
-        st.success("✅ Nessun contratto aperto o in scadenza nei prossimi 6 mesi.")
+        st.success("✅ Nessun contratto aperto in scadenza o senza data di fine.")
     else:
-        scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
-        scadenze = scadenze.sort_values("DataFine", na_position="last")
+        # Formatta date
+        scadenze["DataFineFmt"] = scadenze["DataFine"].apply(fmt_date)
+        scadenze["DataInizioFmt"] = scadenze["DataInizio"].apply(fmt_date)
+        scadenze = scadenze.sort_values(["DataFine", "DataInizio"], na_position="last")
 
-        st.markdown(f"📅 **{len(scadenze)} contratti aperti o in scadenza:**")
+        st.markdown(f"📅 **{len(scadenze)} contratti aperti** (in scadenza o senza data di fine):")
 
-        head_cols = st.columns([2, 1, 1, 1, 0.8])
+        head_cols = st.columns([2.5, 1, 1, 1.5, 1.5, 0.8])
         head_cols[0].markdown("**Cliente**")
         head_cols[1].markdown("**Contratto**")
-        head_cols[2].markdown("**Scadenza**")
-        head_cols[3].markdown("**Stato**")
-        head_cols[4].markdown("**Azioni**")
-
+        head_cols[2].markdown("**Inizio**")
+        head_cols[3].markdown("**Fine / Mancante**")
+        head_cols[4].markdown("**Stato**")
+        head_cols[5].markdown("**Azioni**")
         st.markdown("---")
 
         for i, r in scadenze.iterrows():
             bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
-            col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 0.8])
+            col1, col2, col3, col4, col5, col6 = st.columns([2.5, 1, 1, 1.5, 1.5, 0.8])
             with col1:
                 st.markdown(f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
             with col2:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—') or '—'}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
             with col3:
-                data_fine = r.get("DataFine")
-                testo_scad = fmt_date(data_fine) if data_fine else "—"
-                st.markdown(f"<div style='background:{bg};padding:6px'>{testo_scad}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('DataInizioFmt','—')}</div>", unsafe_allow_html=True)
             with col4:
-                st.markdown(f"<div style='background:{bg};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
+                fine = r.get("DataFineFmt") or "—"
+                if not r.get("DataFineFmt"):
+                    fine = "<span style='color:#d32f2f;font-weight:600;'>⚠️ Mancante</span>"
+                st.markdown(f"<div style='background:{bg};padding:6px'>{fine}</div>", unsafe_allow_html=True)
             with col5:
+                stato = str(r.get("Stato","—")).capitalize()
+                st.markdown(f"<div style='background:{bg};padding:6px'>{stato}</div>", unsafe_allow_html=True)
+            with col6:
                 if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
                     for k in list(st.session_state.keys()):
                         if k.startswith("edit_ct_") or k.startswith("edit_cli_"):

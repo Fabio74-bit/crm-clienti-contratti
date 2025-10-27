@@ -1197,11 +1197,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"<h3 style='text-align:center;color:#2563eb'>{rag_soc}</h3>", unsafe_allow_html=True)
     st.caption(f"ID Cliente: {sel_id}")
 
-    # === Filtra contratti validi ===
+    # === Filtra contratti del cliente ===
+    ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+    
+    # Mostra anche quelli senza numero ma con descrizione
     ct = ct[
         (ct["NumeroContratto"].astype(str).str.strip() != "") |
         (ct["DescrizioneProdotto"].astype(str).str.strip() != "")
     ]
+    ct = ct.dropna(how="all").reset_index(drop=True)
 
     # === CREA NUOVO CONTRATTO ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):

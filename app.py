@@ -437,9 +437,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c4.markdown(kpi_card("Nuovi contratti anno", len(new_contracts), "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-# === CREAZIONE NUOVO CLIENTE + CONTRATTO ===
+# === CREAZIONE NUOVO CLIENTE + CONTRATTO (versione stabile) ===
 with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
-    with st.form("frm_new_cliente"):   # 👈 il form inizia QUI
+    with st.form("frm_new_cliente"):
         st.markdown("#### 📇 Dati Cliente")
 
         col1, col2 = st.columns(2)
@@ -464,7 +464,6 @@ with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
                 index=0
             )
 
-        # === SEZIONE CONTRATTO ===
         st.markdown("#### 📄 Primo Contratto del Cliente")
         colc1, colc2, colc3 = st.columns(3)
         num = colc1.text_input("📄 Numero Contratto")
@@ -483,12 +482,14 @@ with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
         copie_col = colx3.text_input("🖨️ Copie incluse Colore", value="")
         ecc_col = colx4.text_input("💰 Costo extra Colore (€)", value="")
 
-        # === SALVA CLIENTE + CONTRATTO ===
-        submit = st.form_submit_button("💾 Crea Cliente e Contratto")  # 👈 DEVE stare DENTRO il form
+        # --- PULSANTE DI SALVATAGGIO (DEVE STARE QUI DENTRO) ---
+        submit = st.form_submit_button("💾 Crea Cliente e Contratto")
+
         if submit:
             try:
                 new_id = str(len(df_cli) + 1)
 
+                # --- CREA CLIENTE ---
                 nuovo_cliente = {
                     "ClienteID": new_id,
                     "RagioneSociale": ragione,
@@ -508,11 +509,12 @@ with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
                     "ProssimaVisita": "",
                     "TMK": tmk,
                     "NoteCliente": note,
-                    "Proprietario": user.capitalize()  # ✅ aggiunto
+                    "Proprietario": user.capitalize(),  # ✅ Assegna proprietario
                 }
                 df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
                 save_clienti(df_cli)
 
+                # --- CREA CONTRATTO ---
                 data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
                 nuovo_contratto = {
                     "ClienteID": new_id,
@@ -530,7 +532,7 @@ with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
                     "CopieCol": copie_col,
                     "EccCol": ecc_col,
                     "Stato": "aperto",
-                    "Proprietario": user.capitalize()  # ✅ aggiunto
+                    "Proprietario": user.capitalize(),  # ✅ Assegna proprietario
                 }
                 df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
                 save_contratti(df_ct)
@@ -545,6 +547,7 @@ with st.expander("➕ Crea Nuovo Cliente + Contratto", expanded=False):
 
             except Exception as e:
                 st.error(f"❌ Errore durante la creazione del cliente e contratto: {e}")
+
 
 
 # === CREAZIONE NUOVO CONTRATTO (solo contratto separato) ===

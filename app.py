@@ -1213,64 +1213,73 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === Tabella ===
-    html_table = "<table class='contract-table'><thead><tr>"
-    for h in ["N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato", "Descrizione", "Azioni"]:
-        html_table += f"<th>{h}</th>"
-    html_table += "</tr></thead><tbody>"
+    # === TABELLA CONTRATTI (RENDER STREAMLIT + STILE ELEGANTE) ===
+    st.markdown("""
+    <style>
+    .tbl-head {font-weight:700;background:#2563eb;color:white;padding:8px;border:1px solid #d0d7de;text-align:center;}
+    .tbl-cell {border:1px solid #e5e7eb;padding:6px;text-align:center;}
+    .tbl-row:nth-child(even) {background:#f8fafc;}
+    .pill-open{background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px;font-weight:600;}
+    .pill-closed{background:#ffebee;color:#b71c1c;padding:2px 8px;border-radius:8px;font-weight:600;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <table style="width:100%;border-collapse:collapse;margin-top:0.5rem">
+    <tr>
+        <th class="tbl-head">N°</th>
+        <th class="tbl-head">Inizio</th>
+        <th class="tbl-head">Fine</th>
+        <th class="tbl-head">Durata</th>
+        <th class="tbl-head">Tot. Rata</th>
+        <th class="tbl-head">Stato</th>
+        <th class="tbl-head">Descrizione</th>
+        <th class="tbl-head">Azioni</th>
+    </tr>
+    </table>
+    """, unsafe_allow_html=True)
 
     for i, r in ct.iterrows():
+        bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
         stato = str(r.get("Stato", "aperto")).lower()
         stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
-        desc = str(r.get("DescrizioneProdotto", "—")).strip()
+        desc = str(r.get("DescrizioneProdotto", "—"))
         if len(desc) > 80:
             desc = desc[:80] + "…"
 
-        # --- Pulsanti azione ---
-        edit_key = f"edit_{i}"
-        toggle_key = f"toggle_{i}"
-        del_key = f"del_{i}"
+        st.markdown(f"""
+        <div style='display:grid;grid-template-columns:1fr 1fr 1fr 0.7fr 1fr 0.8fr 2.5fr 1fr;
+                     background:{bg};border:1px solid #e5e7eb;border-top:none;align-items:center;
+                     padding:4px 0;'>
+            <div style='text-align:center'>{r.get('NumeroContratto','—')}</div>
+            <div style='text-align:center'>{fmt_date(r.get('DataInizio'))}</div>
+            <div style='text-align:center'>{fmt_date(r.get('DataFine'))}</div>
+            <div style='text-align:center'>{r.get('Durata','—')}</div>
+            <div style='text-align:center'>{money(r.get('TotRata'))}</div>
+            <div style='text-align:center'>{stato_html}</div>
+            <div style='text-align:left;padding-left:6px'>{desc}</div>
+        """, unsafe_allow_html=True)
 
-        html_table += f"""
-        <tr>
-            <td>{r.get('NumeroContratto','—')}</td>
-            <td>{fmt_date(r.get('DataInizio'))}</td>
-            <td>{fmt_date(r.get('DataFine'))}</td>
-            <td>{r.get('Durata','—')}</td>
-            <td>{money(r.get('TotRata'))}</td>
-            <td>{stato_html}</td>
-            <td style='text-align:left'>{desc}</td>
-            <td>
-                <div style='display:flex;justify-content:center;gap:6px;'>
-                    {st.button("✏️", key=edit_key, help='Modifica contratto', use_container_width=False, disabled=permessi_limitati)}
-                    {st.button("🔒" if stato != "chiuso" else "🟢", key=toggle_key, help='Chiudi/Riapri contratto', use_container_width=False, disabled=permessi_limitati)}
-                    {st.button("🗑️", key=del_key, help='Elimina contratto', use_container_width=False, disabled=permessi_limitati)}
-                </div>
-            </td>
-        </tr>
-        """
+        # --- COLONNA AZIONI (pulsanti veri) ---
+        c1, c2, c3 = st.columns([0.33, 0.33, 0.33])
+        with c1:
+            if st.button("✏️", key=f"edit_{i}", help="Modifica contratto", use_container_width=True, disabled=permessi_limitati):
+                st.session_state["edit_gidx"] = r["_gidx"]
+                st.rerun()
+        with c2:
+            if st.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", use_container_width=True, disabled=permessi_limitati):
+                df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+                save_contratti(df_ct)
+                st.toast("🔁 Stato contratto aggiornato", icon="✅")
+                st.rerun()
+        with c3:
+            if st.button("🗑️", key=f"del_{i}", help="Elimina contratto", use_container_width=True, disabled=permessi_limitati):
+                st.session_state["delete_gidx"] = r["_gidx"]
+                st.session_state["ask_delete_now"] = True
+                st.rerun()
 
-        # --- Logica azione ---
-        if st.session_state.get(edit_key):
-            st.session_state["edit_gidx"] = r["_gidx"]
-            st.session_state.pop(edit_key)
-            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        if st.session_state.get(toggle_key):
-            df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
-            save_contratti(df_ct)
-            st.toast(f"Contratto {'chiuso' if stato != 'chiuso' else 'riaperto'}", icon="🔁")
-            st.session_state.pop(toggle_key)
-            st.rerun()
-
-        if st.session_state.get(del_key):
-            st.session_state["delete_gidx"] = r["_gidx"]
-            st.session_state.pop(del_key)
-            st.session_state["ask_delete_now"] = True
-            st.rerun()
-
-    html_table += "</tbody></table>"
-    st.markdown(html_table, unsafe_allow_html=True)
 
     # === Modifica Contratto ===
     if st.session_state.get("edit_gidx") is not None:

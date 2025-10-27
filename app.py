@@ -1784,27 +1784,28 @@ def main():
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 File in uso: {CLIENTI_CSV.name}")
 
-    # --- Caricamento dati ---
-    df_cli_main, df_ct_main = load_clienti(), load_contratti()
-    df_cli_gab, df_ct_gab = pd.DataFrame(), pd.DataFrame()
+# --- Caricamento dati ---
+df_cli_main, df_ct_main = load_clienti(), load_contratti()
+df_cli_gab, df_ct_gab = pd.DataFrame(), pd.DataFrame()
 
-    if visibilita == "tutti":
-        try:
-            df_cli_gab = pd.read_csv(gabriele_clienti, dtype=str).fillna("")
-            df_ct_gab = pd.read_csv(gabriele_contratti, dtype=str).fillna("")
-            df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
-            df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
-        except Exception as e:
-            st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
-            df_cli, df_ct = df_cli_main, df_ct_main
-    else:
+if visibilita == "tutti":
+    try:
+        df_cli_gab = pd.read_csv(gabriele_clienti, dtype=str).fillna("")
+        df_ct_gab = pd.read_csv(gabriele_contratti, dtype=str).fillna("")
+        df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
+        df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+    except Exception as e:
+        st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
         df_cli, df_ct = df_cli_main, df_ct_main
+else:
+    df_cli, df_ct = df_cli_main, df_ct_main
 
-    # ✅ AGGIUNGE RowID UNIVOCO (una volta sola)
-    if "RowID" not in df_ct.columns:
-        df_ct = df_ct.reset_index(drop=True)
-        df_ct["RowID"] = range(1, len(df_ct) + 1)
-        save_contratti(df_ct)
+# ✅ AGGIUNGE RowID UNIVOCO (una volta sola)
+if "RowID" not in df_ct.columns:
+    df_ct = df_ct.reset_index(drop=True)
+    df_ct["RowID"] = range(1, len(df_ct) + 1)
+    save_contratti(df_ct)
+
 
     # --- Correzione date una sola volta ---
     if not st.session_state.get("_date_fix_done", False):

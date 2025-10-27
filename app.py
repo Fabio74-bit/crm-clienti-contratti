@@ -1121,32 +1121,11 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.error(f"❌ Errore eliminazione: {e}")
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 (TABELLA ELEGANTE + AZIONI REALI)
+# PAGINA CONTRATTI — VERSIONE DEFINITIVA 2025 (TABELLA ELEGANTE + PULSANTI REALI)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
-
-    # === Stile tabella elegante ===
-    st.markdown("""
-    <style>
-    .contract-table {
-        width:100%; border-collapse:collapse; margin-top:0.5rem;
-    }
-    .contract-table th {
-        background-color:#2563eb; color:white; padding:8px;
-        text-align:center; font-weight:600; border:1px solid #d0d7de;
-    }
-    .contract-table td {
-        border:1px solid #e5e7eb; padding:6px 8px; text-align:center;
-        vertical-align:middle;
-    }
-    .contract-table tr:nth-child(even) {background:#f8fafc;}
-    .contract-table tr:hover {background:#f1f5f9;}
-    .pill-open {background:#e8f5e9; color:#1b5e20; padding:2px 8px; border-radius:8px; font-weight:600;}
-    .pill-closed {background:#ffebee; color:#b71c1c; padding:2px 8px; border-radius:8px; font-weight:600;}
-    </style>
-    """, unsafe_allow_html=True)
 
     st.markdown("<h2>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
     st.divider()
@@ -1165,11 +1144,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown(f"<h3 style='text-align:center;color:#2563eb'>{rag_soc}</h3>", unsafe_allow_html=True)
     st.caption(f"ID Cliente: {sel_id}")
 
-    # === Filtra contratti ===
+    # === Filtra i contratti del cliente ===
     ct = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
     ct = ct.reset_index().rename(columns={"index": "_gidx"})
 
-    # === Nuovo contratto ===
+    # === CREA NUOVO CONTRATTO ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
         if permessi_limitati:
             st.warning("🔒 Accesso sola lettura")
@@ -1201,87 +1180,91 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         }
                         df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
                         save_contratti(df_ct)
-                        st.success("✅ Contratto creato.")
+                        st.success("✅ Contratto creato correttamente.")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Errore: {e}")
 
-    st.divider()
+    # === STILE TABELLA ===
+    st.markdown("""
+    <style>
+      .tbl-header {
+          background:#2563eb;
+          color:white;
+          font-weight:600;
+          text-align:center;
+          padding:8px;
+          border:1px solid #d0d7de;
+      }
+      .pill-open {
+          background:#e8f5e9;
+          color:#1b5e20;
+          padding:2px 8px;
+          border-radius:8px;
+          font-weight:600;
+      }
+      .pill-closed {
+          background:#ffebee;
+          color:#b71c1c;
+          padding:2px 8px;
+          border-radius:8px;
+          font-weight:600;
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("### 📋 Contratti del Cliente")
 
     if ct.empty:
         st.info("Nessun contratto registrato.")
         return
 
-    # === TABELLA CONTRATTI (RENDER STREAMLIT + STILE ELEGANTE) ===
-    st.markdown("""
-    <style>
-    .tbl-head {font-weight:700;background:#2563eb;color:white;padding:8px;border:1px solid #d0d7de;text-align:center;}
-    .tbl-cell {border:1px solid #e5e7eb;padding:6px;text-align:center;}
-    .tbl-row:nth-child(even) {background:#f8fafc;}
-    .pill-open{background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:8px;font-weight:600;}
-    .pill-closed{background:#ffebee;color:#b71c1c;padding:2px 8px;border-radius:8px;font-weight:600;}
-    </style>
-    """, unsafe_allow_html=True)
+    # === INTESTAZIONE ===
+    header_cols = st.columns([1.1, 1, 1, 0.7, 1.1, 0.8, 2.5, 1])
+    headers = ["N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato", "Descrizione", "Azioni"]
+    for col, h in zip(header_cols, headers):
+        col.markdown(f"<div class='tbl-header'>{h}</div>", unsafe_allow_html=True)
 
-    st.markdown("""
-    <table style="width:100%;border-collapse:collapse;margin-top:0.5rem">
-    <tr>
-        <th class="tbl-head">N°</th>
-        <th class="tbl-head">Inizio</th>
-        <th class="tbl-head">Fine</th>
-        <th class="tbl-head">Durata</th>
-        <th class="tbl-head">Tot. Rata</th>
-        <th class="tbl-head">Stato</th>
-        <th class="tbl-head">Descrizione</th>
-        <th class="tbl-head">Azioni</th>
-    </tr>
-    </table>
-    """, unsafe_allow_html=True)
-
+    # === RIGHE CONTRATTI ===
     for i, r in ct.iterrows():
         bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
         stato = str(r.get("Stato", "aperto")).lower()
-        stato_html = "<span class='pill-open'>Aperto</span>" if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
+        stato_html = (
+            "<span class='pill-open'>Aperto</span>"
+            if stato != "chiuso" else "<span class='pill-closed'>Chiuso</span>"
+        )
         desc = str(r.get("DescrizioneProdotto", "—"))
-        if len(desc) > 80:
-            desc = desc[:80] + "…"
+        if len(desc) > 70:
+            desc = desc[:70] + "…"
 
-        st.markdown(f"""
-        <div style='display:grid;grid-template-columns:1fr 1fr 1fr 0.7fr 1fr 0.8fr 2.5fr 1fr;
-                     background:{bg};border:1px solid #e5e7eb;border-top:none;align-items:center;
-                     padding:4px 0;'>
-            <div style='text-align:center'>{r.get('NumeroContratto','—')}</div>
-            <div style='text-align:center'>{fmt_date(r.get('DataInizio'))}</div>
-            <div style='text-align:center'>{fmt_date(r.get('DataFine'))}</div>
-            <div style='text-align:center'>{r.get('Durata','—')}</div>
-            <div style='text-align:center'>{money(r.get('TotRata'))}</div>
-            <div style='text-align:center'>{stato_html}</div>
-            <div style='text-align:left;padding-left:6px'>{desc}</div>
-        """, unsafe_allow_html=True)
+        cols = st.columns([1.1, 1, 1, 0.7, 1.1, 0.8, 2.5, 1])
+        cols[0].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
+        cols[1].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
+        cols[2].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+        cols[3].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('Durata','—')}</div>", unsafe_allow_html=True)
+        cols[4].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{money(r.get('TotRata'))}</div>", unsafe_allow_html=True)
+        cols[5].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{stato_html}</div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc}</div>", unsafe_allow_html=True)
 
-        # --- COLONNA AZIONI (pulsanti veri) ---
-        c1, c2, c3 = st.columns([0.33, 0.33, 0.33])
-        with c1:
-            if st.button("✏️", key=f"edit_{i}", help="Modifica contratto", use_container_width=True, disabled=permessi_limitati):
-                st.session_state["edit_gidx"] = r["_gidx"]
-                st.rerun()
-        with c2:
-            if st.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", use_container_width=True, disabled=permessi_limitati):
-                df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
-                save_contratti(df_ct)
-                st.toast("🔁 Stato contratto aggiornato", icon="✅")
-                st.rerun()
-        with c3:
-            if st.button("🗑️", key=f"del_{i}", help="Elimina contratto", use_container_width=True, disabled=permessi_limitati):
-                st.session_state["delete_gidx"] = r["_gidx"]
-                st.session_state["ask_delete_now"] = True
-                st.rerun()
+        with cols[7]:
+            b1, b2, b3 = st.columns(3)
+            with b1:
+                if st.button("✏️", key=f"edit_{i}", help="Modifica contratto", disabled=permessi_limitati):
+                    st.session_state["edit_gidx"] = r["_gidx"]
+                    st.rerun()
+            with b2:
+                if st.button("🔒" if stato != "chiuso" else "🟢", key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
+                    df_ct.loc[r["_gidx"], "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
+                    save_contratti(df_ct)
+                    st.toast("🔁 Stato contratto aggiornato", icon="✅")
+                    st.rerun()
+            with b3:
+                if st.button("🗑️", key=f"del_{i}", help="Elimina contratto", disabled=permessi_limitati):
+                    st.session_state["delete_gidx"] = r["_gidx"]
+                    st.session_state["ask_delete_now"] = True
+                    st.rerun()
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
-    # === Modifica Contratto ===
+    # === MODIFICA CONTRATTO ===
     if st.session_state.get("edit_gidx") is not None:
         gidx = st.session_state["edit_gidx"]
         if gidx in df_ct.index:
@@ -1317,7 +1300,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     except Exception as e:
                         st.error(f"❌ Errore salvataggio: {e}")
 
-    # === Eliminazione Contratto ===
+    # === ELIMINAZIONE CONTRATTO ===
     if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
         gidx = st.session_state["delete_gidx"]
         if gidx in df_ct.index:
@@ -1340,7 +1323,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.info("Annullato.")
                     st.rerun()
 
-    # === Esportazioni (Excel + PDF) ===
+    # === ESPORTAZIONI (Excel + PDF) ===
     st.divider()
     st.markdown("### 📤 Esportazioni")
     cex1, cex2 = st.columns(2)
@@ -1375,10 +1358,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.download_button("📗 Esporta PDF", pdf_bytes, file_name=f"Contratti_{rag_soc}.pdf", mime="application/pdf")
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
-
-
-
-
 
 # =====================================
 # 📇 PAGINA LISTA COMPLETA CLIENTI E SCADENZE (CON FILTRO TMK)

@@ -1400,7 +1400,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"Errore export Excel: {e}")
 
-    # === EXPORT PDF ===
+        # === EXPORT PDF ===
     with cex2:
         try:
             from fpdf import FPDF
@@ -1420,7 +1420,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     logo_bytes = BytesIO(resp.content)
                     pdf.image(logo_bytes, x=10, y=8, w=35)
             except Exception:
-                pass  # Se il logo non è raggiungibile, continua comunque
+                pass  # se il logo non è raggiungibile, continua comunque
 
             # === Titolo documento ===
             pdf.set_font("Arial", "B", 14)
@@ -1440,6 +1440,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(w, 8, safe_text(h), border=1, align="C", fill=True)
             pdf.ln()
 
+            # === Dati contratti ===
             pdf.set_font("Arial", "", 8)
             for _, r in ct.iterrows():
                 row_data = [
@@ -1462,12 +1463,24 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 desc_lines = len(desc) // 120 + 1
                 row_height = max(6, 6 * desc_lines)
 
-                for val, w in zip(row_data, col_widths):
-                    x, y = pdf.get_x(), pdf.get_y()
-                    pdf.multi_cell(w, 6, safe_text(str(val)), border=1, align="C", max_line_height=pdf.font_size)
-                    pdf.set_xy(x + w, y)
+                y_start = pdf.get_y()
+                x_start = pdf.get_x()
+
+                # Scrittura celle riga per riga
+                for i, (val, w) in enumerate(zip(row_data, col_widths)):
+                    x = pdf.get_x()
+                    y = pdf.get_y()
+
+                    # Usa multi_cell solo per descrizione (ultima colonna)
+                    if i == len(row_data) - 1:
+                        pdf.multi_cell(w, 6, safe_text(str(val)), border=1, align="L")
+                        pdf.set_xy(x + w, y)
+                    else:
+                        pdf.cell(w, row_height, safe_text(str(val)), border=1, align="C")
+
                 pdf.ln(row_height)
 
+            # === Salvataggio PDF ===
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
                 "📗 Esporta PDF",
@@ -1475,6 +1488,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 file_name=f"Contratti_{rag_soc}.pdf",
                 mime="application/pdf"
             )
+
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
 

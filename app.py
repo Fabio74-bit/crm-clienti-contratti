@@ -1454,7 +1454,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.set_y(-15)
             pdf.set_font("Arial", "I", 8)
             pdf.set_text_color(100, 100, 100)
-            pdf.cell(0, 10, "SHT S.r.l. – Tutti i diritti riservati", 0, 0, "C")
+            pdf.cell(0, 10, safe_text("SHT S.r.l. – Tutti i diritti riservati"), 0, 0, "C")
 
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(

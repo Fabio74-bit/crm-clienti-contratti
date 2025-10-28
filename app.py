@@ -1157,12 +1157,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA STREAMLIT”
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
-        # === FIX NAVIGAZIONE DA DASHBOARD ===
-        if "selected_cliente" in st.session_state:
+    # === FIX NAVIGAZIONE DA DASHBOARD ===
+    if "selected_cliente" in st.session_state:
         sel = str(st.session_state.get("selected_cliente", "")).strip()
-        # correzione zeri/spazi
+        # correzione zeri/spazi per ID
         sel_clean = sel.lstrip("0").strip()
         st.session_state["selected_cliente"] = sel_clean
+
 
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"

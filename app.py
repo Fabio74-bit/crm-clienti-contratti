@@ -496,7 +496,7 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
     """
 
 # =====================================
-# PAGINA DASHBOARD (VERSIONE CLASSICA – compatibile con app (8).py)
+# PAGINA DASHBOARD (CLASSICA con TMK e gestione Fabio/Gabriele)
 # =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
@@ -527,6 +527,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with st.expander("➕ Crea Nuovo Cliente + Contratto"):
         with st.form("frm_new_cliente"):
             st.markdown("#### 📇 Dati Cliente")
+
             col1, col2 = st.columns(2)
             with col1:
                 ragione = st.text_input("🏢 Ragione Sociale")
@@ -542,7 +543,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 iban = st.text_input("🏦 IBAN")
                 sdi = st.text_input("📡 SDI")
                 note = st.text_area("📝 Note Cliente", height=70)
+                tmk = st.selectbox(
+                    "👩‍💼 TMK di riferimento",
+                    ["", "Giulia", "Antonella", "Annalisa", "Laura"],
+                    index=0
+                )
 
+            # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")
             colc1, colc2, colc3 = st.columns(3)
             num = colc1.text_input("📄 Numero Contratto")
@@ -565,6 +572,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with colx4:
                 ecc_col = st.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
 
+            # === SALVATAGGIO COMPLETO ===
             if st.form_submit_button("💾 Crea Cliente e Contratto"):
                 try:
                     new_id = str(len(df_cli) + 1)
@@ -587,6 +595,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "ProssimoRecall": "",
                         "UltimaVisita": "",
                         "ProssimaVisita": "",
+                        "TMK": tmk,
                         "NoteCliente": note
                     }
 
@@ -608,12 +617,31 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "Stato": "aperto"
                     }
 
-                    df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
-                    df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
-                    save_clienti(df_cli)
-                    save_contratti(df_ct)
+                    # --- Scelta automatica file in base all'utente ---
+                    user = st.session_state.get("user", "").lower()
+                    if user == "gabriele":
+                        path_cli = GABRIELE_CLIENTI
+                        path_ct = GABRIELE_CONTRATTI
+                    else:
+                        path_cli = CLIENTI_CSV
+                        path_ct = CONTRATTI_CSV
 
-                    st.success(f"✅ Cliente '{ragione}' e contratto creati correttamente!")
+                    # --- Aggiorna CSV ---
+                    if path_cli.exists():
+                        df_exist = pd.read_csv(path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+                    else:
+                        df_exist = pd.DataFrame(columns=df_cli.columns)
+                    df_exist = pd.concat([df_exist, pd.DataFrame([nuovo_cliente])], ignore_index=True)
+                    df_exist.to_csv(path_cli, index=False, encoding="utf-8-sig")
+
+                    if path_ct.exists():
+                        df_ct_exist = pd.read_csv(path_ct, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+                    else:
+                        df_ct_exist = pd.DataFrame(columns=df_ct.columns)
+                    df_ct_exist = pd.concat([df_ct_exist, pd.DataFrame([nuovo_contratto])], ignore_index=True)
+                    df_ct_exist.to_csv(path_ct, index=False, encoding="utf-8-sig")
+
+                    st.success(f"✅ Cliente '{ragione}' creato e salvato correttamente ({user.upper()})")
                     st.session_state.update({
                         "selected_cliente": new_id,
                         "nav_target": "Contratti",
@@ -623,9 +651,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 except Exception as e:
                     st.error(f"❌ Errore creazione cliente: {e}")
 
-    st.divider()
-
     # === CONTRATTI IN SCADENZA ENTRO 6 MESI ===
+    st.divider()
     st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")
 
     oggi = pd.Timestamp.now().normalize()
@@ -647,7 +674,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
         scadenze = scadenze.sort_values("DataFine")
-
         st.markdown(f"📅 **{len(scadenze)} contratti in scadenza entro 6 mesi:**")
         head_cols = st.columns([2, 1, 1, 1, 0.8])
         head_cols[0].markdown("**Cliente**")

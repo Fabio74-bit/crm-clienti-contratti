@@ -685,7 +685,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         for i, r in scadenze.iterrows():
             bg_color = "#f8fbff" if i % 2 == 0 else "#ffffff"
-            cliente_id = str(r.get("ClienteID", "")).strip()
+            # normalizzo l'ID da inviare
+            raw_id = str(r.get("ClienteID", "")).strip()
+            cliente_id_norm = raw_id.lstrip("0").upper()
         
             cols = st.columns([2, 1, 1, 1, 0.8])
             with cols[0]:
@@ -697,16 +699,15 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with cols[3]:
                 st.markdown(f"<div style='background:{bg_color};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
             with cols[4]:
-                if st.button("📂 Apri", key=f"open_scad_{cliente_id}_{i}", use_container_width=True):
-                    if cliente_id:
-                        st.session_state.update({
-                            "selected_cliente": cliente_id,
-                            "nav_target": "Contratti",
-                            "_go_contratti_now": True
-                        })
+                if st.button("📂 Apri", key=f"open_scad_{cliente_id_norm}_{i}", use_container_width=True):
+                    if cliente_id_norm:
+                        st.session_state["selected_cliente"] = cliente_id_norm
+                        st.session_state["nav_target"] = "Contratti"
+                        st.session_state["_go_contratti_now"] = True
                         st.rerun()
                     else:
                         st.warning("⚠️ ID cliente non valido per questo contratto.")
+
 
     # === CONTRATTI RECENTI SENZA DATA FINE ===
     st.divider()
@@ -736,9 +737,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         contratti_senza_fine = contratti_senza_fine.sort_values("DataInizio", ascending=False)
 
         for i, r in contratti_senza_fine.iterrows():
-            cliente_id = str(r.get("ClienteID", "")).strip()
-            col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
+            # normalizzo l'ID da inviare
+            raw_id = str(r.get("ClienteID", "")).strip()
+            cliente_id_norm = raw_id.lstrip("0").upper()
         
+            col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
             with col1:
                 st.markdown(f"**{r.get('RagioneSociale', '—')}**")
                 st.markdown(r.get("NumeroContratto", "—"))
@@ -750,16 +753,15 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     desc = desc[:60] + "…"
                 st.markdown(desc)
             with col5:
-                if st.button("📂 Apri", key=f"open_ndf_{cliente_id}_{i}", use_container_width=True):
-                    if cliente_id:
-                        st.session_state.update({
-                            "selected_cliente": cliente_id,
-                            "nav_target": "Contratti",
-                            "_go_contratti_now": True
-                        })
+                if st.button("📂 Apri", key=f"open_ndf_{cliente_id_norm}_{i}", use_container_width=True):
+                    if cliente_id_norm:
+                        st.session_state["selected_cliente"] = cliente_id_norm
+                        st.session_state["nav_target"] = "Contratti"
+                        st.session_state["_go_contratti_now"] = True
                         st.rerun()
                     else:
                         st.warning("⚠️ ID cliente non valido per questo contratto.")
+
 
 
 
@@ -1170,16 +1172,33 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     st.markdown("## 📄 Gestione Contratti")
 
-    # === Selezione cliente ===
+    # === SELEZIONE CLIENTE (con navigazione corretta da Dashboard) ===
     if df_cli.empty:
         st.info("Nessun cliente presente.")
         return
-
-    clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
-    clienti_ids = df_cli["ClienteID"].astype(str).tolist()
-    sel_label = st.selectbox("Seleziona Cliente", clienti_labels.tolist())
-    sel_id = clienti_ids[clienti_labels.tolist().index(sel_label)]
-    rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
+    
+    # Etichette e ID originali
+    clienti_labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1).tolist()
+    clienti_ids_raw = df_cli["ClienteID"].astype(str).tolist()
+    
+    # Versione normalizzata per confronto
+    clienti_ids_norm = [cid.strip().lstrip("0").upper() for cid in clienti_ids_raw]
+    
+    # Recupero eventuale selezione arrivata da Dashboard
+    selected_cliente_id = st.session_state.pop("selected_cliente", None)
+    sel_index = 0
+    if selected_cliente_id is not None:
+        key = str(selected_cliente_id).strip().lstrip("0").upper()
+        if key in clienti_ids_norm:
+            sel_index = clienti_ids_norm.index(key)
+        else:
+            sel_index = 0  # fallback se non trovato
+    
+    # Combo box per scelta cliente
+    sel_label = st.selectbox("Seleziona Cliente", clienti_labels, index=sel_index)
+    sel_index_final = clienti_labels.index(sel_label)
+    sel_id = clienti_ids_raw[sel_index_final]
+    rag_soc = df_cli.iloc[sel_index_final]["RagioneSociale"]
 
     # === Header e pulsante aggiunta ===
     st.markdown(

@@ -1423,7 +1423,7 @@ with cex2:
         draw_header()
 
         def draw_row(r):
-            nonlocal start_x
+            
             stato = str(r.get("Stato", "aperto")).lower()
             is_closed = stato == "chiuso"
             fill_color = (255, 230, 230) if is_closed else (255, 255, 255)

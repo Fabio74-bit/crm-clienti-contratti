@@ -1360,7 +1360,8 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"Errore export Excel: {e}")
 
-# === EXPORT PDF (offline, A4 orizzontale, con simbolo €) ===
+# === ESPORTAZIONE CONTRATTI PDF ===
+cex2 = st.expander("📄 Esporta Contratti in PDF", expanded=False)
 with cex2:
     try:
         from fpdf import FPDF
@@ -1423,7 +1424,6 @@ with cex2:
         draw_header()
 
         def draw_row(r):
-            
             stato = str(r.get("Stato", "aperto")).lower()
             is_closed = stato == "chiuso"
             fill_color = (255, 230, 230) if is_closed else (255, 255, 255)
@@ -1443,7 +1443,7 @@ with cex2:
                 r.get("EccCol", "")
             ]
 
-            # Wrapping per Descrizione
+            # Wrapping per descrizione
             desc_text = str(row_values[4])
             desc_w = col_widths[4]
             words = desc_text.split()
@@ -1461,8 +1461,7 @@ with cex2:
             line_h = 5.5
             row_h = max(6, line_h * desc_lines)
 
-            bottom_limit = pdf.h - 12 - 6
-            if pdf.get_y() + row_h > bottom_limit:
+            if pdf.get_y() + row_h > (pdf.h - 12 - 6):
                 pdf.add_page()
                 pdf.set_y(10)
                 draw_header()
@@ -1491,7 +1490,7 @@ with cex2:
         for _, r in ct.iterrows():
             draw_row(r)
 
-        # === Footer ===
+        # Footer
         pdf.set_text_color(100, 100, 100)
         pdf.set_font("DejaVu", "", 8)
         pdf.set_y(pdf.h - 12)
@@ -1508,6 +1507,7 @@ with cex2:
 
     except Exception as e:
         st.error(f"Errore export PDF: {e}")
+
 
 
 

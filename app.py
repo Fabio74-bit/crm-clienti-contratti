@@ -848,25 +848,26 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.info("Operazione annullata.")
                 st.rerun()
 
-    # === ANAGRAFICA — BOX VISIBILI (sola lettura) ===
+    # === ANAGRAFICA CLIENTE (visuale compatta tipo scheda) ===
     st.divider()
     st.markdown("### 🧾 Anagrafica Cliente")
-    a1, a2 = st.columns(2)
-    with a1:
-        st.text_input("📍 Indirizzo", value=cliente.get("Indirizzo", ""), key=f"ro_indir_{sel_id}", disabled=True)
-        st.text_input("🏙️ Città",     value=cliente.get("Citta", ""),     key=f"ro_citta_{sel_id}", disabled=True)
-        st.text_input("📮 CAP",        value=cliente.get("CAP", ""),       key=f"ro_cap_{sel_id}",   disabled=True)
-        st.text_input("📞 Telefono",   value=cliente.get("Telefono", ""),  key=f"ro_tel_{sel_id}",   disabled=True)
-    with a2:
-        st.text_input("📱 Cellulare",  value=cliente.get("Cell", ""),            key=f"ro_cell_{sel_id}",   disabled=True)
-        st.text_input("✉️ Email",     value=cliente.get("Email", ""),           key=f"ro_email_{sel_id}",  disabled=True)
-        st.text_input("👤 Referente",  value=cliente.get("PersonaRiferimento",""), key=f"ro_ref_{sel_id}",    disabled=True)
-        st.text_input("💼 Partita IVA",value=cliente.get("PartitaIVA",""),       key=f"ro_piva_{sel_id}",   disabled=True)
-    b1, b2 = st.columns(2)
-    with b1:
-        st.text_input("🏦 IBAN", value=cliente.get("IBAN", ""), key=f"ro_iban_{sel_id}", disabled=True)
-    with b2:
-        st.text_input("📡 SDI",  value=cliente.get("SDI",  ""), key=f"ro_sdi_{sel_id}",  disabled=True)
+
+    # Scheda anagrafica leggibile
+    st.markdown(
+        f"""
+        <div style='font-size:15px; line-height:1.8; padding:10px 15px; background-color:#f8fafc;
+                    border:1px solid #e5e7eb; border-radius:10px;'>
+            <b>📍 Indirizzo:</b> {cliente.get('Indirizzo','')}<br>
+            <b>🏙️ Città:</b> {cliente.get('Citta','')} &nbsp;&nbsp; <b>📮 CAP:</b> {cliente.get('CAP','')}<br>
+            <b>📞 Telefono:</b> {cliente.get('Telefono','')} &nbsp;&nbsp; <b>📱 Cellulare:</b> {cliente.get('Cell','')}<br>
+            <b>✉️ Email:</b> {cliente.get('Email','')}<br>
+            <b>👤 Referente:</b> {cliente.get('PersonaRiferimento','')}<br>
+            <b>💼 Partita IVA:</b> {cliente.get('PartitaIVA','')}<br>
+            <b>🏦 IBAN:</b> {cliente.get('IBAN','')} &nbsp;&nbsp; <b>📡 SDI:</b> {cliente.get('SDI','')}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     # === EDIT ANAGRAFICA (toggle) ===
     if st.session_state.get(f"edit_cli_{sel_id}", False):
@@ -878,16 +879,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 citta     = st.text_input("🏙️ Città", cliente.get("Citta", ""))
                 cap       = st.text_input("📮 CAP", cliente.get("CAP", ""))
                 telefono  = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
-            with c2:
                 cell      = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+            with c2:
                 email     = st.text_input("✉️ Email", cliente.get("Email", ""))
                 persona   = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
                 piva      = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
-            d1, d2 = st.columns(2)
-            with d1:
-                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
-            with d2:
-                sdi  = st.text_input("📡 SDI", cliente.get("SDI", ""))
+                iban      = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+                sdi       = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
             salva = st.form_submit_button("💾 Salva Modifiche")
             if salva:
@@ -903,6 +901,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Errore durante il salvataggio: {e}")
+
 
     # === NOTE CLIENTE (subito sotto anagrafica) ===
     st.divider()

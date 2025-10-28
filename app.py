@@ -1376,7 +1376,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"Errore export Excel: {e}")
 
-    # === EXPORT PDF (già allineato, con logo e firma) ===
+    # === EXPORT PDF (ottimizzato A4 orizzontale) ===
     with cex2:
         try:
             from fpdf import FPDF
@@ -1389,6 +1389,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=20)
 
+            # === Logo SHT ===
             try:
                 resp = requests.get(LOGO_URL)
                 if resp.status_code == 200:
@@ -1397,10 +1398,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             except Exception:
                 pass
 
+            # === Titolo documento ===
             pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc} — {data_export}"), ln=1, align="C")
+            pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc} - {data_export}"), ln=1, align="C")
             pdf.ln(6)
 
+            # === Intestazioni ===
             pdf.set_font("Arial", "B", 9)
             pdf.set_fill_color(255, 253, 231)
             headers = [
@@ -1408,16 +1411,19 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 "Tot. Rata", "NOL FIN", "NOL INT", "Copie B/N",
                 "Ecc. B/N", "Copie Col", "Ecc. Col"
             ]
-            col_widths = [15, 20, 20, 16, 80, 22, 22, 22, 22, 22, 22, 22]
+            # 🔹 larghezze ottimizzate per riempire tutta la pagina A4
+            col_widths = [10, 20, 20, 15, 110, 25, 20, 20, 22, 22, 22, 22]
+
             for h, w in zip(headers, col_widths):
                 pdf.cell(w, 8, safe_text(h), border=1, align="C", fill=True)
             pdf.ln()
 
+            # === Dati contratti ===
             pdf.set_font("Arial", "", 8)
             for _, r in ct.iterrows():
                 stato = str(r.get("Stato", "aperto")).lower()
                 if stato == "chiuso":
-                    pdf.set_fill_color(255, 235, 235)
+                    pdf.set_fill_color(255, 230, 230)
                     fill_row = True
                 else:
                     pdf.set_fill_color(255, 255, 255)
@@ -1439,22 +1445,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 ]
 
                 desc = row_data[4]
-                desc_lines = len(desc) // 100 + 1
+                desc_lines = len(desc) // 95 + 1
                 row_height = max(6, 6 * desc_lines)
 
                 for i, (val, w) in enumerate(zip(row_data, col_widths)):
                     x, y = pdf.get_x(), pdf.get_y()
-                    if i == 4:
+                    if i == 4:  # descrizione
                         pdf.multi_cell(w, 6, safe_text(str(val)), border=1, align="L", fill=fill_row)
                         pdf.set_xy(x + w, y)
                     else:
                         pdf.cell(w, row_height, safe_text(str(val)), border=1, align="C", fill=fill_row)
                 pdf.ln(row_height)
 
+            # === Footer / Firma ===
             pdf.set_y(-15)
             pdf.set_font("Arial", "I", 8)
             pdf.set_text_color(100, 100, 100)
-            pdf.cell(0, 10, safe_text("SHT S.r.l. – Tutti i diritti riservati"), 0, 0, "C")
+            pdf.cell(0, 10, safe_text("SHT S.r.l. - Tutti i diritti riservati"), 0, 0, "C")
 
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
             st.download_button(
@@ -1463,8 +1470,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 file_name=f"Contratti_{rag_soc}.pdf",
                 mime="application/pdf"
             )
+
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
+
 
 
 # =====================================

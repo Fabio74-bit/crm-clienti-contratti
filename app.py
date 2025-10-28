@@ -227,7 +227,7 @@ def ensure_csv_exists(path: Path, cols: list[str]):
         if not path.exists():
             # 🔹 Crea file vuoto con intestazione completa
             pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig")
-            st.info(f"📄 Creato nuovo file: {path.name}")
+            print(f"📄 Creato nuovo file: {path.name}")
             return
 
         df = pd.read_csv(path, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
@@ -240,9 +240,10 @@ def ensure_csv_exists(path: Path, cols: list[str]):
 
         if changed:
             df.to_csv(path, index=False, encoding="utf-8-sig")
-            st.warning(f"⚙️ File {path.name} aggiornato: aggiunte colonne mancanti.")
+            print(f"⚙️ File {path.name} aggiornato: aggiunte colonne mancanti.")
     except Exception as e:
-        st.error(f"❌ Errore nel controllo/creazione di {path.name}: {e}")
+        print(f"❌ Errore nel controllo/creazione di {path.name}: {e}")
+
 
 # =====================================
 # FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)

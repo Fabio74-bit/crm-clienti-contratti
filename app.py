@@ -1878,3 +1878,8 @@ def main():
         # 🟢 Passa al form il ruolo e l’utente loggato (serve per assegnare il proprietario)
         st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
+    # =====================================
+    # AVVIO APPLICAZIONE
+    # =====================================
+    if __name__ == "__main__":
+        main()

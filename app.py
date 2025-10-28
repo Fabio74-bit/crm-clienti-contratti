@@ -863,7 +863,8 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             <b>✉️ Email:</b> {cliente.get('Email','')}<br>
             <b>👤 Referente:</b> {cliente.get('PersonaRiferimento','')}<br>
             <b>💼 Partita IVA:</b> {cliente.get('PartitaIVA','')}<br>
-            <b>🏦 IBAN:</b> {cliente.get('IBAN','')} &nbsp;&nbsp; <b>📡 SDI:</b> {cliente.get('SDI','')}
+            <b>🏦 IBAN:</b> {cliente.get('IBAN','')} &nbsp;&nbsp; <b>📡 SDI:</b> {cliente.get('SDI','')}<br>
+            <b>🧭 TMK:</b> {cliente.get('TMK','')}
         </div>
         """,
         unsafe_allow_html=True
@@ -887,14 +888,19 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 iban      = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
                 sdi       = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
+            # === TMK (menù a tendina per selezionare commerciale) ===
+            tmk_options = sorted(df_cli["TMK"].dropna().unique().tolist() + ["fabio", "gabriele", "lele"])
+            tmk_attuale = cliente.get("TMK", "")
+            tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_options.index(tmk_attuale) if tmk_attuale in tmk_options else 0)
+
             salva = st.form_submit_button("💾 Salva Modifiche")
             if salva:
                 try:
                     idx = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
                     df_cli.loc[idx, [
                         "Indirizzo","Citta","CAP","Telefono","Cell","Email",
-                        "PersonaRiferimento","PartitaIVA","IBAN","SDI"
-                    ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi]
+                        "PersonaRiferimento","PartitaIVA","IBAN","SDI","TMK"
+                    ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk_sel]
                     save_clienti(df_cli)
                     st.success("✅ Anagrafica aggiornata.")
                     st.session_state[f"edit_cli_{sel_id}"] = False

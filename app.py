@@ -404,74 +404,35 @@ def load_contratti() -> pd.DataFrame:
 
 
 # =====================================
-# LOGIN FULLSCREEN (versione finale pulita)
+# LOGIN FULLSCREEN
 # =====================================
 def do_login_fullscreen():
     """Login elegante con sfondo fullscreen"""
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
-    # --- CSS layout e fix del rettangolo bianco ---
-st.markdown("""
-<style>
-/* 🔹 Forza rimozione di margini/spazi bianchi in alto */
-html, body, [data-testid="stAppViewContainer"], section.main {
-    margin: 0 !important;
-    padding: 0 !important;
-    background-color: #f8fafc !important;
-}
-.block-container {
-    padding-top: 0 !important;
-    margin-top: 0 !important;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background-color: #f8fafc;
-}
-/* 🔹 Nasconde blocchi vuoti creati da Streamlit */
-.block-container > div:empty,
-section.main > div:empty {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
+    st.markdown("""
+    <style>
+    div[data-testid="stAppViewContainer"] {padding-top:0 !important;}
+    .block-container {
+        display:flex;flex-direction:column;justify-content:center;
+        align-items:center;height:100vh;background-color:#f8fafc;
+    }
+    .login-card {
+        background:#fff;border:1px solid #e5e7eb;border-radius:12px;
+        box-shadow:0 4px 16px rgba(0,0,0,0.08);
+        padding:2rem 2.5rem;width:360px;text-align:center;
+    }
+    .login-title {font-size:1.3rem;font-weight:600;color:#2563eb;margin:1rem 0 1.4rem;}
+    .stButton>button {
+        width:260px;font-size:0.9rem;background-color:#2563eb;color:white;
+        border:none;border-radius:6px;padding:0.5rem 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-/* 🔹 Card login */
-.login-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-    padding: 2rem 2.5rem;
-    width: 360px;
-    text-align: center;
-}
-.login-title {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: #2563eb;
-    margin: 1rem 0 1.4rem;
-}
-.stButton>button {
-    width: 260px;
-    font-size: 0.9rem;
-    background-color: #2563eb;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    padding: 0.5rem 0;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-    # --- Layout centrato ---
-    _, login_col, _ = st.columns([1, 2, 1])
-    with login_col:
+    login_col1, login_col2, _ = st.columns([1, 2, 1])
+    with login_col2:
         st.markdown("<div class='login-card'>", unsafe_allow_html=True)
         st.image(LOGO_URL, width=140)
         st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
@@ -480,27 +441,28 @@ section.main > div:empty {
         login_btn = st.button("Entra")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- Caricamento utenti da secrets ---
+    # 🔹 Carica credenziali compatibili con formato Streamlit Cloud
     try:
         users = st.secrets["auth"]["users"]
     except Exception:
-        users = st.secrets["auth"].get("users", {})
-        if hasattr(users, "to_dict"):
-            users = users.to_dict()
+        # compatibilità con sottosezioni [auth.users.nome]
+        users = st.secrets["auth"]["users"].to_dict() if hasattr(st.secrets["auth"]["users"], "to_dict") else st.secrets["auth"]["users"]
         if not users:
             users = {}
-        for k in st.secrets.get("auth", {}).get("users", {}):
+        # 🔹 costruisci manualmente il dizionario
+        for k in st.secrets["auth"]["users"]:
             users[k] = st.secrets["auth"]["users"][k]
 
-    # --- Controllo credenziali ---
     if login_btn or (username and password and not st.session_state.get("_login_checked")):
         st.session_state["_login_checked"] = True
 
+        # 🔹 compatibile con [auth.users.nome]
         if "auth" in st.secrets and "users" in st.secrets["auth"]:
             users = st.secrets["auth"]["users"]
         else:
             users = st.secrets.get("auth.users", {})
 
+        # 🔹 login check
         if username in users and users[username]["password"] == password:
             st.session_state.update({
                 "user": username,

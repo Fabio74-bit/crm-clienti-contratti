@@ -766,17 +766,17 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CLIENTI (VERSIONE COMPLETA CON NOTE E RECALL VICINI)
+# PAGINA CLIENTI (con anagrafica visibile + editor, note e recall vicini)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
 
-    # === PRE-SELEZIONE CLIENTE ===
+    # === PRE-SELEZIONE CLIENTE DA NAVIGAZIONE ===
     if "selected_cliente" in st.session_state:
-        sel_id = str(st.session_state.pop("selected_cliente"))
+        sel_id_nav = str(st.session_state.pop("selected_cliente"))
         cli_ids = df_cli["ClienteID"].astype(str)
-        if sel_id in set(cli_ids):
-            row = df_cli.loc[cli_ids == sel_id].iloc[0]
+        if sel_id_nav in set(cli_ids):
+            row = df_cli.loc[cli_ids == sel_id_nav].iloc[0]
             st.session_state["cliente_selezionato"] = row["RagioneSociale"]
 
     # === RICERCA CLIENTE ===
@@ -798,52 +798,44 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     sel_rag = st.selectbox(
         "Seleziona Cliente",
         options,
-        index=options.index(selected_name),
+        index=options.index(selected_name) if selected_name in options else 0,
         key="sel_cliente_box"
     )
 
     cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
-    sel_id = cliente["ClienteID"]
+    sel_id = str(cliente["ClienteID"])
 
-    # === HEADER CLIENTE ===
+    # === HEADER + AZIONI ===
     col1, col2 = st.columns([4, 1])
     with col1:
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
         st.caption(f"ID Cliente: {sel_id}")
-
     with col2:
         if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
-            st.session_state.update({
-                "selected_cliente": sel_id,
-                "nav_target": "Contratti",
-                "_go_contratti_now": True
-            })
+            st.session_state.update({"selected_cliente": sel_id, "nav_target": "Contratti", "_go_contratti_now": True})
             st.rerun()
 
-        if st.button("✏️ Modifica Anagrafica", use_container_width=True, key=f"edit_{sel_id}"):
+        if st.button("✏️ Modifica Anagrafica", use_container_width=True, key=f"btn_edit_{sel_id}"):
             st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
             st.rerun()
 
-        # === CANCELLA CLIENTE (chiede conferma) ===
         if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
-            st.session_state["confirm_delete_cliente"] = str(sel_id)
+            st.session_state["confirm_delete_cliente"] = sel_id
             st.rerun()
 
-    # === BLOCCO CONFERMA CANCELLAZIONE ===
-    if st.session_state.get("confirm_delete_cliente") == str(sel_id):
-        st.warning(
-            f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) "
-            f"e tutti i contratti associati?"
-        )
+    # === CONFERMA CANCELLAZIONE ===
+    if st.session_state.get("confirm_delete_cliente") == sel_id:
+        st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) e tutti i contratti associati?")
         cdel1, cdel2 = st.columns(2)
         with cdel1:
             if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
                 try:
-                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != str(sel_id)].copy()
-                    df_ct_new = df_ct[df_ct["ClienteID"].astype(str) != str(sel_id)].copy()
+                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != sel_id].copy()
+                    df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != sel_id].copy()
                     df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
                     df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-                    st.cache_data.clear()
+                    try: st.cache_data.clear()
+                    except: pass
                     st.session_state.pop("confirm_delete_cliente", None)
                     st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
                     time.sleep(0.5)
@@ -856,19 +848,63 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.info("Operazione annullata.")
                 st.rerun()
 
-    # === INFO RAPIDE ANAGRAFICA ===
-    st.markdown(
-        f"""
-        <div style='font-size:15px; line-height:1.7;'>
-        <b>📍 Indirizzo:</b> {cliente.get('Indirizzo','')} — {cliente.get('Citta','')} {cliente.get('CAP','')}<br>
-        <b>🧑‍💼 Referente:</b> {cliente.get('PersonaRiferimento','')}<br>
-        <b>📞 Telefono:</b> {cliente.get('Telefono','')} — <b>📱 Cell:</b> {cliente.get('Cell','')}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # === ANAGRAFICA — BOX VISIBILI (sola lettura) ===
+    st.divider()
+    st.markdown("### 🧾 Anagrafica Cliente")
+    a1, a2 = st.columns(2)
+    with a1:
+        st.text_input("📍 Indirizzo", value=cliente.get("Indirizzo", ""), key=f"ro_indir_{sel_id}", disabled=True)
+        st.text_input("🏙️ Città",     value=cliente.get("Citta", ""),     key=f"ro_citta_{sel_id}", disabled=True)
+        st.text_input("📮 CAP",        value=cliente.get("CAP", ""),       key=f"ro_cap_{sel_id}",   disabled=True)
+        st.text_input("📞 Telefono",   value=cliente.get("Telefono", ""),  key=f"ro_tel_{sel_id}",   disabled=True)
+    with a2:
+        st.text_input("📱 Cellulare",  value=cliente.get("Cell", ""),            key=f"ro_cell_{sel_id}",   disabled=True)
+        st.text_input("✉️ Email",     value=cliente.get("Email", ""),           key=f"ro_email_{sel_id}",  disabled=True)
+        st.text_input("👤 Referente",  value=cliente.get("PersonaRiferimento",""), key=f"ro_ref_{sel_id}",    disabled=True)
+        st.text_input("💼 Partita IVA",value=cliente.get("PartitaIVA",""),       key=f"ro_piva_{sel_id}",   disabled=True)
+    b1, b2 = st.columns(2)
+    with b1:
+        st.text_input("🏦 IBAN", value=cliente.get("IBAN", ""), key=f"ro_iban_{sel_id}", disabled=True)
+    with b2:
+        st.text_input("📡 SDI",  value=cliente.get("SDI",  ""), key=f"ro_sdi_{sel_id}",  disabled=True)
 
-    # === NOTE CLIENTE subito sotto anagrafica ===
+    # === EDIT ANAGRAFICA (toggle) ===
+    if st.session_state.get(f"edit_cli_{sel_id}", False):
+        st.info("✏️ Modifica anagrafica attiva")
+        with st.form(f"frm_anagrafica_{sel_id}"):
+            c1, c2 = st.columns(2)
+            with c1:
+                indirizzo = st.text_input("📍 Indirizzo", cliente.get("Indirizzo", ""))
+                citta     = st.text_input("🏙️ Città", cliente.get("Citta", ""))
+                cap       = st.text_input("📮 CAP", cliente.get("CAP", ""))
+                telefono  = st.text_input("📞 Telefono", cliente.get("Telefono", ""))
+            with c2:
+                cell      = st.text_input("📱 Cellulare", cliente.get("Cell", ""))
+                email     = st.text_input("✉️ Email", cliente.get("Email", ""))
+                persona   = st.text_input("👤 Persona Riferimento", cliente.get("PersonaRiferimento", ""))
+                piva      = st.text_input("💼 Partita IVA", cliente.get("PartitaIVA", ""))
+            d1, d2 = st.columns(2)
+            with d1:
+                iban = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
+            with d2:
+                sdi  = st.text_input("📡 SDI", cliente.get("SDI", ""))
+
+            salva = st.form_submit_button("💾 Salva Modifiche")
+            if salva:
+                try:
+                    idx = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
+                    df_cli.loc[idx, [
+                        "Indirizzo","Citta","CAP","Telefono","Cell","Email",
+                        "PersonaRiferimento","PartitaIVA","IBAN","SDI"
+                    ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi]
+                    save_clienti(df_cli)
+                    st.success("✅ Anagrafica aggiornata.")
+                    st.session_state[f"edit_cli_{sel_id}"] = False
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore durante il salvataggio: {e}")
+
+    # === NOTE CLIENTE (subito sotto anagrafica) ===
     st.divider()
     st.markdown("### 📝 Note Cliente")
     st.caption("Annotazioni o informazioni utili sul cliente (visibili a tutti gli utenti).")
@@ -881,21 +917,21 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         key=f"note_{sel_id}_{int(time.time()*1000)}"
     )
 
-    c1, c2 = st.columns([0.25, 0.75])
-    with c1:
+    n1, n2 = st.columns([0.25, 0.75])
+    with n1:
         if st.button("💾 Salva Note", use_container_width=True, key=f"save_note_{sel_id}"):
             try:
-                idx_row = df_cli.index[df_cli["ClienteID"] == sel_id][0]
+                idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
                 df_cli.loc[idx_row, "NoteCliente"] = nuove_note
                 save_clienti(df_cli)
                 st.success("✅ Note salvate correttamente.")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio: {e}")
-    with c2:
+    with n2:
         st.info("Le modifiche vengono salvate immediatamente nel file clienti.csv")
 
-    # === RECALL E VISITE subito dopo le note ===
+    # === RECALL & VISITE (subito dopo le note) ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
 
@@ -917,21 +953,24 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         pv_val = (pd.Timestamp(uv_val) + pd.DateOffset(months=6)).date()
 
     uniq = f"{sel_id}_{int(time.time()*1000)}"
-    c1, c2, c3, c4 = st.columns(4)
-    ur = c1.date_input("⏰ Ultimo Recall", value=ur_val, format="DD/MM/YYYY", key=f"ur_{uniq}")
-    pr = c2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{uniq}")
-    uv = c3.date_input("👣 Ultima Visita", value=uv_val, format="DD/MM/YYYY", key=f"uv_{uniq}")
-    pv = c4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{uniq}")
+    r1, r2, r3, r4 = st.columns(4)
+    ur = r1.date_input("⏰ Ultimo Recall",  value=ur_val, format="DD/MM/YYYY", key=f"ur_{uniq}")
+    pr = r2.date_input("📅 Prossimo Recall", value=pr_val, format="DD/MM/YYYY", key=f"pr_{uniq}")
+    uv = r3.date_input("👣 Ultima Visita",  value=uv_val, format="DD/MM/YYYY", key=f"uv_{uniq}")
+    pv = r4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{uniq}")
 
     if st.button("💾 Salva Aggiornamenti", use_container_width=True, key=f"save_recall_{uniq}"):
-        idx = df_cli.index[df_cli["ClienteID"] == sel_id][0]
-        df_cli.loc[idx, ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]] = \
-            [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
-        save_clienti(df_cli)
-        st.success("✅ Date aggiornate.")
-        st.rerun()
+        try:
+            idx = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
+            df_cli.loc[idx, ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]] = \
+                [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
+            save_clienti(df_cli)
+            st.success("✅ Date aggiornate.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Errore salvataggio recall/visite: {e}")
 
-    # === GENERA PREVENTIVO E ELENCO (come prima) ===
+    # === GENERA PREVENTIVO ===
     st.divider()
     st.markdown("### 🧾 Genera Nuovo Preventivo")
 
@@ -941,7 +980,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         "Centralino": "Offerta_Centralino.docx",
         "Varie": "Offerta_Varie.docx",
     }
-
     PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
     PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
     prev_csv = STORAGE_DIR / "preventivi.csv"
@@ -949,12 +987,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if prev_csv.exists():
         df_prev = pd.read_csv(prev_csv, dtype=str).fillna("")
     else:
-        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
+        df_prev = pd.DataFrame(columns=["ClienteID","NumeroOfferta","Template","NomeFile","Percorso","DataCreazione"])
 
     anno = datetime.now().year
     nome_cliente = cliente.get("RagioneSociale", "")
     nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
-    num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev[df_prev['ClienteID'] == sel_id]) + 1:03d}"
+    num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev[df_prev['ClienteID'].astype(str) == sel_id]) + 1:03d}"
 
     with st.form(f"frm_prev_{sel_id}"):
         st.text_input("Numero Offerta", num_off, disabled=True)
@@ -1013,17 +1051,17 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
     st.markdown("### 📂 Elenco Preventivi Cliente")
 
-    prev_cli = df_prev[df_prev["ClienteID"] == sel_id]
+    prev_cli = df_prev[df_prev["ClienteID"].astype(str) == sel_id]
     if prev_cli.empty:
         st.info("Nessun preventivo per questo cliente.")
     else:
         prev_cli = prev_cli.sort_values("DataCreazione", ascending=False)
         for i, r in prev_cli.iterrows():
             file_path = Path(r["Percorso"])
-            col1, col2, col3 = st.columns([0.6, 0.25, 0.15])
-            with col1:
+            e1, e2, e3 = st.columns([0.6, 0.25, 0.15])
+            with e1:
                 st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}  \n📅 {r['DataCreazione']}")
-            with col2:
+            with e2:
                 if file_path.exists():
                     with open(file_path, "rb") as f:
                         st.download_button(
@@ -1032,7 +1070,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                             key=f"dl_{sel_id}_{i}_{int(time.time()*1000)}"
                         )
-            with col3:
+            with e3:
                 if role == "admin":
                     if st.button("🗑 Elimina", key=f"del_prev_{sel_id}_{i}_{int(time.time()*1000)}"):
                         try:
@@ -1044,6 +1082,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Errore eliminazione: {e}")
+
 
 
 # =====================================

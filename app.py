@@ -1816,17 +1816,27 @@ def main():
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
 
-    # --- Caricamento dati Gabriele ---
+        # --- Caricamento dati Gabriele ---
     try:
         if GABRIELE_CLIENTI.exists():
-            df_cli_gab = pd.read_csv(
-                GABRIELE_CLIENTI, dtype=str, encoding="utf-8-sig", on_bad_lines="skip"
-            ).fillna("")
+            for sep_try in [";", ",", "|", "\t"]:
+                try:
+                    df_cli_gab = pd.read_csv(
+                        GABRIELE_CLIENTI,
+                        dtype=str,
+                        sep=sep_try,
+                        encoding="utf-8-sig",
+                        on_bad_lines="skip",
+                        engine="python"
+                    ).fillna("")
+                    if len(df_cli_gab.columns) > 3:
+                        break
+                except Exception:
+                    continue
         else:
             df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
 
         if GABRIELE_CONTRATTI.exists():
-            # 🔹 prova tutti i separatori più comuni
             for sep_try in [";", ",", "|", "\t"]:
                 try:
                     df_ct_gab = pd.read_csv(
@@ -1844,11 +1854,7 @@ def main():
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-# 🔹 garantisce che tutte le colonne esistano
-df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
-
-
-        # 🔹 FIX automatico colonne mancanti per Gabriele
+        # 🔹 Correzione colonne mancanti (solo in memoria)
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
         df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
 

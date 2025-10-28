@@ -1312,7 +1312,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.info("Annullato.")
                     st.rerun()
 
-    # === ESPORTAZIONI (Excel + PDF con stile ottimizzato) ===
+        # === ESPORTAZIONI (Excel + PDF con stile e logo SHT) ===
     st.divider()
     st.markdown("### 📤 Esportazioni")
 
@@ -1324,7 +1324,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with cex1:
         try:
             from openpyxl import Workbook
-            from openpyxl.styles import PatternFill, Font, Alignment
+            from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
             from openpyxl.utils import get_column_letter
             from io import BytesIO
 
@@ -1350,14 +1350,20 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             yellow_fill = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
             header_font = Font(bold=True, color="000000")
+            thin_border = Border(
+                left=Side(style="thin"), right=Side(style="thin"),
+                top=Side(style="thin"), bottom=Side(style="thin")
+            )
+
             for col_idx, header in enumerate(headers, 1):
                 c = ws.cell(row=2, column=col_idx)
                 c.fill = yellow_fill
                 c.font = header_font
                 c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                c.border = thin_border
                 ws.column_dimensions[get_column_letter(col_idx)].width = 18
 
-            # 🔹 Righe
+            # 🔹 Righe dati
             for _, r in ct.iterrows():
                 ws.append([
                     r.get("NumeroContratto", ""),
@@ -1379,7 +1385,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             for row in ws.iter_rows(min_row=3, max_row=ws.max_row, min_col=1, max_col=13):
                 for cell in row:
                     cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
-                # aumenta altezza per descrizioni lunghe
+                    cell.border = thin_border
                 ws.row_dimensions[row[0].row].height = 22 + (len(str(row[-1].value)) // 70) * 10
 
             # 🔹 Salva in memoria
@@ -1398,17 +1404,30 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with cex2:
         try:
             from fpdf import FPDF
+            import requests
+            from io import BytesIO
+
+            LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
 
             pdf = FPDF("L", "mm", "A4")
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
 
-            # Titolo
+            # === Logo SHT ===
+            try:
+                resp = requests.get(LOGO_URL)
+                if resp.status_code == 200:
+                    logo_bytes = BytesIO(resp.content)
+                    pdf.image(logo_bytes, x=10, y=8, w=35)
+            except Exception:
+                pass  # Se il logo non è raggiungibile, continua comunque
+
+            # === Titolo documento ===
             pdf.set_font("Arial", "B", 14)
             pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc} — {data_export}"), ln=1, align="C")
-            pdf.ln(4)
+            pdf.ln(6)
 
-            # Intestazioni gialle
+            # === Intestazioni colorate ===
             pdf.set_font("Arial", "B", 9)
             pdf.set_fill_color(255, 253, 231)
             headers = [
@@ -1439,7 +1458,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     safe_text(r.get("DescrizioneProdotto", ""))
                 ]
 
-                # Gestione altezza dinamica descrizione
                 desc = row_data[-1]
                 desc_lines = len(desc) // 120 + 1
                 row_height = max(6, 6 * desc_lines)

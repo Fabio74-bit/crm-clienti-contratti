@@ -1817,6 +1817,98 @@ def page_dashboard_grafici(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str)
 
 
     st.divider()
+        # ======== GRAFICI GEOGRAFICI ========
+    st.markdown("### 🗺️ Distribuzione geografica clienti")
+
+    # Normalizzazione leggera campi (evita vuoti e differenze di spazi/maiuscole)
+    geo = df_cli[["ClienteID", "RagioneSociale", "Citta", "CAP", "TMK"]].copy()
+    for col in ["Citta", "CAP", "TMK"]:
+        geo[col] = (
+            geo[col]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+    # Opzioni di visualizzazione
+    col_cfg1, col_cfg2, col_cfg3 = st.columns([1.2, 1.2, 1.2])
+    with col_cfg1:
+        top_n = st.slider("Top N (città/CAP)", min_value=5, max_value=30, value=10, step=1)
+    with col_cfg2:
+        soglia_min = st.number_input("Soglia minima clienti", min_value=0, value=1, step=1)
+    with col_cfg3:
+        mostra_altre = st.checkbox("Mostra anche categoria 'Altre'", value=True)
+
+    # -------- Città --------
+    st.markdown("#### 🌆 Clienti per Città")
+    città_counts = (
+        geo[geo["Citta"] != ""]
+        .groupby("Citta")["ClienteID"].nunique()
+        .sort_values(ascending=False)
+        .rename("Clienti")
+        .to_frame()
+    )
+
+    if città_counts.empty:
+        st.info("Nessuna città disponibile nei dati clienti.")
+    else:
+        # Filtri top/soglia
+        città_filtrate = città_counts[città_counts["Clienti"] >= soglia_min]
+        top_città = città_filtrate.head(top_n)
+        if mostra_altre and len(città_filtrate) > top_n:
+            altre = città_filtrate.iloc[top_n:]
+            altre_sum = int(altre["Clienti"].sum())
+            top_città.loc["Altre"] = altre_sum
+
+        st.bar_chart(top_città, use_container_width=True)
+
+        # Tabella di dettaglio con link rapido “Apri”
+        with st.expander("📋 Elenco (città → clienti)"):
+            for c, row in top_città.sort_values("Clienti", ascending=False).iterrows():
+                col_a, col_b, col_c = st.columns([2, 1, 0.8])
+                col_a.markdown(f"**{c}**")
+                col_b.markdown(f"{int(row['Clienti'])} clienti")
+                if c != "Altre":
+                    if col_c.button("📂 Apri", key=f"open_city_{c}"):
+                        # Salvo un filtro soft per riutilizzarlo nella pagina Lista Clienti
+                        st.session_state["filter_city"] = c
+                        st.session_state["nav_target"] = "📋 Lista Clienti"
+                        st.rerun()
+
+    st.divider()
+
+    # -------- CAP --------
+    st.markdown("#### 🏘️ Clienti per CAP")
+    cap_counts = (
+        geo[geo["CAP"] != ""]
+        .groupby("CAP")["ClienteID"].nunique()
+        .sort_values(ascending=False)
+        .rename("Clienti")
+        .to_frame()
+    )
+
+    if cap_counts.empty:
+        st.info("Nessun CAP disponibile nei dati clienti.")
+    else:
+        cap_filtrati = cap_counts[cap_counts["Clienti"] >= soglia_min]
+        top_cap = cap_filtrati.head(top_n)
+        if mostra_altre and len(cap_filtrati) > top_n:
+            altre_cap = cap_filtrati.iloc[top_n:]
+            altre_cap_sum = int(altre_cap["Clienti"].sum())
+            top_cap.loc["Altri CAP"] = altre_cap_sum
+
+        st.bar_chart(top_cap, use_container_width=True)
+
+        with st.expander("📋 Elenco (CAP → clienti)"):
+            for cap, row in top_cap.sort_values("Clienti", ascending=False).iterrows():
+                col_a, col_b, col_c = st.columns([2, 1, 0.8])
+                col_a.markdown(f"**{cap}**")
+                col_b.markdown(f"{int(row['Clienti'])} clienti")
+                if cap not in ["Altri CAP"]:
+                    if col_c.button("📂 Apri", key=f"open_cap_{cap}"):
+                        st.session_state["filter_cap"] = cap
+                        st.session_state["nav_target"] = "📋 Lista Clienti"
+                        st.rerun()
 
     # ======== GRAFICO: nuovi contratti ultimi 12 mesi ========
     st.markdown("#### 📈 Nuovi contratti (ultimi 12 mesi)")

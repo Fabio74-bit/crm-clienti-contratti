@@ -431,8 +431,8 @@ def do_login_fullscreen():
     </style>
     """, unsafe_allow_html=True)
 
-    login_col1, login_col2, _ = st.columns([1, 2, 1])
-    with login_col2:
+    _, login_col, _ = st.columns([1, 2, 1])
+    with login_col:
         st.markdown("<div class='login-card'>", unsafe_allow_html=True)
         st.image(LOGO_URL, width=140)
         st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
@@ -440,6 +440,7 @@ def do_login_fullscreen():
         password = st.text_input("Password", type="password", key="login_pass")
         login_btn = st.button("Entra")
         st.markdown("</div>", unsafe_allow_html=True)
+
 
     # 🔹 Carica credenziali compatibili con formato Streamlit Cloud
     try:

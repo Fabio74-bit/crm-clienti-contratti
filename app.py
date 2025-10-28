@@ -290,80 +290,58 @@ def to_date_series(series: pd.Series) -> pd.Series:
 # CARICAMENTO CLIENTI (senza salvataggio automatico)
 # =====================================
 def load_clienti() -> pd.DataFrame:
-    """Carica i dati dei clienti dal file CSV (solo lettura, coerente con date italiane)."""
+    """Carica i dati dei clienti dal file CSV (supporta ; , |)"""
     import pandas as pd
+    if not CLIENTI_CSV.exists():
+        return pd.DataFrame(columns=CLIENTI_COLS)
 
-    if CLIENTI_CSV.exists():
+    for sep_try in [";", ",", "|", "\t"]:
         try:
             df = pd.read_csv(
                 CLIENTI_CSV,
                 dtype=str,
-                sep=None,              # autodetect ; or ,
-                engine="python",
+                sep=sep_try,
                 encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei clienti: {e}")
-            df = pd.DataFrame(columns=CLIENTI_COLS)
-    else:
-        df = pd.DataFrame(columns=CLIENTI_COLS)
-        df.to_csv(CLIENTI_CSV, index=False, sep=";", encoding="utf-8-sig")
+                on_bad_lines="skip",
+                engine="python"
+            ).fillna("")
+            if len(df.columns) > 3:
+                break
+        except Exception:
+            continue
 
-    # Normalizza valori vuoti o errati
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
-
-    # Garantisce che tutte le colonne standard esistano
     df = ensure_columns(df, CLIENTI_COLS)
-
-    # Conversione coerente delle date (senza salvarle)
-    for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-        if c in df.columns:
-            df[c] = df[c].apply(parse_date_safe)
-
     return df
+
 
 
 # =====================================
 # CARICAMENTO CONTRATTI (senza salvataggio automatico)
 # =====================================
 def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti dal file CSV (solo lettura, coerente con date italiane)."""
+    """Carica i dati dei contratti (supporta ; , |)"""
     import pandas as pd
+    if not CONTRATTI_CSV.exists():
+        return pd.DataFrame(columns=CONTRATTI_COLS)
 
-    if CONTRATTI_CSV.exists():
+    for sep_try in [";", ",", "|", "\t"]:
         try:
             df = pd.read_csv(
                 CONTRATTI_CSV,
                 dtype=str,
-                sep=None,
-                engine="python",
+                sep=sep_try,
                 encoding="utf-8-sig",
-                on_bad_lines="skip"
-            )
-        except Exception as e:
-            st.error(f"❌ Errore durante la lettura dei contratti: {e}")
-            df = pd.DataFrame(columns=CONTRATTI_COLS)
-    else:
-        df = pd.DataFrame(columns=CONTRATTI_COLS)
-        df.to_csv(CONTRATTI_CSV, index=False, sep=";", encoding="utf-8-sig")
+                on_bad_lines="skip",
+                engine="python"
+            ).fillna("")
+            if len(df.columns) > 3:
+                break
+        except Exception:
+            continue
 
-    # Pulisce valori testuali e garantisce colonne
-    df = (
-        df.replace(to_replace=r"^(nan|NaN|None|NULL|null|NaT)$", value="", regex=True)
-        .fillna("")
-    )
     df = ensure_columns(df, CONTRATTI_COLS)
-
-    # Conversione coerente delle date
-    for c in ["DataInizio", "DataFine"]:
-        if c in df.columns:
-            df[c] = df[c].apply(parse_date_safe)
-
     return df
+
 
 
 # =====================================

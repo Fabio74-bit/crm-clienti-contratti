@@ -1360,16 +1360,23 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"Errore export Excel: {e}")
 
-            # === EXPORT PDF (centrato in pagina, A4 orizzontale, 1 pagina quando possibile) ===
+             # === EXPORT PDF (centrato in pagina, A4 orizzontale, con simbolo €) ===
     with cex2:
         try:
             from fpdf import FPDF
             import requests
             from io import BytesIO
 
-            # 🔹 funzione di sicurezza per caratteri non latin-1
+            # --- funzione sicura per testo PDF ---
             def safe_pdf_text(s):
                 return str(s).encode("latin-1", errors="replace").decode("latin-1")
+
+            # --- funzione per importi con simbolo € ---
+            def money_euro(v):
+                if not v or str(v).strip() == "":
+                    return ""
+                v_str = str(v).replace("EUR", "€").replace("Euro", "€")
+                return v_str if "€" in v_str else f"{v_str} €"
 
             LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
 
@@ -1377,7 +1384,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.set_auto_page_break(auto=False)
             pdf.add_page()
 
-            # Margini e larghezze
+            # Margini e layout
             left_margin = 12
             right_margin = 12
             top_margin = 10
@@ -1402,7 +1409,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.cell(0, 8, safe_pdf_text(f"Contratti Cliente: {rag_soc} - {data_export}"), ln=1, align="C")
             pdf.ln(3)
 
-            # === Intestazioni ===
+            # === Intestazioni tabella ===
             headers = [
                 "N°", "Inizio", "Fine", "Durata", "Descrizione Prodotto",
                 "Tot. Rata", "NOL FIN", "NOL INT", "Copie B/N",
@@ -1414,7 +1421,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 scale = usable_w / table_w
                 col_widths = [w * scale for w in col_widths]
                 table_w = usable_w
-
             start_x = left_margin + (usable_w - table_w) / 2.0
 
             pdf.set_font("Arial", "B", 9)
@@ -1424,7 +1430,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 pdf.cell(w, 8, safe_pdf_text(h), border=1, align="C", fill=True)
             pdf.ln(8)
 
-            # === Dati ===
+            # === Dati contratti ===
             pdf.set_font("Arial", "", 8)
             row_gap = 0
 
@@ -1440,17 +1446,16 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     fmt_date(r.get("DataFine")),
                     r.get("Durata", ""),
                     r.get("DescrizioneProdotto", ""),
-                    money(r.get("TotRata")),
-                    r.get("NOL_FIN", ""),
-                    r.get("NOL_INT", ""),
+                    money_euro(money(r.get("TotRata"))),
+                    money_euro(r.get("NOL_FIN")),
+                    money_euro(r.get("NOL_INT")),
                     r.get("CopieBN", ""),
                     r.get("EccBN", ""),
                     r.get("CopieCol", ""),
                     r.get("EccCol", "")
                 ]
 
-                # wrap testo descrizione
-                pdf.set_font("Arial", "", 8)
+                # calcola wrapping descrizione
                 desc_text = str(row_values[4])
                 desc_w = col_widths[4]
                 words = desc_text.split()
@@ -1468,6 +1473,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 line_h = 5.5
                 row_h = max(6, line_h * desc_lines)
 
+                # controllo margine inferiore
                 bottom_limit = pdf.h - bottom_margin - 6
                 if pdf.get_y() + row_h > bottom_limit:
                     pdf.add_page()
@@ -1479,17 +1485,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     pdf.ln(8)
                     pdf.set_font("Arial", "", 8)
 
+                # disegna riga
                 pdf.set_fill_color(*fill_color)
                 x0 = start_x
                 y0 = pdf.get_y()
                 for idx, (val, wcol) in enumerate(zip(row_values, col_widths)):
                     pdf.set_xy(x0, y0)
-                    if idx == 4:
+                    if idx == 4:  # descrizione con multicell
                         pdf.multi_cell(
                             wcol, line_h, safe_pdf_text(val),
                             border=1, align="L", fill=(fill_color != (255, 255, 255))
                         )
-                        y_after = pdf.get_y()
                         pdf.set_xy(x0 + wcol, y0)
                     else:
                         pdf.cell(
@@ -1508,7 +1514,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             pdf.set_y(pdf.h - bottom_margin)
             pdf.cell(0, 6, safe_pdf_text("SHT S.r.l. - Tutti i diritti riservati"), 0, 0, "C")
 
-            # ✅ encoding sicuro
+            # ✅ Encoding sicuro
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
 
             st.download_button(
@@ -1520,6 +1526,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
+
 
 
 # =====================================

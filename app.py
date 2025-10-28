@@ -1697,6 +1697,211 @@ def export_pdf_contratti(df_ct, sel_id, rag_soc):
                 pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C")
         pdf.ln()
     return pdf.output(dest="S").encode("latin-1", errors="replace")
+# =====================================
+# 📈 DASHBOARD GRAFICI — priva di dipendenze extra
+# =====================================
+def _to_dt(s):
+    return pd.to_datetime(s, errors="coerce", dayfirst=True)
+
+def _to_float_eur(x):
+    """Converte '1.234,56' o '1234.56 €' → 1234.56 (float). Vuoto se non numerico."""
+    if pd.isna(x): return None
+    t = str(x).strip()
+    if not t: return None
+    # rimuovi simboli e spazi, normalizza separatori
+    t = t.replace("€", "").replace("EUR", "").replace(" ", "")
+    # se formato italiano 1.234,56 → togli i punti mille e cambia la virgola
+    if "," in t and t.count(",") == 1 and "." in t:
+        t = t.replace(".", "").replace(",", ".")
+    elif "," in t and t.count(",") == 1 and "." not in t:
+        t = t.replace(",", ".")
+    try:
+        return float(t)
+    except Exception:
+        try:
+            return float(pd.to_numeric(t, errors="coerce"))
+        except Exception:
+            return None
+
+def page_dashboard_grafici(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    st.image(LOGO_URL, width=120)
+    st.markdown("<h2>📈 Dashboard Grafici</h2>", unsafe_allow_html=True)
+    st.caption("Panoramica interattiva su clienti e contratti (filtri in alto).")
+    st.divider()
+
+    # ======== PREPARAZIONE DATI ========
+    base = df_ct.copy()
+    base["DataInizio"] = _to_dt(base["DataInizio"])
+    base["DataFine"] = _to_dt(base["DataFine"])
+    base["Stato"] = base["Stato"].astype(str).str.lower().fillna("")
+    base["Durata"] = pd.to_numeric(base["Durata"], errors="coerce")
+    base["TotRataNum"] = base["TotRata"].apply(_to_float_eur)
+
+    # Join TMK dal dataframe clienti (per filtro e grafici per TMK)
+    cli_tmk = df_cli[["ClienteID", "RagioneSociale", "TMK"]].copy()
+    base = base.merge(cli_tmk, on="ClienteID", how="left", suffixes=("", "_cli"))
+    base["TMK"] = base["TMK"].fillna("")
+
+    today = pd.Timestamp.now().normalize()
+    start_12m = (today - pd.DateOffset(months=12)).replace(day=1)
+
+    # ======== FILTRI ========
+    f1, f2, f3, f4 = st.columns([1.4, 1.2, 1.2, 1.2])
+    with f1:
+        periodo = st.selectbox(
+            "Periodo",
+            ["Ultimi 12 mesi", "Anno Corrente", "Tutto"],
+            index=0
+        )
+    with f2:
+        stato_sel = st.multiselect(
+            "Stato contratto",
+            options=["aperto", "chiuso", ""],
+            default=["aperto", ""]  # di default mostro attivi + vuoti
+        )
+    with f3:
+        tmk_opts = ["Tutti"] + sorted([t for t in base["TMK"].dropna().unique().tolist() if t])
+        tmk_sel = st.selectbox("TMK", options=tmk_opts, index=0)
+    with f4:
+        solo_con_num = st.checkbox("Solo contratti con N°", value=False)
+
+    df = base.copy()
+    # Periodo → filtro su DataInizio (quando disponibile)
+    if periodo == "Ultimi 12 mesi":
+        df = df[(df["DataInizio"].isna()) | (df["DataInizio"] >= start_12m)]
+    elif periodo == "Anno Corrente":
+        df = df[(df["DataInizio"].isna()) | (df["DataInizio"] >= pd.Timestamp(today.year, 1, 1))]
+
+    # Stato
+    if stato_sel:
+        df = df[df["Stato"].isin(stato_sel)]
+
+    # TMK
+    if tmk_sel != "Tutti":
+        df = df[df["TMK"] == tmk_sel]
+
+    # Solo con numero contratto
+    if solo_con_num:
+        df = df[df["NumeroContratto"].astype(str).str.strip() != ""]
+
+    # ======== KPI ========
+    k1, k2, k3, k4, k5 = st.columns(5)
+    tot_clienti = df_cli["ClienteID"].nunique()
+    attivi = int((df["Stato"] != "chiuso").sum())
+    chiusi = int((df["Stato"] == "chiuso").sum())
+
+    ytd_start = pd.Timestamp(today.year, 1, 1)
+    nuovi_ytd = int(((df["DataInizio"] >= ytd_start) & df["DataInizio"].notna()).sum())
+
+    somma_rata = df["TotRataNum"].dropna().sum()
+    somma_rata_fmt = f"{somma_rata:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    k1.metric("Clienti totali", f"{tot_clienti}")
+    k2.metric("Contratti attivi", f"{attivi}")
+    k3.metric("Contratti chiusi", f"{chiusi}")
+    k4.metric("Nuovi contratti YTD", f"{nuovi_ytd}")
+    k5.metric("Somma rata (filtro)", somma_rata_fmt)
+
+    st.divider()
+
+    # ======== GRAFICO: nuovi contratti ultimi 12 mesi ========
+    st.markdown("#### 📈 Nuovi contratti (ultimi 12 mesi)")
+    df_m = base.copy()
+    df_m = df_m[(df_m["DataInizio"] >= start_12m) & df_m["DataInizio"].notna()]
+    serie = (
+        df_m
+        .assign(Mese=lambda x: x["DataInizio"].dt.to_period("M").dt.to_timestamp())
+        .groupby("Mese")["NumeroContratto"].count()
+        .reindex(pd.period_range(start=start_12m, end=today, freq="M").to_timestamp(), fill_value=0)
+        .rename("NuoviContratti")
+        .to_frame()
+    )
+    st.line_chart(serie, use_container_width=True)
+
+    # ======== GRAFICO: scadenze prossimi 6 mesi ========
+    st.markdown("#### 📅 Scadenze nei prossimi 6 mesi")
+    entro6 = today + pd.DateOffset(months=6)
+    scad = base.copy()
+    scad = scad[
+        (scad["DataFine"].notna()) &
+        (scad["DataFine"] >= today) &
+        (scad["DataFine"] <= entro6) &
+        (scad["Stato"] != "chiuso")
+    ]
+    if scad.empty:
+        st.info("Nessun contratto in scadenza nei prossimi 6 mesi.")
+    else:
+        serie_s = (
+            scad
+            .assign(Mese=lambda x: x["DataFine"].dt.to_period("M").dt.to_timestamp())
+            .groupby("Mese")["NumeroContratto"].count()
+            .rename("Scadenze")
+            .to_frame()
+        )
+        st.bar_chart(serie_s, use_container_width=True)
+
+    # ======== GRAFICO: somma rata per mese (rolling 12) ========
+    st.markdown("#### 💰 Totale rata per mese (contratti filtrati)")
+    df_r = df.copy()
+    if df_r["DataInizio"].notna().any():
+        # Costruiamo una serie per mese sul range coperto dal filtro
+        start_range = (df_r["DataInizio"].min() or today).to_period("M").to_timestamp() if df_r["DataInizio"].notna().any() else start_12m
+        end_range = today
+        # Consideriamo la rata come “rilevata” al mese di DataInizio (indicativo)
+        serie_r = (
+            df_r[df_r["DataInizio"].notna()]
+            .assign(Mese=lambda x: x["DataInizio"].dt.to_period("M").dt.to_timestamp())
+            .groupby("Mese")["TotRataNum"].sum()
+            .reindex(pd.period_range(start=start_range, end=end_range, freq="M").to_timestamp(), fill_value=0.0)
+            .rename("TotRata")
+            .to_frame()
+        )
+        st.area_chart(serie_r, use_container_width=True)
+    else:
+        st.info("Dati mese non sufficienti per costruire la serie della rata.")
+
+    # ======== GRAFICO: contratti per TMK ========
+    st.markdown("#### 👩‍💼 Contratti per TMK (filtrati)")
+    by_tmk = df.groupby("TMK")["NumeroContratto"].count().sort_values(ascending=False)
+    if by_tmk.empty:
+        st.info("Nessun dato TMK per i contratti filtrati.")
+    else:
+        st.bar_chart(by_tmk.rename("Contratti"), use_container_width=True)
+
+    # ======== GRAFICO: distribuzione durate ========
+    st.markdown("#### ⏳ Durata contratti (mesi)")
+    durata_counts = df["Durata"].dropna().astype(int, errors="ignore")
+    if durata_counts.empty:
+        st.info("Nessuna durata disponibile nei contratti filtrati.")
+    else:
+        dur_tab = durata_counts.value_counts().sort_index().rename("Contratti").to_frame()
+        st.bar_chart(dur_tab, use_container_width=True)
+
+    st.divider()
+
+    # ======== ANOMALIE E QUALITÀ DATI ========
+    st.markdown("#### 🧪 Controlli qualità dati")
+    colA, colB, colC = st.columns(3)
+
+    senza_fine = df[(df["DataInizio"].notna()) & (df["DataFine"].isna())]
+    colA.metric("Senza DataFine (filtrati)", f"{len(senza_fine)}")
+
+    fine_prima = df[(df["DataInizio"].notna()) & (df["DataFine"].notna()) & (df["DataFine"] < df["DataInizio"])]
+    colB.metric("DataFine < DataInizio", f"{len(fine_prima)}")
+
+    zero_rata = df[df["TotRataNum"].fillna(0) <= 0]
+    colC.metric("TotRata nulla/assente", f"{len(zero_rata)}")
+
+    with st.expander("📋 Apri liste anomalie"):
+        t1, t2, t3 = st.tabs(["Senza DataFine", "Fine < Inizio", "Rata nulla/assente"])
+        with t1:
+            st.dataframe(senza_fine[["ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "TMK"]], use_container_width=True)
+        with t2:
+            st.dataframe(fine_prima[["ClienteID", "RagioneSociale", "NumeroContratto", "DataInizio", "DataFine", "TMK"]], use_container_width=True)
+        with t3:
+            st.dataframe(zero_rata[["ClienteID", "RagioneSociale", "NumeroContratto", "TotRata", "TMK"]], use_container_width=True)
+
+    st.caption("Suggerimento: usa i filtri in alto per affinare i grafici e i controlli.")
 
 # =====================================
 # PAGINA RECALL E VISITE (aggiornata e coerente)
@@ -2085,6 +2290,7 @@ def main():
     # --- Pagine principali ---
     PAGES = {
         "Dashboard": page_dashboard,
+        "📈 Dashboard Grafici": page_dashboard_grafici,  # ⬅️ nuova pagina
         "Clienti": page_clienti,
         "Contratti": page_contratti,
         "📅 Recall e Visite": page_richiami_visite,

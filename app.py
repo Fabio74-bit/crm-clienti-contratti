@@ -736,7 +736,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         contratti_senza_fine = contratti_senza_fine.sort_values("DataInizio", ascending=False)
 
         for i, r in contratti_senza_fine.iterrows():
+            cliente_id = str(r.get("ClienteID", "")).strip()
             col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
+        
             with col1:
                 st.markdown(f"**{r.get('RagioneSociale', '—')}**")
                 st.markdown(r.get("NumeroContratto", "—"))
@@ -748,13 +750,16 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     desc = desc[:60] + "…"
                 st.markdown(desc)
             with col5:
-                if st.button("📂 Apri", key=f"open_ndf_{i}", use_container_width=True):
-                    st.session_state.update({
-                        "selected_cliente": r.get("ClienteID"),
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
-                    st.rerun()
+                if st.button("📂 Apri", key=f"open_ndf_{cliente_id}_{i}", use_container_width=True):
+                    if cliente_id:
+                        st.session_state.update({
+                            "selected_cliente": cliente_id,
+                            "nav_target": "Contratti",
+                            "_go_contratti_now": True
+                        })
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ ID cliente non valido per questo contratto.")
 
 
 
@@ -1152,6 +1157,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CONTRATTI — VERSIONE 2025 “GRAFICA PULITA ESTESA STREAMLIT”
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+        # === FIX NAVIGAZIONE DA DASHBOARD ===
+        if "selected_cliente" in st.session_state:
+        sel = str(st.session_state.get("selected_cliente", "")).strip()
+        # correzione zeri/spazi
+        sel_clean = sel.lstrip("0").strip()
+        st.session_state["selected_cliente"] = sel_clean
+
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
 

@@ -1787,7 +1787,6 @@ def main():
         st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
         st.stop()
 
-
     # --- Ruolo e diritti di scrittura ---
     if user == "fabio":
         ruolo_scrittura = "full"
@@ -1808,7 +1807,6 @@ def main():
         )
     else:
         visibilita_scelta = "Fabio"
-
 
     # --- Caricamento dati base ---
     df_cli_main = load_clienti()
@@ -1839,10 +1837,9 @@ def main():
         df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
         df_cli, df_ct = df_cli_gab, df_ct_gab
-    else:  # Tutti
+    else:
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
-
 
     # --- Correzione date automatica una sola volta ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
@@ -1875,11 +1872,12 @@ def main():
 
     # --- Esecuzione pagina selezionata ---
     if page in PAGES:
-        # 🟢 Passa al form il ruolo e l’utente loggato (serve per assegnare il proprietario)
         st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-    # =====================================
-    # AVVIO APPLICAZIONE
-    # =====================================
-    if __name__ == "__main__":
-        main()
+
+
+# =====================================
+# AVVIO APP
+# =====================================
+if __name__ == "__main__":
+    main()

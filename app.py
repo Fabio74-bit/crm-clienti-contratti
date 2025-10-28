@@ -1784,15 +1784,13 @@ def page_dashboard_grafici(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str)
     if solo_con_num:
         df = df[df["NumeroContratto"].astype(str).str.strip() != ""]
 
-    # ======== KPI ========
+    # ======== KPI PRINCIPALI ========
     k1, k2, k3, k4, k5 = st.columns(5)
     tot_clienti = df_cli["ClienteID"].nunique()
     attivi = int((df["Stato"] != "chiuso").sum())
     chiusi = int((df["Stato"] == "chiuso").sum())
-
     ytd_start = pd.Timestamp(today.year, 1, 1)
     nuovi_ytd = int(((df["DataInizio"] >= ytd_start) & df["DataInizio"].notna()).sum())
-
     somma_rata = df["TotRataNum"].dropna().sum()
     somma_rata_fmt = f"{somma_rata:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -1801,6 +1799,22 @@ def page_dashboard_grafici(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str)
     k3.metric("Contratti chiusi", f"{chiusi}")
     k4.metric("Nuovi contratti YTD", f"{nuovi_ytd}")
     k5.metric("Somma rata (filtro)", somma_rata_fmt)
+
+    st.divider()
+
+    # ======== KPI GEOGRAFICI ========
+    g1, g2, g3 = st.columns(3)
+    # Città uniche
+    citta_uniche = df_cli["Citta"].dropna().astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+    # CAP / Paesi unici (usiamo CAP come “paese” nel tuo dataset)
+    cap_unici = df_cli["CAP"].dropna().astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+    # TMK unici (utile per capire la distribuzione commerciale)
+    tmk_unici = df_cli["TMK"].dropna().astype(str).str.strip().replace("", pd.NA).dropna().nunique()
+
+    g1.metric("🌆 Città servite", f"{citta_uniche}")
+    g2.metric("🏘️ CAP / Paesi", f"{cap_unici}")
+    g3.metric("👩‍💼 TMK attivi", f"{tmk_unici}")
+
 
     st.divider()
 

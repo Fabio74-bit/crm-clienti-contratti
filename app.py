@@ -213,37 +213,6 @@ def save_if_changed(df_new, path: Path, original_df):
     except Exception:
         df_new.to_csv(path, index=False, encoding='utf-8-sig')
         return True
-# =====================================
-# CREAZIONE / RIPARAZIONE AUTOMATICA CSV
-# =====================================
-def ensure_csv_exists(path: Path, cols: list[str]):
-    """
-    Verifica che il CSV esista e contenga tutte le colonne standard.
-    Se mancano, le aggiunge automaticamente o lo crea da zero.
-    """
-    import pandas as pd
-
-    try:
-        if not path.exists():
-            # 🔹 Crea file vuoto con intestazione completa
-            pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig")
-            print(f"📄 Creato nuovo file: {path.name}")
-            return
-
-        df = pd.read_csv(path, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
-        # 🔹 Aggiunge colonne mancanti se necessario
-        changed = False
-        for c in cols:
-            if c not in df.columns:
-                df[c] = ""
-                changed = True
-
-        if changed:
-            df.to_csv(path, index=False, encoding="utf-8-sig")
-            print(f"⚙️ File {path.name} aggiornato: aggiunte colonne mancanti.")
-    except Exception as e:
-        print(f"❌ Errore nel controllo/creazione di {path.name}: {e}")
-
 
 # =====================================
 # FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
@@ -1816,13 +1785,8 @@ def main():
         )
     else:
         visibilita_scelta = "Fabio"
-    # --- Assicura che i CSV esistano e siano coerenti ---
-    #ensure_csv_exists(CLIENTI_CSV, CLIENTI_COLS)
-    #ensure_csv_exists(CONTRATTI_CSV, CONTRATTI_COLS)
-    #ensure_csv_exists(GABRIELE_CLIENTI, CLIENTI_COLS)
-    #ensure_csv_exists(GABRIELE_CONTRATTI, CONTRATTI_COLS)
 
-    # --- Caricamento dati base ---
+    # --- Caricamento dati base (Fabio) ---
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
 
@@ -1841,6 +1805,11 @@ def main():
             ).fillna("")
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
+
+        # 🔹 FIX automatico colonne mancanti per Gabriele
+        df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
+        df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
+
     except Exception as e:
         st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)

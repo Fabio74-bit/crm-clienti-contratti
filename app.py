@@ -1360,154 +1360,176 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"Errore export Excel: {e}")
 
-# === ESPORTAZIONE CONTRATTI PDF ===
-cex2 = st.expander("📄 Esporta Contratti in PDF", expanded=False)
-with cex2:
-    try:
-        from fpdf import FPDF
-        import os
+        # === EXPORT PDF (centrato in pagina, A4 orizzontale, 1 pagina quando possibile) ===
+    with cex2:
+        try:
+            from fpdf import FPDF
+            import requests
+            from io import BytesIO
 
-        class PDF(FPDF):
-            def __init__(self):
-                super().__init__("L", "mm", "A4")
-                self.set_auto_page_break(auto=False)
-                self.add_font("DejaVu", "", os.path.join("assets", "DejaVuSans.ttf"), uni=True)
-                self.set_font("DejaVu", "", 8)
+            LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
 
-        def safe_pdf_text(s):
-            return str(s) if s else ""
+            pdf = FPDF("L", "mm", "A4")
+            # Disabilito l'autobreak per evitare pagine “vuote” solo col footer
+            pdf.set_auto_page_break(auto=False)
+            pdf.add_page()
 
-        def money_euro(v):
-            if not v or str(v).strip() == "":
-                return ""
-            v_str = str(v).replace("EUR", "€").replace("Euro", "€")
-            return v_str if "€" in v_str else f"{v_str} €"
+            # Margini più “grafici”
+            left_margin = 12
+            right_margin = 12
+            top_margin = 10
+            bottom_margin = 12
+            pdf.set_margins(left=left_margin, top=top_margin, right=right_margin)
 
-        pdf = PDF()
-        pdf.add_page()
+            page_w = pdf.w
+            usable_w = page_w - left_margin - right_margin
 
-        # === LOGO SOLO PRIMA PAGINA ===
-        logo_path = "./assets/logo-sht.png"
-        if os.path.exists(logo_path):
-            logo_w = 35
-            x_logo = (pdf.w - logo_w) / 2
-            pdf.image(logo_path, x=x_logo, y=8, w=logo_w)
+            # === Logo SHT centrato ===
+            try:
+                resp = requests.get(LOGO_URL, timeout=5)
+                if resp.status_code == 200:
+                    logo_bytes = BytesIO(resp.content)
+                    # logo di 35mm, centrato
+                    logo_w = 35
+                    x_logo = left_margin + (usable_w - logo_w) / 2.0
+                    pdf.image(logo_bytes, x=x_logo, y=8, w=logo_w)
+            except Exception:
+                pass
 
-        pdf.set_y(8 + 35 + 4)
-        pdf.set_font("DejaVu", "", 13)
-        pdf.cell(0, 8, f"Contratti Cliente: {rag_soc} - {data_export}", ln=1, align="C")
-        pdf.ln(3)
+            # Spazio sotto il logo
+            pdf.set_y(8 + 35 + 4)
 
-        headers = [
-            "N°", "Inizio", "Fine", "Durata", "Descrizione Prodotto",
-            "Tot. Rata", "NOL FIN", "NOL INT", "Copie B/N",
-            "Ecc. B/N", "Copie Col", "Ecc. Col"
-        ]
-        col_widths = [10, 20, 20, 15, 110, 25, 20, 20, 22, 22, 22, 22]
-        left_margin, right_margin = 12, 12
-        usable_w = pdf.w - left_margin - right_margin
-        table_w = sum(col_widths)
-        if table_w > usable_w:
-            scale = usable_w / table_w
-            col_widths = [w * scale for w in col_widths]
-            table_w = usable_w
-        start_x = left_margin + (usable_w - table_w) / 2.0
+            # === Titolo centrato ===
+            pdf.set_font("Arial", "B", 13)
+            pdf.cell(0, 8, safe_text(f"Contratti Cliente: {rag_soc} - {data_export}"), ln=1, align="C")
+            pdf.ln(3)
 
-        def draw_header():
-            pdf.set_font("DejaVu", "", 9)
+            # === Intestazioni + larghezze colonna ===
+            headers = [
+                "N°", "Inizio", "Fine", "Durata", "Descrizione Prodotto",
+                "Tot. Rata", "NOL FIN", "NOL INT", "Copie B/N",
+                "Ecc. B/N", "Copie Col", "Ecc. Col"
+            ]
+            # Larghezze pensate per A4 orizzontale, ma calcoliamo lo start centrato
+            col_widths = [10, 20, 20, 15, 110, 25, 20, 20, 22, 22, 22, 22]
+            table_w = sum(col_widths)
+            # Se la tabella è più larga dello spazio utile, la riduciamo in scala uniforme
+            if table_w > usable_w:
+                scale = usable_w / table_w
+                col_widths = [w * scale for w in col_widths]
+                table_w = usable_w
+
+            # X iniziale per centrare
+            start_x = left_margin + (usable_w - table_w) / 2.0
+
+            # === Header riga ===
+            pdf.set_font("Arial", "B", 9)
             pdf.set_fill_color(255, 253, 231)
             pdf.set_xy(start_x, pdf.get_y())
             for h, w in zip(headers, col_widths):
-                pdf.cell(w, 8, safe_pdf_text(h), border=1, align="C", fill=True)
+                pdf.cell(w, 8, safe_text(h), border=1, align="C", fill=True)
             pdf.ln(8)
 
-        draw_header()
+            # === Dati ===
+            pdf.set_font("Arial", "", 8)
+            row_gap = 0  # nessun gap extra, per comprimere in una pagina quando possibile
 
-        def draw_row(r):
-            stato = str(r.get("Stato", "aperto")).lower()
-            is_closed = stato == "chiuso"
-            fill_color = (255, 230, 230) if is_closed else (255, 255, 255)
+            # Altezza minima riga e gestione wrap descrizione
+            def draw_row(r):
+                nonlocal start_x
+                stato = str(r.get("Stato", "aperto")).lower()
+                is_closed = (stato == "chiuso")
+                fill_color = (255, 230, 230) if is_closed else (255, 255, 255)
 
-            row_values = [
-                r.get("NumeroContratto", ""),
-                fmt_date(r.get("DataInizio")),
-                fmt_date(r.get("DataFine")),
-                r.get("Durata", ""),
-                r.get("DescrizioneProdotto", ""),
-                money_euro(money(r.get("TotRata"))),
-                money_euro(r.get("NOL_FIN")),
-                money_euro(r.get("NOL_INT")),
-                r.get("CopieBN", ""),
-                r.get("EccBN", ""),
-                r.get("CopieCol", ""),
-                r.get("EccCol", "")
-            ]
+                row_values = [
+                    r.get("NumeroContratto", ""),
+                    fmt_date(r.get("DataInizio")),
+                    fmt_date(r.get("DataFine")),
+                    r.get("Durata", ""),
+                    safe_text(r.get("DescrizioneProdotto", "")),
+                    money(r.get("TotRata")),
+                    r.get("NOL_FIN", ""),
+                    r.get("NOL_INT", ""),
+                    r.get("CopieBN", ""),
+                    r.get("EccBN", ""),
+                    r.get("CopieCol", ""),
+                    r.get("EccCol", "")
+                ]
 
-            # Wrapping per descrizione
-            desc_text = str(row_values[4])
-            desc_w = col_widths[4]
-            words = desc_text.split()
-            lines, line = [], ""
-            for w in words:
-                test = (line + " " + w).strip()
-                if pdf.get_string_width(test) <= (desc_w - 2):
-                    line = test
-                else:
+                # Calcola quante “linee” servono per la descrizione stimando ~95 char per 110mm (scala se ridotta)
+                # Più robusto: usa la larghezza reale del font
+                pdf.set_font("Arial", "", 8)
+                desc_text = str(row_values[4])
+                desc_w = col_widths[4]
+                # stimiamo quante righe servono alla descrizione con la funzione di misura stringa
+                # dividendo in base alla larghezza disponibile
+                words = desc_text.split()
+                lines = []
+                line = ""
+                for w in words:
+                    test = (line + " " + w).strip()
+                    if pdf.get_string_width(test) <= (desc_w - 2):  # un pochino di padding
+                        line = test
+                    else:
+                        lines.append(line)
+                        line = w
+                if line:
                     lines.append(line)
-                    line = w
-            if line:
-                lines.append(line)
-            desc_lines = max(1, len(lines))
-            line_h = 5.5
-            row_h = max(6, line_h * desc_lines)
+                desc_lines = max(1, len(lines))
 
-            if pdf.get_y() + row_h > (pdf.h - 12 - 6):
-                pdf.add_page()
-                pdf.set_y(10)
-                draw_header()
+                line_h = 5.5  # un po’ compatto per favorire “una pagina”
+                row_h = max(6, line_h * desc_lines)
 
-            pdf.set_fill_color(*fill_color)
-            x0 = start_x
-            y0 = pdf.get_y()
+                # Se sforza il fondo (considero 10 mm di margine + 6 di footer)
+                bottom_limit = pdf.h - bottom_margin - 6
+                if pdf.get_y() + row_h > bottom_limit:
+                    pdf.add_page()
+                    pdf.set_xy(start_x, top_margin + 12)  # spazio per allineare con titolo mancante
+                    # re-disegno l’header su nuova pagina
+                    pdf.set_font("Arial", "B", 9)
+                    pdf.set_fill_color(255, 253, 231)
+                    for h, w in zip(headers, col_widths):
+                        pdf.cell(w, 8, safe_text(h), border=1, align="C", fill=True)
+                    pdf.ln(8)
+                    pdf.set_font("Arial", "", 8)
 
-            for idx, (val, wcol) in enumerate(zip(row_values, col_widths)):
-                pdf.set_xy(x0, y0)
-                fill = fill_color != (255, 255, 255)
-                if idx == 4:
-                    pdf.multi_cell(
-                        wcol, line_h, safe_pdf_text(val),
-                        border=1, align="L", fill=fill
-                    )
-                    pdf.set_xy(x0 + wcol, y0)
-                else:
-                    pdf.cell(
-                        wcol, row_h, safe_pdf_text(val),
-                        border=1, align="C", fill=fill
-                    )
-                x0 += wcol
-            pdf.ln(row_h)
+                # Disegna la riga
+                pdf.set_fill_color(*fill_color)
+                x0 = start_x
+                y0 = pdf.get_y()
+                for idx, (val, wcol) in enumerate(zip(row_values, col_widths)):
+                    pdf.set_xy(x0, y0)
+                    if idx == 4:
+                        # descrizione: multicell con bordo, poi mi riposiziono
+                        pdf.multi_cell(wcol, line_h, safe_text(str(val)), border=1, align="L", fill=(fill_color != (255, 255, 255)))
+                        # calcola dove ripartire: max(y raggiunta, y0+row_h)
+                        y_after = pdf.get_y()
+                        # posiziona x subito dopo la colonna e ripristina y per le prossime celle
+                        pdf.set_xy(x0 + wcol, y0)
+                    else:
+                        pdf.cell(wcol, row_h, safe_text(str(val)), border=1, align="C", fill=(fill_color != (255, 255, 255)))
+                    x0 += wcol
+                pdf.ln(row_h + row_gap)
 
-        for _, r in ct.iterrows():
-            draw_row(r)
+            for _, r in ct.iterrows():
+                draw_row(r)
 
-        # Footer
-        pdf.set_text_color(100, 100, 100)
-        pdf.set_font("DejaVu", "", 8)
-        pdf.set_y(pdf.h - 12)
-        pdf.cell(0, 6, "SHT S.r.l. - Tutti i diritti riservati", 0, 0, "C")
+            # === Footer centrato ===
+            pdf.set_text_color(100, 100, 100)
+            pdf.set_font("Arial", "I", 8)
+            pdf.set_y(pdf.h - bottom_margin)
+            pdf.cell(0, 6, safe_text("SHT S.r.l. - Tutti i diritti riservati"), 0, 0, "C")
 
-        pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
+            st.download_button(
+                "📗 Esporta PDF",
+                pdf_bytes,
+                file_name=f"Contratti_{rag_soc}.pdf",
+                mime="application/pdf"
+            )
 
-        st.download_button(
-            "📗 Esporta PDF",
-            pdf_bytes,
-            file_name=f"Contratti_{rag_soc}.pdf",
-            mime="application/pdf"
-        )
-
-    except Exception as e:
-        st.error(f"Errore export PDF: {e}")
-
+        except Exception as e:
+            st.error(f"Errore export PDF: {e}")
 
 
 

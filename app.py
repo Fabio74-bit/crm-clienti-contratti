@@ -1180,24 +1180,40 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     except Exception as e:
                         st.error(f"❌ Errore durante la creazione del contratto: {e}")
 
-    # === STILE TABELLA ===
+    # === STILE TABELLA (restyling solo visivo) ===
     st.markdown("""
     <style>
-      .tbl-header {
-        background:#2563eb;
-        color:white;
-        font-weight:600;
-        text-align:center;
-        padding:8px;
-        border:1px solid #d0d7de;
+      .tbl-wrap{
+        border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;
+        box-shadow:0 4px 16px rgba(0,0,0,.06); background:#fff;
       }
-      .tbl-row {font-size:14px;border-bottom:1px solid #e5e7eb;}
-      .tbl-row div {padding:6px;text-align:center;}
-      .row-closed {
-          background-color:#ffe5e5 !important;
-          border-top:2px solid #c62828 !important;
-          border-bottom:2px solid #c62828 !important;
+      .tbl-head{
+        background:#2563eb; color:#fff; font-weight:700; font-size:13px;
+        letter-spacing:.2px;
       }
+      .tbl-head > div{ padding:10px 8px; text-align:center; border-right:1px solid rgba(255,255,255,.25); }
+      .tbl-head > div:last-child{ border-right:none; }
+
+      .tbl-row{ font-size:13px; border-top:1px solid #eef2f7; }
+      .tbl-row:hover{ background:#f6faff; }
+      .tbl-row .cell{ padding:8px 8px; text-align:center; }
+      .cell-left{ text-align:left; }
+      .cell-right{ text-align:right; font-variant-numeric: tabular-nums; }
+
+      .row-closed { background:#fff1f1 !important; }
+      .pill{
+        display:inline-block; padding:2px 8px; border-radius:999px; font-weight:600; font-size:12px;
+      }
+      .pill-green{ background:#e8f5e9; color:#1b5e20; }
+      .pill-gray{ background:#eceff1; color:#37474f; }
+      .pill-red{ background:#ffebee; color:#b71c1c; }
+      .pill-amber{ background:#fff8e1; color:#8d6e00; }
+
+      .due-red{ background:#ffebee; border-radius:6px; }
+      .due-amber{ background:#fff8e1; border-radius:6px; }
+
+      .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+      .muted{ color:#607d8b; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1206,6 +1222,90 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if ct.empty:
         st.info("Nessun contratto registrato.")
         return
+
+    # --- contenitore tabella
+    st.markdown("<div class='tbl-wrap'>", unsafe_allow_html=True)
+
+    # === INTESTAZIONE (ordine allineato a Excel/PDF) ===
+    head_cols = st.columns([0.7, 0.9, 0.9, 0.8, 2.8, 1.1, 1, 1, 0.9, 0.9, 0.9, 0.9, 1])
+    head_lbls = ["N°","Inizio","Fine","Durata","Descrizione Prodotto","Tot. Rata","NOL FIN","NOL INT","Copie B/N","Ecc. B/N","Copie Col","Ecc. Col","Azioni"]
+    for c, h in zip(head_cols, head_lbls):
+        c.markdown(f"<div class='tbl-head'><div>{h}</div></div>", unsafe_allow_html=True)
+
+    # === RIGHE CONTRATTI (solo presentazione migliorata)
+    oggi = pd.Timestamp.now().normalize()
+    for i, r in ct.iterrows():
+        stato = str(r.get("Stato","aperto")).lower()
+        row_cls = "row-closed" if stato == "chiuso" else ""
+        # stato scadenza (solo contratti non chiusi)
+        d_fine = pd.to_datetime(r.get("DataFine"), errors="coerce", dayfirst=True)
+        due_cls = ""
+        if pd.notna(d_fine) and stato != "chiuso":
+            if d_fine < oggi:
+                due_cls = "due-red"
+            elif d_fine <= oggi + pd.DateOffset(days=60):
+                due_cls = "due-amber"
+
+        # descrizione compatta con title in hover
+        desc_full = str(r.get("DescrizioneProdotto","")).strip()
+        desc_show = (desc_full[:120] + "…") if len(desc_full) > 120 else desc_full
+
+        # badge durata
+        durata_txt = str(r.get("Durata","")).strip()
+        if durata_txt:
+            if any(x in durata_txt for x in ["60","72"]):
+                durata_html = f"<span class='pill pill-green mono'>{durata_txt}</span>"
+            elif any(x in durata_txt for x in ["48","36","24","12"]):
+                durata_html = f"<span class='pill pill-gray mono'>{durata_txt}</span>"
+            else:
+                durata_html = f"<span class='pill pill-gray mono'>{durata_txt}</span>"
+        else:
+            durata_html = "<span class='muted'>—</span>"
+
+        # formattazioni numeriche
+        rata_html = f"<span class='mono'>{money(r.get('TotRata')) or '—'}</span>"
+        nol_fin = r.get("NOL_FIN","")
+        nol_int = r.get("NOL_INT","")
+
+        cols = st.columns([0.7, 0.9, 0.9, 0.8, 2.8, 1.1, 1, 1, 0.9, 0.9, 0.9, 0.9, 1])
+        cols[0].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('NumeroContratto','—')}</div></div>", unsafe_allow_html=True)
+        cols[1].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{fmt_date(r.get('DataInizio'))}</div></div>", unsafe_allow_html=True)
+        cols[2].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono {due_cls}' title='Scadenza'>{fmt_date(r.get('DataFine'))}</div></div>", unsafe_allow_html=True)
+        cols[3].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{durata_html}</div></div>", unsafe_allow_html=True)
+        cols[4].markdown(f"<div class='tbl-row {row_cls}'><div class='cell cell-left' title='{safe_text(desc_full)}'>{safe_text(desc_show)}</div></div>", unsafe_allow_html=True)
+        cols[5].markdown(f"<div class='tbl-row {row_cls}'><div class='cell cell-right'>{rata_html}</div></div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{safe_text(nol_fin) or '—'}</div></div>", unsafe_allow_html=True)
+        cols[7].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{safe_text(nol_int) or '—'}</div></div>", unsafe_allow_html=True)
+        cols[8].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{safe_text(r.get('CopieBN','')) or '—'}</div></div>", unsafe_allow_html=True)
+        cols[9].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{safe_text(r.get('EccBN','')) or '—'}</div></div>", unsafe_allow_html=True)
+        cols[10].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{safe_text(r.get('CopieCol','')) or '—'}</div></div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{safe_text(r.get('EccCol','')) or '—'}</div></div>", unsafe_allow_html=True)
+
+        # === Azioni (immutato nei comportamenti)
+        with cols[12]:
+            b1, b2, b3 = st.columns(3)
+            if b1.button("✏️", key=f"edit_{i}", help="Modifica contratto", disabled=permessi_limitati):
+                st.session_state["edit_gidx"] = i
+                st.rerun()
+
+            stato_btn = "🔒" if stato != "chiuso" else "🟢"
+            if b2.button(stato_btn, key=f"lock_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
+                try:
+                    nuovo_stato = "chiuso" if stato != "chiuso" else "aperto"
+                    df_ct.loc[df_ct.index == i, "Stato"] = nuovo_stato
+                    save_contratti(df_ct)
+                    st.toast(f"🔁 Stato contratto aggiornato: {nuovo_stato.upper()}", icon="✅")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore aggiornamento stato: {e}")
+
+            if b3.button("🗑️", key=f"del_{i}", help="Elimina contratto", disabled=permessi_limitati):
+                st.session_state["delete_gidx"] = i
+                st.session_state["ask_delete_now"] = True
+                st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)  # chiude .tbl-wrap
+
 
     # === INTESTAZIONE (ordine allineato a Excel/PDF) ===
     header_cols = st.columns([0.7, 0.9, 0.9, 0.7, 2.4, 1, 1, 1, 0.9, 0.9, 0.9, 0.9, 1])

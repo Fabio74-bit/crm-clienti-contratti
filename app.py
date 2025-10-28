@@ -1312,40 +1312,154 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     st.info("Annullato.")
                     st.rerun()
 
-    # === ESPORTAZIONI ===
+    # === ESPORTAZIONI (Excel + PDF con stile ottimizzato) ===
     st.divider()
     st.markdown("### 📤 Esportazioni")
+
+    from datetime import datetime
+    data_export = datetime.now().strftime("%d/%m/%Y")
+
+    # === EXPORT EXCEL ===
     cex1, cex2 = st.columns(2)
     with cex1:
         try:
             from openpyxl import Workbook
+            from openpyxl.styles import PatternFill, Font, Alignment
+            from openpyxl.utils import get_column_letter
             from io import BytesIO
+
             wb = Workbook()
             ws = wb.active
             ws.title = f"Contratti {rag_soc}"
-            ws.append(list(ct.columns))
-            for _, row in ct.iterrows():
-                ws.append(row.tolist())
+
+            # 🔹 Titolo
+            ws.merge_cells("A1:N1")
+            cell_title = ws["A1"]
+            cell_title.value = f"Contratti Cliente: {rag_soc} — Data: {data_export}"
+            cell_title.font = Font(bold=True, size=14)
+            cell_title.alignment = Alignment(horizontal="center", vertical="center")
+            ws.row_dimensions[1].height = 25
+
+            # 🔹 Intestazioni
+            headers = [
+                "N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato",
+                "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N",
+                "Copie Col", "Ecc. Col", "Descrizione Prodotto"
+            ]
+            ws.append(headers)
+
+            yellow_fill = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
+            header_font = Font(bold=True, color="000000")
+            for col_idx, header in enumerate(headers, 1):
+                c = ws.cell(row=2, column=col_idx)
+                c.fill = yellow_fill
+                c.font = header_font
+                c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                ws.column_dimensions[get_column_letter(col_idx)].width = 18
+
+            # 🔹 Righe
+            for _, r in ct.iterrows():
+                ws.append([
+                    r.get("NumeroContratto", ""),
+                    fmt_date(r.get("DataInizio")),
+                    fmt_date(r.get("DataFine")),
+                    r.get("Durata", ""),
+                    money(r.get("TotRata")),
+                    r.get("Stato", ""),
+                    r.get("NOL_FIN", ""),
+                    r.get("NOL_INT", ""),
+                    r.get("CopieBN", ""),
+                    r.get("EccBN", ""),
+                    r.get("CopieCol", ""),
+                    r.get("EccCol", ""),
+                    r.get("DescrizioneProdotto", "")
+                ])
+
+            # 🔹 Allineamento e altezza dinamica righe
+            for row in ws.iter_rows(min_row=3, max_row=ws.max_row, min_col=1, max_col=13):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
+                # aumenta altezza per descrizioni lunghe
+                ws.row_dimensions[row[0].row].height = 22 + (len(str(row[-1].value)) // 70) * 10
+
+            # 🔹 Salva in memoria
             bio = BytesIO()
             wb.save(bio)
-            st.download_button("📘 Esporta Excel", bio.getvalue(), file_name=f"Contratti_{rag_soc}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button(
+                "📘 Esporta Excel",
+                bio.getvalue(),
+                file_name=f"Contratti_{rag_soc}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         except Exception as e:
             st.error(f"Errore export Excel: {e}")
 
+    # === EXPORT PDF ===
     with cex2:
         try:
             from fpdf import FPDF
+
             pdf = FPDF("L", "mm", "A4")
             pdf.add_page()
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
+            pdf.set_auto_page_break(auto=True, margin=15)
+
+            # Titolo
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc} — {data_export}"), ln=1, align="C")
+            pdf.ln(4)
+
+            # Intestazioni gialle
+            pdf.set_font("Arial", "B", 9)
+            pdf.set_fill_color(255, 253, 231)
+            headers = [
+                "N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato",
+                "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N",
+                "Copie Col", "Ecc. Col", "Descrizione Prodotto"
+            ]
+            col_widths = [18, 20, 20, 16, 22, 18, 20, 20, 22, 22, 22, 22, 95]
+            for h, w in zip(headers, col_widths):
+                pdf.cell(w, 8, safe_text(h), border=1, align="C", fill=True)
+            pdf.ln()
+
             pdf.set_font("Arial", "", 8)
             for _, r in ct.iterrows():
-                pdf.cell(0, 6, safe_text(f"{r['NumeroContratto']} - {r['DescrizioneProdotto']} ({r['DataInizio']} → {r['DataFine']})"), ln=1)
+                row_data = [
+                    r.get("NumeroContratto", ""),
+                    fmt_date(r.get("DataInizio")),
+                    fmt_date(r.get("DataFine")),
+                    r.get("Durata", ""),
+                    money(r.get("TotRata")),
+                    r.get("Stato", ""),
+                    r.get("NOL_FIN", ""),
+                    r.get("NOL_INT", ""),
+                    r.get("CopieBN", ""),
+                    r.get("EccBN", ""),
+                    r.get("CopieCol", ""),
+                    r.get("EccCol", ""),
+                    safe_text(r.get("DescrizioneProdotto", ""))
+                ]
+
+                # Gestione altezza dinamica descrizione
+                desc = row_data[-1]
+                desc_lines = len(desc) // 120 + 1
+                row_height = max(6, 6 * desc_lines)
+
+                for val, w in zip(row_data, col_widths):
+                    x, y = pdf.get_x(), pdf.get_y()
+                    pdf.multi_cell(w, 6, safe_text(str(val)), border=1, align="C", max_line_height=pdf.font_size)
+                    pdf.set_xy(x + w, y)
+                pdf.ln(row_height)
+
             pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-            st.download_button("📗 Esporta PDF", pdf_bytes, file_name=f"Contratti_{rag_soc}.pdf", mime="application/pdf")
+            st.download_button(
+                "📗 Esporta PDF",
+                pdf_bytes,
+                file_name=f"Contratti_{rag_soc}.pdf",
+                mime="application/pdf"
+            )
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
+
 
 
 

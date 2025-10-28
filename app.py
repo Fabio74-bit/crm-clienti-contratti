@@ -1800,11 +1800,27 @@ def main():
             df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
 
         if GABRIELE_CONTRATTI.exists():
-            df_ct_gab = pd.read_csv(
-                GABRIELE_CONTRATTI, dtype=str, encoding="utf-8-sig", on_bad_lines="skip"
-            ).fillna("")
+            # 🔹 prova tutti i separatori più comuni
+            for sep_try in [";", ",", "|", "\t"]:
+                try:
+                    df_ct_gab = pd.read_csv(
+                        GABRIELE_CONTRATTI,
+                        dtype=str,
+                        sep=sep_try,
+                        encoding="utf-8-sig",
+                        on_bad_lines="skip",
+                        engine="python"
+                    ).fillna("")
+                    if len(df_ct_gab.columns) > 3:
+                        break
+                except Exception:
+                    continue
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
+
+# 🔹 garantisce che tutte le colonne esistano
+df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
+
 
         # 🔹 FIX automatico colonne mancanti per Gabriele
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)

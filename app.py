@@ -1839,10 +1839,10 @@ def main():
     else:
         visibilita_scelta = "Fabio"
     # --- Assicura che i CSV esistano e siano coerenti ---
-    ensure_csv_exists(CLIENTI_CSV, CLIENTI_COLS)
-    ensure_csv_exists(CONTRATTI_CSV, CONTRATTI_COLS)
-    ensure_csv_exists(GABRIELE_CLIENTI, CLIENTI_COLS)
-    ensure_csv_exists(GABRIELE_CONTRATTI, CONTRATTI_COLS)
+    #ensure_csv_exists(CLIENTI_CSV, CLIENTI_COLS)
+    #ensure_csv_exists(CONTRATTI_CSV, CONTRATTI_COLS)
+    #ensure_csv_exists(GABRIELE_CLIENTI, CLIENTI_COLS)
+    #ensure_csv_exists(GABRIELE_CONTRATTI, CONTRATTI_COLS)
 
     # --- Caricamento dati base ---
     df_cli_main = load_clienti()

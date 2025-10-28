@@ -1197,17 +1197,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # === INTESTAZIONE ===
-    header_cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 2.2, 1])
+        # === INTESTAZIONE (aggiunta Ecc. Col) ===
+    header_cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 0.8, 2.0, 1])
     headers = [
         "N°", "Inizio", "Fine", "Durata", "Tot. Rata", "Stato",
-        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col",
+        "NOL FIN", "NOL INT", "Copie B/N", "Ecc. B/N", "Copie Col", "Ecc. Col",
         "Descrizione", "Azioni"
     ]
     for col, h in zip(header_cols, headers):
         col.markdown(f"<div class='tbl-header'>{h}</div>", unsafe_allow_html=True)
 
-    # === RIGHE CONTRATTI ===
+    # === RIGHE CONTRATTI (con Ecc. Col) ===
     for i, r in ct.iterrows():
         stato = str(r.get("Stato", "aperto")).lower()
         bg = "#ffe5e5" if stato == "chiuso" else ("#f8fafc" if i % 2 == 0 else "#ffffff")
@@ -1221,7 +1221,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         if len(desc_txt) > 90:
             desc_txt = desc_txt[:90] + "…"
 
-        cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 2.2, 1])
+        cols = st.columns([0.7, 0.9, 0.9, 0.7, 1, 0.8, 0.9, 0.9, 0.8, 0.8, 0.8, 0.8, 2.0, 1])
         cols[0].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
         cols[1].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataInizio'))}</div>", unsafe_allow_html=True)
         cols[2].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
@@ -1233,9 +1233,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cols[8].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieBN','')}</div>", unsafe_allow_html=True)
         cols[9].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccBN','')}</div>", unsafe_allow_html=True)
         cols[10].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('CopieCol','')}</div>", unsafe_allow_html=True)
-        cols[11].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc_txt}</div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div style='background:{bg};padding:4px;text-align:center'>{r.get('EccCol','')}</div>", unsafe_allow_html=True)
+        cols[12].markdown(f"<div style='background:{bg};padding:4px;text-align:left'>{desc_txt}</div>", unsafe_allow_html=True)
 
-        with cols[12]:
+        with cols[13]:
             b1, b2, b3 = st.columns(3)
 
             # ✏️ Modifica

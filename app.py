@@ -685,6 +685,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         for i, r in scadenze.iterrows():
             bg_color = "#f8fbff" if i % 2 == 0 else "#ffffff"
+            cliente_id = str(r.get("ClienteID", "")).strip()
+        
             cols = st.columns([2, 1, 1, 1, 0.8])
             with cols[0]:
                 st.markdown(f"<div style='background:{bg_color};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
@@ -695,13 +697,16 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with cols[3]:
                 st.markdown(f"<div style='background:{bg_color};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
             with cols[4]:
-                if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                    st.session_state.update({
-                        "selected_cliente": str(r.get("ClienteID")),
-                        "nav_target": "Contratti",
-                        "_go_contratti_now": True
-                    })
-                    st.rerun()
+                if st.button("📂 Apri", key=f"open_scad_{cliente_id}_{i}", use_container_width=True):
+                    if cliente_id:
+                        st.session_state.update({
+                            "selected_cliente": cliente_id,
+                            "nav_target": "Contratti",
+                            "_go_contratti_now": True
+                        })
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ ID cliente non valido per questo contratto.")
 
     # === CONTRATTI RECENTI SENZA DATA FINE ===
     st.divider()

@@ -496,11 +496,11 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
     """
 
 # =====================================
-# PAGINA DASHBOARD (MULTI-PROPRIETARIO con salvataggio automatico)
+# PAGINA DASHBOARD (VERSIONE CLASSICA – compatibile con app (8).py)
 # =====================================
 def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.image(LOGO_URL, width=120)
-    st.markdown("<h2>📊 Gestionale SHT</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>📊 Dashboard Gestionale</h2>", unsafe_allow_html=True)
     st.divider()
 
     # === KPI principali ===
@@ -523,11 +523,10 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     c4.markdown(kpi_card("Nuovi contratti anno", len(new_contracts), "⭐", "#FBC02D"), unsafe_allow_html=True)
     st.divider()
 
-    # === CREAZIONE NUOVO CLIENTE + CONTRATTO (con Proprietario) ===
+    # === CREAZIONE NUOVO CLIENTE + CONTRATTO ===
     with st.expander("➕ Crea Nuovo Cliente + Contratto"):
         with st.form("frm_new_cliente"):
             st.markdown("#### 📇 Dati Cliente")
-
             col1, col2 = st.columns(2)
             with col1:
                 ragione = st.text_input("🏢 Ragione Sociale")
@@ -543,28 +542,14 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 iban = st.text_input("🏦 IBAN")
                 sdi = st.text_input("📡 SDI")
                 note = st.text_area("📝 Note Cliente", height=70)
-                tmk = st.selectbox(
-                    "👩‍💼 TMK di riferimento",
-                    ["", "Giulia", "Antonella", "Annalisa", "Laura"],
-                    index=0
-                )
 
-            # === Assegnazione Proprietario ===
-            proprietario = st.selectbox(
-                "👑 Proprietario del Cliente",
-                ["fabio", "gabriele", "altro"],
-                index=0,
-                help="Seleziona a chi appartiene questo cliente"
-            )
-
-            # === SEZIONE CONTRATTO ===
             st.markdown("#### 📄 Primo Contratto del Cliente")
             colc1, colc2, colc3 = st.columns(3)
             num = colc1.text_input("📄 Numero Contratto")
             data_inizio = colc2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
             durata = colc3.selectbox("📆 Durata (mesi)", DURATE_MESI, index=2)
             desc = st.text_area("🧾 Descrizione Prodotto", height=80)
-
+            
             colp1, colp2, colp3 = st.columns(3)
             nf = colp1.text_input("🏦 NOL_FIN")
             ni = colp2.text_input("🏢 NOL_INT")
@@ -580,13 +565,11 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             with colx4:
                 ecc_col = st.text_input("💰 Costo extra Colore (€)", value="", key="ecc_col")
 
-            # === SALVATAGGIO COMPLETO ===
             if st.form_submit_button("💾 Crea Cliente e Contratto"):
                 try:
                     new_id = str(len(df_cli) + 1)
                     data_fine = pd.to_datetime(data_inizio) + pd.DateOffset(months=int(durata))
 
-                    # --- Nuovo cliente ---
                     nuovo_cliente = {
                         "ClienteID": new_id,
                         "RagioneSociale": ragione,
@@ -604,9 +587,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "ProssimoRecall": "",
                         "UltimaVisita": "",
                         "ProssimaVisita": "",
-                        "TMK": tmk,
-                        "NoteCliente": note,
-                        "Proprietario": proprietario
+                        "NoteCliente": note
                     }
 
                     nuovo_contratto = {
@@ -624,134 +605,126 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "EccBN": ecc_bn,
                         "CopieCol": copie_col,
                         "EccCol": ecc_col,
-                        "Stato": "aperto",
-                        "Proprietario": proprietario
+                        "Stato": "aperto"
                     }
 
-                    # --- Salva nel file corretto ---
-                    if proprietario == "gabriele":
-                        path_cli = GABRIELE_CLIENTI
-                        path_ct = GABRIELE_CONTRATTI
-                    else:
-                        path_cli = CLIENTI_CSV
-                        path_ct = CONTRATTI_CSV
+                    df_cli = pd.concat([df_cli, pd.DataFrame([nuovo_cliente])], ignore_index=True)
+                    df_ct = pd.concat([df_ct, pd.DataFrame([nuovo_contratto])], ignore_index=True)
+                    save_clienti(df_cli)
+                    save_contratti(df_ct)
 
-                    # --- Aggiorna i file ---
-                    if path_cli.exists():
-                        df_exist = pd.read_csv(path_cli, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
-                    else:
-                        df_exist = pd.DataFrame(columns=df_cli.columns)
-                    df_exist = pd.concat([df_exist, pd.DataFrame([nuovo_cliente])], ignore_index=True)
-                    df_exist.to_csv(path_cli, index=False, encoding="utf-8-sig")
-
-                    if path_ct.exists():
-                        df_ct_exist = pd.read_csv(path_ct, dtype=str, encoding="utf-8-sig", on_bad_lines="skip").fillna("")
-                    else:
-                        df_ct_exist = pd.DataFrame(columns=df_ct.columns)
-                    df_ct_exist = pd.concat([df_ct_exist, pd.DataFrame([nuovo_contratto])], ignore_index=True)
-                    df_ct_exist.to_csv(path_ct, index=False, encoding="utf-8-sig")
-
-                    st.success(f"✅ Cliente '{ragione}' assegnato a **{proprietario.upper()}** creato correttamente!")
+                    st.success(f"✅ Cliente '{ragione}' e contratto creati correttamente!")
                     st.session_state.update({
                         "selected_cliente": new_id,
                         "nav_target": "Contratti",
                         "_go_contratti_now": True
                     })
                     st.rerun()
-
                 except Exception as e:
                     st.error(f"❌ Errore creazione cliente: {e}")
 
+    st.divider()
 
-    # === SCADENZE & CONTRATTI INCOMPLETI ===
-    st.markdown("### ⚠️ Scadenze & Contratti Incompleti")
+    # === CONTRATTI IN SCADENZA ENTRO 6 MESI ===
+    st.markdown("### ⚠️ Contratti in scadenza entro 6 mesi")
 
     oggi = pd.Timestamp.now().normalize()
     entro_6_mesi = oggi + pd.DateOffset(months=6)
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
 
-    # 🔹 Conversione date robusta
-    def _parse_date_safe(val):
-        if pd.isna(val) or str(val).strip() == "":
-            return pd.NaT
-        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"):
-            try:
-                return pd.to_datetime(val, format=fmt, dayfirst=True, errors="coerce")
-            except Exception:
-                continue
-        return pd.to_datetime(val, errors="coerce", dayfirst=True)
-
-    df_ct["DataInizio"] = df_ct["DataInizio"].apply(_parse_date_safe)
-    df_ct["DataFine"] = df_ct["DataFine"].apply(_parse_date_safe)
-
-    # 🔹 Filtra solo i contratti aperti (non chiusi)
-    aperti = df_ct[df_ct["Stato"].astype(str).str.lower() != "chiuso"].copy()
-
-    # 🔹 Se DataFine mancante o in scadenza entro 6 mesi
-    scadenze = aperti[
-        (aperti["DataFine"].isna()) |
-        ((aperti["DataFine"] >= oggi) & (aperti["DataFine"] <= entro_6_mesi))
+    scadenze = df_ct[
+        (df_ct["DataFine"].notna()) &
+        (df_ct["DataFine"] >= oggi) &
+        (df_ct["DataFine"] <= entro_6_mesi) &
+        (df_ct["Stato"].astype(str).str.lower() != "chiuso")
     ].copy()
 
-    # 🔹 Associa ragione sociale se manca
     if not scadenze.empty and "RagioneSociale" not in scadenze.columns:
         scadenze = scadenze.merge(df_cli[["ClienteID", "RagioneSociale"]], on="ClienteID", how="left")
 
-    # 🔹 Visualizzazione
     if scadenze.empty:
-        st.success("✅ Nessun contratto aperto in scadenza o senza data di fine.")
+        st.success("✅ Nessun contratto attivo in scadenza nei prossimi 6 mesi.")
     else:
-        scadenze["DataFineFmt"] = scadenze["DataFine"].apply(fmt_date)
-        scadenze["DataInizioFmt"] = scadenze["DataInizio"].apply(fmt_date)
-        scadenze = scadenze.sort_values(["DataFine", "DataInizio"], na_position="last")
+        scadenze["DataFine"] = scadenze["DataFine"].apply(fmt_date)
+        scadenze = scadenze.sort_values("DataFine")
 
-        st.markdown(f"📅 **{len(scadenze)} contratti aperti** (in scadenza o senza data di fine):")
-
-        head_cols = st.columns([2.5, 1, 1, 1.5, 1.5, 0.8])
+        st.markdown(f"📅 **{len(scadenze)} contratti in scadenza entro 6 mesi:**")
+        head_cols = st.columns([2, 1, 1, 1, 0.8])
         head_cols[0].markdown("**Cliente**")
         head_cols[1].markdown("**Contratto**")
-        head_cols[2].markdown("**Inizio**")
-        head_cols[3].markdown("**Fine / Mancante**")
-        head_cols[4].markdown("**Stato**")
-        head_cols[5].markdown("**Azioni**")
+        head_cols[2].markdown("**Scadenza**")
+        head_cols[3].markdown("**Stato**")
+        head_cols[4].markdown("**Azioni**")
         st.markdown("---")
 
         for i, r in scadenze.iterrows():
-            bg = "#f8fbff" if i % 2 == 0 else "#ffffff"
-            col1, col2, col3, col4, col5, col6 = st.columns([2.5, 1, 1, 1.5, 1.5, 0.8])
-            with col1:
-                st.markdown(
-                    f"<div style='background:{bg};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>",
-                    unsafe_allow_html=True
-                )
-            with col2:
-                st.markdown(
-                    f"<div style='background:{bg};padding:6px'>{r.get('NumeroContratto','—')}</div>",
-                    unsafe_allow_html=True
-                )
-            with col3:
-                st.markdown(
-                    f"<div style='background:{bg};padding:6px'>{r.get('DataInizioFmt','—')}</div>",
-                    unsafe_allow_html=True
-                )
-            with col4:
-                fine = r.get("DataFineFmt") or "—"
-                if not r.get("DataFineFmt"):
-                    fine = "<span style='color:#d32f2f;font-weight:600;'>⚠️ Mancante</span>"
-                st.markdown(f"<div style='background:{bg};padding:6px'>{fine}</div>", unsafe_allow_html=True)
-            with col5:
-                stato_txt = str(r.get("Stato", "—")).capitalize()
-                st.markdown(f"<div style='background:{bg};padding:6px'>{stato_txt}</div>", unsafe_allow_html=True)
-            with col6:
+            bg_color = "#f8fbff" if i % 2 == 0 else "#ffffff"
+            cols = st.columns([2, 1, 1, 1, 0.8])
+            with cols[0]:
+                st.markdown(f"<div style='background:{bg_color};padding:6px'><b>{r.get('RagioneSociale','—')}</b></div>", unsafe_allow_html=True)
+            with cols[1]:
+                st.markdown(f"<div style='background:{bg_color};padding:6px'>{r.get('NumeroContratto','—')}</div>", unsafe_allow_html=True)
+            with cols[2]:
+                st.markdown(f"<div style='background:{bg_color};padding:6px'>{fmt_date(r.get('DataFine'))}</div>", unsafe_allow_html=True)
+            with cols[3]:
+                st.markdown(f"<div style='background:{bg_color};padding:6px'>{r.get('Stato','—')}</div>", unsafe_allow_html=True)
+            with cols[4]:
                 if st.button("📂 Apri", key=f"open_scad_{i}", use_container_width=True):
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("edit_ct_") or k.startswith("edit_cli_"):
-                            del st.session_state[k]
                     st.session_state.update({
                         "selected_cliente": str(r.get("ClienteID")),
                         "nav_target": "Contratti",
                         "_go_contratti_now": True
                     })
                     st.rerun()
+
+    # === CONTRATTI RECENTI SENZA DATA FINE ===
+    st.divider()
+    st.markdown("### ⚠️ Contratti recenti senza data di fine")
+
+    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
+    df_ct["DataFine"] = pd.to_datetime(df_ct["DataFine"], errors="coerce", dayfirst=True)
+    oggi = pd.Timestamp.now().normalize()
+
+    contratti_senza_fine = df_ct[
+        (df_ct["DataFine"].isna()) &
+        (df_ct["DataInizio"].notna()) &
+        (df_ct["DataInizio"] >= oggi)
+    ].copy()
+
+    if contratti_senza_fine.empty:
+        st.success("✅ Tutti i contratti recenti hanno una data di fine.")
+    else:
+        st.warning(f"⚠️ {len(contratti_senza_fine)} contratti inseriti da oggi non hanno ancora una data di fine:")
+        if "RagioneSociale" not in contratti_senza_fine.columns:
+            contratti_senza_fine = contratti_senza_fine.merge(
+                df_cli[["ClienteID", "RagioneSociale"]],
+                on="ClienteID", how="left"
+            )
+
+        contratti_senza_fine["DataInizio"] = contratti_senza_fine["DataInizio"].apply(fmt_date)
+        contratti_senza_fine = contratti_senza_fine.sort_values("DataInizio", ascending=False)
+
+        for i, r in contratti_senza_fine.iterrows():
+            col1, col2, col3, col4, col5 = st.columns([2.5, 1, 1.2, 2.5, 0.8])
+            with col1:
+                st.markdown(f"**{r.get('RagioneSociale', '—')}**")
+                st.markdown(r.get("NumeroContratto", "—"))
+            with col3:
+                st.markdown(r.get("DataInizio", "—"))
+            with col4:
+                desc = str(r.get("DescrizioneProdotto", "—"))
+                if len(desc) > 60:
+                    desc = desc[:60] + "…"
+                st.markdown(desc)
+            with col5:
+                if st.button("📂 Apri", key=f"open_ndf_{i}", use_container_width=True):
+                    st.session_state.update({
+                        "selected_cliente": r.get("ClienteID"),
+                        "nav_target": "Contratti",
+                        "_go_contratti_now": True
+                    })
+                    st.rerun()
+
 
 
 # =====================================

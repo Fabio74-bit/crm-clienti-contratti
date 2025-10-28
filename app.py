@@ -412,38 +412,62 @@ def do_login_fullscreen():
         return st.session_state["user"], st.session_state["role"]
 
     # --- CSS layout e fix del rettangolo bianco ---
-    st.markdown("""
-    <style>
-    /* 🔹 Rimuove margine/spazio bianco sopra il logo */
-    section.main > div:first-child {
-        padding-top: 0 !important;
-        margin-top: 0 !important;
-    }
-    div.block-container > div:empty {
-        display: none !important;
-    }
+st.markdown("""
+<style>
+/* 🔹 Forza rimozione di margini/spazi bianchi in alto */
+html, body, [data-testid="stAppViewContainer"], section.main {
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #f8fafc !important;
+}
+.block-container {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f8fafc;
+}
+/* 🔹 Nasconde blocchi vuoti creati da Streamlit */
+.block-container > div:empty,
+section.main > div:empty {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
 
-    /* 🔹 Stile base del login */
-    div[data-testid="stAppViewContainer"] {padding-top:0 !important;}
-    .block-container {
-        display:flex;flex-direction:column;justify-content:center;
-        align-items:center;height:100vh;background-color:#f8fafc;
-    }
-    .login-card {
-        background:#fff;border:1px solid #e5e7eb;border-radius:12px;
-        box-shadow:0 4px 16px rgba(0,0,0,0.08);
-        padding:2rem 2.5rem;width:360px;text-align:center;
-    }
-    .login-title {
-        font-size:1.3rem;font-weight:600;color:#2563eb;
-        margin:1rem 0 1.4rem;
-    }
-    .stButton>button {
-        width:260px;font-size:0.9rem;background-color:#2563eb;color:white;
-        border:none;border-radius:6px;padding:0.5rem 0;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+/* 🔹 Card login */
+.login-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    padding: 2rem 2.5rem;
+    width: 360px;
+    text-align: center;
+}
+.login-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #2563eb;
+    margin: 1rem 0 1.4rem;
+}
+.stButton>button {
+    width: 260px;
+    font-size: 0.9rem;
+    background-color: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 0;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
     # --- Layout centrato ---
     _, login_col, _ = st.columns([1, 2, 1])

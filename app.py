@@ -1180,7 +1180,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                     except Exception as e:
                         st.error(f"❌ Errore durante la creazione del contratto: {e}")
 
-        # === STILE TABELLA ===
+    # === STILE TABELLA ===
     st.markdown("""
     <style>
       .tbl-header {
@@ -1465,6 +1465,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             )
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
+
 
 # =====================================
 # FUNZIONE MODALE MODIFICA CONTRATTO

@@ -1132,36 +1132,36 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     # === CREA NUOVO CONTRATTO ===
     with st.form(f"new_ct_{sel_id}"):
-    st.markdown("#### 📄 Dati Contratto")
-
-    c1, c2, c3, c4 = st.columns(4)
-    num = c1.text_input("Numero Contratto", key="new_ct_num")
-    din = c2.date_input("📅 Data Inizio", format="DD/MM/YYYY", key="new_ct_din")
-
-    durata_default = "36"
-    durata_idx = DURATE_MESI.index(durata_default) if durata_default in DURATE_MESI else 2
-    durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=durata_idx, key="new_ct_durata")
-
-    stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0, key="new_ct_stato")
-
-    desc = st.text_area("Descrizione Prodotto", height=80, key="new_ct_desc")
-
-    # Calcolo automatico della data fine, ma modificabile
-    data_fine_auto = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-    data_fine = c4.date_input("📅 Data Fine", value=data_fine_auto, format="DD/MM/YYYY", key="new_ct_df")
-
-    st.markdown("#### 💰 Dati Economici")
-    c5, c6, c7 = st.columns(3)
-    nf = c5.text_input("NOL_FIN", key="new_ct_nf")
-    ni = c6.text_input("NOL_INT", key="new_ct_ni")
-    tot = c7.text_input("TotRata", key="new_ct_tot")
-
-    st.markdown("#### 🖨️ Copie incluse ed Eccedenze")
-    c8, c9, c10, c11 = st.columns(4)
-    copie_bn = c8.text_input("Copie incluse B/N", value="", key="new_ct_bn")
-    ecc_bn = c9.text_input("Eccedenza B/N (€)", value="", key="new_ct_ecc_bn")
-    copie_col = c10.text_input("Copie incluse Colore", value="", key="new_ct_col")
-    ecc_col = c11.text_input("Eccedenza Colore (€)", value="", key="new_ct_ecc_col")
+        st.markdown("#### 📄 Dati Contratto")
+    
+        c1, c2, c3, c4 = st.columns(4)
+        num = c1.text_input("Numero Contratto", key="new_ct_num")
+        din = c2.date_input("📅 Data Inizio", format="DD/MM/YYYY", key="new_ct_din")
+    
+        durata_default = "36"
+        durata_idx = DURATE_MESI.index(durata_default) if durata_default in DURATE_MESI else 2
+        durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=durata_idx, key="new_ct_durata")
+    
+        stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0, key="new_ct_stato")
+    
+        desc = st.text_area("Descrizione Prodotto", height=80, key="new_ct_desc")
+    
+        # Calcolo automatico della data fine, ma modificabile
+        data_fine_auto = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+        data_fine = c4.date_input("📅 Data Fine", value=data_fine_auto, format="DD/MM/YYYY", key="new_ct_df")
+    
+        st.markdown("#### 💰 Dati Economici")
+        c5, c6, c7 = st.columns(3)
+        nf = c5.text_input("NOL_FIN", key="new_ct_nf")
+        ni = c6.text_input("NOL_INT", key="new_ct_ni")
+        tot = c7.text_input("TotRata", key="new_ct_tot")
+    
+        st.markdown("#### 🖨️ Copie incluse ed Eccedenze")
+        c8, c9, c10, c11 = st.columns(4)
+        copie_bn = c8.text_input("Copie incluse B/N", value="", key="new_ct_bn")
+        ecc_bn = c9.text_input("Eccedenza B/N (€)", value="", key="new_ct_ecc_bn")
+        copie_col = c10.text_input("Copie incluse Colore", value="", key="new_ct_col")
+        ecc_col = c11.text_input("Eccedenza Colore (€)", value="", key="new_ct_ecc_col")
 
     if st.form_submit_button("💾 Crea contratto"):
         try:

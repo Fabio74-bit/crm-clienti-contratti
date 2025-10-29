@@ -1215,61 +1215,61 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     for c, h in zip(head_cols, head_lbls):
         c.markdown(f"<div class='tbl-head'><div>{h}</div></div>", unsafe_allow_html=True)
 
-   # --- righe
+    # --- righe
     oggi = pd.Timestamp.now().normalize()
     for i, r in ct.iterrows():
-    
-    # 🔧 BLOCCO MODIFICA CONTRATTO — inserisci qui
-    if st.session_state.get("edit_gidx") == i:
-        st.markdown("🛠️ **Modifica contratto**")
-        with st.form(f"edit_ct_form_{i}"):
-            c1, c2, c3, c4 = st.columns(4)
-            num = c1.text_input("Numero Contratto", value=r["NumeroContratto"])
-            din = c2.date_input("Data Inizio", value=pd.to_datetime(r["DataInizio"]))
-            durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=DURATE_MESI.index(str(r["Durata"])))
-            stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if r["Stato"] == "aperto" else 1)
-            desc = st.text_area("Descrizione Prodotto", value=r["DescrizioneProdotto"])
+        # 🔧 BLOCCO MODIFICA CONTRATTO — inserisci qui
+        if st.session_state.get("edit_gidx") == i:
+            st.markdown("🛠️ **Modifica contratto**")
+            with st.form(f"edit_ct_form_{i}"):
+                c1, c2, c3, c4 = st.columns(4)
+                num = c1.text_input("Numero Contratto", value=r["NumeroContratto"])
+                din = c2.date_input("Data Inizio", value=pd.to_datetime(r["DataInizio"]))
+                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=DURATE_MESI.index(str(r["Durata"])))
+                stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if r["Stato"] == "aperto" else 1)
+                desc = st.text_area("Descrizione Prodotto", value=r["DescrizioneProdotto"])
 
-            st.markdown("#### 💰 Dati Economici")
-            c5, c6, c7 = st.columns(3)
-            nf = c5.text_input("NOL_FIN", value=r["NOL_FIN"])
-            ni = c6.text_input("NOL_INT", value=r["NOL_INT"])
-            tot = c7.text_input("TotRata", value=r["TotRata"])
+                st.markdown("#### 💰 Dati Economici")
+                c5, c6, c7 = st.columns(3)
+                nf = c5.text_input("NOL_FIN", value=r["NOL_FIN"])
+                ni = c6.text_input("NOL_INT", value=r["NOL_INT"])
+                tot = c7.text_input("TotRata", value=r["TotRata"])
 
-            st.markdown("#### 🖨️ Copie incluse ed Eccedenze")
-            c8, c9, c10, c11 = st.columns(4)
-            copie_bn = c8.text_input("Copie incluse B/N", value=r["CopieBN"])
-            ecc_bn = c9.text_input("Eccedenza B/N (€)", value=r["EccBN"])
-            copie_col = c10.text_input("Copie incluse Colore", value=r["CopieCol"])
-            ecc_col = c11.text_input("Eccedenza Colore (€)", value=r["EccCol"])
+                st.markdown("#### 🖨️ Copie incluse ed Eccedenze")
+                c8, c9, c10, c11 = st.columns(4)
+                copie_bn = c8.text_input("Copie incluse B/N", value=r["CopieBN"])
+                ecc_bn = c9.text_input("Eccedenza B/N (€)", value=r["EccBN"])
+                copie_col = c10.text_input("Copie incluse Colore", value=r["CopieCol"])
+                ecc_col = c11.text_input("Eccedenza Colore (€)", value=r["EccCol"])
 
-            col_save, col_cancel = st.columns(2)
-            with col_save:
-                if st.form_submit_button("💾 Salva modifiche"):
-                    try:
-                        fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-                        df_ct.loc[df_ct.index == i, [
-                            "NumeroContratto", "DataInizio", "DataFine", "Durata", "Stato",
-                            "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-                            "CopieBN", "EccBN", "CopieCol", "EccCol"
-                        ]] = [
-                            num, fmt_date(din), fmt_date(fine), durata, stato_new,
-                            desc, nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col
-                        ]
-                        save_contratti(df_ct)
-                        st.success("✅ Contratto aggiornato.")
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.form_submit_button("💾 Salva modifiche"):
+                        try:
+                            fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                            df_ct.loc[df_ct.index == i, [
+                                "NumeroContratto", "DataInizio", "DataFine", "Durata", "Stato",
+                                "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+                                "CopieBN", "EccBN", "CopieCol", "EccCol"
+                            ]] = [
+                                num, fmt_date(din), fmt_date(fine), durata, stato_new,
+                                desc, nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col
+                            ]
+                            save_contratti(df_ct)
+                            st.success("✅ Contratto aggiornato.")
+                            st.session_state.pop("edit_gidx", None)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Errore salvataggio: {e}")
+                with col_cancel:
+                    if st.form_submit_button("❌ Annulla"):
                         st.session_state.pop("edit_gidx", None)
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Errore salvataggio: {e}")
-            with col_cancel:
-                if st.form_submit_button("❌ Annulla"):
-                    st.session_state.pop("edit_gidx", None)
-                    st.rerun()
-    # 🔧 Fine blocco modifica
+        # 🔧 Fine blocco modifica
 
-    stato = str(r.get("Stato","aperto")).lower()
-    row_cls = "row-closed" if stato == "chiuso" else ""
+        stato = str(r.get("Stato", "aperto")).lower()
+        row_cls = "row-closed" if stato == "chiuso" else ""
+
     
 
 

@@ -1193,7 +1193,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
         except Exception as e:
             st.error(f"❌ Errore durante la creazione del contratto: {e}")
-)
 
     # === STILE TABELLA ===
     st.markdown("""

@@ -1140,7 +1140,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 c1, c2, c3, c4 = st.columns(4)
                 num = c1.text_input("Numero Contratto")
                 din = c2.date_input("Data Inizio", format="DD/MM/YYYY")
-                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+                durata_default = "36"  # o un valore sicuro presente in DURATE_MESI
+                durata_idx = DURATE_MESI.index(durata_default) if durata_default in DURATE_MESI else 2
+                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=durata_idx)
+
                 stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0)
                 desc = st.text_area("Descrizione Prodotto", height=80)
 
@@ -1221,11 +1224,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         # 🔧 BLOCCO MODIFICA CONTRATTO — inserisci qui
         if st.session_state.get("edit_gidx") == i:
             st.markdown("🛠️ **Modifica contratto**")
+
             with st.form(f"edit_ct_form_{i}"):
                 c1, c2, c3, c4 = st.columns(4)
                 num = c1.text_input("Numero Contratto", value=r["NumeroContratto"])
                 din = c2.date_input("Data Inizio", value=pd.to_datetime(r["DataInizio"]))
-                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=DURATE_MESI.index(str(r["Durata"])))
+
+                # ✅ fallback sicuro se durata non è valida
+                durata_val = str(r.get("Durata", "36"))
+                durata_idx = DURATE_MESI.index(durata_val) if durata_val in DURATE_MESI else 2
+                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=durata_idx)
+
                 stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if r["Stato"] == "aperto" else 1)
                 desc = st.text_area("Descrizione Prodotto", value=r["DescrizioneProdotto"])
 
@@ -1242,37 +1251,36 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 copie_col = c10.text_input("Copie incluse Colore", value=r["CopieCol"])
                 ecc_col = c11.text_input("Eccedenza Colore (€)", value=r["EccCol"])
 
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    if st.form_submit_button("💾 Salva modifiche"):
-                        try:
-                            fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-                            df_ct.loc[df_ct.index == i, [
-                                "NumeroContratto", "DataInizio", "DataFine", "Durata", "Stato",
-                                "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-                                "CopieBN", "EccBN", "CopieCol", "EccCol"
-                            ]] = [
-                                num, fmt_date(din), fmt_date(fine), durata, stato_new,
-                                desc, nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col
-                            ]
-                            save_contratti(df_ct)
-                            st.success("✅ Contratto aggiornato.")
-                            st.session_state.pop("edit_gidx", None)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Errore salvataggio: {e}")
-                with col_cancel:
-                    if st.form_submit_button("❌ Annulla"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    salva = st.form_submit_button("💾 Salva modifiche")
+                with col2:
+                    annulla = st.form_submit_button("❌ Annulla")
+
+                if salva:
+                    try:
+                        fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                        df_ct.loc[df_ct.index == i, [
+                            "NumeroContratto", "DataInizio", "DataFine", "Durata", "Stato",
+                            "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+                            "CopieBN", "EccBN", "CopieCol", "EccCol"
+                        ]] = [
+                            num, fmt_date(din), fmt_date(fine), durata, stato_new,
+                            desc, nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col
+                        ]
+                        save_contratti(df_ct)
+                        st.success("✅ Contratto aggiornato.")
                         st.session_state.pop("edit_gidx", None)
                         st.rerun()
-        # 🔧 Fine blocco modifica
-
+                    except Exception as e:
+                        st.error(f"❌ Errore salvataggio: {e}")
+                if annulla:
+                    st.session_state.pop("edit_gidx", None)
+                    st.rerun()
         stato = str(r.get("Stato", "aperto")).lower()
         row_cls = "row-closed" if stato == "chiuso" else ""
 
     
-
-
         cols = st.columns([0.7, 0.9, 0.9, 0.8, 2.8, 1.1, 1, 1, 0.9, 0.9, 0.9, 0.9, 1])
         cols[0].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('NumeroContratto','—')}</div></div>", unsafe_allow_html=True)
         cols[1].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{fmt_date(r.get('DataInizio'))}</div></div>", unsafe_allow_html=True)

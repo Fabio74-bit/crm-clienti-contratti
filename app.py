@@ -1723,31 +1723,78 @@ def export_excel_contratti(df_ct, sel_id, rag_soc):
 
 def export_pdf_contratti(df_ct, sel_id, rag_soc):
     from fpdf import FPDF
-    disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
-    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
-    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
-    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "TotRata", "Stato"]
-    widths = [30, 25, 25, 15, 25, 20]
+    from io import BytesIO
 
-    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
-    pdf.set_font("Arial", "B", 10)
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=10)
+
+    start_x = 10
+    start_y = 20
+    line_height = 8
+    col_widths = [20, 20, 20, 15, 40, 20, 15, 15, 15, 15, 15, 15]
+
+    def fmt_date(val):
+        try:
+            return pd.to_datetime(val).strftime("%d/%m/%Y")
+        except:
+            return ""
+
+    disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+
+    def draw_row(r):
+        nonlocal start_y
+        stato = str(r.get("Stato", "aperto")).lower()
+        is_closed = (stato == "chiuso")
+        fill_color = (255, 230, 230) if is_closed else (255, 255, 255)
+
+        row_values = [
+            r.get("NumeroContratto", ""),
+            fmt_date(r.get("DataInizio")),
+            fmt_date(r.get("DataFine")),
+            r.get("Durata", ""),
+            str(r.get("DescrizioneProdotto", "")),
+            str(r.get("TotRata", "")),
+            r.get("NOL_FIN", ""),
+            r.get("NOL_INT", ""),
+            r.get("CopieBN", ""),
+            r.get("EccBN", ""),
+            r.get("CopieCol", ""),
+            r.get("EccCol", "")
+        ]
+
+        pdf.set_fill_color(*fill_color)
+        x = start_x
+        for i, val in enumerate(row_values):
+            pdf.set_xy(x, start_y)
+            pdf.cell(col_widths[i], line_height, str(val), border=1, fill=True)
+            x += col_widths[i]
+        start_y += line_height
+
+    # Intestazione tabella
+    headers = [
+        "N°", "Inizio", "Fine", "Dur", "Prodotto", "Tot Rata", 
+        "FIN", "INT", "BN", "Ecc. BN", "Col", "Ecc. Col"
+    ]
+    pdf.set_fill_color(37, 99, 235)
+    pdf.set_text_color(255, 255, 255)
+    x = start_x
     for i, h in enumerate(headers):
-        pdf.cell(widths[i], 8, safe_text(h), 1, 0, "C", True)
-    pdf.ln()
-    pdf.set_font("Arial", "", 9)
-    for _, r in disp.iterrows():
-        for i, h in enumerate(headers):
-            stato = str(r.get("Stato", "")).lower()
-            if stato == "chiuso":
-                pdf.set_fill_color(255, 235, 238)
-                pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C", fill=True)
-            else:
-                pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C")
-        pdf.ln()
-    return pdf.output(dest="S").encode("latin-1", errors="replace")
+        pdf.set_xy(x, start_y)
+        pdf.cell(col_widths[i], line_height, h, border=1, fill=True, align="C")
+        x += col_widths[i]
+    pdf.set_text_color(0, 0, 0)
+    start_y += line_height
+
+    for _, riga in disp.iterrows():
+        draw_row(riga)
+
+    # Salva in buffer per download Streamlit
+    buffer = BytesIO()
+    pdf.output(buffer)
+    return buffer.getvalue()
+
 # =====================================
 # 📈 DASHBOARD GRAFICI — priva di dipendenze extra
 # =====================================

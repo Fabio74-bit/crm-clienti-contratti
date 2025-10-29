@@ -1130,65 +1130,63 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         ]
         ct = ct.dropna(how="all").reset_index(drop=True)
 
-# === CREA NUOVO CONTRATTO ===
-with st.expander("➕ Crea Nuovo Contratto", expanded=False):
-    if permessi_limitati:
-        st.warning("🔒 Accesso sola lettura")
-    else:
-        with st.form(f"new_ct_{sel_id}"):
-            st.markdown("#### 📄 Dati Contratto")
-            c1, c2, c3, c4 = st.columns(4)
-            num = c1.text_input("Numero Contratto")
-            din = c2.date_input("Data Inizio", format="DD/MM/YYYY")
-            data_fine = c3.date_input("Data Fine", format="DD/MM/YYYY")
-            durata = c4.selectbox("Durata (mesi)", DURATE_MESI, index=2)
-            stato_new = st.selectbox("Stato", ["aperto", "chiuso"], index=0)
-            desc = st.text_area("Descrizione Prodotto", height=80)
+    # === CREA NUOVO CONTRATTO ===
+    with st.expander("➕ Crea Nuovo Contratto", expanded=False):
+        if permessi_limitati:
+            st.warning("🔒 Accesso sola lettura")
+        else:
+            with st.form(f"new_ct_{sel_id}"):
+                st.markdown("#### 📄 Dati Contratto")
+                c1, c2, c3, c4 = st.columns(4)
+                num = c1.text_input("Numero Contratto")
+                din = c2.date_input("Data Inizio", format="DD/MM/YYYY")
+                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=2)
+                stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0)
+                desc = st.text_area("Descrizione Prodotto", height=80)
 
-            st.markdown("#### 💰 Dati Economici")
-            c5, c6, c7 = st.columns(3)
-            nf = c5.text_input("NOL_FIN")
-            ni = c6.text_input("NOL_INT")
-            tot = c7.text_input("TotRata")
+                st.markdown("#### 💰 Dati Economici")
+                c5, c6, c7 = st.columns(3)
+                nf = c5.text_input("NOL_FIN")
+                ni = c6.text_input("NOL_INT")
+                tot = c7.text_input("TotRata")
 
-            st.markdown("#### 🖨️ Copie incluse ed Eccedenze")
-            c8, c9, c10, c11 = st.columns(4)
-            copie_bn = c8.text_input("Copie incluse B/N", value="")
-            ecc_bn = c9.text_input("Eccedenza B/N (€)", value="")
-            copie_col = c10.text_input("Copie incluse Colore", value="")
-            ecc_col = c11.text_input("Eccedenza Colore (€)", value="")
+                st.markdown("#### 🖨️ Copie incluse ed Eccedenze")
+                c8, c9, c10, c11 = st.columns(4)
+                copie_bn = c8.text_input("Copie incluse B/N", value="")
+                ecc_bn = c9.text_input("Eccedenza B/N (€)", value="")
+                copie_col = c10.text_input("Copie incluse Colore", value="")
+                ecc_col = c11.text_input("Eccedenza Colore (€)", value="")
 
-            # === BOTTONE SUBMIT ===
-            if st.form_submit_button("💾 Crea contratto"):
-                try:
-                    nuovo = {
-                        "ClienteID": sel_id,
-                        "RagioneSociale": rag_soc,
-                        "NumeroContratto": num,
-                        "DataInizio": fmt_date(din),
-                        "DataFine": fmt_date(data_fine),
-                        "Durata": durata,
-                        "DescrizioneProdotto": desc,
-                        "NOL_FIN": nf,
-                        "NOL_INT": ni,
-                        "TotRata": tot,
-                        "CopieBN": copie_bn,
-                        "EccBN": ecc_bn,
-                        "CopieCol": copie_col,
-                        "EccCol": ecc_col,
-                        "Stato": stato_new
-                    }
-                    if not num.strip() and not desc.strip():
-                        st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
-                    else:
-                        df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
-                        df_ct = df_ct.dropna(how="all").reset_index(drop=True)
-                        save_contratti(df_ct)
-                        st.success("✅ Contratto creato correttamente.")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore durante la creazione del contratto: {e}")
-
+                if st.form_submit_button("💾 Crea contratto"):
+                    try:
+                        fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                        nuovo = {
+                            "ClienteID": sel_id,
+                            "RagioneSociale": rag_soc,
+                            "NumeroContratto": num,
+                            "DataInizio": fmt_date(din),
+                            "DataFine": fmt_date(fine),
+                            "Durata": durata,
+                            "DescrizioneProdotto": desc,
+                            "NOL_FIN": nf,
+                            "NOL_INT": ni,
+                            "TotRata": tot,
+                            "CopieBN": copie_bn,
+                            "EccBN": ecc_bn,
+                            "CopieCol": copie_col,
+                            "EccCol": ecc_col,
+                            "Stato": stato_new
+                        }
+                        if not num.strip() and not desc.strip():
+                            st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
+                        else:
+                            df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
+                            df_ct = df_ct.dropna(how="all").reset_index(drop=True)
+                            save_contratti(df_ct)
+                            st.success("✅ Contratto creato correttamente.")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore durante la creazione del contratto: {e}")
 
     # === STILE TABELLA ===
     st.markdown("""
@@ -1220,66 +1218,9 @@ with st.expander("➕ Crea Nuovo Contratto", expanded=False):
     # --- righe
     oggi = pd.Timestamp.now().normalize()
     for i, r in ct.iterrows():
-        # 🔧 BLOCCO MODIFICA CONTRATTO — inserisci qui
-        if st.session_state.get("edit_gidx") == i:
-            st.markdown("🛠️ **Modifica contratto**")
-
-            with st.form(f"edit_ct_form_{i}"):
-                c1, c2, c3, c4 = st.columns(4)
-                num = c1.text_input("Numero Contratto", value=r["NumeroContratto"])
-                din = c2.date_input("Data Inizio", value=pd.to_datetime(r["DataInizio"]))
-
-                # ✅ fallback sicuro se durata non è valida
-                durata_val = str(r.get("Durata", "36"))
-                durata_idx = DURATE_MESI.index(durata_val) if durata_val in DURATE_MESI else 2
-                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=durata_idx)
-
-                stato_new = c4.selectbox("Stato", ["aperto", "chiuso"], index=0 if r["Stato"] == "aperto" else 1)
-                desc = st.text_area("Descrizione Prodotto", value=r["DescrizioneProdotto"])
-
-                st.markdown("#### 💰 Dati Economici")
-                c5, c6, c7 = st.columns(3)
-                nf = c5.text_input("NOL_FIN", value=r["NOL_FIN"])
-                ni = c6.text_input("NOL_INT", value=r["NOL_INT"])
-                tot = c7.text_input("TotRata", value=r["TotRata"])
-
-                st.markdown("#### 🖨️ Copie incluse ed Eccedenze")
-                c8, c9, c10, c11 = st.columns(4)
-                copie_bn = c8.text_input("Copie incluse B/N", value=r["CopieBN"])
-                ecc_bn = c9.text_input("Eccedenza B/N (€)", value=r["EccBN"])
-                copie_col = c10.text_input("Copie incluse Colore", value=r["CopieCol"])
-                ecc_col = c11.text_input("Eccedenza Colore (€)", value=r["EccCol"])
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    salva = st.form_submit_button("💾 Salva modifiche")
-                with col2:
-                    annulla = st.form_submit_button("❌ Annulla")
-
-                if salva:
-                    try:
-                        fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
-                        df_ct.loc[df_ct.index == i, [
-                            "NumeroContratto", "DataInizio", "DataFine", "Durata", "Stato",
-                            "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
-                            "CopieBN", "EccBN", "CopieCol", "EccCol"
-                        ]] = [
-                            num, fmt_date(din), fmt_date(fine), durata, stato_new,
-                            desc, nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col
-                        ]
-                        save_contratti(df_ct)
-                        st.success("✅ Contratto aggiornato.")
-                        st.session_state.pop("edit_gidx", None)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Errore salvataggio: {e}")
-                if annulla:
-                    st.session_state.pop("edit_gidx", None)
-                    st.rerun()
-        stato = str(r.get("Stato", "aperto")).lower()
+        stato = str(r.get("Stato","aperto")).lower()
         row_cls = "row-closed" if stato == "chiuso" else ""
 
-    
         cols = st.columns([0.7, 0.9, 0.9, 0.8, 2.8, 1.1, 1, 1, 0.9, 0.9, 0.9, 0.9, 1])
         cols[0].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('NumeroContratto','—')}</div></div>", unsafe_allow_html=True)
         cols[1].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{fmt_date(r.get('DataInizio'))}</div></div>", unsafe_allow_html=True)
@@ -1723,78 +1664,31 @@ def export_excel_contratti(df_ct, sel_id, rag_soc):
 
 def export_pdf_contratti(df_ct, sel_id, rag_soc):
     from fpdf import FPDF
-    from io import BytesIO
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=10)
-
-    start_x = 10
-    start_y = 20
-    line_height = 8
-    col_widths = [20, 20, 20, 15, 40, 20, 15, 15, 15, 15, 15, 15]
-
-    def fmt_date(val):
-        try:
-            return pd.to_datetime(val).strftime("%d/%m/%Y")
-        except:
-            return ""
-
     disp = df_ct[df_ct["ClienteID"].astype(str) == str(sel_id)].copy()
+    disp["DataInizio"] = disp["DataInizio"].apply(fmt_date)
+    disp["DataFine"] = disp["DataFine"].apply(fmt_date)
+    headers = ["NumeroContratto", "DataInizio", "DataFine", "Durata", "TotRata", "Stato"]
+    widths = [30, 25, 25, 15, 25, 20]
 
-    def draw_row(r):
-        nonlocal start_y
-        stato = str(r.get("Stato", "aperto")).lower()
-        is_closed = (stato == "chiuso")
-        fill_color = (255, 230, 230) if is_closed else (255, 255, 255)
-
-        row_values = [
-            r.get("NumeroContratto", ""),
-            fmt_date(r.get("DataInizio")),
-            fmt_date(r.get("DataFine")),
-            r.get("Durata", ""),
-            str(r.get("DescrizioneProdotto", "")),
-            str(r.get("TotRata", "")),
-            r.get("NOL_FIN", ""),
-            r.get("NOL_INT", ""),
-            r.get("CopieBN", ""),
-            r.get("EccBN", ""),
-            r.get("CopieCol", ""),
-            r.get("EccCol", "")
-        ]
-
-        pdf.set_fill_color(*fill_color)
-        x = start_x
-        for i, val in enumerate(row_values):
-            pdf.set_xy(x, start_y)
-            pdf.cell(col_widths[i], line_height, str(val), border=1, fill=True)
-            x += col_widths[i]
-        start_y += line_height
-
-    # Intestazione tabella
-    headers = [
-        "N°", "Inizio", "Fine", "Dur", "Prodotto", "Tot Rata", 
-        "FIN", "INT", "BN", "Ecc. BN", "Col", "Ecc. Col"
-    ]
-    pdf.set_fill_color(37, 99, 235)
-    pdf.set_text_color(255, 255, 255)
-    x = start_x
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, safe_text(f"Contratti Cliente: {rag_soc}"), ln=1, align="C")
+    pdf.set_font("Arial", "B", 10)
     for i, h in enumerate(headers):
-        pdf.set_xy(x, start_y)
-        pdf.cell(col_widths[i], line_height, h, border=1, fill=True, align="C")
-        x += col_widths[i]
-    pdf.set_text_color(0, 0, 0)
-    start_y += line_height
-
-    for _, riga in disp.iterrows():
-        draw_row(riga)
-
-    # Salva in buffer per download Streamlit
-    buffer = BytesIO()
-    pdf.output(buffer)
-    return buffer.getvalue()
-
+        pdf.cell(widths[i], 8, safe_text(h), 1, 0, "C", True)
+    pdf.ln()
+    pdf.set_font("Arial", "", 9)
+    for _, r in disp.iterrows():
+        for i, h in enumerate(headers):
+            stato = str(r.get("Stato", "")).lower()
+            if stato == "chiuso":
+                pdf.set_fill_color(255, 235, 238)
+                pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C", fill=True)
+            else:
+                pdf.cell(widths[i], 7, safe_text(r.get(h, "")), 1, 0, "C")
+        pdf.ln()
+    return pdf.output(dest="S").encode("latin-1", errors="replace")
 # =====================================
 # 📈 DASHBOARD GRAFICI — priva di dipendenze extra
 # =====================================

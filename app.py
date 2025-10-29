@@ -889,7 +889,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 sdi       = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
             # === TMK (menù a tendina per selezionare commerciale) ===
-            tmk_options = sorted(df_cli["TMK"].dropna().unique().tolist() + ["fabio", "gabriele", "lele"])
+            tmk_options = sorted(["Giulia", "Antonella", "Laura", "Annalisa"])
             tmk_attuale = cliente.get("TMK", "")
             tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_options.index(tmk_attuale) if tmk_attuale in tmk_options else 0)
 

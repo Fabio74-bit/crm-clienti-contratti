@@ -1094,6 +1094,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # PAGINA CONTRATTI — VERSIONE STABILE 2025 (senza duplicati widget)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    if "selected_cliente" in st.session_state:
+    selected_id = st.session_state.pop("selected_cliente")
+    df_cli["label"] = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
+    label = df_cli[df_cli["ClienteID"] == selected_id]["label"].values
+    if len(label) > 0:
+        st.session_state["sel_cli_ct"] = label[0]
+
     ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
     permessi_limitati = ruolo_scrittura == "limitato"
 

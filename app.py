@@ -1310,6 +1310,9 @@ if "_modal_css_applied" not in st.session_state:
     """, unsafe_allow_html=True)
     st.session_state["_modal_css_applied"] = True
 
+# =====================================
+# FUNZIONE MODALE MODIFICA CONTRATTO — versione fullscreen simulata e centrata
+# =====================================
 def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
     """Modal fullscreen simulata: disattiva il resto e mostra solo il form di modifica."""
     st.markdown("""
@@ -1344,6 +1347,7 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
     st.markdown(f"### ✏️ Modifica Contratto — {safe_text(rag_soc)}")
 
     contratto = df_ct.loc[rid]
+
     with st.form(f"frm_edit_contract_{rid}"):
         col1, col2 = st.columns(2)
         with col1:
@@ -1363,9 +1367,9 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
         desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
         colA, colB, colC, colD = st.columns(4)
         copie_bn = colA.text_input("Copie B/N", contratto.get("CopieBN", ""))
-        ecc_bn   = colB.text_input("Extra B/N (€)", contratto.get("EccBN", ""))
-        copie_col= colC.text_input("Copie Colore", contratto.get("CopieCol", ""))
-        ecc_col  = colD.text_input("Extra Colore (€)", contratto.get("EccCol", ""))
+        ecc_bn = colB.text_input("Extra B/N (€)", contratto.get("EccBN", ""))
+        copie_col = colC.text_input("Copie Colore", contratto.get("CopieCol", ""))
+        ecc_col = colD.text_input("Extra Colore (€)", contratto.get("EccCol", ""))
 
         salva = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
         annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
@@ -1373,15 +1377,23 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
         if salva:
             try:
                 df_ct.loc[rid, [
-                    "NumeroContratto","DataInizio","Durata","DescrizioneProdotto",
-                    "NOL_FIN","NOL_INT","TotRata","CopieBN","EccBN","CopieCol","EccCol","Stato"
-                ]] = [num, fmt_date(din), durata, desc, nf, ni, tot,
-                      copie_bn, ecc_bn, copie_col, ecc_col, stato]
-                # aggiorna DataFine
+                    "NumeroContratto", "DataInizio", "Durata", "DescrizioneProdotto",
+                    "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN",
+                    "CopieCol", "EccCol", "Stato"
+                ]] = [
+                    num, fmt_date(din), durata, desc, nf, ni, tot,
+                    copie_bn, ecc_bn, copie_col, ecc_col, stato
+                ]
+
+                # aggiorna automaticamente DataFine
                 try:
-                    m = int(str(durata).strip()) if str(durata).strip().isdigit() else None
-                    if m: df_ct.loc[rid, "DataFine"] = fmt_date(pd.to_datetime(din) + pd.DateOffset(months=m))
-                except Exception: pass
+                    mesi = int(str(durata).strip()) if str(durata).strip().isdigit() else None
+                    if mesi and fmt_date(din):
+                        fine = pd.to_datetime(din) + pd.DateOffset(months=mesi)
+                        df_ct.loc[rid, "DataFine"] = fmt_date(fine)
+                except Exception:
+                    pass
+
                 save_contratti(df_ct)
                 st.success("✅ Contratto aggiornato con successo.")
                 st.session_state.pop("edit_rid", None)
@@ -1389,7 +1401,7 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
                 time.sleep(0.4)
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Errore salvataggio: {e}")
+                st.error(f"❌ Errore durante il salvataggio: {e}")
 
         if annulla:
             st.session_state.pop("edit_rid", None)
@@ -1397,6 +1409,7 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
             st.rerun()
 
     st.markdown("</div></div>", unsafe_allow_html=True)
+
 
 
         # === SALVATAGGIO ===

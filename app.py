@@ -1357,14 +1357,23 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
                 value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
             )
             durata = st.text_input("Durata (mesi)", contratto.get("Durata", ""))
-            stato = st.selectbox("Stato", ["aperto", "chiuso"],
-                                 index=0 if contratto.get("Stato", "") != "chiuso" else 1)
+            stato = st.selectbox(
+                "Stato",
+                ["aperto", "chiuso"],
+                index=0 if contratto.get("Stato", "") != "chiuso" else 1
+            )
+
         with col2:
             nf = st.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
             ni = st.text_input("NOL_INT", contratto.get("NOL_INT", ""))
             tot = st.text_input("Tot Rata", contratto.get("TotRata", ""))
 
-        desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+        desc = st.text_area(
+            "Descrizione Prodotto",
+            contratto.get("DescrizioneProdotto", ""),
+            height=100
+        )
+
         colA, colB, colC, colD = st.columns(4)
         copie_bn = colA.text_input("Copie B/N", contratto.get("CopieBN", ""))
         ecc_bn = colB.text_input("Extra B/N (€)", contratto.get("EccBN", ""))
@@ -1374,6 +1383,7 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
         salva = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
         annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
 
+        # === SALVATAGGIO ===
         if salva:
             try:
                 df_ct.loc[rid, [
@@ -1403,6 +1413,7 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio: {e}")
 
+        # === ANNULLA ===
         if annulla:
             st.session_state.pop("edit_rid", None)
             st.session_state["force_page"] = "Contratti"

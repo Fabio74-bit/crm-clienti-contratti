@@ -1310,35 +1310,27 @@ if "_modal_css_applied" not in st.session_state:
     """, unsafe_allow_html=True)
     st.session_state["_modal_css_applied"] = True
 
-# =====================================
-# FUNZIONE MODALE MODIFICA CONTRATTO — versione overlay reale e centrata
-# =====================================
 def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
-    """Mostra la finestra di modifica al centro schermo per il contratto con indice RID su df_ct."""
-    if rid not in df_ct.index:
-        st.error("❌ Contratto non trovato.")
-        return
-
-    contratto = df_ct.loc[rid]
-
-    # === STILE + SCRIPT PER RENDERE LA MODALE SOPRA IL LAYOUT ===
+    """Modal fullscreen simulata: disattiva il resto e mostra solo il form di modifica."""
     st.markdown("""
     <style>
-    [data-testid="stAppViewContainer"] {overflow: visible !important;}
-    .modal-overlay {
-        position: fixed !important;
+    div[data-testid="stSidebar"], header, footer {visibility:hidden;}
+    .modal-container {
+        position: fixed;
         top: 0; left: 0;
         width: 100vw; height: 100vh;
         background: rgba(0,0,0,0.45);
-        display: flex; align-items: center; justify-content: center;
-        z-index: 999999;
+        display: flex; justify-content: center; align-items: center;
+        z-index: 9999;
     }
-    .modal-box {
+    .modal-content {
         background: white;
         border-radius: 12px;
-        width: 640px;
+        width: 650px;
+        max-height: 90vh;
+        overflow-y: auto;
         padding: 1.8rem 2rem;
-        box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
         animation: fadeIn 0.25s ease-out;
     }
     @keyframes fadeIn {
@@ -1346,12 +1338,12 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
         to {opacity: 1; transform: scale(1);}
     }
     </style>
-    <div class="modal-overlay" id="customModal">
-      <div class="modal-box">
     """, unsafe_allow_html=True)
 
+    st.markdown("<div class='modal-container'><div class='modal-content'>", unsafe_allow_html=True)
     st.markdown(f"### ✏️ Modifica Contratto — {safe_text(rag_soc)}")
 
+    contratto = df_ct.loc[rid]
     with st.form(f"frm_edit_contract_{rid}"):
         col1, col2 = st.columns(2)
         with col1:
@@ -1377,6 +1369,35 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
 
         salva = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
         annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
+
+        if salva:
+            try:
+                df_ct.loc[rid, [
+                    "NumeroContratto","DataInizio","Durata","DescrizioneProdotto",
+                    "NOL_FIN","NOL_INT","TotRata","CopieBN","EccBN","CopieCol","EccCol","Stato"
+                ]] = [num, fmt_date(din), durata, desc, nf, ni, tot,
+                      copie_bn, ecc_bn, copie_col, ecc_col, stato]
+                # aggiorna DataFine
+                try:
+                    m = int(str(durata).strip()) if str(durata).strip().isdigit() else None
+                    if m: df_ct.loc[rid, "DataFine"] = fmt_date(pd.to_datetime(din) + pd.DateOffset(months=m))
+                except Exception: pass
+                save_contratti(df_ct)
+                st.success("✅ Contratto aggiornato con successo.")
+                st.session_state.pop("edit_rid", None)
+                st.session_state["force_page"] = "Contratti"
+                time.sleep(0.4)
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Errore salvataggio: {e}")
+
+        if annulla:
+            st.session_state.pop("edit_rid", None)
+            st.session_state["force_page"] = "Contratti"
+            st.rerun()
+
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
 
         # === SALVATAGGIO ===
         if salva:

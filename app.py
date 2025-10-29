@@ -1285,26 +1285,33 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# FUNZIONE MODALE MODIFICA CONTRATTO
+# FUNZIONE MODALE MODIFICA CONTRATTO (centrata e stabile)
 # =====================================
 def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
     """Mostra la finestra di modifica al centro schermo per il contratto con indice RID su df_ct."""
     if rid not in df_ct.index:
-        st.error("Contratto non trovato.")
+        st.error("❌ Contratto non trovato.")
         return
 
     contratto = df_ct.loc[rid]
 
+    # === STILE MODALE (overlay centrato) ===
     st.markdown("""
     <style>
-    .modal-bg {
-        position: fixed; top:0; left:0; width:100%; height:100%;
-        background: rgba(0,0,0,0.45); z-index: 9998;
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100vw; height: 100vh;
+        background-color: rgba(0, 0, 0, 0.45);
+        z-index: 9999;
         display: flex; align-items: center; justify-content: center;
     }
     .modal-box {
-        background: white; border-radius: 12px; width: 640px;
-        padding: 1.8rem 2rem; box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+        background: #fff;
+        border-radius: 12px;
+        width: 640px;
+        padding: 1.8rem 2rem;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.25);
         animation: fadeIn 0.25s ease-out;
     }
     @keyframes fadeIn {
@@ -1312,46 +1319,51 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
         to {opacity: 1; transform: scale(1);}
     }
     </style>
-    <div class="modal-bg"><div class="modal-box">
+    <div class="modal-overlay"><div class="modal-box">
     """, unsafe_allow_html=True)
 
+    # === CONTENUTO MODALE ===
     st.markdown(f"### ✏️ Modifica Contratto — {safe_text(rag_soc)}")
+
     with st.form(f"frm_edit_contract_{rid}"):
         col1, col2 = st.columns(2)
         with col1:
-            num = st.text_input("Numero Contratto", contratto.get("NumeroContratto",""))
+            num = st.text_input("Numero Contratto", contratto.get("NumeroContratto", ""))
             din = st.date_input(
                 "Data Inizio",
                 value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
             )
-            durata = st.text_input("Durata (mesi)", contratto.get("Durata",""))
-            stato = st.selectbox("Stato", ["aperto", "chiuso"], index=0 if contratto.get("Stato","") != "chiuso" else 1)
+            durata = st.text_input("Durata (mesi)", contratto.get("Durata", ""))
+            stato = st.selectbox("Stato", ["aperto", "chiuso"],
+                                 index=0 if contratto.get("Stato", "") != "chiuso" else 1)
         with col2:
-            nf = st.text_input("NOL_FIN", contratto.get("NOL_FIN",""))
-            ni = st.text_input("NOL_INT", contratto.get("NOL_INT",""))
-            tot = st.text_input("Tot Rata", contratto.get("TotRata",""))
+            nf = st.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
+            ni = st.text_input("NOL_INT", contratto.get("NOL_INT", ""))
+            tot = st.text_input("Tot Rata", contratto.get("TotRata", ""))
 
-        desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto",""), height=100)
+        desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
         colA, colB, colC, colD = st.columns(4)
-        copie_bn = colA.text_input("Copie B/N", contratto.get("CopieBN",""))
-        ecc_bn   = colB.text_input("Extra B/N (€)", contratto.get("EccBN",""))
-        copie_col= colC.text_input("Copie Colore", contratto.get("CopieCol",""))
-        ecc_col  = colD.text_input("Extra Colore (€)", contratto.get("EccCol",""))
+        copie_bn = colA.text_input("Copie B/N", contratto.get("CopieBN", ""))
+        ecc_bn   = colB.text_input("Extra B/N (€)", contratto.get("EccBN", ""))
+        copie_col= colC.text_input("Copie Colore", contratto.get("CopieCol", ""))
+        ecc_col  = colD.text_input("Extra Colore (€)", contratto.get("EccCol", ""))
 
         salva = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
         annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
 
+        # === SALVATAGGIO ===
         if salva:
             try:
                 df_ct.loc[rid, [
-                    "NumeroContratto","DataInizio","Durata","DescrizioneProdotto",
-                    "NOL_FIN","NOL_INT","TotRata","CopieBN","EccBN",
-                    "CopieCol","EccCol","Stato"
+                    "NumeroContratto", "DataInizio", "Durata", "DescrizioneProdotto",
+                    "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN",
+                    "CopieCol", "EccCol", "Stato"
                 ]] = [
                     num, fmt_date(din), durata, desc, nf, ni, tot,
                     copie_bn, ecc_bn, copie_col, ecc_col, stato
                 ]
-                # aggiorna automaticamente DataFine
+
+                # Calcola DataFine automatica
                 try:
                     mesi = int(str(durata).strip()) if str(durata).strip().isdigit() else None
                     if mesi and fmt_date(din):
@@ -1359,20 +1371,24 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
                         df_ct.loc[rid, "DataFine"] = fmt_date(fine)
                 except Exception:
                     pass
+
                 save_contratti(df_ct)
                 st.success("✅ Contratto aggiornato con successo.")
                 st.session_state.pop("edit_rid", None)
+                st.session_state["force_page"] = "Contratti"   # 👈 mantiene la pagina corrente
                 time.sleep(0.4)
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio: {e}")
 
+        # === ANNULLA ===
         if annulla:
             st.session_state.pop("edit_rid", None)
+            st.session_state["force_page"] = "Contratti"       # 👈 anche qui resta su Contratti
             st.rerun()
 
+    # Chiudi overlay
     st.markdown("</div></div>", unsafe_allow_html=True)
-
 
 
 # =====================================

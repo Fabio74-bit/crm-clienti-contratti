@@ -1139,8 +1139,19 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.markdown("#### 📄 Dati Contratto")
                 c1, c2, c3, c4 = st.columns(4)
                 num = c1.text_input("Numero Contratto")
-                din = c2.date_input("Data Inizio", format="DD/MM/YYYY")
-                durata_default = "36"  # o un valore sicuro presente in DURATE_MESI
+                din = c2.date_input("📅 Data Inizio", format="DD/MM/YYYY")
+
+                # fallback sicuro su durata
+                durata_default = "60"
+                durata_idx = DURATE_MESI.index(durata_default) if durata_default in DURATE_MESI else 2
+                durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=durata_idx)
+                
+                # calcola automaticamente data fine
+                data_fine_auto = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
+                
+                # campo modificabile manualmente
+                data_fine = c4.date_input("📅 Data Fine", value=data_fine_auto, format="DD/MM/YYYY")
+
                 durata_idx = DURATE_MESI.index(durata_default) if durata_default in DURATE_MESI else 2
                 durata = c3.selectbox("Durata (mesi)", DURATE_MESI, index=durata_idx)
 
@@ -1162,13 +1173,12 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
                 if st.form_submit_button("💾 Crea contratto"):
                     try:
-                        fine = pd.to_datetime(din) + pd.DateOffset(months=int(durata))
                         nuovo = {
                             "ClienteID": sel_id,
                             "RagioneSociale": rag_soc,
                             "NumeroContratto": num,
                             "DataInizio": fmt_date(din),
-                            "DataFine": fmt_date(fine),
+                            "DataFine": fmt_date(data_fine),
                             "Durata": durata,
                             "DescrizioneProdotto": desc,
                             "NOL_FIN": nf,

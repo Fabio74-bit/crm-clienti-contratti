@@ -1236,7 +1236,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with cols[12]:
             b1, b2, b3 = st.columns(3)
             if b1.button("✏️", key=f"edit_ct_{rid}", help="Modifica contratto", disabled=permessi_limitati):
-                st.session_state["edit_rid"] = rid
+            st.session_state["edit_rid"] = rid
+            st.session_state["force_page"] = "📄 Gestione Contratti"
+            st.rerun()
+
             stato_btn = "🔒" if stato != "chiuso" else "🟢"
             if b2.button(stato_btn, key=f"lock_ct_{rid}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
                 df_ct.loc[rid, "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
@@ -2160,6 +2163,9 @@ def main():
 
     # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
+    # 🔹 Mantiene la pagina corrente se forzata da un'azione interna
+    if "force_page" in st.session_state:
+        page = st.session_state.pop("force_page")
 
     # --- Navigazione automatica (dai pulsanti interni) ---
     if "nav_target" in st.session_state:

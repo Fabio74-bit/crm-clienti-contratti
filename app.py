@@ -1261,28 +1261,54 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         else:
             st.session_state.pop("edit_rid", None)
 
-    # === ELIMINAZIONE CONTRATTO ===
-    if st.session_state.get("ask_delete_now") and st.session_state.get("delete_rid") is not None:
-        rid = st.session_state["delete_rid"]
-        if rid in df_ct.index:
-            numero = df_ct.loc[rid].get("NumeroContratto", "Senza numero")
-            st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{rid}"):
-                    df_ct = df_ct.drop(index=rid).copy()
-                    save_contratti(df_ct)
-                    st.success("🗑️ Contratto eliminato.")
-                    st.session_state.pop("ask_delete_now", None)
-                    st.session_state.pop("delete_rid", None)
-                    st.rerun()
-            with c2:
-                if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{rid}"):
-                    st.session_state.pop("ask_delete_now", None)
-                    st.session_state.pop("delete_rid", None)
-                    st.info("Annullato.")
-                    st.rerun()
+# === ELIMINAZIONE CONTRATTO ===
+if st.session_state.get("ask_delete_now") and st.session_state.get("delete_rid") is not None:
+    rid = st.session_state["delete_rid"]
+    if rid in df_ct.index:
+        numero = df_ct.loc[rid].get("NumeroContratto", "Senza numero")
+        st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{rid}"):
+                df_ct = df_ct.drop(index=rid).copy()
+                save_contratti(df_ct)
+                st.success("🗑️ Contratto eliminato.")
+                st.session_state.pop("ask_delete_now", None)
+                st.session_state.pop("delete_rid", None)
+                st.rerun()
+        with c2:
+            if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{rid}"):
+                st.session_state.pop("ask_delete_now", None)
+                st.session_state.pop("delete_rid", None)
+                st.info("Annullato.")
+                st.rerun()
 
+# === CSS FIX per modale centrata (solo se non già applicato) ===
+if "_modal_css_applied" not in st.session_state:
+    st.markdown("""
+    <style>
+    [data-testid="stAppViewContainer"] {
+        overflow: visible !important;
+    }
+    .modal-overlay {
+        position: fixed !important;
+        inset: 0 !important;
+        background: rgba(0,0,0,0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 999999 !important;
+    }
+    .modal-box {
+        background: white;
+        border-radius: 12px;
+        width: 640px;
+        padding: 1.8rem 2rem;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    st.session_state["_modal_css_applied"] = True
 
 # =====================================
 # FUNZIONE MODALE MODIFICA CONTRATTO (centrata e stabile)

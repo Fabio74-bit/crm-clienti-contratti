@@ -1257,14 +1257,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["delete_gidx"] = i
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
-        # === MOSTRA MODALE DI MODIFICA SE ATTIVA ===
-        if "edit_gidx" in st.session_state:
-            gidx = st.session_state["edit_gidx"]
-            if gidx in ct.index:
-                contratto = ct.loc[gidx]
-                show_contract_modal(contratto, df_ct, df_cli, rag_soc)
-            else:
-                st.session_state.pop("edit_gidx", None)
 
     # === ELIMINAZIONE CONTRATTO ===
     if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:

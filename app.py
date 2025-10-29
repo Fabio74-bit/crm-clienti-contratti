@@ -1091,7 +1091,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CONTRATTI — VERSIONE STABILE 2025 (con modale di modifica funzionante)
+# PAGINA CONTRATTI — VERSIONE STABILE 2025 (con modale funzionante)
 # =====================================
 def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # FIX: sincronizza selezione cliente se arriviamo da pulsante esterno
@@ -1127,7 +1127,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         ct = ct[
             (ct["NumeroContratto"].astype(str).str.strip() != "") |
             (ct["DescrizioneProdotto"].astype(str).str.strip() != "")
-        ].dropna(how="all").reset_index(drop=False)  # mantieni indice reale del df completo
+        ].dropna(how="all").reset_index(drop=False)
         ct.rename(columns={"index": "_rid"}, inplace=True)
     else:
         ct = pd.DataFrame(columns=list(df_ct.columns) + ["_rid"])
@@ -1183,7 +1183,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                             st.warning("⚠️ Inserisci almeno il numero contratto o una descrizione valida.")
                         else:
                             df_ct = pd.concat([df_ct, pd.DataFrame([nuovo])], ignore_index=True)
-                            df_ct = df_ct.dropna(how="all").reset_index(drop=True)
                             save_contratti(df_ct)
                             st.success("✅ Contratto creato correttamente.")
                             st.rerun()
@@ -1193,8 +1192,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # === STILE TABELLA ===
     st.markdown("""
     <style>
-      .tbl-wrap{border:1px solid #e5e7eb; border-radius:12px; overflow:hidden;
-        box-shadow:0 4px 16px rgba(0,0,0,.06); background:#fff;}
       .tbl-head{background:#2563eb; color:#fff; font-weight:700; font-size:13px;}
       .tbl-head > div{padding:10px 8px; text-align:center; border-right:1px solid rgba(255,255,255,.25);}
       .tbl-row{font-size:13px; border-top:1px solid #eef2f7;}
@@ -1211,16 +1208,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun contratto registrato.")
         return
 
-    # --- intestazione
     head_cols = st.columns([0.7, 0.9, 0.9, 0.8, 2.8, 1.1, 1, 1, 0.9, 0.9, 0.9, 0.9, 1])
     head_lbls = ["N°","Inizio","Fine","Durata","Descrizione Prodotto","Tot. Rata","NOL FIN","NOL INT","Copie B/N","Ecc. B/N","Copie Col","Ecc. Col","Azioni"]
     for c, h in zip(head_cols, head_lbls):
         c.markdown(f"<div class='tbl-head'><div>{h}</div></div>", unsafe_allow_html=True)
 
-    # --- righe
     oggi = pd.Timestamp.now().normalize()
-    for i, r in ct.iterrows():
-        rid = int(r["_rid"])  # indice reale del df completo
+    for _, r in ct.iterrows():
+        rid = int(r["_rid"])
         stato = str(r.get("Stato","aperto")).lower()
         row_cls = "row-closed" if stato == "chiuso" else ""
 
@@ -1228,133 +1223,39 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cols[0].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('NumeroContratto','—')}</div></div>", unsafe_allow_html=True)
         cols[1].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{fmt_date(r.get('DataInizio'))}</div></div>", unsafe_allow_html=True)
         cols[2].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{fmt_date(r.get('DataFine'))}</div></div>", unsafe_allow_html=True)
-        cols[3].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{safe_text(r.get('Durata',''))}</div></div>", unsafe_allow_html=True)
+        cols[3].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{r.get('Durata','')}</div></div>", unsafe_allow_html=True)
         cols[4].markdown(f"<div class='tbl-row {row_cls}'><div class='cell cell-left'>{safe_text(r.get('DescrizioneProdotto',''))}</div></div>", unsafe_allow_html=True)
-        cols[5].markdown(f"<div class='tbl-row {row_cls}'><div class='cell cell-right'>{money(r.get('TotRata')) or '—'}</div></div>", unsafe_allow_html=True)
-        cols[6].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('NOL_FIN','')}</div></div>", unsafe_allow_html=True)
-        cols[7].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('NOL_INT','')}</div></div>", unsafe_allow_html=True)
-        cols[8].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('CopieBN','')}</div></div>", unsafe_allow_html=True)
-        cols[9].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('EccBN','')}</div></div>", unsafe_allow_html=True)
-        cols[10].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('CopieCol','')}</div></div>", unsafe_allow_html=True)
-        cols[11].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('EccCol','')}</div></div>", unsafe_allow_html=True)
+        cols[5].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{money(r.get('TotRata')) or '—'}</div></div>", unsafe_allow_html=True)
+        cols[6].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{r.get('NOL_FIN','')}</div></div>", unsafe_allow_html=True)
+        cols[7].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{r.get('NOL_INT','')}</div></div>", unsafe_allow_html=True)
+        cols[8].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{r.get('CopieBN','')}</div></div>", unsafe_allow_html=True)
+        cols[9].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{r.get('EccBN','')}</div></div>", unsafe_allow_html=True)
+        cols[10].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{r.get('CopieCol','')}</div></div>", unsafe_allow_html=True)
+        cols[11].markdown(f"<div class='tbl-row {row_cls}'><div class='cell'>{r.get('EccCol','')}</div></div>", unsafe_allow_html=True)
 
         with cols[12]:
             b1, b2, b3 = st.columns(3)
             if b1.button("✏️", key=f"edit_ct_{rid}", help="Modifica contratto", disabled=permessi_limitati):
                 st.session_state["edit_rid"] = rid
-                st.rerun()
-
             stato_btn = "🔒" if stato != "chiuso" else "🟢"
             if b2.button(stato_btn, key=f"lock_ct_{rid}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
-                nuovo_stato = "chiuso" if stato != "chiuso" else "aperto"
-                df_ct.loc[rid, "Stato"] = nuovo_stato
+                df_ct.loc[rid, "Stato"] = "chiuso" if stato != "chiuso" else "aperto"
                 save_contratti(df_ct)
-                st.toast(f"🔁 Stato contratto aggiornato: {nuovo_stato.upper()}", icon="✅")
+                st.toast("🔁 Stato contratto aggiornato ✅", icon="✅")
                 st.rerun()
-
             if b3.button("🗑️", key=f"del_ct_{rid}", help="Elimina contratto", disabled=permessi_limitati):
                 st.session_state["delete_rid"] = rid
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
 
-# =====================================
-# FUNZIONE MODALE MODIFICA CONTRATTO (versione corretta 2025)
-# =====================================
-def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
-    """Mostra la finestra di modifica al centro schermo per il contratto con indice RID su df_ct."""
-    if rid not in df_ct.index:
-        st.error("Contratto non trovato.")
-        return
-
-    contratto = df_ct.loc[rid]
-
-    # === STILE MODALE ===
-    st.markdown("""
-    <style>
-    .modal-bg {
-        position: fixed; top:0; left:0; width:100%; height:100%;
-        background: rgba(0,0,0,0.45); z-index: 9998;
-        display: flex; align-items: center; justify-content: center;
-    }
-    .modal-box {
-        background: white; border-radius: 12px; width: 640px;
-        padding: 1.8rem 2rem; box-shadow: 0 4px 18px rgba(0,0,0,0.25);
-        animation: fadeIn 0.25s ease-out;
-    }
-    @keyframes fadeIn {
-        from {opacity: 0; transform: scale(0.97);}
-        to {opacity: 1; transform: scale(1);}
-    }
-    </style>
-    <div class="modal-bg"><div class="modal-box">
-    """, unsafe_allow_html=True)
-
-    # === CONTENUTO MODALE ===
-    st.markdown(f"### ✏️ Modifica Contratto — {safe_text(rag_soc)}")
-    with st.form(f"frm_edit_contract_{rid}"):
-        col1, col2 = st.columns(2)
-        with col1:
-            num = st.text_input("Numero Contratto", contratto.get("NumeroContratto",""))
-            din = st.date_input(
-                "Data Inizio",
-                value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
-            )
-            durata = st.text_input("Durata (mesi)", contratto.get("Durata",""))
-            stato = st.selectbox(
-                "Stato",
-                ["aperto", "chiuso"],
-                index=0 if contratto.get("Stato","") != "chiuso" else 1
-            )
-        with col2:
-            nf = st.text_input("NOL_FIN", contratto.get("NOL_FIN",""))
-            ni = st.text_input("NOL_INT", contratto.get("NOL_INT",""))
-            tot = st.text_input("Tot Rata", contratto.get("TotRata",""))
-
-        desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto",""), height=100)
-        colA, colB, colC, colD = st.columns(4)
-        copie_bn = colA.text_input("Copie B/N", contratto.get("CopieBN",""))
-        ecc_bn   = colB.text_input("Extra B/N (€)", contratto.get("EccBN",""))
-        copie_col= colC.text_input("Copie Colore", contratto.get("CopieCol",""))
-        ecc_col  = colD.text_input("Extra Colore (€)", contratto.get("EccCol",""))
-
-        salva = st.form_submit_button("💾 Salva modifiche", use_container_width=True)
-        annulla = st.form_submit_button("❌ Annulla", use_container_width=True)
-
-        if salva:
-            try:
-                # Aggiorno i valori nel DataFrame principale
-                df_ct.loc[rid, [
-                    "NumeroContratto","DataInizio","Durata","DescrizioneProdotto",
-                    "NOL_FIN","NOL_INT","TotRata","CopieBN","EccBN",
-                    "CopieCol","EccCol","Stato"
-                ]] = [
-                    num, fmt_date(din), durata, desc, nf, ni, tot,
-                    copie_bn, ecc_bn, copie_col, ecc_col, stato
-                ]
-
-                # Aggiorna automaticamente DataFine se durata è numerica
-                try:
-                    mesi = int(str(durata).strip()) if str(durata).strip().isdigit() else None
-                    if mesi and fmt_date(din):
-                        fine = pd.to_datetime(din) + pd.DateOffset(months=mesi)
-                        df_ct.loc[rid, "DataFine"] = fmt_date(fine)
-                except Exception:
-                    pass
-
-                save_contratti(df_ct)
-                st.success("✅ Contratto aggiornato con successo.")
-                st.session_state.pop("edit_rid", None)
-                time.sleep(0.4)
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Errore durante il salvataggio: {e}")
-
-        if annulla:
+    # === MODALE DI MODIFICA (renderizzata a fine pagina) ===
+    edit_rid = st.session_state.get("edit_rid", None)
+    if edit_rid is not None:
+        if edit_rid in df_ct.index:
+            st.markdown("<style>body{overflow:hidden!important;}</style>", unsafe_allow_html=True)
+            show_contract_modal(edit_rid, df_ct, rag_soc)
+        else:
             st.session_state.pop("edit_rid", None)
-            st.rerun()
-
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
 
     # === ELIMINAZIONE CONTRATTO ===
     if st.session_state.get("ask_delete_now") and st.session_state.get("delete_rid") is not None:
@@ -1379,299 +1280,53 @@ def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
                     st.rerun()
 
 
-
-    # === ESPORTAZIONI (Excel + PDF) ===
-    st.divider()
-    st.markdown("### 📤 Esportazioni")
-
-    from datetime import datetime
-    data_export = datetime.now().strftime("%d/%m/%Y")
-
-    # === EXPORT EXCEL ===
-    cex1, cex2 = st.columns(2)
-    with cex1:
-        try:
-            from openpyxl import Workbook
-            from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
-            from openpyxl.utils import get_column_letter
-            from io import BytesIO
-
-            wb = Workbook()
-            ws = wb.active
-            ws.title = f"Contratti {rag_soc}"
-
-            # 🔹 Titolo
-            ws.merge_cells("A1:L1")
-            cell_title = ws["A1"]
-            cell_title.value = f"Contratti Cliente: {rag_soc} — Data: {data_export}"
-            cell_title.font = Font(bold=True, size=14)
-            cell_title.alignment = Alignment(horizontal="center", vertical="center")
-            ws.row_dimensions[1].height = 25
-
-            # 🔹 Intestazioni coerenti
-            headers = [
-                "N°", "Inizio", "Fine", "Durata", "Descrizione Prodotto",
-                "Tot. Rata", "NOL FIN", "NOL INT", "Copie B/N",
-                "Ecc. B/N", "Copie Col", "Ecc. Col"
-            ]
-            ws.append(headers)
-
-            yellow_fill = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
-            header_font = Font(bold=True, color="000000")
-            thin_border = Border(
-                left=Side(style="thin"), right=Side(style="thin"),
-                top=Side(style="thin"), bottom=Side(style="thin")
-            )
-
-            for col_idx, header in enumerate(headers, 1):
-                c = ws.cell(row=2, column=col_idx)
-                c.fill = yellow_fill
-                c.font = header_font
-                c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                c.border = thin_border
-                ws.column_dimensions[get_column_letter(col_idx)].width = 18
-
-            # 🔹 Righe dati
-            for _, r in ct.iterrows():
-                ws.append([
-                    r.get("NumeroContratto", ""),
-                    fmt_date(r.get("DataInizio")),
-                    fmt_date(r.get("DataFine")),
-                    r.get("Durata", ""),
-                    r.get("DescrizioneProdotto", ""),
-                    money(r.get("TotRata")),
-                    r.get("NOL_FIN", ""),
-                    r.get("NOL_INT", ""),
-                    r.get("CopieBN", ""),
-                    r.get("EccBN", ""),
-                    r.get("CopieCol", ""),
-                    r.get("EccCol", "")
-                ])
-
-            # 🔹 Allineamento e altezza righe dinamica
-            for row in ws.iter_rows(min_row=3, max_row=ws.max_row, min_col=1, max_col=12):
-                for cell in row:
-                    cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
-                    cell.border = thin_border
-                ws.row_dimensions[row[0].row].height = 22 + (len(str(row[4].value)) // 70) * 10
-
-            bio = BytesIO()
-            wb.save(bio)
-            st.download_button(
-                "📘 Esporta Excel",
-                bio.getvalue(),
-                file_name=f"Contratti_{rag_soc}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        except Exception as e:
-            st.error(f"Errore export Excel: {e}")
-
-        # === EXPORT PDF (centrato in pagina, A4 orizzontale, 1 pagina quando possibile) ===
-    with cex2:
-        try:
-            from fpdf import FPDF
-            import requests
-            from io import BytesIO
-
-            LOGO_URL = "https://www.shtsrl.com/template/images/logo.png"
-
-            pdf = FPDF("L", "mm", "A4")
-            # Disabilito l'autobreak per evitare pagine “vuote” solo col footer
-            pdf.set_auto_page_break(auto=False)
-            pdf.add_page()
-
-            # Margini più “grafici”
-            left_margin = 12
-            right_margin = 12
-            top_margin = 10
-            bottom_margin = 12
-            pdf.set_margins(left=left_margin, top=top_margin, right=right_margin)
-
-            page_w = pdf.w
-            usable_w = page_w - left_margin - right_margin
-
-            # === Logo SHT centrato ===
-            try:
-                resp = requests.get(LOGO_URL, timeout=5)
-                if resp.status_code == 200:
-                    logo_bytes = BytesIO(resp.content)
-                    # logo di 35mm, centrato
-                    logo_w = 35
-                    x_logo = left_margin + (usable_w - logo_w) / 2.0
-                    pdf.image(logo_bytes, x=x_logo, y=8, w=logo_w)
-            except Exception:
-                pass
-
-            # Spazio sotto il logo
-            pdf.set_y(8 + 35 + 4)
-
-            # === Titolo centrato ===
-            pdf.set_font("Arial", "B", 13)
-            pdf.cell(0, 8, safe_text(f"Contratti Cliente: {rag_soc} - {data_export}"), ln=1, align="C")
-            pdf.ln(3)
-
-            # === Intestazioni + larghezze colonna ===
-            headers = [
-                "N°", "Inizio", "Fine", "Durata", "Descrizione Prodotto",
-                "Tot. Rata", "NOL FIN", "NOL INT", "Copie B/N",
-                "Ecc. B/N", "Copie Col", "Ecc. Col"
-            ]
-            # Larghezze pensate per A4 orizzontale, ma calcoliamo lo start centrato
-            col_widths = [10, 20, 20, 15, 110, 25, 20, 20, 22, 22, 22, 22]
-            table_w = sum(col_widths)
-            # Se la tabella è più larga dello spazio utile, la riduciamo in scala uniforme
-            if table_w > usable_w:
-                scale = usable_w / table_w
-                col_widths = [w * scale for w in col_widths]
-                table_w = usable_w
-
-            # X iniziale per centrare
-            start_x = left_margin + (usable_w - table_w) / 2.0
-
-            # === Header riga ===
-            pdf.set_font("Arial", "B", 9)
-            pdf.set_fill_color(255, 253, 231)
-            pdf.set_xy(start_x, pdf.get_y())
-            for h, w in zip(headers, col_widths):
-                pdf.cell(w, 8, safe_text(h), border=1, align="C", fill=True)
-            pdf.ln(8)
-
-            # === Dati ===
-            pdf.set_font("Arial", "", 8)
-            row_gap = 0  # nessun gap extra, per comprimere in una pagina quando possibile
-
-            # Altezza minima riga e gestione wrap descrizione
-            def draw_row(r):
-                nonlocal start_x
-                stato = str(r.get("Stato", "aperto")).lower()
-                is_closed = (stato == "chiuso")
-                fill_color = (255, 230, 230) if is_closed else (255, 255, 255)
-
-                row_values = [
-                    r.get("NumeroContratto", ""),
-                    fmt_date(r.get("DataInizio")),
-                    fmt_date(r.get("DataFine")),
-                    r.get("Durata", ""),
-                    safe_text(r.get("DescrizioneProdotto", "")),
-                    money(r.get("TotRata")),
-                    r.get("NOL_FIN", ""),
-                    r.get("NOL_INT", ""),
-                    r.get("CopieBN", ""),
-                    r.get("EccBN", ""),
-                    r.get("CopieCol", ""),
-                    r.get("EccCol", "")
-                ]
-
-                # Calcola quante “linee” servono per la descrizione stimando ~95 char per 110mm (scala se ridotta)
-                # Più robusto: usa la larghezza reale del font
-                pdf.set_font("Arial", "", 8)
-                desc_text = str(row_values[4])
-                desc_w = col_widths[4]
-                # stimiamo quante righe servono alla descrizione con la funzione di misura stringa
-                # dividendo in base alla larghezza disponibile
-                words = desc_text.split()
-                lines = []
-                line = ""
-                for w in words:
-                    test = (line + " " + w).strip()
-                    if pdf.get_string_width(test) <= (desc_w - 2):  # un pochino di padding
-                        line = test
-                    else:
-                        lines.append(line)
-                        line = w
-                if line:
-                    lines.append(line)
-                desc_lines = max(1, len(lines))
-
-                line_h = 5.5  # un po’ compatto per favorire “una pagina”
-                row_h = max(6, line_h * desc_lines)
-
-                # Se sforza il fondo (considero 10 mm di margine + 6 di footer)
-                bottom_limit = pdf.h - bottom_margin - 6
-                if pdf.get_y() + row_h > bottom_limit:
-                    pdf.add_page()
-                    pdf.set_xy(start_x, top_margin + 12)  # spazio per allineare con titolo mancante
-                    # re-disegno l’header su nuova pagina
-                    pdf.set_font("Arial", "B", 9)
-                    pdf.set_fill_color(255, 253, 231)
-                    for h, w in zip(headers, col_widths):
-                        pdf.cell(w, 8, safe_text(h), border=1, align="C", fill=True)
-                    pdf.ln(8)
-                    pdf.set_font("Arial", "", 8)
-
-                # Disegna la riga
-                pdf.set_fill_color(*fill_color)
-                x0 = start_x
-                y0 = pdf.get_y()
-                for idx, (val, wcol) in enumerate(zip(row_values, col_widths)):
-                    pdf.set_xy(x0, y0)
-                    if idx == 4:
-                        # descrizione: multicell con bordo, poi mi riposiziono
-                        pdf.multi_cell(wcol, line_h, safe_text(str(val)), border=1, align="L", fill=(fill_color != (255, 255, 255)))
-                        # calcola dove ripartire: max(y raggiunta, y0+row_h)
-                        y_after = pdf.get_y()
-                        # posiziona x subito dopo la colonna e ripristina y per le prossime celle
-                        pdf.set_xy(x0 + wcol, y0)
-                    else:
-                        pdf.cell(wcol, row_h, safe_text(str(val)), border=1, align="C", fill=(fill_color != (255, 255, 255)))
-                    x0 += wcol
-                pdf.ln(row_h + row_gap)
-
-            for _, r in ct.iterrows():
-                draw_row(r)
-
-            # === Footer centrato ===
-            pdf.set_text_color(100, 100, 100)
-            pdf.set_font("Arial", "I", 8)
-            pdf.set_y(pdf.h - bottom_margin)
-            pdf.cell(0, 6, safe_text("SHT S.r.l. - Tutti i diritti riservati"), 0, 0, "C")
-
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", errors="replace")
-            st.download_button(
-                "📗 Esporta PDF",
-                pdf_bytes,
-                file_name=f"Contratti_{rag_soc}.pdf",
-                mime="application/pdf"
-            )
-
-        except Exception as e:
-            st.error(f"Errore export PDF: {e}")
-
-
-
-
 # =====================================
 # FUNZIONE MODALE MODIFICA CONTRATTO
 # =====================================
-def show_contract_modal(contratto, df_ct, df_cli, rag_soc):
-    """Mostra la finestra di modifica al centro schermo"""
+def show_contract_modal(rid: int, df_ct: pd.DataFrame, rag_soc: str):
+    """Mostra la finestra di modifica al centro schermo per il contratto con indice RID su df_ct."""
+    if rid not in df_ct.index:
+        st.error("Contratto non trovato.")
+        return
+
+    contratto = df_ct.loc[rid]
+
     st.markdown("""
     <style>
     .modal-bg {
         position: fixed; top:0; left:0; width:100%; height:100%;
-        background: rgba(0,0,0,0.4); z-index: 9998;
+        background: rgba(0,0,0,0.45); z-index: 9998;
         display: flex; align-items: center; justify-content: center;
     }
     .modal-box {
-        background: white; border-radius: 12px; width: 620px;
+        background: white; border-radius: 12px; width: 640px;
         padding: 1.8rem 2rem; box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+        animation: fadeIn 0.25s ease-out;
+    }
+    @keyframes fadeIn {
+        from {opacity: 0; transform: scale(0.97);}
+        to {opacity: 1; transform: scale(1);}
     }
     </style>
     <div class="modal-bg"><div class="modal-box">
     """, unsafe_allow_html=True)
 
-    st.markdown(f"### ✏️ Modifica Contratto {contratto.get('NumeroContratto','')}")
-    with st.form("frm_edit_contract"):
+    st.markdown(f"### ✏️ Modifica Contratto — {safe_text(rag_soc)}")
+    with st.form(f"frm_edit_contract_{rid}"):
         col1, col2 = st.columns(2)
         with col1:
-            num = st.text_input("Numero Contratto", contratto.get("NumeroContratto",""), disabled=True)
-            din = st.date_input("Data Inizio", value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce"))
+            num = st.text_input("Numero Contratto", contratto.get("NumeroContratto",""))
+            din = st.date_input(
+                "Data Inizio",
+                value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
+            )
             durata = st.text_input("Durata (mesi)", contratto.get("Durata",""))
-            stato = st.selectbox("Stato", ["aperto", "chiuso"], index=0 if contratto.get("Stato","")!="chiuso" else 1)
+            stato = st.selectbox("Stato", ["aperto", "chiuso"], index=0 if contratto.get("Stato","") != "chiuso" else 1)
         with col2:
             nf = st.text_input("NOL_FIN", contratto.get("NOL_FIN",""))
             ni = st.text_input("NOL_INT", contratto.get("NOL_INT",""))
             tot = st.text_input("Tot Rata", contratto.get("TotRata",""))
+
         desc = st.text_area("Descrizione Prodotto", contratto.get("DescrizioneProdotto",""), height=100)
         colA, colB, colC, colD = st.columns(4)
         copie_bn = colA.text_input("Copie B/N", contratto.get("CopieBN",""))
@@ -1684,26 +1339,36 @@ def show_contract_modal(contratto, df_ct, df_cli, rag_soc):
 
         if salva:
             try:
-                idx = df_ct.index[df_ct["NumeroContratto"] == num][0]
-                df_ct.loc[idx, [
-                    "DataInizio","Durata","DescrizioneProdotto","NOL_FIN","NOL_INT",
-                    "TotRata","CopieBN","EccBN","CopieCol","EccCol","Stato"
+                df_ct.loc[rid, [
+                    "NumeroContratto","DataInizio","Durata","DescrizioneProdotto",
+                    "NOL_FIN","NOL_INT","TotRata","CopieBN","EccBN",
+                    "CopieCol","EccCol","Stato"
                 ]] = [
-                    fmt_date(din), durata, desc, nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
+                    num, fmt_date(din), durata, desc, nf, ni, tot,
+                    copie_bn, ecc_bn, copie_col, ecc_col, stato
                 ]
+                # aggiorna automaticamente DataFine
+                try:
+                    mesi = int(str(durata).strip()) if str(durata).strip().isdigit() else None
+                    if mesi and fmt_date(din):
+                        fine = pd.to_datetime(din) + pd.DateOffset(months=mesi)
+                        df_ct.loc[rid, "DataFine"] = fmt_date(fine)
+                except Exception:
+                    pass
                 save_contratti(df_ct)
                 st.success("✅ Contratto aggiornato con successo.")
-                time.sleep(0.6)
-                st.experimental_set_query_params()
+                st.session_state.pop("edit_rid", None)
+                time.sleep(0.4)
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio: {e}")
 
         if annulla:
-            st.experimental_set_query_params()
+            st.session_state.pop("edit_rid", None)
             st.rerun()
 
     st.markdown("</div></div>", unsafe_allow_html=True)
+
 
 
 # =====================================

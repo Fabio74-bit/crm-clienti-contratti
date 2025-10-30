@@ -779,9 +779,11 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if sel_label and sel_label.strip():
         sel_id = filtered.loc[filtered["RagioneSociale"] == sel_label, "ClienteID"].iloc[0]
         st.session_state["selected_cliente"] = sel_id
-        # 🔁 reset istantaneo del campo selectbox
-        st.session_state["sel_cli_box"] = ""
-        st.rerun()
+        # 🔁 reset sicuro del campo selectbox
+        if "sel_cli_box" in st.session_state:
+            del st.session_state["sel_cli_box"]
+        st.experimental_rerun()
+
 
     # Se nessun cliente selezionato → mostra messaggio
     if "selected_cliente" not in st.session_state:

@@ -1011,9 +1011,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             from docx import Document
             tpl_path = STORAGE_DIR / "templates" / TEMPLATE_OPTIONS[template]
 
-            # 🔍 Debug visivo: mostra il percorso effettivo
-            st.code(f"Percorso usato:\n{tpl_path}\nEsiste? {tpl_path.exists()}", language="bash")
-
             if not tpl_path.exists():
                 st.error(f"❌ Template non trovato: {tpl_path}")
                 st.stop()

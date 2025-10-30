@@ -467,34 +467,6 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
     </div>
     """
 
-# =====================================
-# PAGINA DASHBOARD (CLASSICA con TMK e gestione Fabio/Gabriele)
-# =====================================
-def page_dashboard_grafici(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
-    st.image(LOGO_URL, width=120)
-    st.markdown("<h2>📊 Dashboard Gestionale</h2>", unsafe_allow_html=True)
-    st.divider()
-
-    # === KPI principali ===
-    stato = df_ct["Stato"].fillna("").astype(str).str.lower()
-    total_clients = len(df_cli)
-    active_contracts = int((stato != "chiuso").sum())
-    closed_contracts = int((stato == "chiuso").sum())
-    now = pd.Timestamp.now().normalize()
-
-    df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce", dayfirst=True)
-    new_contracts = df_ct[
-        (df_ct["DataInizio"].notna()) &
-        (df_ct["DataInizio"] >= pd.Timestamp(year=now.year, month=1, day=1))
-    ]
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(kpi_card("Clienti attivi", total_clients, "👥", "#1976D2"), unsafe_allow_html=True)
-    c2.markdown(kpi_card("Contratti attivi", active_contracts, "📄", "#388E3C"), unsafe_allow_html=True)
-    c3.markdown(kpi_card("Contratti chiusi", closed_contracts, "❌", "#D32F2F"), unsafe_allow_html=True)
-    c4.markdown(kpi_card("Nuovi contratti anno", len(new_contracts), "⭐", "#FBC02D"), unsafe_allow_html=True)
-    st.divider()
-
     # === CREAZIONE NUOVO CLIENTE + CONTRATTO ===
     with st.expander("➕ Crea Nuovo Cliente + Contratto"):
         with st.form("frm_new_cliente"):
@@ -1767,13 +1739,13 @@ def export_pdf_contratti(df_ct, sel_id, rag_soc):
 # PAGINA DASHBOARD GRAFICI — versione compatta e leggibile
 # =====================================
 import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime
 import pandas as pd
+from datetime import datetime
 import streamlit as st
 
-def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
-    st.markdown("<h2>📊 Dashboard — Panoramica generale</h2>", unsafe_allow_html=True)
+def page_dashboard_grafici(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
+    st.image(LOGO_URL, width=120)
+    st.markdown("<h2>📊 Dashboard Gestionale</h2>", unsafe_allow_html=True)
     st.divider()
 
     if df_cli.empty or df_ct.empty:
@@ -1788,12 +1760,13 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
         agenti = ["Tutti"] + sorted(df_ct["Agente"].dropna().unique().tolist())
         agente_sel = col2.selectbox("Agente", agenti, index=0)
 
+    # Conversione e filtro
     df_ct["DataInizio"] = pd.to_datetime(df_ct["DataInizio"], errors="coerce")
     df_filtered = df_ct[df_ct["DataInizio"].dt.year.astype(str) == str(anno_sel)]
     if agente_sel != "Tutti":
         df_filtered = df_filtered[df_filtered["Agente"] == agente_sel]
 
-    # === CARD: CLIENTI TOTALI ===
+    # === CARD RIASSUNTIVE ===
     clienti_totali = df_cli["ClienteID"].nunique()
     contratti_totali = df_filtered.shape[0]
     rata_totale = pd.to_numeric(df_filtered["TotRata"], errors="coerce").sum()
@@ -1805,7 +1778,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
 
     st.divider()
 
-    # === 1. Totale rata mensile ===
+    # === 1️⃣ Totale rata mensile ===
     df_rata_mese = (
         df_filtered.assign(Mese=df_filtered["DataInizio"].dt.to_period("M"))
         .groupby("Mese")["TotRata"]
@@ -1822,9 +1795,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
         text_auto=".0f",
         color_discrete_sequence=["#3b82f6"]
     )
-    fig_rata.update_layout(height=320, margin=dict(l=10, r=10, t=40, b=30))
+    fig_rata.update_layout(height=300, margin=dict(l=10, r=10, t=40, b=30))
 
-    # === 2. Distribuzione anagrafica (per provincia o città) ===
+    # === 2️⃣ Distribuzione anagrafica ===
     if "Provincia" in df_cli.columns:
         col_geo = "Provincia"
     elif "Città" in df_cli.columns:
@@ -1841,9 +1814,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
             title=f"📍 Distribuzione {col_geo}",
             color_discrete_sequence=px.colors.qualitative.Set3
         )
-        fig_geo.update_layout(height=320, margin=dict(l=10, r=10, t=40, b=30))
+        fig_geo.update_layout(height=300, margin=dict(l=10, r=10, t=40, b=30))
 
-    # === 3. Nuovi contratti ultimi 12 mesi ===
+    # === 3️⃣ Nuovi contratti ultimi 12 mesi ===
     oggi = pd.Timestamp.now()
     ultimi_12 = oggi - pd.DateOffset(months=12)
     df_ultimi = df_ct[df_ct["DataInizio"] >= ultimi_12]
@@ -1859,9 +1832,9 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
         markers=True,
         color_discrete_sequence=["#10b981"]
     )
-    fig_new.update_layout(height=320, margin=dict(l=10, r=10, t=40, b=30))
+    fig_new.update_layout(height=300, margin=dict(l=10, r=10, t=40, b=30))
 
-    # === LAYOUT GRIGLIA ===
+    # === LAYOUT IN GRIGLIA ===
     st.markdown("### 📅 Andamento Generale")
     col1, col2 = st.columns(2)
     with col1: st.plotly_chart(fig_rata, use_container_width=True)
@@ -1871,6 +1844,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
 
     st.markdown("### 📊 Nuovi Contratti")
     st.plotly_chart(fig_new, use_container_width=True)
+
 
 
 # =====================================

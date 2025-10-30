@@ -1546,7 +1546,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.error(f"Errore export PDF: {e}")
 
 # =====================================
-# PAGINA DI MODIFICA CONTRATTO (NUOVA PAGINA)
+# PAGINA DI MODIFICA CONTRATTO (VERSIONE CORRETTA)
 # =====================================
 def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     """Pagina dedicata alla modifica di un contratto selezionato"""
@@ -1566,73 +1566,71 @@ def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str
 
     st.divider()
 
-with st.form("frm_edit_contract_page"):
-    col1, col2, col3 = st.columns(3)
-    num = col1.text_input("📄 Numero Contratto", contratto.get("NumeroContratto", ""))
-    durata = col2.text_input("📆 Durata (mesi)", contratto.get("Durata", ""))
-    stato = col3.selectbox("📋 Stato", ["aperto", "chiuso"],
-                           index=0 if contratto.get("Stato","") != "chiuso" else 1)
+    # Conversione sicura delle date
+    din_val = pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
+    dfi_val = pd.to_datetime(contratto.get("DataFine"), dayfirst=True, errors="coerce")
 
-    col4, col5 = st.columns(2)
-    din_value = pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
-    dfi_value = pd.to_datetime(contratto.get("DataFine"), dayfirst=True, errors="coerce")
-    
+    din_default = din_val if pd.notna(din_val) else datetime.today()
+    dfi_default = dfi_val if pd.notna(dfi_val) else datetime.today()
+
+    # === FORM ===
     with st.form("frm_edit_contract_page"):
-        ...
+        col1, col2, col3 = st.columns(3)
+        num = col1.text_input("📄 Numero Contratto", contratto.get("NumeroContratto", ""))
+        durata = col2.text_input("📆 Durata (mesi)", contratto.get("Durata", ""))
+        stato = col3.selectbox("📋 Stato", ["aperto", "chiuso"],
+                               index=0 if contratto.get("Stato", "") != "chiuso" else 1)
+
         col4, col5 = st.columns(2)
-        din = col4.date_input(
-            "📅 Data Inizio",
-            value=din_value if pd.notna(din_value) else datetime.today(),
-            format="DD/MM/YYYY"
-        )
-        dfi = col5.date_input(
-            "📅 Data Fine",
-            value=dfi_value if pd.notna(dfi_value) else datetime.today(),
-            format="DD/MM/YYYY"
-        )
+        din = col4.date_input("📅 Data Inizio", value=din_default, format="DD/MM/YYYY")
+        dfi = col5.date_input("📅 Data Fine", value=dfi_default, format="DD/MM/YYYY")
 
+        desc = st.text_area("🧾 Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
 
-    desc = st.text_area("🧾 Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+        st.markdown("### 💰 Dati Economici")
+        e1, e2, e3 = st.columns(3)
+        nf = e1.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
+        ni = e2.text_input("NOL_INT", contratto.get("NOL_INT", ""))
+        tot = e3.text_input("Tot. Rata (€)", contratto.get("TotRata", ""))
 
-    st.markdown("### 💰 Dati Economici")
-    e1, e2, e3 = st.columns(3)
-    nf = e1.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
-    ni = e2.text_input("NOL_INT", contratto.get("NOL_INT", ""))
-    tot = e3.text_input("Tot. Rata (€)", contratto.get("TotRata", ""))
+        st.markdown("### 🖨️ Copie incluse ed Eccedenze")
+        c1, c2, c3, c4 = st.columns(4)
+        copie_bn = c1.text_input("Copie B/N", contratto.get("CopieBN", ""))
+        ecc_bn = c2.text_input("Eccedenza B/N (€)", contratto.get("EccBN", ""))
+        copie_col = c3.text_input("Copie Colore", contratto.get("CopieCol", ""))
+        ecc_col = c4.text_input("Eccedenza Colore (€)", contratto.get("EccCol", ""))
 
-    st.markdown("### 🖨️ Copie incluse ed Eccedenze")
-    c1, c2, c3, c4 = st.columns(4)
-    copie_bn = c1.text_input("Copie B/N", contratto.get("CopieBN", ""))
-    ecc_bn = c2.text_input("Eccedenza B/N (€)", contratto.get("EccBN", ""))
-    copie_col = c3.text_input("Copie Colore", contratto.get("CopieCol", ""))
-    ecc_col = c4.text_input("Eccedenza Colore (€)", contratto.get("EccCol", ""))
+        # 🔹 Pulsanti (devono stare dentro il form!)
+        col_s, col_a = st.columns(2)
+        salva = col_s.form_submit_button("💾 Salva Modifiche")
+        annulla = col_a.form_submit_button("❌ Annulla")
 
-    salva = st.form_submit_button("💾 Salva Modifiche")
-    annulla = st.form_submit_button("❌ Annulla")
+        if salva:
+            try:
+                df_ct.loc[gidx, [
+                    "NumeroContratto", "DataInizio", "DataFine", "Durata",
+                    "DescrizioneProdotto", "NOL_FIN", "NOL_INT", "TotRata",
+                    "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+                ]] = [
+                    num, fmt_date(din), fmt_date(dfi), durata, desc,
+                    nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
+                ]
+                save_contratti(df_ct)
+                st.success("✅ Contratto aggiornato correttamente!")
+                time.sleep(0.5)
+                st.session_state.pop("nav_target", None)
+                st.session_state.pop("edit_gidx", None)
+                st.session_state["nav_target"] = "Contratti"
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Errore durante il salvataggio: {e}")
 
-
-    if salva:
-        try:
-            df_ct.loc[gidx, [
-                "NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
-                "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
-            ]] = [
-                num, fmt_date(din), fmt_date(dfi), durata, desc,
-                nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
-            ]
-            save_contratti(df_ct)
-            st.success("✅ Contratto aggiornato correttamente!")
-            time.sleep(0.6)
+        if annulla:
+            st.info("Operazione annullata.")
+            st.session_state.pop("nav_target", None)
             st.session_state.pop("edit_gidx", None)
             st.session_state["nav_target"] = "Contratti"
             st.rerun()
-        except Exception as e:
-            st.error(f"❌ Errore durante il salvataggio: {e}")
-
-    if annulla:
-        st.session_state.pop("edit_gidx", None)
-        st.session_state["nav_target"] = "Contratti"
-        st.rerun()
 
 
 
@@ -2370,7 +2368,7 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 
 
 # =====================================
-# MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
+# MAIN APP — versione 2025 corretta (routing stabile)
 # =====================================
 def main():
     st.write("✅ Avvio CRM SHT — Buon Lavoro")
@@ -2400,11 +2398,7 @@ def main():
     # --- Selettore visibilità ---
     if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
-        visibilita_scelta = st.sidebar.radio(
-            "📂 Visualizza clienti di:",
-            visibilita_opzioni,
-            index=0
-        )
+        visibilita_scelta = st.sidebar.radio("📂 Visualizza clienti di:", visibilita_opzioni, index=0)
     else:
         visibilita_scelta = "Fabio"
 
@@ -2412,19 +2406,13 @@ def main():
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
 
-        # --- Caricamento dati Gabriele ---
+    # --- Caricamento dati Gabriele ---
     try:
         if GABRIELE_CLIENTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
                 try:
-                    df_cli_gab = pd.read_csv(
-                        GABRIELE_CLIENTI,
-                        dtype=str,
-                        sep=sep_try,
-                        encoding="utf-8-sig",
-                        on_bad_lines="skip",
-                        engine="python"
-                    ).fillna("")
+                    df_cli_gab = pd.read_csv(GABRIELE_CLIENTI, dtype=str, sep=sep_try,
+                                             encoding="utf-8-sig", on_bad_lines="skip", engine="python").fillna("")
                     if len(df_cli_gab.columns) > 3:
                         break
                 except Exception:
@@ -2435,14 +2423,8 @@ def main():
         if GABRIELE_CONTRATTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
                 try:
-                    df_ct_gab = pd.read_csv(
-                        GABRIELE_CONTRATTI,
-                        dtype=str,
-                        sep=sep_try,
-                        encoding="utf-8-sig",
-                        on_bad_lines="skip",
-                        engine="python"
-                    ).fillna("")
+                    df_ct_gab = pd.read_csv(GABRIELE_CONTRATTI, dtype=str, sep=sep_try,
+                                            encoding="utf-8-sig", on_bad_lines="skip", engine="python").fillna("")
                     if len(df_ct_gab.columns) > 3:
                         break
                 except Exception:
@@ -2450,7 +2432,7 @@ def main():
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-        # 🔹 Correzione colonne mancanti (solo in memoria)
+        # 🔹 Corregge eventuali colonne mancanti
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
         df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
 
@@ -2485,7 +2467,7 @@ def main():
         "📈 Dashboard Grafici": page_dashboard_grafici,
         "Clienti": page_clienti,
         "Contratti": page_contratti,
-        "✏️ Modifica Contratto": page_modifica_contratto,
+        "✏️ Modifica Contratto": page_modifica_contratto,  # nuova pagina
         "📅 Recall e Visite": page_richiami_visite,
         "📋 Lista Clienti": page_lista_clienti,
     }
@@ -2493,21 +2475,13 @@ def main():
     # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Navigazione automatica (dai pulsanti interni) ---
+    # --- Routing corretto (senza pop immediato) ---
     if "nav_target" in st.session_state:
         target = st.session_state["nav_target"]
         if target in PAGES:
             page = target
 
-
-    # --- Esecuzione pagina selezionata ---
+    # --- Esegui pagina ---
     if page in PAGES:
         st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-
-
-# =====================================
-# AVVIO APP
-# =====================================
-if __name__ == "__main__":
-    main()

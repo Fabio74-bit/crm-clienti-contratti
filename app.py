@@ -2346,6 +2346,32 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
         st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     return df_cli, df_ct
+# =====================================
+# GESTIONE UTENTI E PERMESSI — CRM SHT
+# =====================================
+def get_user_permissions(username: str) -> dict:
+    """Restituisce visibilità e diritti in base all'utente loggato."""
+    username = username.strip().lower()
+
+    base = {"scope": "tutti", "can_edit": False, "can_add": False, "can_export": False}
+
+    if username == "fabio":
+        return {"scope": "tutti", "can_edit": True, "can_add": True, "can_export": True}
+
+    elif username == "gabriele":
+        return {"scope": "solo_gabriele", "can_edit": False, "can_add": False, "can_export": False}
+
+    elif username in ["antonella", "giulia"]:
+        return {"scope": "tutti", "can_edit": True, "can_add": False, "can_export": True}
+
+    elif username in ["annalisa", "laura"]:
+        return {"scope": "solo_gabriele", "can_edit": True, "can_add": False, "can_export": True}
+
+    elif username in ["claudia", "emanuela"]:
+        return {"scope": "tutti", "can_edit": True, "can_add": True, "can_export": True}
+
+    else:
+        return base
 
 # =====================================
 # MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
@@ -2358,39 +2384,23 @@ def main():
         do_login_fullscreen()
         st.stop()
 
-    user = st.session_state.get("user", "")
+    user = st.session_state.get("user", "").strip().lower()
     role = st.session_state.get("role", "")
 
     if not user:
         st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
         st.stop()
 
-    # --- Ruolo e diritti di scrittura ---
-    if user == "fabio":
-        ruolo_scrittura = "full"
-    elif user in ["emanuela", "claudia"]:
-        ruolo_scrittura = "full"
-    elif user in ["giulia", "antonella", "gabriele", "laura", "annalisa"]:
-        ruolo_scrittura = "limitato"
-    else:
-        ruolo_scrittura = "limitato"
+    # --- Permessi e visibilità ---
+    perm = get_user_permissions(user)
+    st.sidebar.success(f"👤 {user.title()} — Ruolo: {role}")
+    st.sidebar.info(f"🔐 Scope: {perm['scope']}")
 
-    # --- Selettore visibilità ---
-    if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
-        visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
-        visibilita_scelta = st.sidebar.radio(
-            "📂 Visualizza clienti di:",
-            visibilita_opzioni,
-            index=0
-        )
-    else:
-        visibilita_scelta = "Fabio"
-
-    # --- Caricamento dati base (Fabio) ---
+    # --- Caricamento dati principali (Fabio) ---
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
 
-        # --- Caricamento dati Gabriele ---
+    # --- Caricamento dati Gabriele ---
     try:
         if GABRIELE_CLIENTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
@@ -2428,7 +2438,7 @@ def main():
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-        # 🔹 Correzione colonne mancanti (solo in memoria)
+        # Correggi colonne mancanti
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
         df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
 
@@ -2437,25 +2447,24 @@ def main():
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
         df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-    # --- Applica filtro visibilità ---
-    if visibilita_scelta == "Fabio":
-        df_cli, df_ct = df_cli_main, df_ct_main
-    elif visibilita_scelta == "Gabriele":
-        df_cli, df_ct = df_cli_gab, df_ct_gab
-    else:
+    # --- Applica visibilità automatica in base all’utente ---
+    if perm["scope"] == "solo_gabriele":
+        # Gabriele, Annalisa, Laura → solo i dati di Gabriele
+        df_cli, df_ct = df_cli_gab.copy(), df_ct_gab.copy()
+    elif perm["scope"] == "tutti":
+        # Tutti i dati uniti
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+    else:
+        # fallback
+        df_cli, df_ct = df_cli_main.copy(), df_ct_main.copy()
 
     # --- Correzione date automatica una sola volta ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
-    # --- Sidebar info ---
-    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
-    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
-
     # --- Salva contesto in sessione ---
-    st.session_state["ruolo_scrittura"] = ruolo_scrittura
-    st.session_state["visibilita"] = visibilita_scelta
+    st.session_state["perm"] = perm
+    st.session_state["utente_loggato"] = user
 
     # --- Pagine principali ---
     PAGES = {
@@ -2471,17 +2480,15 @@ def main():
     # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Navigazione automatica (dai pulsanti interni) ---
+    # --- Navigazione automatica (da pulsanti interni) ---
     if "nav_target" in st.session_state:
-        target = st.session_state.pop("nav_target")  # ✅ pop rimuove la chiave dopo l’uso
+        target = st.session_state.pop("nav_target")
         if target in PAGES:
             page = target
 
-
     # --- Esecuzione pagina selezionata ---
     if page in PAGES:
-        st.session_state["utente_loggato"] = user
-        PAGES[page](df_cli, df_ct, ruolo_scrittura)
+        PAGES[page](df_cli, df_ct, perm)
 
 
 # =====================================

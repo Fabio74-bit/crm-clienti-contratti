@@ -2331,12 +2331,12 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.caption(f"📋 Totale clienti mostrati: **{len(merged)}**")
 
 # =====================================
-# MAIN APP — versione stabile (reset completo routing)
+# MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
 # =====================================
 def main():
     st.write("✅ Avvio CRM SHT — Buon Lavoro")
 
-    # --- LOGIN ---
+    # --- LOGIN (mostra schermata se non autenticato) ---
     if not st.session_state.get("logged_in", False):
         do_login_fullscreen()
         st.stop()
@@ -2348,46 +2348,79 @@ def main():
         st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
         st.stop()
 
-    # --- Ruolo scrittura ---
-    if user in ["fabio", "emanuela", "claudia"]:
+    # --- Ruolo e diritti di scrittura ---
+    if user == "fabio":
         ruolo_scrittura = "full"
+    elif user in ["emanuela", "claudia"]:
+        ruolo_scrittura = "full"
+    elif user in ["giulia", "antonella", "gabriele", "laura", "annalisa"]:
+        ruolo_scrittura = "limitato"
     else:
         ruolo_scrittura = "limitato"
 
-    # --- Visibilità ---
+    # --- Selettore visibilità ---
     if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
-        visibilita_scelta = st.sidebar.radio("📂 Visualizza clienti di:", visibilita_opzioni, index=0)
+        visibilita_scelta = st.sidebar.radio(
+            "📂 Visualizza clienti di:",
+            visibilita_opzioni,
+            index=0
+        )
     else:
         visibilita_scelta = "Fabio"
 
-    # --- Caricamento dati ---
+    # --- Caricamento dati base (Fabio) ---
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
 
-    # --- Dati Gabriele (se presenti) ---
+        # --- Caricamento dati Gabriele ---
     try:
         if GABRIELE_CLIENTI.exists():
-            df_cli_gab = pd.read_csv(GABRIELE_CLIENTI, dtype=str, sep=None,
-                                     engine="python", encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+            for sep_try in [";", ",", "|", "\t"]:
+                try:
+                    df_cli_gab = pd.read_csv(
+                        GABRIELE_CLIENTI,
+                        dtype=str,
+                        sep=sep_try,
+                        encoding="utf-8-sig",
+                        on_bad_lines="skip",
+                        engine="python"
+                    ).fillna("")
+                    if len(df_cli_gab.columns) > 3:
+                        break
+                except Exception:
+                    continue
         else:
             df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
 
         if GABRIELE_CONTRATTI.exists():
-            df_ct_gab = pd.read_csv(GABRIELE_CONTRATTI, dtype=str, sep=None,
-                                    engine="python", encoding="utf-8-sig", on_bad_lines="skip").fillna("")
+            for sep_try in [";", ",", "|", "\t"]:
+                try:
+                    df_ct_gab = pd.read_csv(
+                        GABRIELE_CONTRATTI,
+                        dtype=str,
+                        sep=sep_try,
+                        encoding="utf-8-sig",
+                        on_bad_lines="skip",
+                        engine="python"
+                    ).fillna("")
+                    if len(df_ct_gab.columns) > 3:
+                        break
+                except Exception:
+                    continue
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
+        # 🔹 Correzione colonne mancanti (solo in memoria)
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
         df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
 
     except Exception as e:
-        st.warning(f"⚠️ Errore caricamento dati Gabriele: {e}")
+        st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
         df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-    # --- Applica visibilità ---
+    # --- Applica filtro visibilità ---
     if visibilita_scelta == "Fabio":
         df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
@@ -2396,12 +2429,14 @@ def main():
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
 
-    # --- Corregge date ---
+    # --- Correzione date automatica una sola volta ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
     # --- Sidebar info ---
     st.sidebar.success(f"👤 {user} — Ruolo: {role}")
     st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
+
+    # --- Salva contesto in sessione ---
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
@@ -2419,21 +2454,20 @@ def main():
     # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Routing sicuro ---
-    nav_target = st.session_state.get("nav_target")
-    if nav_target in PAGES:
-        page = nav_target
-    elif "_last_page" in st.session_state and st.session_state["_last_page"] in PAGES:
-        page = st.session_state["_last_page"]
-    else:
-        page = "Dashboard"
+    # --- Navigazione automatica (dai pulsanti interni) ---
+    if "nav_target" in st.session_state:
+        target = st.session_state["nav_target"]
+        if target in PAGES:
+            page = target
 
-    # salva pagina corrente per prossimi rerun
-    st.session_state["_last_page"] = page
-
-    # --- Esegui la pagina ---
-    try:
+    # --- Esecuzione pagina selezionata ---
+    if page in PAGES:
+        st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-    except Exception as e:
-        st.error(f"❌ Errore durante il caricamento della pagina '{page}': {e}")
-        st.stop()
+
+
+# =====================================
+# AVVIO APP
+# =====================================
+if __name__ == "__main__":
+    main()

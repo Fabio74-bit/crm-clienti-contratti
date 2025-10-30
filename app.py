@@ -1094,47 +1094,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         st.info("Nessun preventivo per questo cliente.")
 
-
-
-
-    # === ELENCO PREVENTIVI ===
-    st.divider()
-    st.markdown("### 📂 Elenco Preventivi Cliente")
-
-    prev_cli = df_prev[df_prev["ClienteID"].astype(str) == sel_id]
-    if prev_cli.empty:
-        st.info("Nessun preventivo per questo cliente.")
-    else:
-        prev_cli = prev_cli.sort_values("DataCreazione", ascending=False)
-        for i, r in prev_cli.iterrows():
-            file_path = Path(r["Percorso"])
-            e1, e2, e3 = st.columns([0.6, 0.25, 0.15])
-            with e1:
-                st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}  \n📅 {r['DataCreazione']}")
-            with e2:
-                if file_path.exists():
-                    with open(file_path, "rb") as f:
-                        st.download_button(
-                            "⬇️ Scarica", f.read(),
-                            file_name=file_path.name,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key=f"dl_{sel_id}_{i}_{int(time.time()*1000)}"
-                        )
-            with e3:
-                if role == "admin":
-                    if st.button("🗑 Elimina", key=f"del_prev_{sel_id}_{i}_{int(time.time()*1000)}"):
-                        try:
-                            if file_path.exists():
-                                file_path.unlink()
-                            df_prev = df_prev.drop(i)
-                            df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
-                            st.success("🗑 Preventivo eliminato.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Errore eliminazione: {e}")
-
-
-
 # =====================================
 # PAGINA CONTRATTI — VERSIONE STABILE 2025 (senza duplicati widget)
 # =====================================

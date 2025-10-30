@@ -836,18 +836,43 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with cdel1:
             if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
                 try:
+                    # 🔹 Rimuovi cliente e contratti dai DataFrame
                     df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != sel_id].copy()
                     df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != sel_id].copy()
-                    df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-                    df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-                    try: st.cache_data.clear()
-                    except: pass
+    
+                    # 🔹 Tenta l’eliminazione anche su MySQL
+                    try:
+                        conn = get_connection()
+                        cur = conn.cursor()
+                        cur.execute("DELETE FROM contratti_clienti WHERE ClienteID = %s", (sel_id,))
+                        cur.execute("DELETE FROM clienti WHERE ClienteID = %s", (sel_id,))
+                        conn.commit()
+                        conn.close()
+                        st.success("🗑️ Cliente e contratti eliminati da MySQL.")
+                    except Exception as e:
+                        st.error(f"⚠️ Errore eliminazione su MySQL: {e}")
+                        df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+                        df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+                        st.info("💾 Backup locale su CSV aggiornato.")
+    
+                    # 🔹 Aggiorna cache e interfaccia
+                    try:
+                        st.cache_data.clear()
+                    except:
+                        pass
                     st.session_state.pop("confirm_delete_cliente", None)
-                    st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
                     time.sleep(0.5)
                     st.rerun()
+    
                 except Exception as e:
                     st.error(f"❌ Errore durante l'eliminazione: {e}")
+
+    with cdel2:
+        if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
+            st.session_state.pop("confirm_delete_cliente", None)
+            st.info("Operazione annullata.")
+            st.rerun()
+
         with cdel2:
             if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
                 st.session_state.pop("confirm_delete_cliente", None)

@@ -11,6 +11,39 @@ from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from docx import Document
 from docx.shared import Pt
+# =====================================
+# CONNESSIONE DATABASE MYSQL
+# =====================================
+import mysql.connector
+
+def get_connection():
+    """Crea la connessione al database MySQL usando le credenziali in secrets.toml"""
+    return mysql.connector.connect(
+        host=st.secrets["mysql"]["host"],
+        database=st.secrets["mysql"]["database"],
+        user=st.secrets["mysql"]["user"],
+        password=st.secrets["mysql"]["password"]
+    )
+
+def load_table(table_name: str) -> pd.DataFrame:
+    """Legge una tabella MySQL e la restituisce come DataFrame"""
+    conn = get_connection()
+    df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
+    conn.close()
+    return df
+
+def save_table(df: pd.DataFrame, table_name: str):
+    """Sovrascrive completamente una tabella MySQL con i dati del DataFrame"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"DELETE FROM {table_name}")
+    for _, row in df.iterrows():
+        cols = ",".join(df.columns)
+        vals = ",".join(["%s"] * len(df.columns))
+        sql = f"INSERT INTO {table_name} ({cols}) VALUES ({vals})"
+        cursor.execute(sql, tuple(row))
+    conn.commit()
+    conn.close()
 
 # =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE
@@ -874,10 +907,18 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "Indirizzo","Citta","CAP","Telefono","Cell","Email",
                         "PersonaRiferimento","PartitaIVA","IBAN","SDI","TMK"
                     ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk_sel]
-                    save_clienti(df_cli)
-                    st.success("✅ Anagrafica aggiornata.")
+            
+                    try:
+                        save_table(df_cli, "clienti")
+                        st.success("✅ Anagrafica aggiornata su MySQL!")
+                    except Exception as e:
+                        st.error(f"⚠️ Errore salvataggio MySQL: {e}")
+                        save_clienti(df_cli)
+                        st.info("💾 Backup locale su CSV eseguito.")
+            
                     st.session_state[f"edit_cli_{sel_id}"] = False
                     st.rerun()
+            
                 except Exception as e:
                     st.error(f"❌ Errore durante il salvataggio: {e}")
 
@@ -901,9 +942,14 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             try:
                 idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
                 df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+            try:
+                save_table(df_cli, "clienti")
+                st.success("✅ Note salvate su MySQL!")
+            except Exception as e:
+                st.error(f"⚠️ Errore salvataggio MySQL: {e}")
                 save_clienti(df_cli)
-                st.success("✅ Note salvate correttamente.")
-                st.rerun()
+                st.info("💾 Backup locale su CSV eseguito.")
+
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio: {e}")
     with n2:
@@ -942,9 +988,14 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             idx = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
             df_cli.loc[idx, ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]] = \
                 [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
+        try:
+            save_table(df_cli, "clienti")
+            st.success("✅ Date aggiornate su MySQL!")
+        except Exception as e:
+            st.error(f"⚠️ Errore salvataggio MySQL: {e}")
             save_clienti(df_cli)
-            st.success("✅ Date aggiornate.")
-            st.rerun()
+            st.info("💾 Backup locale su CSV eseguito.")
+
         except Exception as e:
             st.error(f"❌ Errore salvataggio recall/visite: {e}")
 
@@ -2387,10 +2438,18 @@ def main():
         visibilita_scelta = "Fabio"
 
     # --- Caricamento dati base (Fabio) ---
-    df_cli_main = load_clienti()
-    df_ct_main = load_contratti()
+    try:
+        # 🔹 tenta di leggere dal database MySQL
+        df_cli_main = load_table("clienti")
+        df_ct_main = load_table("contratti_clienti")
+        st.success("✅ Dati caricati da MySQL")
+    except Exception as e:
+        st.error(f"⚠️ Errore connessione MySQL: {e}")
+        st.warning("Uso temporaneamente i CSV locali (solo in memoria).")
+        df_cli_main = load_clienti()
+        df_ct_main = load_contratti()
 
-        # --- Caricamento dati Gabriele ---
+    # --- Caricamento dati Gabriele ---
     try:
         if GABRIELE_CLIENTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
@@ -2436,6 +2495,7 @@ def main():
         st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
         df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
+
 
     # --- Applica filtro visibilità ---
     if visibilita_scelta == "Fabio":

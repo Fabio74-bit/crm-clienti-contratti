@@ -2351,7 +2351,7 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
 # MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
 # =====================================
 def main():
-    st.write("✅ Avvio CRM SHT — Buon Lavoro")
+    st.write("✅ CRM SHT — Buon Lavoro")
 
     # --- LOGIN (mostra schermata se non autenticato) ---
     if not st.session_state.get("logged_in", False):

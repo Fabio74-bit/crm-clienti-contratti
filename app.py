@@ -976,9 +976,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"❌ Errore salvataggio recall/visite: {e}")
 
-    # === GENERA PREVENTIVO ===
+    # === GENERA E GESTISCI PREVENTIVI ===
     st.divider()
-    st.markdown("### 🧾 Genera Nuovo Preventivo")
+    st.markdown("### 🧾 Gestione Preventivi")
 
     TEMPLATE_OPTIONS = {
         "Offerta A4": "Offerta_A4.docx",
@@ -993,12 +993,49 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if prev_csv.exists():
         df_prev = pd.read_csv(prev_csv, dtype=str).fillna("")
     else:
-        df_prev = pd.DataFrame(columns=["ClienteID","NumeroOfferta","Template","NomeFile","Percorso","DataCreazione"])
+        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
+
+    # === Mostra preventivi del cliente ===
+    df_prev_cli = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
+    if not df_prev_cli.empty:
+        st.markdown("#### 📂 Preventivi esistenti")
+        for i, row in df_prev_cli.iterrows():
+            nome_file = row["NomeFile"]
+            percorso = row["Percorso"]
+            data = row.get("DataCreazione", "")
+            col1, col2, col3 = st.columns([4, 1, 1])
+            col1.write(f"📄 **{nome_file}**  \n🕓 {data}")
+            if Path(percorso).exists():
+                with open(percorso, "rb") as f:
+                    col2.download_button("⬇️ Scarica", f, file_name=nome_file, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            else:
+                col2.warning("❌ File mancante")
+
+            # 🗑️ Pulsante elimina
+            if col3.button("🗑️ Elimina", key=f"del_prev_{i}"):
+                try:
+                    # Rimuove dal CSV
+                    df_prev = df_prev.drop(index=i)
+                    df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+
+                    # Rimuove il file se esiste
+                    if Path(percorso).exists():
+                        Path(percorso).unlink()
+                    st.success(f"✅ Preventivo '{nome_file}' eliminato.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Errore eliminazione: {e}")
+        st.divider()
+    else:
+        st.info("Nessun preventivo generato per questo cliente.")
+
+    # === Form per nuovo preventivo ===
+    st.markdown("#### ➕ Crea nuovo preventivo")
 
     anno = datetime.now().year
     nome_cliente = cliente.get("RagioneSociale", "")
     nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
-    num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev[df_prev['ClienteID'].astype(str) == sel_id]) + 1:03d}"
+    num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev_cli) + 1:03d}"
 
     with st.form(f"frm_prev_{sel_id}"):
         st.text_input("Numero Offerta", num_off, disabled=True)
@@ -1053,6 +1090,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             import traceback
             st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
+
 
 
     # === ELENCO PREVENTIVI ===

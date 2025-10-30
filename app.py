@@ -220,6 +220,54 @@ def fix_inverted_dates(series: pd.Series, col_name: str = "") -> pd.Series:
         st.info(f"🔄 {fixed_count}/{total} date corrette automaticamente nella colonna **{col_name}**.")
 
     return pd.Series(fixed)
+# =====================================
+# BACKUP AUTOMATICO SU BOX (con controllo modifiche)
+# =====================================
+import requests, hashlib
+
+def file_checksum(path: Path) -> str:
+    """Calcola un hash (SHA1) del file per verificare se è cambiato."""
+    if not path.exists():
+        return ""
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        while chunk := f.read(8192):
+            h.update(chunk)
+    return h.hexdigest()
+
+def box_upload_if_changed(local_path: Path, remote_name: str | None = None):
+    """
+    Carica automaticamente un file su Box solo se è cambiato rispetto all'ultima versione.
+    Salva l'hash nel session_state per evitare duplicazioni.
+    """
+    try:
+        folder_id = st.secrets["box"].get("backup_folder_id", "0")
+        access_token = st.secrets["box"]["developer_token"]
+        if not remote_name:
+            remote_name = local_path.name
+
+        # Calcolo hash attuale
+        current_hash = file_checksum(local_path)
+        prev_hash = st.session_state.get(f"box_hash_{local_path}", "")
+
+        # Se non è cambiato → niente upload
+        if current_hash == prev_hash:
+            return
+
+        url = "https://upload.box.com/api/2.0/files/content"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        files = {
+            "attributes": (None, f'{{"name":"{remote_name}","parent":{{"id":"{folder_id}"}}}}', "application/json"),
+            "file": (remote_name, open(local_path, "rb")),
+        }
+        r = requests.post(url, headers=headers, files=files)
+        if r.status_code in (200, 201):
+            st.toast(f"☁️ Backup su Box completato: {remote_name}", icon="✅")
+            st.session_state[f"box_hash_{local_path}"] = current_hash
+        else:
+            st.error(f"⚠️ Errore upload Box: {r.text}")
+    except Exception as e:
+        st.warning(f"⚠️ Backup Box non riuscito: {e}")
 
 # =====================================
 # CARICAMENTO E SALVATAGGIO DATI
@@ -257,19 +305,20 @@ def save_if_changed(df_new, path: Path, original_df):
 # FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
 # =====================================
 def save_clienti(df: pd.DataFrame):
-    """Salva il CSV clienti correggendo e formattando le date."""
+    """Salva il CSV clienti + backup su Box solo se modificato."""
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         if c in df.columns:
             df[c] = fix_inverted_dates(df[c], col_name=c)
     save_csv(df, CLIENTI_CSV, date_cols=["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"])
-
+    box_upload_if_changed(CLIENTI_CSV)
 
 def save_contratti(df: pd.DataFrame):
-    """Salva il CSV contratti correggendo e formattando le date."""
+    """Salva il CSV contratti + backup su Box solo se modificato."""
     for c in ["DataInizio", "DataFine"]:
         if c in df.columns:
             df[c] = fix_inverted_dates(df[c], col_name=c)
     save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
+    box_upload_if_changed(CONTRATTI_CSV)
 
 # =====================================
 # CONVERSIONE SICURA DATE ITALIANE (VERSIONE DEFINITIVA 2025)
@@ -1079,6 +1128,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             out_path = PREVENTIVI_DIR / nome_file
             doc.save(out_path)
+            box_upload_if_changed(out_path)
 
             nuova_riga = {
                 "ClienteID": sel_id,

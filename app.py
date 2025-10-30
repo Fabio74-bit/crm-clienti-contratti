@@ -1,4 +1,4 @@
-                # =====================================
+                 # =====================================
                 # app.py — Gestionale Clienti SHT (VERSIONE 2025 OTTIMIZZATA)
                 # =====================================
                 from __future__ import annotations

@@ -2325,6 +2325,41 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
 
     st.caption(f"📋 Totale clienti mostrati: **{len(merged)}**")
+# =====================================
+# FIX DATE: ESEGUILO UNA SOLA VOLTA
+# =====================================
+def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Corregge le date solo una volta per sessione.
+    NON usa variabili globali, evita NameError.
+    Ritorna SEMPRE (df_cli, df_ct) aggiornati.
+    """
+    if st.session_state.get("_date_fix_done", False):
+        return df_cli, df_ct
+
+    try:
+        # 🔹 Clienti
+        if not df_cli.empty:
+            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
+                if c in df_cli.columns:
+                    df_cli[c] = fix_inverted_dates(df_cli[c], col_name=c)
+
+        # 🔹 Contratti
+        if not df_ct.empty:
+            for c in ["DataInizio", "DataFine"]:
+                if c in df_ct.columns:
+                    df_ct[c] = fix_inverted_dates(df_ct[c], col_name=c)
+
+        # 🔹 Salva una sola volta
+        df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+        df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+
+        st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
+        st.session_state["_date_fix_done"] = True
+    except Exception as e:
+        st.warning(f"⚠️ Correzione automatica date non completata: {e}")
+
+    return df_cli, df_ct
 
 # =====================================
 # MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)

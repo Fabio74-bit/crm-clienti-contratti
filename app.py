@@ -1089,9 +1089,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
-    labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
+    labels = df_cli["RagioneSociale"].astype(str).tolist()
     sel_label = st.selectbox("Seleziona Cliente", labels, index=0, key="sel_cli_ct")
-    sel_id = sel_label.split(" — ")[0]
+    sel_id = df_cli.loc[df_cli["RagioneSociale"] == sel_label, "ClienteID"].iloc[0]
+    # 🔹 Pulsante per aprire e resettare la selezione
+    if st.button("📂 Apri Cliente Selezionato"):
+        st.session_state["selected_cliente"] = sel_id
+        st.session_state["sel_cli_ct"] = ""  # 🔁 resetta il campo selectbox
+        st.rerun()
+
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
     st.markdown(f"<h3 style='text-align:center;color:#2563eb'>{rag_soc}</h3>", unsafe_allow_html=True)

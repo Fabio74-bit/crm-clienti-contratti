@@ -956,11 +956,12 @@ if st.session_state.get("confirm_delete_cliente") == sel_id:
     )
 
     n1, n2 = st.columns([0.25, 0.75])
-    with n1:
-        if st.button("💾 Salva Note", use_container_width=True, key=f"save_note_{sel_id}"):
-            try:
-                idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
-                df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+with n1:
+    if st.button("💾 Salva Note", use_container_width=True, key=f"save_note_{sel_id}"):
+        try:
+            idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
+            df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+
             try:
                 save_table(df_cli, "clienti")
                 st.success("✅ Note salvate su MySQL!")
@@ -969,8 +970,10 @@ if st.session_state.get("confirm_delete_cliente") == sel_id:
                 save_clienti(df_cli)
                 st.info("💾 Backup locale su CSV eseguito.")
 
-            except Exception as e:
-                st.error(f"❌ Errore durante il salvataggio: {e}")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Errore durante il salvataggio: {e}")
+
     with n2:
         st.info("Le modifiche vengono salvate immediatamente nel file clienti.csv")
 

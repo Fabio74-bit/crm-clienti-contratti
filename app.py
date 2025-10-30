@@ -1009,7 +1009,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if genera_btn:
         try:
             from docx import Document
-            tpl_path = Path(__file__).resolve().parent / "templates" / TEMPLATE_OPTIONS[template]
+            tpl_path = STORAGE_DIR / "templates" / TEMPLATE_OPTIONS[template]
 
             # 🔍 Debug visivo: mostra il percorso effettivo
             st.code(f"Percorso usato:\n{tpl_path}\nEsiste? {tpl_path.exists()}", language="bash")

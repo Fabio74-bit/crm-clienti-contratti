@@ -33,17 +33,23 @@ def load_table(table_name: str) -> pd.DataFrame:
     return df
 
 def save_table(df: pd.DataFrame, table_name: str):
-    """Sovrascrive completamente una tabella MySQL con i dati del DataFrame"""
+    """Aggiorna una tabella MySQL in modo sicuro (senza cancellare tutto)."""
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(f"DELETE FROM {table_name}")
+    cur = conn.cursor()
+
+    # Costruisci la query dinamica per ogni riga
+    cols = df.columns.tolist()
+    placeholders = ",".join(["%s"] * len(cols))
+    col_list = ",".join([f"`{c}`" for c in cols])
+
     for _, row in df.iterrows():
-        cols = ",".join(df.columns)
-        vals = ",".join(["%s"] * len(df.columns))
-        sql = f"INSERT INTO {table_name} ({cols}) VALUES ({vals})"
-        cursor.execute(sql, tuple(row))
+        data = tuple(row)
+        sql = f"REPLACE INTO {table_name} ({col_list}) VALUES ({placeholders})"
+        cur.execute(sql, data)
+
     conn.commit()
     conn.close()
+
 
 # =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE
@@ -829,55 +835,43 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.session_state["confirm_delete_cliente"] = sel_id
             st.rerun()
 
-    # === CONFERMA CANCELLAZIONE ===
-    if st.session_state.get("confirm_delete_cliente") == sel_id:
-        st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) e tutti i contratti associati?")
-        cdel1, cdel2 = st.columns(2)
-        with cdel1:
-            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
+# === CONFERMA CANCELLAZIONE ===
+if st.session_state.get("confirm_delete_cliente") == sel_id:
+    st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) e tutti i contratti associati?")
+    cdel1, cdel2 = st.columns(2)
+    with cdel1:
+        if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
+            try:
+                df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != sel_id].copy()
+                df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != sel_id].copy()
                 try:
-                    # 🔹 Rimuovi cliente e contratti dai DataFrame
-                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != sel_id].copy()
-                    df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != sel_id].copy()
-    
-                    # 🔹 Tenta l’eliminazione anche su MySQL
-                    try:
-                        conn = get_connection()
-                        cur = conn.cursor()
-                        cur.execute("DELETE FROM contratti_clienti WHERE ClienteID = %s", (sel_id,))
-                        cur.execute("DELETE FROM clienti WHERE ClienteID = %s", (sel_id,))
-                        conn.commit()
-                        conn.close()
-                        st.success("🗑️ Cliente e contratti eliminati da MySQL.")
-                    except Exception as e:
-                        st.error(f"⚠️ Errore eliminazione su MySQL: {e}")
-                        df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-                        df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-                        st.info("💾 Backup locale su CSV aggiornato.")
-    
-                    # 🔹 Aggiorna cache e interfaccia
-                    try:
-                        st.cache_data.clear()
-                    except:
-                        pass
-                    st.session_state.pop("confirm_delete_cliente", None)
-                    time.sleep(0.5)
-                    st.rerun()
-    
+                    conn = get_connection()
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM contratti_clienti WHERE ClienteID = %s", (sel_id,))
+                    cur.execute("DELETE FROM clienti WHERE ClienteID = %s", (sel_id,))
+                    conn.commit()
+                    conn.close()
+                    st.success("🗑️ Cliente e contratti eliminati da MySQL.")
                 except Exception as e:
-                    st.error(f"❌ Errore durante l'eliminazione: {e}")
-
+                    st.error(f"⚠️ Errore eliminazione su MySQL: {e}")
+                    df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+                    df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+                    st.info("💾 Backup locale su CSV aggiornato.")
+                try:
+                    st.cache_data.clear()
+                except:
+                    pass
+                st.session_state.pop("confirm_delete_cliente", None)
+                time.sleep(0.5)
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Errore durante l'eliminazione: {e}")
     with cdel2:
         if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
             st.session_state.pop("confirm_delete_cliente", None)
             st.info("Operazione annullata.")
             st.rerun()
 
-        with cdel2:
-            if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
-                st.session_state.pop("confirm_delete_cliente", None)
-                st.info("Operazione annullata.")
-                st.rerun()
 
     # === ANAGRAFICA CLIENTE (visuale compatta tipo scheda) ===
     st.divider()
@@ -1314,11 +1308,15 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 try:
                     nuovo_stato = "chiuso" if stato != "chiuso" else "aperto"
                     df_ct.loc[df_ct.index == i, "Stato"] = nuovo_stato
-                    save_contratti(df_ct)
-                    st.toast(f"🔁 Stato contratto aggiornato: {nuovo_stato.upper()}", icon="✅")
+                    try:
+                        save_table(df_ct, "contratti_clienti")
+                        st.toast(f"🔁 Stato contratto aggiornato su MySQL ({nuovo_stato.upper()})", icon="✅")
+                    except Exception as e:
+                        st.error(f"⚠️ Errore salvataggio MySQL: {e}")
+                        save_contratti(df_ct)
+                        st.info("💾 Backup locale su CSV eseguito.")
                     st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore aggiornamento stato: {e}")
+
 
             # 🗑️ Elimina contratto
             if b3.button("🗑️", key=f"del_ct_{i}", help="Elimina contratto", disabled=permessi_limitati):
@@ -1327,28 +1325,58 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.rerun()
 
 
-    # === ELIMINAZIONE CONTRATTO ===
-    if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
-        gidx = st.session_state["delete_gidx"]
-        if gidx in ct.index:
-            contratto = ct.loc[gidx]
-            numero = contratto.get("NumeroContratto", "Senza numero")
-            st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✅ Sì, elimina", use_container_width=True):
-                    df_ct = df_ct.drop(index=gidx).copy()
-                    save_contratti(df_ct)
-                    st.success("🗑️ Contratto eliminato.")
+# === ELIMINAZIONE CONTRATTO (MySQL + CSV fallback) ===
+if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
+    gidx = st.session_state["delete_gidx"]
+    if gidx in ct.index:
+        contratto = ct.loc[gidx]
+        numero = contratto.get("NumeroContratto", "Senza numero")
+        contratto_id = str(contratto.get("ContrattoID", ""))
+        st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("✅ Sì, elimina", use_container_width=True):
+                try:
+                    # 🔹 Rimuovi contratto dal DataFrame
+                    df_ct_new = df_ct.drop(index=gidx).reset_index(drop=True)
+
+                    # 🔹 Prova a eliminare anche da MySQL
+                    try:
+                        conn = get_connection()
+                        cur = conn.cursor()
+                        if contratto_id:
+                            cur.execute("DELETE FROM contratti_clienti WHERE ContrattoID = %s", (contratto_id,))
+                        else:
+                            # se non c'è ContrattoID, cancelliamo usando NumeroContratto
+                            cur.execute("DELETE FROM contratti_clienti WHERE NumeroContratto = %s", (numero,))
+                        conn.commit()
+                        conn.close()
+                        st.success("🗑️ Contratto eliminato da MySQL.")
+                    except Exception as e:
+                        st.error(f"⚠️ Errore eliminazione su MySQL: {e}")
+                        save_contratti(df_ct_new)
+                        st.info("💾 Backup locale su CSV aggiornato.")
+
+                    # 🔹 Aggiorna cache e interfaccia
+                    try:
+                        st.cache_data.clear()
+                    except:
+                        pass
+
+                    df_ct = df_ct_new
                     st.session_state.pop("ask_delete_now", None)
                     st.session_state.pop("delete_gidx", None)
+                    time.sleep(0.5)
                     st.rerun()
-            with c2:
-                if st.button("❌ Annulla", use_container_width=True):
-                    st.session_state.pop("ask_delete_now", None)
-                    st.session_state.pop("delete_gidx", None)
-                    st.info("Annullato.")
-                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+        with c2:
+            if st.button("❌ Annulla", use_container_width=True):
+                st.session_state.pop("ask_delete_now", None)
+                st.session_state.pop("delete_gidx", None)
+                st.info("Operazione annullata.")
+                st.rerun()
 
 
     # === ESPORTAZIONI (Excel + PDF) ===
@@ -1678,13 +1706,14 @@ def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str
                     num, fmt_date(din), fmt_date(dfi), durata, desc,
                     nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
                 ]
-                save_contratti(df_ct)
-                st.success("✅ Contratto aggiornato con successo!")
-                time.sleep(0.5)
-                st.session_state["nav_target"] = "Contratti"
+                try:
+                    save_table(df_ct, "contratti_clienti")
+                    st.success("✅ Contratto salvato su MySQL!")
+                except Exception as e:
+                    st.error(f"⚠️ Errore salvataggio MySQL: {e}")
+                    save_contratti(df_ct)
+                    st.info("💾 Backup locale su CSV eseguito.")
                 st.rerun()
-            except Exception as e:
-                st.error(f"❌ Errore durante il salvataggio: {e}")
         
         if annulla:
             st.info("Operazione annullata.")

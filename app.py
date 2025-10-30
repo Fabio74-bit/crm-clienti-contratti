@@ -1566,38 +1566,50 @@ def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str
 
     st.divider()
 
+with st.form("frm_edit_contract_page"):
+    col1, col2, col3 = st.columns(3)
+    num = col1.text_input("📄 Numero Contratto", contratto.get("NumeroContratto", ""))
+    durata = col2.text_input("📆 Durata (mesi)", contratto.get("Durata", ""))
+    stato = col3.selectbox("📋 Stato", ["aperto", "chiuso"],
+                           index=0 if contratto.get("Stato","") != "chiuso" else 1)
+
+    col4, col5 = st.columns(2)
+    din_value = pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce")
+    dfi_value = pd.to_datetime(contratto.get("DataFine"), dayfirst=True, errors="coerce")
+    
     with st.form("frm_edit_contract_page"):
-        col1, col2, col3 = st.columns(3)
-        num = col1.text_input("📄 Numero Contratto", contratto.get("NumeroContratto", ""))
-        durata = col2.text_input("📆 Durata (mesi)", contratto.get("Durata", ""))
-        stato = col3.selectbox("📋 Stato", ["aperto", "chiuso"], 
-                               index=0 if contratto.get("Stato","") != "chiuso" else 1)
-
+        ...
         col4, col5 = st.columns(2)
-        din = col4.date_input("📅 Data Inizio", 
-                              value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce"),
-                              format="DD/MM/YYYY")
-        dfi = col5.date_input("📅 Data Fine", 
-                              value=pd.to_datetime(contratto.get("DataFine"), dayfirst=True, errors="coerce"),
-                              format="DD/MM/YYYY")
+        din = col4.date_input(
+            "📅 Data Inizio",
+            value=din_value if pd.notna(din_value) else datetime.today(),
+            format="DD/MM/YYYY"
+        )
+        dfi = col5.date_input(
+            "📅 Data Fine",
+            value=dfi_value if pd.notna(dfi_value) else datetime.today(),
+            format="DD/MM/YYYY"
+        )
 
-        desc = st.text_area("🧾 Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
 
-        st.markdown("### 💰 Dati Economici")
-        e1, e2, e3 = st.columns(3)
-        nf = e1.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
-        ni = e2.text_input("NOL_INT", contratto.get("NOL_INT", ""))
-        tot = e3.text_input("Tot. Rata (€)", contratto.get("TotRata", ""))
+    desc = st.text_area("🧾 Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
 
-        st.markdown("### 🖨️ Copie incluse ed Eccedenze")
-        c1, c2, c3, c4 = st.columns(4)
-        copie_bn = c1.text_input("Copie B/N", contratto.get("CopieBN", ""))
-        ecc_bn = c2.text_input("Eccedenza B/N (€)", contratto.get("EccBN", ""))
-        copie_col = c3.text_input("Copie Colore", contratto.get("CopieCol", ""))
-        ecc_col = c4.text_input("Eccedenza Colore (€)", contratto.get("EccCol", ""))
+    st.markdown("### 💰 Dati Economici")
+    e1, e2, e3 = st.columns(3)
+    nf = e1.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
+    ni = e2.text_input("NOL_INT", contratto.get("NOL_INT", ""))
+    tot = e3.text_input("Tot. Rata (€)", contratto.get("TotRata", ""))
 
-        salva = st.form_submit_button("💾 Salva Modifiche")
-        annulla = st.form_submit_button("❌ Annulla")
+    st.markdown("### 🖨️ Copie incluse ed Eccedenze")
+    c1, c2, c3, c4 = st.columns(4)
+    copie_bn = c1.text_input("Copie B/N", contratto.get("CopieBN", ""))
+    ecc_bn = c2.text_input("Eccedenza B/N (€)", contratto.get("EccBN", ""))
+    copie_col = c3.text_input("Copie Colore", contratto.get("CopieCol", ""))
+    ecc_col = c4.text_input("Eccedenza Colore (€)", contratto.get("EccCol", ""))
+
+    salva = st.form_submit_button("💾 Salva Modifiche")
+    annulla = st.form_submit_button("❌ Annulla")
+
 
     if salva:
         try:

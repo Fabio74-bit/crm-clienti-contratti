@@ -739,21 +739,17 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CLIENTI (con anagrafica visibile + editor, note e recall vicini)
+# PAGINA CLIENTI (versione fluida con reset automatico)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
 
-    # === PRE-SELEZIONE CLIENTE DA NAVIGAZIONE ===
-    if "selected_cliente" in st.session_state:
-        sel_id_nav = str(st.session_state.pop("selected_cliente"))
-        cli_ids = df_cli["ClienteID"].astype(str)
-        if sel_id_nav in set(cli_ids):
-            row = df_cli.loc[cli_ids == sel_id_nav].iloc[0]
-            st.session_state["cliente_selezionato"] = row["RagioneSociale"]
-
     # === RICERCA CLIENTE ===
-    search_query = st.text_input("🔍 Cerca cliente per nome o ID", key="search_cli")
+    st.markdown("### 🔍 Cerca o seleziona cliente")
+
+    search_query = st.text_input("Cerca cliente per nome o ID", key="search_cli")
+
+    # Filtra e ordina alfabeticamente
     if search_query:
         filtered = df_cli[
             df_cli["RagioneSociale"].str.contains(search_query, case=False, na=False)
@@ -762,21 +758,46 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     else:
         filtered = df_cli.copy()
 
+    filtered = filtered.sort_values("RagioneSociale", ascending=True)
+
     if filtered.empty:
         st.warning("❌ Nessun cliente trovato.")
         return
 
-    options = filtered["RagioneSociale"].tolist()
-    selected_name = st.session_state.get("cliente_selezionato", options[0])
-    sel_rag = st.selectbox(
+    # 🔹 Mostra solo i nomi dei clienti
+    labels = filtered["RagioneSociale"].astype(str).tolist()
+
+    # 🔹 selectbox con campo vuoto iniziale
+    sel_label = st.selectbox(
         "Seleziona Cliente",
-        options,
-        index=options.index(selected_name) if selected_name in options else 0,
-        key="sel_cliente_box"
+        [""] + labels,
+        index=0,
+        key="sel_cli_box"
     )
 
-    cliente = filtered[filtered["RagioneSociale"] == sel_rag].iloc[0]
-    sel_id = str(cliente["ClienteID"])
+    # 🔹 Se l'utente ha scelto un cliente → apri e resetta subito
+    if sel_label and sel_label.strip():
+        sel_id = filtered.loc[filtered["RagioneSociale"] == sel_label, "ClienteID"].iloc[0]
+        st.session_state["selected_cliente"] = sel_id
+        # 🔁 reset istantaneo del campo selectbox
+        st.session_state["sel_cli_box"] = ""
+        st.rerun()
+
+    # Se nessun cliente selezionato → mostra messaggio
+    if "selected_cliente" not in st.session_state:
+        st.info("👈 Seleziona un cliente per visualizzare i dettagli.")
+        return
+
+    # Recupera i dati cliente selezionato
+    sel_id = st.session_state["selected_cliente"]
+    cliente = df_cli[df_cli["ClienteID"].astype(str) == str(sel_id)]
+    if cliente.empty:
+        st.warning("⚠️ Cliente non trovato nei dati.")
+        st.session_state.pop("selected_cliente", None)
+        return
+
+    cliente = cliente.iloc[0]
+
 
     # === HEADER + AZIONI ===
     col1, col2 = st.columns([4, 1])

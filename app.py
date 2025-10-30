@@ -2487,9 +2487,10 @@ def main():
 
     # --- Navigazione automatica (dai pulsanti interni) ---
     if "nav_target" in st.session_state:
-        target = st.session_state["nav_target"]
+        target = st.session_state.pop("nav_target")  # ✅ pop rimuove la chiave dopo l’uso
         if target in PAGES:
             page = target
+
 
     # --- Esecuzione pagina selezionata ---
     if page in PAGES:

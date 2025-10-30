@@ -2331,7 +2331,7 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.caption(f"📋 Totale clienti mostrati: **{len(merged)}**")
 
 # =====================================
-# MAIN APP — versione stabile senza blocchi o pagina bianca
+# MAIN APP — versione stabile (reset completo routing)
 # =====================================
 def main():
     st.write("✅ Avvio CRM SHT — Buon Lavoro")
@@ -2343,43 +2343,45 @@ def main():
 
     user = st.session_state.get("user", "")
     role = st.session_state.get("role", "")
+
     if not user:
         st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
         st.stop()
 
-    # --- Ruolo ---
+    # --- Ruolo scrittura ---
     if user in ["fabio", "emanuela", "claudia"]:
         ruolo_scrittura = "full"
     else:
         ruolo_scrittura = "limitato"
 
-    # --- Scelta visibilità ---
+    # --- Visibilità ---
     if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio("📂 Visualizza clienti di:", visibilita_opzioni, index=0)
     else:
         visibilita_scelta = "Fabio"
 
-    # --- Caricamento CSV ---
+    # --- Caricamento dati ---
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
 
-    # --- Caricamento dati Gabriele ---
+    # --- Dati Gabriele (se presenti) ---
     try:
         if GABRIELE_CLIENTI.exists():
             df_cli_gab = pd.read_csv(GABRIELE_CLIENTI, dtype=str, sep=None,
-                                     engine="python", encoding="utf-8-sig",
-                                     on_bad_lines="skip").fillna("")
+                                     engine="python", encoding="utf-8-sig", on_bad_lines="skip").fillna("")
         else:
             df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
+
         if GABRIELE_CONTRATTI.exists():
             df_ct_gab = pd.read_csv(GABRIELE_CONTRATTI, dtype=str, sep=None,
-                                    engine="python", encoding="utf-8-sig",
-                                    on_bad_lines="skip").fillna("")
+                                    engine="python", encoding="utf-8-sig", on_bad_lines="skip").fillna("")
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
+
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
         df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
+
     except Exception as e:
         st.warning(f"⚠️ Errore caricamento dati Gabriele: {e}")
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
@@ -2394,7 +2396,7 @@ def main():
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
 
-    # --- Correzione date ---
+    # --- Corregge date ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
     # --- Sidebar info ---
@@ -2403,7 +2405,7 @@ def main():
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
-    # --- Pagine ---
+    # --- Pagine principali ---
     PAGES = {
         "Dashboard": page_dashboard,
         "📈 Dashboard Grafici": page_dashboard_grafici,
@@ -2417,23 +2419,21 @@ def main():
     # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Routing stabile (senza pagina bianca) ---
+    # --- Routing sicuro ---
     nav_target = st.session_state.get("nav_target")
-    last_page = st.session_state.get("_last_page", "Dashboard")
-
     if nav_target in PAGES:
         page = nav_target
-        st.session_state["_last_page"] = page
-    elif last_page in PAGES:
-        page = last_page
+    elif "_last_page" in st.session_state and st.session_state["_last_page"] in PAGES:
+        page = st.session_state["_last_page"]
     else:
         page = "Dashboard"
-        st.session_state["_last_page"] = "Dashboard"
 
-    # --- Esegui pagina ---
-    if page in PAGES:
-        st.session_state["utente_loggato"] = user
-        try:
-            PAGES[page](df_cli, df_ct, ruolo_scrittura)
-        except Exception as e:
-            st.error(f"❌ Errore caricando la pagina '{page}': {e}")
+    # salva pagina corrente per prossimi rerun
+    st.session_state["_last_page"] = page
+
+    # --- Esegui la pagina ---
+    try:
+        PAGES[page](df_cli, df_ct, ruolo_scrittura)
+    except Exception as e:
+        st.error(f"❌ Errore durante il caricamento della pagina '{page}': {e}")
+        st.stop()

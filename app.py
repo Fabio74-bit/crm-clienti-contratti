@@ -741,16 +741,8 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 # PAGINA CLIENTI (con anagrafica visibile + editor, note e recall vicini)
 # =====================================
-def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
+def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
-    # === BLOCCO PERMESSI ===
-    can_edit = perm.get("can_edit", False)
-    can_add = perm.get("can_add", False)
-    can_export = perm.get("can_export", False)
-    
-    if not can_edit:
-        st.info("👁️ Modalità sola lettura per il tuo profilo.")
-
 
     # === PRE-SELEZIONE CLIENTE DA NAVIGAZIONE ===
     if "selected_cliente" in st.session_state:
@@ -796,11 +788,11 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
             st.session_state.update({"selected_cliente": sel_id, "nav_target": "Contratti", "_go_contratti_now": True})
             st.rerun()
 
-        if can_edit and st.button("✏️ Modifica Anagrafica", use_container_width=True, key=f"btn_edit_{sel_id}"):
+        if st.button("✏️ Modifica Anagrafica", use_container_width=True, key=f"btn_edit_{sel_id}"):
             st.session_state[f"edit_cli_{sel_id}"] = not st.session_state.get(f"edit_cli_{sel_id}", False)
             st.rerun()
 
-        if can_add and st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
+        if st.button("🗑️ Cancella Cliente", use_container_width=True, key=f"ask_del_{sel_id}"):
             st.session_state["confirm_delete_cliente"] = sel_id
             st.rerun()
 
@@ -875,7 +867,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
             tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_options.index(tmk_attuale) if tmk_attuale in tmk_options else 0)
 
             salva = st.form_submit_button("💾 Salva Modifiche")
-            if can_edit and salva:
+            if salva:
                 try:
                     idx = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
                     df_cli.loc[idx, [
@@ -905,7 +897,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
 
     n1, n2 = st.columns([0.25, 0.75])
     with n1:
-        if can_edit and st.button("💾 Salva Note", use_container_width=True, key=f"save_note_{sel_id}"):
+        if st.button("💾 Salva Note", use_container_width=True, key=f"save_note_{sel_id}"):
             try:
                 idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
                 df_cli.loc[idx_row, "NoteCliente"] = nuove_note
@@ -945,7 +937,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
     uv = r3.date_input("👣 Ultima Visita",  value=uv_val, format="DD/MM/YYYY", key=f"uv_{uniq}")
     pv = r4.date_input("🗓️ Prossima Visita", value=pv_val, format="DD/MM/YYYY", key=f"pv_{uniq}")
 
-    if can_edit and st.button("💾 Salva Aggiornamenti", use_container_width=True, key=f"save_recall_{uniq}"):
+    if st.button("💾 Salva Aggiornamenti", use_container_width=True, key=f"save_recall_{uniq}"):
         try:
             idx = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
             df_cli.loc[idx, ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]] = \
@@ -989,7 +981,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
         template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
         genera_btn = st.form_submit_button("💾 Genera Preventivo")
 
-    if can_add and genera_btn:
+    if genera_btn:
         try:
             from docx import Document
             tpl_path = STORAGE_DIR / "templates" / TEMPLATE_OPTIONS[template]
@@ -1077,17 +1069,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
 # =====================================
 # PAGINA CONTRATTI — VERSIONE STABILE 2025 (senza duplicati widget)
 # =====================================
-def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
-    st.subheader("📄 Gestione Contratti")
-
-    # === BLOCCO PERMESSI ===
-    can_edit = perm.get("can_edit", False)
-    can_add = perm.get("can_add", False)
-    can_export = perm.get("can_export", False)
-
-    if not can_edit:
-        st.info("👁️ Modalità sola lettura per il tuo profilo.")
-
+def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     # FIX: sincronizza selezione cliente se arriviamo da pulsante esterno
     if "selected_cliente" in st.session_state:
         selected_id = st.session_state.pop("selected_cliente")
@@ -1095,6 +1077,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
         label = df_cli[df_cli["ClienteID"] == selected_id]["label"].values
         if len(label) > 0:
             st.session_state["sel_cli_ct"] = label[0]
+
+    ruolo_scrittura = st.session_state.get("ruolo_scrittura", role)
+    permessi_limitati = ruolo_scrittura == "limitato"
 
     st.markdown("<h2>📄 Gestione Contratti</h2>", unsafe_allow_html=True)
     st.divider()
@@ -1131,26 +1116,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, perm: dict):
             (ct["DescrizioneProdotto"].astype(str).str.strip() != "")
         ]
         ct = ct.dropna(how="all").reset_index(drop=True)
-
-    # 🔹 ESEMPIO: solo chi può aggiungere può creare nuovi contratti
-    if can_add:
-        if st.button("➕ Nuovo Contratto", use_container_width=True):
-            st.session_state["nav_target"] = "✏️ Modifica Contratto"
-            st.experimental_rerun()
-
-    # 🔹 ESEMPIO: solo chi può esportare vede il pulsante di export
-    if can_export and not ct.empty:
-        csv_data = ct.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
-        st.download_button(
-            "📤 Esporta Contratti (Excel/CSV)",
-            data=csv_data,
-            file_name=f"contratti_{rag_soc}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
-    # (il resto del tuo codice continua qui, invariato — AgGrid, colori, pulsanti, ecc.)
-
 
     # === CREA NUOVO CONTRATTO ===
     with st.expander("➕ Crea Nuovo Contratto", expanded=False):
@@ -2381,61 +2346,51 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
         st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     return df_cli, df_ct
-# =====================================
-# GESTIONE UTENTI E PERMESSI — CRM SHT
-# =====================================
-def get_user_permissions(username: str) -> dict:
-    """Restituisce visibilità e diritti in base all'utente loggato."""
-    username = username.strip().lower()
-
-    base = {"scope": "tutti", "can_edit": False, "can_add": False, "can_export": False}
-
-    if username == "fabio":
-        return {"scope": "tutti", "can_edit": True, "can_add": True, "can_export": True}
-
-    elif username == "gabriele":
-        return {"scope": "solo_gabriele", "can_edit": False, "can_add": False, "can_export": False}
-
-    elif username in ["antonella", "giulia"]:
-        return {"scope": "tutti", "can_edit": True, "can_add": False, "can_export": True}
-
-    elif username in ["annalisa", "laura"]:
-        return {"scope": "solo_gabriele", "can_edit": True, "can_add": False, "can_export": True}
-
-    elif username in ["claudia", "emanuela"]:
-        return {"scope": "tutti", "can_edit": True, "can_add": True, "can_export": True}
-
-    else:
-        return base
 
 # =====================================
-# MAIN APP — versione 2025 (permessi + visibilità separata)
+# MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
 # =====================================
 def main():
-    st.write("✅ CRM SHT — Buon Lavoro")
+    st.write("✅ Avvio CRM SHT — Buon Lavoro")
 
-    # --- LOGIN ---
+    # --- LOGIN (mostra schermata se non autenticato) ---
     if not st.session_state.get("logged_in", False):
         do_login_fullscreen()
         st.stop()
 
-    user = st.session_state.get("user", "").strip().lower()
+    user = st.session_state.get("user", "")
     role = st.session_state.get("role", "")
 
     if not user:
         st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
         st.stop()
 
-    # --- PERMESSI ---
-    perm = get_user_permissions(user)
-    st.sidebar.success(f"👤 {user.title()} — Ruolo: {role}")
-    st.sidebar.info(f"🔐 Scope: {perm['scope']}")
+    # --- Ruolo e diritti di scrittura ---
+    if user == "fabio":
+        ruolo_scrittura = "full"
+    elif user in ["emanuela", "claudia"]:
+        ruolo_scrittura = "full"
+    elif user in ["giulia", "antonella", "gabriele", "laura", "annalisa"]:
+        ruolo_scrittura = "limitato"
+    else:
+        ruolo_scrittura = "limitato"
 
-    # --- CARICAMENTO DATI BASE ---
+    # --- Selettore visibilità ---
+    if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
+        visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
+        visibilita_scelta = st.sidebar.radio(
+            "📂 Visualizza clienti di:",
+            visibilita_opzioni,
+            index=0
+        )
+    else:
+        visibilita_scelta = "Fabio"
+
+    # --- Caricamento dati base (Fabio) ---
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
 
-    # --- CARICAMENTO DATI GABRIELE ---
+        # --- Caricamento dati Gabriele ---
     try:
         if GABRIELE_CLIENTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
@@ -2473,6 +2428,7 @@ def main():
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
+        # 🔹 Correzione colonne mancanti (solo in memoria)
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
         df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
 
@@ -2481,49 +2437,27 @@ def main():
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
         df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-    # --- SELETTORE VISIBILITÀ CLIENTI ---
-    if perm["scope"] == "solo_gabriele":
-        visibilita_opzioni = ["Gabriele"]
-        visibilita_scelta = "Gabriele"
-    elif perm["scope"] == "tutti":
-        visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
-        visibilita_scelta = st.sidebar.radio(
-            "📂 Visualizza clienti di:",
-            visibilita_opzioni,
-            index=0
-        )
-    else:
-        visibilita_opzioni = ["Fabio"]
-        visibilita_scelta = "Fabio"
-
-    # --- APPLICA FILTRI DI VISIBILITÀ ---
+    # --- Applica filtro visibilità ---
     if visibilita_scelta == "Fabio":
-        df_cli, df_ct = df_cli_main.copy(), df_ct_main.copy()
+        df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
-        df_cli, df_ct = df_cli_gab.copy(), df_ct_gab.copy()
-    else:  # "Tutti" ma mai mischiati
-        df_cli = pd.concat(
-            [df_cli_main.assign(Proprietario="Fabio"),
-             df_cli_gab.assign(Proprietario="Gabriele")],
-            ignore_index=True
-        )
-        df_ct = pd.concat(
-            [df_ct_main.assign(Proprietario="Fabio"),
-             df_ct_gab.assign(Proprietario="Gabriele")],
-            ignore_index=True
-        )
+        df_cli, df_ct = df_cli_gab, df_ct_gab
+    else:
+        df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
+        df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
 
-    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
-
-    # --- CORREZIONE DATE ---
+    # --- Correzione date automatica una sola volta ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
-    # --- SALVA IN SESSIONE ---
-    st.session_state["perm"] = perm
-    st.session_state["utente_loggato"] = user
+    # --- Sidebar info ---
+    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
+    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
+
+    # --- Salva contesto in sessione ---
+    st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
-    # --- PAGINE ---
+    # --- Pagine principali ---
     PAGES = {
         "Dashboard": page_dashboard,
         "📈 Dashboard Grafici": page_dashboard_grafici,
@@ -2534,18 +2468,20 @@ def main():
         "📋 Lista Clienti": page_lista_clienti,
     }
 
-    # --- MENU LATERALE ---
+    # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- NAVIGAZIONE AUTOMATICA ---
+    # --- Navigazione automatica (dai pulsanti interni) ---
     if "nav_target" in st.session_state:
-        target = st.session_state.pop("nav_target")
+        target = st.session_state.pop("nav_target")  # ✅ pop rimuove la chiave dopo l’uso
         if target in PAGES:
             page = target
 
-    # --- ESECUZIONE PAGINA SELEZIONATA ---
+
+    # --- Esecuzione pagina selezionata ---
     if page in PAGES:
-        PAGES[page](df_cli, df_ct, perm)
+        st.session_state["utente_loggato"] = user
+        PAGES[page](df_cli, df_ct, ruolo_scrittura)
 
 
 # =====================================

@@ -1709,6 +1709,7 @@ def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str
                     num, fmt_date(din), fmt_date(dfi), durata, desc,
                     nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
                 ]
+
                 try:
                     save_table(df_ct, "contratti_clienti")
                     st.success("✅ Contratto salvato su MySQL!")
@@ -1716,8 +1717,11 @@ def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str
                     st.error(f"⚠️ Errore salvataggio MySQL: {e}")
                     save_contratti(df_ct)
                     st.info("💾 Backup locale su CSV eseguito.")
+
                 st.rerun()
-        
+            except Exception as e:
+                st.error(f"❌ Errore durante il salvataggio del contratto: {e}")
+
         if annulla:
             st.info("Operazione annullata.")
             st.session_state["nav_target"] = "Contratti"

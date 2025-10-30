@@ -835,49 +835,51 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.session_state["confirm_delete_cliente"] = sel_id
             st.rerun()
 
-# === CONFERMA CANCELLAZIONE ===
-if st.session_state.get("confirm_delete_cliente") == sel_id:
-    st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) e tutti i contratti associati?")
-    cdel1, cdel2 = st.columns(2)
-    with cdel1:
-        if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
-            try:
-                df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != sel_id].copy()
-                df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != sel_id].copy()
+    # === CONFERMA CANCELLAZIONE ===
+    if st.session_state.get("confirm_delete_cliente") == sel_id:
+        st.warning(f"⚠️ Eliminare definitivamente **{cliente['RagioneSociale']}** (ID {sel_id}) e tutti i contratti associati?")
+        cdel1, cdel2 = st.columns(2)
+        with cdel1:
+            if st.button("✅ Sì, elimina", use_container_width=True, key=f"do_del_{sel_id}"):
                 try:
-                    conn = get_connection()
-                    cur = conn.cursor()
-                    cur.execute("DELETE FROM contratti_clienti WHERE ClienteID = %s", (sel_id,))
-                    cur.execute("DELETE FROM clienti WHERE ClienteID = %s", (sel_id,))
-                    conn.commit()
-                    conn.close()
-                    st.success("🗑️ Cliente e contratti eliminati da MySQL.")
-                except Exception as e:
-                    st.error(f"⚠️ Errore eliminazione su MySQL: {e}")
-                    df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-                    df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-                    st.info("💾 Backup locale su CSV aggiornato.")
-                try:
-                    st.cache_data.clear()
-                except:
-                    pass
-                st.session_state.pop("confirm_delete_cliente", None)
-                time.sleep(0.5)
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Errore durante l'eliminazione: {e}")
-    with cdel2:
-        if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
-            st.session_state.pop("confirm_delete_cliente", None)
-            st.info("Operazione annullata.")
-            st.rerun()
+                    df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != sel_id].copy()
+                    df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != sel_id].copy()
 
+                    try:
+                        conn = get_connection()
+                        cur = conn.cursor()
+                        cur.execute("DELETE FROM contratti_clienti WHERE ClienteID = %s", (sel_id,))
+                        cur.execute("DELETE FROM clienti WHERE ClienteID = %s", (sel_id,))
+                        conn.commit()
+                        conn.close()
+                        st.success("🗑️ Cliente e contratti eliminati da MySQL.")
+                    except Exception as e:
+                        st.error(f"⚠️ Errore eliminazione su MySQL: {e}")
+                        df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+                        df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+                        st.info("💾 Backup locale su CSV aggiornato.")
+
+                    try:
+                        st.cache_data.clear()
+                    except:
+                        pass
+                    st.session_state.pop("confirm_delete_cliente", None)
+                    time.sleep(0.5)
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Errore durante l'eliminazione: {e}")
+
+        with cdel2:
+            if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
+                st.session_state.pop("confirm_delete_cliente", None)
+                st.info("Operazione annullata.")
+                st.rerun()
 
     # === ANAGRAFICA CLIENTE (visuale compatta tipo scheda) ===
     st.divider()
     st.markdown("### 🧾 Anagrafica Cliente")
 
-    # Scheda anagrafica leggibile
     st.markdown(
         f"""
         <div style='font-size:15px; line-height:1.8; padding:10px 15px; background-color:#f8fafc;
@@ -895,7 +897,7 @@ if st.session_state.get("confirm_delete_cliente") == sel_id:
         unsafe_allow_html=True
     )
 
-    # === EDIT ANAGRAFICA (toggle) ===
+    # === EDIT ANAGRAFICA ===
     if st.session_state.get(f"edit_cli_{sel_id}", False):
         st.info("✏️ Modifica anagrafica attiva")
         with st.form(f"frm_anagrafica_{sel_id}"):
@@ -913,7 +915,6 @@ if st.session_state.get("confirm_delete_cliente") == sel_id:
                 iban      = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
                 sdi       = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
-            # === TMK (menù a tendina per selezionare commerciale) ===
             tmk_options = sorted(["Giulia", "Antonella", "Laura", "Annalisa"])
             tmk_attuale = cliente.get("TMK", "")
             tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_options.index(tmk_attuale) if tmk_attuale in tmk_options else 0)
@@ -926,7 +927,7 @@ if st.session_state.get("confirm_delete_cliente") == sel_id:
                         "Indirizzo","Citta","CAP","Telefono","Cell","Email",
                         "PersonaRiferimento","PartitaIVA","IBAN","SDI","TMK"
                     ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk_sel]
-            
+
                     try:
                         save_table(df_cli, "clienti")
                         st.success("✅ Anagrafica aggiornata su MySQL!")
@@ -934,50 +935,42 @@ if st.session_state.get("confirm_delete_cliente") == sel_id:
                         st.error(f"⚠️ Errore salvataggio MySQL: {e}")
                         save_clienti(df_cli)
                         st.info("💾 Backup locale su CSV eseguito.")
-            
+
                     st.session_state[f"edit_cli_{sel_id}"] = False
                     st.rerun()
-            
                 except Exception as e:
                     st.error(f"❌ Errore durante il salvataggio: {e}")
 
-
-    # === NOTE CLIENTE (subito sotto anagrafica) ===
+    # === NOTE CLIENTE ===
     st.divider()
     st.markdown("### 📝 Note Cliente")
     st.caption("Annotazioni o informazioni utili sul cliente (visibili a tutti gli utenti).")
 
     note_attuali = cliente.get("NoteCliente", "")
-    nuove_note = st.text_area(
-        "Scrivi o modifica le note del cliente:",
-        note_attuali,
-        height=160,
-        key=f"note_{sel_id}_{int(time.time()*1000)}"
-    )
+    nuove_note = st.text_area("Scrivi o modifica le note del cliente:", note_attuali, height=160, key=f"note_{sel_id}_{int(time.time()*1000)}")
 
     n1, n2 = st.columns([0.25, 0.75])
-with n1:
-    if st.button("💾 Salva Note", use_container_width=True, key=f"save_note_{sel_id}"):
-        try:
-            idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
-            df_cli.loc[idx_row, "NoteCliente"] = nuove_note
-
+    with n1:
+        if st.button("💾 Salva Note", use_container_width=True, key=f"save_note_{sel_id}"):
             try:
-                save_table(df_cli, "clienti")
-                st.success("✅ Note salvate su MySQL!")
+                idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
+                df_cli.loc[idx_row, "NoteCliente"] = nuove_note
+
+                try:
+                    save_table(df_cli, "clienti")
+                    st.success("✅ Note salvate su MySQL!")
+                except Exception as e:
+                    st.error(f"⚠️ Errore salvataggio MySQL: {e}")
+                    save_clienti(df_cli)
+                    st.info("💾 Backup locale su CSV eseguito.")
+
+                st.rerun()
             except Exception as e:
-                st.error(f"⚠️ Errore salvataggio MySQL: {e}")
-                save_clienti(df_cli)
-                st.info("💾 Backup locale su CSV eseguito.")
-
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Errore durante il salvataggio: {e}")
-
+                st.error(f"❌ Errore durante il salvataggio: {e}")
     with n2:
-        st.info("Le modifiche vengono salvate immediatamente nel file clienti.csv")
+        st.info("Le modifiche vengono salvate anche in MySQL (con backup CSV).")
 
-    # === RECALL & VISITE (subito dopo le note) ===
+    # === RECALL & VISITE ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
 
@@ -1010,14 +1003,16 @@ with n1:
             idx = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
             df_cli.loc[idx, ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]] = \
                 [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
-        try:
-            save_table(df_cli, "clienti")
-            st.success("✅ Date aggiornate su MySQL!")
-        except Exception as e:
-            st.error(f"⚠️ Errore salvataggio MySQL: {e}")
-            save_clienti(df_cli)
-            st.info("💾 Backup locale su CSV eseguito.")
 
+            try:
+                save_table(df_cli, "clienti")
+                st.success("✅ Date aggiornate su MySQL!")
+            except Exception as e:
+                st.error(f"⚠️ Errore salvataggio MySQL: {e}")
+                save_clienti(df_cli)
+                st.info("💾 Backup locale su CSV eseguito.")
+
+            st.rerun()
         except Exception as e:
             st.error(f"❌ Errore salvataggio recall/visite: {e}")
 

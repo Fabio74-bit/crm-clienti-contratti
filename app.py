@@ -1235,13 +1235,13 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cols[10].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('CopieCol','')}</div></div>", unsafe_allow_html=True)
         cols[11].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('EccCol','')}</div></div>", unsafe_allow_html=True)
 
-        # --- azioni (chiavi univoche)
         with cols[12]:
-            b1, b2, b3 = st.columns(3)
-            if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
+        b1, b2, b3 = st.columns(3)
+        if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
             st.session_state["edit_gidx"] = i
             st.session_state["nav_target"] = "✏️ Modifica Contratto"
             st.rerun()
+
 
 
             stato_btn = "🔒" if stato != "chiuso" else "🟢"

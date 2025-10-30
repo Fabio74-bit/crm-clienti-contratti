@@ -702,6 +702,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 if st.button("📂 Apri", key=f"open_scad_{cliente_id_norm}_{i}", use_container_width=True):
                     if cliente_id_norm:
                         st.session_state["selected_cliente"] = cliente_id_norm
+                        st.session_state.pop("nav_target", None)
                         st.session_state["nav_target"] = "Contratti"
                         st.session_state["_go_contratti_now"] = True
                         st.rerun()
@@ -2482,9 +2483,10 @@ def main():
 
     # --- Navigazione automatica (dai pulsanti interni) ---
     if "nav_target" in st.session_state:
-        target = st.session_state.pop("nav_target")
+        target = st.session_state["nav_target"]
         if target in PAGES:
             page = target
+
 
     # --- Esecuzione pagina selezionata ---
     if page in PAGES:

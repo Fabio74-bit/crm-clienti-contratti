@@ -1238,16 +1238,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         # --- azioni (chiavi univoche)
         with cols[12]:
-        b1, b2, b3 = st.columns(3)
-    
-        # ✏️ Pulsante modifica contratto → apre la pagina dedicata
-        if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
-            st.session_state["edit_gidx"] = i
-            st.session_state["nav_target"] = "✏️ Modifica Contratto"
-            st.rerun()
+            b1, b2, b3 = st.columns(3)
 
-
-            # ✏️ Modifica contratto → apre la nuova pagina dedicata
+            # ✏️ Modifica contratto → apre la pagina dedicata
             if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
                 st.session_state["edit_gidx"] = i
                 st.session_state["nav_target"] = "✏️ Modifica Contratto"
@@ -1270,6 +1263,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["delete_gidx"] = i
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
+
 
     # === ELIMINAZIONE CONTRATTO ===
     if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:

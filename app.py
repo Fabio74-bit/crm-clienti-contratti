@@ -1238,7 +1238,14 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
         # --- azioni (chiavi univoche)
         with cols[12]:
-            b1, b2, b3 = st.columns(3)
+        b1, b2, b3 = st.columns(3)
+    
+        # ✏️ Pulsante modifica contratto → apre la pagina dedicata
+        if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
+            st.session_state["edit_gidx"] = i
+            st.session_state["nav_target"] = "✏️ Modifica Contratto"
+            st.rerun()
+
 
             # ✏️ Modifica contratto → apre la nuova pagina dedicata
             if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
@@ -1616,22 +1623,17 @@ def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str
                     nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
                 ]
                 save_contratti(df_ct)
-                st.success("✅ Contratto aggiornato correttamente!")
+                st.success("✅ Contratto aggiornato con successo!")
                 time.sleep(0.5)
-                st.session_state.pop("nav_target", None)
-                st.session_state.pop("edit_gidx", None)
                 st.session_state["nav_target"] = "Contratti"
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio: {e}")
-
+        
         if annulla:
             st.info("Operazione annullata.")
-            st.session_state.pop("nav_target", None)
-            st.session_state.pop("edit_gidx", None)
             st.session_state["nav_target"] = "Contratti"
             st.rerun()
-
 
 
 # =====================================

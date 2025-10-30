@@ -470,7 +470,7 @@ def kpi_card(label: str, value, icon: str, color: str) -> str:
 # =====================================
 # PAGINA DASHBOARD (CLASSICA con TMK e gestione Fabio/Gabriele)
 # =====================================
-def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+def page_dashboard_grafici(df_cli: pd.DataFrame, df_ct: pd.DataFrame):
     st.image(LOGO_URL, width=120)
     st.markdown("<h2>📊 Dashboard Gestionale</h2>", unsafe_allow_html=True)
     st.divider()

@@ -1235,15 +1235,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cols[10].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('CopieCol','')}</div></div>", unsafe_allow_html=True)
         cols[11].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('EccCol','')}</div></div>", unsafe_allow_html=True)
 
+        # --- azioni (chiavi univoche)
         with cols[12]:
-        b1, b2, b3 = st.columns(3)
-        if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
-            st.session_state["edit_gidx"] = i
-            st.session_state["nav_target"] = "✏️ Modifica Contratto"
-            st.rerun()
+            b1, b2, b3 = st.columns(3)
 
+            # ✏️ Modifica contratto → apre la nuova pagina dedicata
+            if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
+                st.session_state["edit_gidx"] = i
+                st.session_state["nav_target"] = "✏️ Modifica Contratto"
+                st.rerun()
 
-
+            # 🔒 Chiudi / Riapri contratto
             stato_btn = "🔒" if stato != "chiuso" else "🟢"
             if b2.button(stato_btn, key=f"lock_ct_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
                 try:
@@ -1255,6 +1257,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 except Exception as e:
                     st.error(f"❌ Errore aggiornamento stato: {e}")
 
+            # 🗑️ Elimina contratto
             if b3.button("🗑️", key=f"del_ct_{i}", help="Elimina contratto", disabled=permessi_limitati):
                 st.session_state["delete_gidx"] = i
                 st.session_state["ask_delete_now"] = True

@@ -2475,11 +2475,21 @@ def main():
     # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Routing corretto (senza pop immediato) ---
+ 
+    # --- Navigazione automatica (dai pulsanti interni) ---
     if "nav_target" in st.session_state:
         target = st.session_state["nav_target"]
         if target in PAGES:
             page = target
+            st.session_state["_last_page"] = target
+    else:
+        # se non c’è target ma c’è una pagina precedente salvata → resta lì
+        if "_last_page" in st.session_state and st.session_state["_last_page"] in PAGES:
+            page = st.session_state["_last_page"]
+        else:
+            # fallback sicuro: dashboard
+            page = "Dashboard"
+            st.session_state["_last_page"] = page
 
     # --- Esegui pagina ---
     if page in PAGES:

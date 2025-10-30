@@ -1239,8 +1239,10 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         with cols[12]:
             b1, b2, b3 = st.columns(3)
             if b1.button("✏️", key=f"edit_ct_{i}", help="Modifica contratto", disabled=permessi_limitati):
-                st.session_state["edit_gidx"] = i
-                st.rerun()
+            st.session_state["edit_gidx"] = i
+            st.session_state["nav_target"] = "✏️ Modifica Contratto"
+            st.rerun()
+
 
             stato_btn = "🔒" if stato != "chiuso" else "🟢"
             if b2.button(stato_btn, key=f"lock_ct_{i}", help="Chiudi/Riapri contratto", disabled=permessi_limitati):
@@ -1539,6 +1541,82 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"Errore export PDF: {e}")
 
+# =====================================
+# PAGINA DI MODIFICA CONTRATTO (NUOVA PAGINA)
+# =====================================
+def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    """Pagina dedicata alla modifica di un contratto selezionato"""
+    if "edit_gidx" not in st.session_state:
+        st.warning("⚠️ Nessun contratto selezionato per la modifica.")
+        st.stop()
+
+    gidx = st.session_state["edit_gidx"]
+    if gidx not in df_ct.index:
+        st.error("❌ Contratto non trovato.")
+        st.stop()
+
+    contratto = df_ct.loc[gidx]
+    rag_soc = contratto.get("RagioneSociale", "—")
+    st.markdown(f"## ✏️ Modifica Contratto — {rag_soc}")
+    st.caption(f"Numero Contratto: {contratto.get('NumeroContratto','')}")
+
+    st.divider()
+
+    with st.form("frm_edit_contract_page"):
+        col1, col2, col3 = st.columns(3)
+        num = col1.text_input("📄 Numero Contratto", contratto.get("NumeroContratto", ""))
+        durata = col2.text_input("📆 Durata (mesi)", contratto.get("Durata", ""))
+        stato = col3.selectbox("📋 Stato", ["aperto", "chiuso"], 
+                               index=0 if contratto.get("Stato","") != "chiuso" else 1)
+
+        col4, col5 = st.columns(2)
+        din = col4.date_input("📅 Data Inizio", 
+                              value=pd.to_datetime(contratto.get("DataInizio"), dayfirst=True, errors="coerce"),
+                              format="DD/MM/YYYY")
+        dfi = col5.date_input("📅 Data Fine", 
+                              value=pd.to_datetime(contratto.get("DataFine"), dayfirst=True, errors="coerce"),
+                              format="DD/MM/YYYY")
+
+        desc = st.text_area("🧾 Descrizione Prodotto", contratto.get("DescrizioneProdotto", ""), height=100)
+
+        st.markdown("### 💰 Dati Economici")
+        e1, e2, e3 = st.columns(3)
+        nf = e1.text_input("NOL_FIN", contratto.get("NOL_FIN", ""))
+        ni = e2.text_input("NOL_INT", contratto.get("NOL_INT", ""))
+        tot = e3.text_input("Tot. Rata (€)", contratto.get("TotRata", ""))
+
+        st.markdown("### 🖨️ Copie incluse ed Eccedenze")
+        c1, c2, c3, c4 = st.columns(4)
+        copie_bn = c1.text_input("Copie B/N", contratto.get("CopieBN", ""))
+        ecc_bn = c2.text_input("Eccedenza B/N (€)", contratto.get("EccBN", ""))
+        copie_col = c3.text_input("Copie Colore", contratto.get("CopieCol", ""))
+        ecc_col = c4.text_input("Eccedenza Colore (€)", contratto.get("EccCol", ""))
+
+        salva = st.form_submit_button("💾 Salva Modifiche")
+        annulla = st.form_submit_button("❌ Annulla")
+
+    if salva:
+        try:
+            df_ct.loc[gidx, [
+                "NumeroContratto", "DataInizio", "DataFine", "Durata", "DescrizioneProdotto",
+                "NOL_FIN", "NOL_INT", "TotRata", "CopieBN", "EccBN", "CopieCol", "EccCol", "Stato"
+            ]] = [
+                num, fmt_date(din), fmt_date(dfi), durata, desc,
+                nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
+            ]
+            save_contratti(df_ct)
+            st.success("✅ Contratto aggiornato correttamente!")
+            time.sleep(0.6)
+            st.session_state.pop("edit_gidx", None)
+            st.session_state["nav_target"] = "Contratti"
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Errore durante il salvataggio: {e}")
+
+    if annulla:
+        st.session_state.pop("edit_gidx", None)
+        st.session_state["nav_target"] = "Contratti"
+        st.rerun()
 
 
 
@@ -2388,9 +2466,10 @@ def main():
     # --- Pagine principali ---
     PAGES = {
         "Dashboard": page_dashboard,
-        "📈 Dashboard Grafici": page_dashboard_grafici,  # ⬅️ nuova pagina
+        "📈 Dashboard Grafici": page_dashboard_grafici,
         "Clienti": page_clienti,
         "Contratti": page_contratti,
+        "✏️ Modifica Contratto": page_modifica_contratto,
         "📅 Recall e Visite": page_richiami_visite,
         "📋 Lista Clienti": page_lista_clienti,
     }

@@ -2331,44 +2331,7 @@ def page_lista_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.caption(f"📋 Totale clienti mostrati: **{len(merged)}**")
 
 # =====================================
-# FIX DATE: ESEGUILO UNA SOLA VOLTA
-# =====================================
-def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Corregge le date solo una volta per sessione.
-    NON usa variabili globali, evita NameError.
-    Ritorna SEMPRE (df_cli, df_ct) aggiornati.
-    """
-    if st.session_state.get("_date_fix_done", False):
-        return df_cli, df_ct
-
-    try:
-        # Clienti
-        if not df_cli.empty:
-            for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
-                if c in df_cli.columns:
-                    df_cli[c] = fix_inverted_dates(df_cli[c], col_name=c)
-
-        # Contratti
-        if not df_ct.empty:
-            for c in ["DataInizio", "DataFine"]:
-                if c in df_ct.columns:
-                    df_ct[c] = fix_inverted_dates(df_ct[c], col_name=c)
-
-        # Salva una sola volta
-        df_cli.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-        df_ct.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-
-        st.toast("🔄 Date corrette e salvate nei CSV.", icon="✅")
-        st.session_state["_date_fix_done"] = True
-    except Exception as e:
-        st.warning(f"⚠️ Correzione automatica date non completata: {e}")
-
-    return df_cli, df_ct
-
-
-# =====================================
-# MAIN APP — versione 2025 corretta (routing stabile)
+# MAIN APP — versione 2025 corretta e stabile (no pagina bianca)
 # =====================================
 def main():
     st.write("✅ Avvio CRM SHT — Buon Lavoro")
@@ -2411,8 +2374,14 @@ def main():
         if GABRIELE_CLIENTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
                 try:
-                    df_cli_gab = pd.read_csv(GABRIELE_CLIENTI, dtype=str, sep=sep_try,
-                                             encoding="utf-8-sig", on_bad_lines="skip", engine="python").fillna("")
+                    df_cli_gab = pd.read_csv(
+                        GABRIELE_CLIENTI,
+                        dtype=str,
+                        sep=sep_try,
+                        encoding="utf-8-sig",
+                        on_bad_lines="skip",
+                        engine="python"
+                    ).fillna("")
                     if len(df_cli_gab.columns) > 3:
                         break
                 except Exception:
@@ -2423,8 +2392,14 @@ def main():
         if GABRIELE_CONTRATTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
                 try:
-                    df_ct_gab = pd.read_csv(GABRIELE_CONTRATTI, dtype=str, sep=sep_try,
-                                            encoding="utf-8-sig", on_bad_lines="skip", engine="python").fillna("")
+                    df_ct_gab = pd.read_csv(
+                        GABRIELE_CONTRATTI,
+                        dtype=str,
+                        sep=sep_try,
+                        encoding="utf-8-sig",
+                        on_bad_lines="skip",
+                        engine="python"
+                    ).fillna("")
                     if len(df_ct_gab.columns) > 3:
                         break
                 except Exception:
@@ -2432,7 +2407,7 @@ def main():
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-        # 🔹 Corregge eventuali colonne mancanti
+        # 🔹 Correzione colonne mancanti (solo in memoria)
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
         df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
 
@@ -2475,23 +2450,20 @@ def main():
     # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
- 
-    # --- Navigazione automatica (dai pulsanti interni) ---
+    # --- Navigazione stabile (fix pagina bianca) ---
     if "nav_target" in st.session_state:
         target = st.session_state["nav_target"]
         if target in PAGES:
             page = target
             st.session_state["_last_page"] = target
     else:
-        # se non c’è target ma c’è una pagina precedente salvata → resta lì
         if "_last_page" in st.session_state and st.session_state["_last_page"] in PAGES:
             page = st.session_state["_last_page"]
         else:
-            # fallback sicuro: dashboard
             page = "Dashboard"
             st.session_state["_last_page"] = page
 
-    # --- Esegui pagina ---
+    # --- Esecuzione pagina selezionata ---
     if page in PAGES:
         st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)

@@ -283,36 +283,6 @@ def load_clienti() -> pd.DataFrame:
     return df
 
 
-
-# =====================================
-# CARICAMENTO CONTRATTI (senza salvataggio automatico)
-# =====================================
-def load_contratti() -> pd.DataFrame:
-    """Carica i dati dei contratti (supporta ; , |)"""
-    import pandas as pd
-    if not CONTRATTI_CSV.exists():
-        return pd.DataFrame(columns=CONTRATTI_COLS)
-
-    for sep_try in [";", ",", "|", "\t"]:
-        try:
-            df = pd.read_csv(
-                CONTRATTI_CSV,
-                dtype=str,
-                sep=sep_try,
-                encoding="utf-8-sig",
-                on_bad_lines="skip",
-                engine="python"
-            ).fillna("")
-            if len(df.columns) > 3:
-                break
-        except Exception:
-            continue
-
-    df = ensure_columns(df, CONTRATTI_COLS)
-    return df
-
-
-
 # =====================================
 # FUNZIONI DI CARICAMENTO DATI (VERSIONE DEFINITIVA 2025)
 # =====================================
@@ -364,6 +334,8 @@ def load_clienti() -> pd.DataFrame:
         if c in df.columns:
             df[c] = to_date_series(df[c])
 
+    # ✅ Ordine alfabetico per Ragione Sociale
+    df = df.sort_values("RagioneSociale", ascending=True, na_position="last").reset_index(drop=True)
     return df
 
 

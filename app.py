@@ -1010,6 +1010,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         try:
             from docx import Document
             tpl_path = Path(__file__).resolve().parent / "templates" / TEMPLATE_OPTIONS[template]
+
+            # 🔍 Debug visivo: mostra il percorso effettivo
+            st.code(f"Percorso usato:\n{tpl_path}\nEsiste? {tpl_path.exists()}", language="bash")
+
             if not tpl_path.exists():
                 st.error(f"❌ Template non trovato: {tpl_path}")
                 st.stop()
@@ -1052,6 +1056,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             import traceback
             st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
+
 
     # === ELENCO PREVENTIVI ===
     st.divider()

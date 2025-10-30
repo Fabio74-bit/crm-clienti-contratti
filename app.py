@@ -1208,7 +1208,17 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         return
 
     labels = df_cli["RagioneSociale"].astype(str).tolist()
-    sel_label = st.selectbox("Seleziona Cliente", labels, index=0, key="sel_cli_ct")
+    # === Selectbox clienti con controllo di coerenza ===
+    if "sel_cli_ct" in st.session_state and st.session_state["sel_cli_ct"] not in labels:
+        st.session_state.pop("sel_cli_ct")  # reset automatico se valore non più valido
+    
+    sel_label = st.selectbox(
+        "Seleziona Cliente",
+        labels,
+        index=0 if labels else None,
+        key="sel_cli_ct"
+    )
+
     
     # Quando l'utente seleziona un cliente
     if sel_label:

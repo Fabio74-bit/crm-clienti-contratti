@@ -1009,7 +1009,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if genera_btn:
         try:
             from docx import Document
-            tpl_path = Path.cwd() / "templates" / TEMPLATE_OPTIONS[template]
+            tpl_path = Path(__file__).parent / "templates" / TEMPLATE_OPTIONS[template]
             if not tpl_path.exists():
                 st.error(f"❌ Template non trovato: {tpl_path}")
                 st.stop()

@@ -782,8 +782,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         # 🔁 reset sicuro del campo selectbox
         if "sel_cli_box" in st.session_state:
             del st.session_state["sel_cli_box"]
-        st.experimental_rerun()
-
+        st.rerun()
 
     # Se nessun cliente selezionato → mostra messaggio
     if "selected_cliente" not in st.session_state:

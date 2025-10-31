@@ -86,7 +86,7 @@ def get_box_client():
     auth = OAuth2(
         client_id=st.secrets["box"]["client_id"],
         client_secret=st.secrets["box"]["client_secret"],
-        access_token=st.secrets["box"]["developer_token"]
+        access_token=st.secrets["box"]["access_token"]
     )
     return Client(auth)
 

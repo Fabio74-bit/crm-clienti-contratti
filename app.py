@@ -1144,6 +1144,10 @@ try:
 except Exception:
     sel_id = None
     nome_cliente = ""
+# 🔒 Mostra solo se l'utente è loggato
+if "user" not in st.session_state or not st.session_state["user"]:
+    st.warning("🔐 Effettua il login per creare o visualizzare preventivi.")
+    st.stop()
 
 # === GENERA PREVENTIVO ===
 st.divider()
@@ -2616,6 +2620,14 @@ def main():
 
     user = st.session_state.get("user", "")
     role = st.session_state.get("role", "")
+        # === Memorizza login in sessione globale ===
+    st.session_state["user"] = user
+    st.session_state["role"] = role
+    
+    # === Protezione: blocca sezioni se non loggato ===
+    if not user:
+        st.warning("🔐 Effettua il login per accedere al CRM.")
+        st.stop()
 
     if not user:
         st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")

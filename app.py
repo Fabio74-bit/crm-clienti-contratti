@@ -98,11 +98,12 @@ BOX_OFFERS_ID = st.secrets["box"]["offers_folder_id"]      # 📁 cartella OFFER
 BOX_FILES = ["clienti.csv", "contratti.csv"]
 
 # === Sincronizzazione file principali ===
-@st.cache_data(ttl=15)
 def sync_from_box():
-    """Scarica automaticamente gli ultimi file da Box (ogni 15 secondi)"""
+    """Scarica automaticamente gli ultimi file da Box"""
     client = get_box_client()
     folder = client.folder(BOX_FOLDER_ID)
+    results = []
+
     for name in BOX_FILES:
         local_path = STORAGE_DIR / name
         try:
@@ -110,10 +111,12 @@ def sync_from_box():
                 if item.name == name:
                     with open(local_path, "wb") as f:
                         item.download_to(f)
-                    st.toast(f"📥 File aggiornato da Box: {name}", icon="✅")
+                    results.append(f"✅ {name}")
                     break
         except Exception as e:
-            st.warning(f"⚠️ Sync fallita per {name}: {e}")
+            results.append(f"⚠️ Errore {name}: {e}")
+    return results
+
 
 def upload_to_box(path: Path):
     """Carica un file su Box, sovrascrivendo la versione precedente"""
@@ -203,10 +206,17 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
     except Exception as e:
         st.warning(f"⚠️ Upload preventivo fallito: {e}")
 
-# === Sync iniziale all’avvio ===
+# === Sync iniziale all’avvio (versione sicura Streamlit 2025) ===
 st.info("🔁 Sincronizzazione dati da Box in corso…")
-sync_from_box()
-sync_gabriele_files()
+
+try:
+    results = sync_from_box()
+    for r in results:
+        st.toast(r, icon="✅")
+    sync_gabriele_files()
+except Exception as e:
+    st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
+
 
 
 

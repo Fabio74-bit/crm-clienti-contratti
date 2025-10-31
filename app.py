@@ -1234,6 +1234,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.markdown("### 📂 Elenco Preventivi Cliente")
 
     prev_cli = df_prev[df_prev["ClienteID"].astype(str) == sel_id]
+    # 🔹 Mostra solo i preventivi dell'utente loggato (tranne Fabio)
+    utente_corrente = st.session_state.get("user", "").lower()
+    if "Autore" in df_prev.columns and utente_corrente not in ["fabio", "admin"]:
+        prev_cli = prev_cli[prev_cli["Autore"].str.lower() == utente_corrente]
 
     if prev_cli.empty:
         st.info("Nessun preventivo per questo cliente.")

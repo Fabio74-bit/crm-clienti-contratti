@@ -1016,8 +1016,16 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 sdi       = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
             tmk_options = sorted(["Giulia", "Antonella", "Laura", "Annalisa"])
-            tmk_attuale = cliente.get("TMK", "")
-            tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_options.index(tmk_attuale) if tmk_attuale in tmk_options else 0)
+            tmk_attuale = str(cliente.get("TMK", "") or "").strip()  # <-- forza a stringa pulita
+            
+            # se il valore attuale non è valido, metti indice 0
+            if tmk_attuale in tmk_options:
+                tmk_index = tmk_options.index(tmk_attuale)
+            else:
+                tmk_index = 0
+            
+            tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_index)
+
 
             salva = st.form_submit_button("💾 Salva Modifiche")
             if salva:

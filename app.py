@@ -2598,32 +2598,41 @@ def main():
     try:
         df_cli_main = load_table("clienti")
         df_ct_main = load_table("contratti")
-        st.success("✅ Dati caricati da MySQL con successo")
+        st.success("✅ Dati caricati da MySQL")
     except Exception as e:
         st.error(f"❌ Errore connessione MySQL: {e}")
         st.stop()
 
-    # --- VISIBILITÀ (multi-proprietario simulato) ---
-    # Se Fabio → tutti i clienti "fabio"
-    # Se Gabriele → filtriamo solo quelli assegnati
-    # Se Tutti → uniamo le due viste
-    if visibilita_scelta == "Fabio":
+
+   # --- VISIBILITÀ (multi-proprietario simulato, solo MySQL) ---
+# Se Fabio → tutti i clienti "fabio"
+# Se Gabriele → filtriamo solo quelli assegnati
+# Se Tutti → uniamo le due viste
+if visibilita_scelta == "Fabio":
+    df_cli, df_ct = df_cli_main, df_ct_main
+
+elif visibilita_scelta == "Gabriele":
+    try:
+        df_cli_gab = load_table("clienti_gabriele")
+        df_ct_gab = load_table("contratti_gabriele")
+        st.info("📂 Vista: dati Gabriele caricati da MySQL")
+    except Exception as e:
+        st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
+        df_cli_gab = pd.DataFrame(columns=df_cli_main.columns)
+        df_ct_gab = pd.DataFrame(columns=df_ct_main.columns)
+    df_cli, df_ct = df_cli_gab, df_ct_gab
+
+else:  # "Tutti"
+    try:
+        df_cli_gab = load_table("clienti_gabriele")
+        df_ct_gab = load_table("contratti_gabriele")
+        df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
+        df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+        st.info("📂 Vista combinata: Fabio + Gabriele")
+    except Exception as e:
+        st.warning(f"⚠️ Dati combinati non disponibili: {e}")
         df_cli, df_ct = df_cli_main, df_ct_main
-    elif visibilita_scelta == "Gabriele":
-        try:
-            df_cli_gab = load_table("clienti_gabriele")
-            df_ct_gab = load_table("contratti_gabriele")
-        except Exception:
-            df_cli_gab, df_ct_gab = pd.DataFrame(columns=CLIENTI_COLS), pd.DataFrame(columns=CONTRATTI_COLS)
-        df_cli, df_ct = df_cli_gab, df_ct_gab
-    else:
-        try:
-            df_cli_gab = load_table("clienti_gabriele")
-            df_ct_gab = load_table("contratti_gabriele")
-            df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
-            df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
-        except Exception:
-            df_cli, df_ct = df_cli_main, df_ct_main
+
 
     # --- CORREZIONE DATE AUTOMATICA (una sola volta) ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)

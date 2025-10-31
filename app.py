@@ -45,6 +45,46 @@ def get_connection():
     except Error as e:
         st.error(f"⚠️ Errore connessione MySQL: {e}")
         return None
+def load_table(table_name: str) -> pd.DataFrame:
+    """Legge una tabella MySQL e la restituisce come DataFrame."""
+    conn = get_connection()
+    if conn is None:
+        st.error("❌ Connessione MySQL non disponibile.")
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
+        return df.fillna("")
+    except Exception as e:
+        st.error(f"⚠️ Errore durante la lettura di {table_name}: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+
+def save_table(df: pd.DataFrame, table_name: str):
+    """Salva (o aggiorna) una tabella MySQL con REPLACE INTO."""
+    conn = get_connection()
+    if conn is None or df.empty:
+        st.warning(f"⚠️ Nessun dato da salvare su {table_name}.")
+        return
+
+    try:
+        cur = conn.cursor()
+        cols = df.columns.tolist()
+        placeholders = ",".join(["%s"] * len(cols))
+        col_list = ",".join([f"`{c}`" for c in cols])
+        sql = f"REPLACE INTO {table_name} ({col_list}) VALUES ({placeholders})"
+
+        for _, row in df.iterrows():
+            cur.execute(sql, tuple(row))
+
+        conn.commit()
+        st.success(f"✅ Tabella {table_name} aggiornata su MySQL ({len(df)} record).")
+    except Exception as e:
+        st.error(f"❌ Errore durante il salvataggio di {table_name}: {e}")
+    finally:
+        conn.close()
 
 
 # =====================================

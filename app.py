@@ -1149,7 +1149,7 @@ else:
     df_prev = pd.DataFrame(columns=["NumeroOfferta","ClienteID","Cliente","Autore","Template","NomeFile","Percorso","DataCreazione"])
 
 anno = datetime.now().year
-nome_cliente = cliente.get("RagioneSociale", "")
+nome_cliente = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].values[0] if sel_id in df_cli["ClienteID"].values else ""
 nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
 
 # === Numerazione sicura e globale ===

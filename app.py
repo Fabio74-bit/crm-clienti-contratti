@@ -875,6 +875,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
+    df_cli = ensure_columns(df_cli, CLIENTI_COLS)
 
     # === PRE-SELEZIONE CLIENTE DA NAVIGAZIONE ===
     if "selected_cliente" in st.session_state:
@@ -893,10 +894,14 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         ]
     else:
         filtered = df_cli.copy()
-
+    
+    # 🔹 ORDINA ALFABETICAMENTE I CLIENTI
+    filtered = filtered.sort_values(by="RagioneSociale", ascending=True, na_position="last").reset_index(drop=True)
+    
     if filtered.empty:
         st.warning("❌ Nessun cliente trovato.")
         return
+
 
     options = filtered["RagioneSociale"].tolist()
     selected_name = st.session_state.get("cliente_selezionato", options[0])
@@ -916,7 +921,9 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
         st.caption(f"ID Cliente: {sel_id}")
     with col2:
-        if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
+        if st.button("📄 Vai ai Contratti", use_container_width=True,
+              key=f"go_cont_{st.session_state.get('utente_loggato', '')}_{sel_id}"):
+
             st.session_state.update({"selected_cliente": sel_id, "nav_target": "Contratti", "_go_contratti_now": True})
             st.rerun()
 
@@ -1269,7 +1276,7 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         sel_id = df_cli.loc[df_cli["RagioneSociale"] == sel_label, "ClienteID"].iloc[0]
     
         # 🔹 Pulsante per aprire e poi azzerare la selezione
-        if st.button("📂 Apri Cliente Selezionato"):
+        if st.button("Vai a Contratti", key=f"vai_contratti_{st.session_state.get('utente_loggato', '')}_{sel_id}"):
             st.session_state["selected_cliente"] = sel_id
             # 🔁 Reset del campo selectbox
             st.session_state.pop("sel_cli_ct", None)
@@ -2636,6 +2643,7 @@ def main():
     # --- CARICAMENTO DATI PRINCIPALE (Fabio) ---
     try:
         df_cli_main = load_table("clienti")
+        df_cli_main = df_cli_main.sort_values(by="RagioneSociale", ascending=True, na_position="last").reset_index(drop=True)
         df_ct_main = load_table("contratti")
         df_ct_main = fix_contratti_format(df_ct_main)
         st.success("✅ Dati caricati da MySQL con successo")
@@ -2646,6 +2654,7 @@ def main():
     # --- CARICAMENTO DATI GABRIELE ---
     try:
         df_cli_gab = load_table("clienti_gabriele")
+        df_cli_gab = df_cli_gab.sort_values(by="RagioneSociale", ascending=True, na_position="last").reset_index(drop=True)
         df_ct_gab = load_table("contratti_gabriele")
     except Exception as e:
         st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")

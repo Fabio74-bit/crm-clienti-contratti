@@ -556,10 +556,10 @@ def load_contratti() -> pd.DataFrame:
 
 
 # =====================================
-# LOGIN FULLSCREEN
+# LOGIN FULLSCREEN — versione originale stabile
 # =====================================
 def do_login_fullscreen():
-    """Login elegante con sfondo fullscreen"""
+    """Login elegante con sfondo fullscreen e logo SHT"""
     if st.session_state.get("logged_in"):
         return st.session_state["user"], st.session_state["role"]
 
@@ -575,16 +575,31 @@ def do_login_fullscreen():
         box-shadow:0 4px 16px rgba(0,0,0,0.08);
         padding:2rem 2.5rem;width:360px;text-align:center;
     }
-    .login-title {font-size:1.3rem;font-weight:600;color:#2563eb;margin:1rem 0 1.4rem;}
+    .login-title {
+        font-size:1.3rem;
+        font-weight:600;
+        color:#2563eb;
+        margin:1rem 0 1.4rem;
+    }
     .stButton>button {
-        width:260px;font-size:0.9rem;background-color:#2563eb;color:white;
-        border:none;border-radius:6px;padding:0.5rem 0;
+        width:260px;
+        font-size:0.9rem;
+        background-color:#2563eb;
+        color:white;
+        border:none;
+        border-radius:6px;
+        padding:0.5rem 0;
+        cursor:pointer;
+    }
+    .stButton>button:hover {
+        background-color:#1e4ed8;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    login_col1, login_col2, _ = st.columns([1, 2, 1])
-    with login_col2:
+    # --- Struttura grafica ---
+    _, login_col, _ = st.columns([1, 2, 1])
+    with login_col:
         st.markdown("<div class='login-card'>", unsafe_allow_html=True)
         st.image(LOGO_URL, width=140)
         st.markdown("<div class='login-title'>Accedi al CRM-SHT</div>", unsafe_allow_html=True)
@@ -593,42 +608,28 @@ def do_login_fullscreen():
         login_btn = st.button("Entra")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # 🔹 Carica credenziali compatibili con formato Streamlit Cloud
+    # --- Caricamento utenti dal file secrets ---
     try:
         users = st.secrets["auth"]["users"]
     except Exception:
-        # compatibilità con sottosezioni [auth.users.nome]
-        users = st.secrets["auth"]["users"].to_dict() if hasattr(st.secrets["auth"]["users"], "to_dict") else st.secrets["auth"]["users"]
-        if not users:
-            users = {}
-        # 🔹 costruisci manualmente il dizionario
-        for k in st.secrets["auth"]["users"]:
-            users[k] = st.secrets["auth"]["users"][k]
+        users = st.secrets.get("auth.users", {})
 
-    if login_btn or (username and password and not st.session_state.get("_login_checked")):
-        st.session_state["_login_checked"] = True
-
-        # 🔹 compatibile con [auth.users.nome]
-        if "auth" in st.secrets and "users" in st.secrets["auth"]:
-            users = st.secrets["auth"]["users"]
-        else:
-            users = st.secrets.get("auth.users", {})
-
-        # 🔹 login check
+    # --- Controllo login ---
+    if login_btn:
         if username in users and users[username]["password"] == password:
             st.session_state.update({
                 "user": username,
                 "role": users[username].get("role", "viewer"),
                 "logged_in": True
             })
-            st.success(f"✅ Benvenuto {username}!")
-            time.sleep(0.3)
+            st.success(f"✅ Benvenuto {username.capitalize()}!")
+            time.sleep(0.4)
             st.rerun()
         else:
-            st.error("❌ Credenziali non valide.")
-            st.session_state["_login_checked"] = False
+            st.error("❌ Credenziali non valide. Riprova.")
 
     st.stop()
+
 
 # =====================================
 # KPI CARD (riutilizzata)

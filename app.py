@@ -76,6 +76,98 @@ TEMPLATE_OPTIONS = {
 
 # Durate standard contratti
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
+# =====================================
+# 🔁 BOX SYNC — Sincronizzazione automatica su Render
+# =====================================
+from boxsdk import OAuth2, Client
+
+def get_box_client():
+    """Crea client Box autenticato usando i token salvati in st.secrets"""
+    auth = OAuth2(
+        client_id=st.secrets["box"]["client_id"],
+        client_secret=st.secrets["box"]["client_secret"],
+        access_token=st.secrets["box"]["developer_token"]
+    )
+    return Client(auth)
+
+BOX_FOLDER_ID = st.secrets["box"]["backup_folder_id"]  # ID della cartella Box principale
+BOX_FILES = ["clienti.csv", "contratti.csv"]
+
+@st.cache_data(ttl=15)
+def sync_from_box():
+    """Scarica automaticamente gli ultimi file da Box (ogni 15 secondi)"""
+    client = get_box_client()
+    folder = client.folder(BOX_FOLDER_ID)
+    for name in BOX_FILES:
+        local_path = STORAGE_DIR / name
+        try:
+            for item in folder.get_items(limit=100):
+                if item.name == name:
+                    with open(local_path, "wb") as f:
+                        item.download_to(f)
+                    break
+        except Exception as e:
+            st.warning(f"⚠️ Sync fallita per {name}: {e}")
+
+def upload_to_box(path: Path):
+    """Carica un file su Box, sovrascrivendo la versione precedente"""
+    client = get_box_client()
+    folder = client.folder(BOX_FOLDER_ID)
+    try:
+        name = path.name
+        # Se esiste già → aggiorna, altrimenti crea
+        existing = [f for f in folder.get_items(limit=200) if f.name == name]
+        if existing:
+            existing[0].update_contents(str(path))
+        else:
+            folder.upload(str(path))
+    except Exception as e:
+        st.warning(f"⚠️ Upload fallito per {path.name}: {e}")
+
+# Esegui sync iniziale all’avvio
+st.info("🔁 Sincronizzazione dati da Box in corso…")
+sync_from_box()
+# =====================================
+# 📂 SALVATAGGIO PREVENTIVI SU BOX (cartelle clienti in OFFERTE)
+# =====================================
+
+def save_preventivo_to_box(file_path: Path, nome_cliente: str):
+    """
+    Carica un preventivo su Box nella cartella OFFERTE.
+    Se esiste già una cartella con il nome del cliente, salva lì.
+    Altrimenti la crea automaticamente.
+    """
+    client = get_box_client()
+    root_offers_id = st.secrets["box"]["offers_folder_id"]
+    root_offers = client.folder(root_offers_id)
+
+    # 🔹 Nome cartella cliente (solo lettere/numeri)
+    safe_name = "".join(c for c in nome_cliente if c.isalnum() or c in "-_").strip() or "SenzaNome"
+
+    try:
+        # 🔍 Cerca se la cartella del cliente esiste già
+        subfolder = None
+        for item in root_offers.get_items(limit=500):
+            if item.name.lower() == safe_name.lower():
+                subfolder = item
+                break
+
+        # 🆕 Se non esiste, la crea
+        if not subfolder:
+            subfolder = root_offers.create_subfolder(safe_name)
+            st.toast(f"📁 Creata nuova cartella cliente su Box: {safe_name}", icon="🆕")
+
+        # 🔼 Carica o aggiorna il file preventivo
+        existing = [f for f in subfolder.get_items(limit=200) if f.name == file_path.name]
+        if existing:
+            existing[0].update_contents(str(file_path))
+        else:
+            subfolder.upload(str(file_path))
+
+        st.toast(f"📤 Preventivo salvato su Box: {safe_name}/{file_path.name}", icon="✅")
+
+    except Exception as e:
+        st.warning(f"⚠️ Errore upload preventivo su Box: {e}")
 
 # =====================================
 # COLONNE STANDARD CSV
@@ -215,22 +307,41 @@ def save_if_changed(df_new, path: Path, original_df):
         return True
 
 # =====================================
-# FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
+# FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date + upload Box)
 # =====================================
 def save_clienti(df: pd.DataFrame):
-    """Salva il CSV clienti correggendo e formattando le date."""
+    """Salva il CSV clienti correggendo e formattando le date, poi aggiorna su Box."""
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         if c in df.columns:
             df[c] = fix_inverted_dates(df[c], col_name=c)
+
+    # 🔹 Salva localmente
     save_csv(df, CLIENTI_CSV, date_cols=["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"])
+
+    # 🔹 Sincronizza su Box
+    try:
+        upload_to_box(CLIENTI_CSV)
+        st.toast("📤 Dati clienti sincronizzati su Box.", icon="✅")
+    except Exception as e:
+        st.warning(f"⚠️ Upload clienti su Box non riuscito: {e}")
 
 
 def save_contratti(df: pd.DataFrame):
-    """Salva il CSV contratti correggendo e formattando le date."""
+    """Salva il CSV contratti correggendo e formattando le date, poi aggiorna su Box."""
     for c in ["DataInizio", "DataFine"]:
         if c in df.columns:
             df[c] = fix_inverted_dates(df[c], col_name=c)
+
+    # 🔹 Salva localmente
     save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
+
+    # 🔹 Sincronizza su Box
+    try:
+        upload_to_box(CONTRATTI_CSV)
+        st.toast("📤 Dati contratti sincronizzati su Box.", icon="✅")
+    except Exception as e:
+        st.warning(f"⚠️ Upload contratti su Box non riuscito: {e}")
+
 
 # =====================================
 # CONVERSIONE SICURA DATE ITALIANE (VERSIONE DEFINITIVA 2025)
@@ -1036,7 +1147,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             out_path = PREVENTIVI_DIR / nome_file
             doc.save(out_path)
-
+            save_preventivo_to_box(out_path, nome_cliente)
             nuova_riga = {
                 "ClienteID": sel_id,
                 "NumeroOfferta": num_off,

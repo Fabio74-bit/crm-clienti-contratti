@@ -2550,7 +2550,7 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
     return df_cli, df_ct
 
 # =====================================
-# MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
+# MAIN APP — versione stabile con login corretto e sync Box dopo accesso
 # =====================================
 def main():
     st.write("✅ Avvio CRM SHT — Buon Lavoro")
@@ -2564,21 +2564,18 @@ def main():
         user = st.session_state.get("user", "")
         role = st.session_state.get("role", "")
 
-
-    user = st.session_state.get("user", "")
-    role = st.session_state.get("role", "")
-        # === Memorizza login in sessione globale ===
-    st.session_state["user"] = user
-    st.session_state["role"] = role
-    
-    # === Protezione: blocca sezioni se non loggato ===
-    if not user:
-        st.warning("🔐 Effettua il login per accedere al CRM.")
-        st.stop()
-
-    if not user:
-        st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
-        st.stop()
+    # --- Sincronizzazione da Box (solo dopo login) ---
+    if "box_synced" not in st.session_state:
+        st.info("🔁 Sincronizzazione iniziale dati da Box in corso…")
+        try:
+            results = sync_from_box()
+            for r in results:
+                st.toast(r, icon="✅")
+            sync_gabriele_files_if_needed()
+            st.session_state["box_synced"] = True
+            st.toast("📦 Dati sincronizzati da Box", icon="✅")
+        except Exception as e:
+            st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
 
     # --- Ruolo e diritti di scrittura ---
     if user == "fabio":
@@ -2604,15 +2601,8 @@ def main():
     # --- Caricamento dati base (Fabio) ---
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
-    
-    # === Sincronizzazione file principali ===
-    try:
-        sync_from_box()  # sincronizza clienti.csv e contratti.csv
-    except Exception as e:
-        st.warning(f"⚠️ Errore sincronizzazione iniziale da Box: {e}")
 
-
-        # --- Caricamento dati Gabriele ---
+    # --- Caricamento dati Gabriele ---
     try:
         if GABRIELE_CLIENTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
@@ -2667,11 +2657,10 @@ def main():
     else:
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
-    
+
     # 🔒 Se l’utente loggato è Gabriele, forza sempre i suoi file
     if user.lower().strip() == "gabriele":
         df_cli, df_ct = df_cli_gab, df_ct_gab
-
 
     # --- Correzione date automatica una sola volta ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
@@ -2698,21 +2687,13 @@ def main():
     # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Navigazione automatica (dai pulsanti interni) ---
+    # --- Navigazione automatica ---
     if "nav_target" in st.session_state:
-        target = st.session_state.pop("nav_target")  # ✅ pop rimuove la chiave dopo l’uso
+        target = st.session_state.pop("nav_target")
         if target in PAGES:
             page = target
-
 
     # --- Esecuzione pagina selezionata ---
     if page in PAGES:
         st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
-
-
-# =====================================
-# AVVIO APP
-# =====================================
-if __name__ == "__main__":
-    main()

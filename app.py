@@ -11,89 +11,6 @@ from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from docx import Document
 from docx.shared import Pt
-# =====================================
-# CONNESSIONE DATABASE MYSQL — STABILE E MULTIUTENTE
-# =====================================
-import mysql.connector
-from mysql.connector import Error
-import pandas as pd
-import streamlit as st
-
-def get_connection():
-    """Connessione MySQL stabile e persistente (locale + cloud)."""
-    try:
-        # 🔹 Usa i dati dal file secrets se presenti (Render, GitHub, ecc.)
-        cfg = st.secrets["mysql"] if "mysql" in st.secrets else {
-            "host": "10.10.12.25",
-            "user": "fabio",
-            "password": "fabio",
-            "database": "crm_sht",
-            "port": 3306
-        }
-
-        # 🔹 Crea connessione con pool (più sessioni contemporanee)
-        conn = mysql.connector.connect(
-            host=cfg["host"],
-            user=cfg["user"],
-            password=cfg["password"],
-            database=cfg["database"],
-            port=cfg.get("port", 3306),
-            connection_timeout=10,
-            autocommit=True,
-            pool_name="crm_pool",
-            pool_size=10,
-            use_pure=True
-        )
-        return conn
-
-    except Error as e:
-        st.error(f"⚠️ Errore connessione MySQL: {e}")
-        return None
-
-
-def load_table(table_name: str) -> pd.DataFrame:
-    """Legge una tabella MySQL e la restituisce come DataFrame."""
-    conn = get_connection()
-    if conn is None:
-        st.error("❌ Connessione MySQL non disponibile.")
-        return pd.DataFrame()
-
-    try:
-        query = f"SELECT * FROM {table_name}"
-        df = pd.read_sql_query(sql=query, con=conn)
-
-        return df.fillna("")
-    except Exception as e:
-        st.error(f"⚠️ Errore durante la lettura di {table_name}: {e}")
-        return pd.DataFrame()
-    finally:
-        conn.close()
-
-
-def save_table(df: pd.DataFrame, table_name: str):
-    """Salva (o aggiorna) una tabella MySQL con REPLACE INTO."""
-    conn = get_connection()
-    if conn is None or df.empty:
-        st.warning(f"⚠️ Nessun dato da salvare su {table_name}.")
-        return
-
-    try:
-        cur = conn.cursor()
-        cols = df.columns.tolist()
-        placeholders = ",".join(["%s"] * len(cols))
-        col_list = ",".join([f"`{c}`" for c in cols])
-        sql = f"REPLACE INTO {table_name} ({col_list}) VALUES ({placeholders})"
-
-        for _, row in df.iterrows():
-            cur.execute(sql, tuple(row))
-
-        conn.commit()
-        st.success(f"✅ Tabella {table_name} aggiornata su MySQL ({len(df)} record).")
-    except Exception as e:
-        st.error(f"❌ Errore durante il salvataggio di {table_name}: {e}")
-    finally:
-        conn.close()
-
 
 # =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE
@@ -264,54 +181,6 @@ def fix_inverted_dates(series: pd.Series, col_name: str = "") -> pd.Series:
         st.info(f"🔄 {fixed_count}/{total} date corrette automaticamente nella colonna **{col_name}**.")
 
     return pd.Series(fixed)
-# =====================================
-# BACKUP AUTOMATICO SU BOX (con controllo modifiche)
-# =====================================
-import requests, hashlib
-
-def file_checksum(path: Path) -> str:
-    """Calcola un hash (SHA1) del file per verificare se è cambiato."""
-    if not path.exists():
-        return ""
-    h = hashlib.sha1()
-    with open(path, "rb") as f:
-        while chunk := f.read(8192):
-            h.update(chunk)
-    return h.hexdigest()
-
-def box_upload_if_changed(local_path: Path, remote_name: str | None = None):
-    """
-    Carica automaticamente un file su Box solo se è cambiato rispetto all'ultima versione.
-    Salva l'hash nel session_state per evitare duplicazioni.
-    """
-    try:
-        folder_id = st.secrets["box"].get("backup_folder_id", "0")
-        access_token = st.secrets["box"]["developer_token"]
-        if not remote_name:
-            remote_name = local_path.name
-
-        # Calcolo hash attuale
-        current_hash = file_checksum(local_path)
-        prev_hash = st.session_state.get(f"box_hash_{local_path}", "")
-
-        # Se non è cambiato → niente upload
-        if current_hash == prev_hash:
-            return
-
-        url = "https://upload.box.com/api/2.0/files/content"
-        headers = {"Authorization": f"Bearer {access_token}"}
-        files = {
-            "attributes": (None, f'{{"name":"{remote_name}","parent":{{"id":"{folder_id}"}}}}', "application/json"),
-            "file": (remote_name, open(local_path, "rb")),
-        }
-        r = requests.post(url, headers=headers, files=files)
-        if r.status_code in (200, 201):
-            st.toast(f"☁️ Backup su Box completato: {remote_name}", icon="✅")
-            st.session_state[f"box_hash_{local_path}"] = current_hash
-        else:
-            st.error(f"⚠️ Errore upload Box: {r.text}")
-    except Exception as e:
-        st.warning(f"⚠️ Backup Box non riuscito: {e}")
 
 # =====================================
 # CARICAMENTO E SALVATAGGIO DATI
@@ -349,20 +218,19 @@ def save_if_changed(df_new, path: Path, original_df):
 # FUNZIONI DI SALVATAGGIO DEDICATE (con correzione automatica date)
 # =====================================
 def save_clienti(df: pd.DataFrame):
-    """Salva il CSV clienti + backup su Box solo se modificato."""
+    """Salva il CSV clienti correggendo e formattando le date."""
     for c in ["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"]:
         if c in df.columns:
             df[c] = fix_inverted_dates(df[c], col_name=c)
     save_csv(df, CLIENTI_CSV, date_cols=["UltimoRecall", "ProssimoRecall", "UltimaVisita", "ProssimaVisita"])
-    box_upload_if_changed(CLIENTI_CSV)
+
 
 def save_contratti(df: pd.DataFrame):
-    """Salva il CSV contratti + backup su Box solo se modificato."""
+    """Salva il CSV contratti correggendo e formattando le date."""
     for c in ["DataInizio", "DataFine"]:
         if c in df.columns:
             df[c] = fix_inverted_dates(df[c], col_name=c)
     save_csv(df, CONTRATTI_CSV, date_cols=["DataInizio", "DataFine"])
-    box_upload_if_changed(CONTRATTI_CSV)
 
 # =====================================
 # CONVERSIONE SICURA DATE ITALIANE (VERSIONE DEFINITIVA 2025)
@@ -413,6 +281,36 @@ def load_clienti() -> pd.DataFrame:
 
     df = ensure_columns(df, CLIENTI_COLS)
     return df
+
+
+
+# =====================================
+# CARICAMENTO CONTRATTI (senza salvataggio automatico)
+# =====================================
+def load_contratti() -> pd.DataFrame:
+    """Carica i dati dei contratti (supporta ; , |)"""
+    import pandas as pd
+    if not CONTRATTI_CSV.exists():
+        return pd.DataFrame(columns=CONTRATTI_COLS)
+
+    for sep_try in [";", ",", "|", "\t"]:
+        try:
+            df = pd.read_csv(
+                CONTRATTI_CSV,
+                dtype=str,
+                sep=sep_try,
+                encoding="utf-8-sig",
+                on_bad_lines="skip",
+                engine="python"
+            ).fillna("")
+            if len(df.columns) > 3:
+                break
+        except Exception:
+            continue
+
+    df = ensure_columns(df, CONTRATTI_COLS)
+    return df
+
 
 
 # =====================================
@@ -466,8 +364,6 @@ def load_clienti() -> pd.DataFrame:
         if c in df.columns:
             df[c] = to_date_series(df[c])
 
-    # ✅ Ordine alfabetico per Ragione Sociale
-    df = df.sort_values("RagioneSociale", ascending=True, na_position="last").reset_index(drop=True)
     return df
 
 
@@ -875,7 +771,6 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
-    df_cli = ensure_columns(df_cli, CLIENTI_COLS)
 
     # === PRE-SELEZIONE CLIENTE DA NAVIGAZIONE ===
     if "selected_cliente" in st.session_state:
@@ -894,14 +789,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         ]
     else:
         filtered = df_cli.copy()
-    
-    # 🔹 ORDINA ALFABETICAMENTE I CLIENTI
-    filtered = filtered.sort_values(by="RagioneSociale", ascending=True, na_position="last").reset_index(drop=True)
-    
+
     if filtered.empty:
         st.warning("❌ Nessun cliente trovato.")
         return
-
 
     options = filtered["RagioneSociale"].tolist()
     selected_name = st.session_state.get("cliente_selezionato", options[0])
@@ -921,9 +812,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.markdown(f"## 🏢 {cliente['RagioneSociale']}")
         st.caption(f"ID Cliente: {sel_id}")
     with col2:
-        if st.button("📄 Vai ai Contratti", use_container_width=True,
-              key=f"go_cont_{st.session_state.get('utente_loggato', '')}_{sel_id}"):
-
+        if st.button("📄 Vai ai Contratti", use_container_width=True, key=f"go_cont_{sel_id}"):
             st.session_state.update({"selected_cliente": sel_id, "nav_target": "Contratti", "_go_contratti_now": True})
             st.rerun()
 
@@ -944,32 +833,16 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 try:
                     df_cli_new = df_cli[df_cli["ClienteID"].astype(str) != sel_id].copy()
                     df_ct_new  = df_ct[df_ct["ClienteID"].astype(str)  != sel_id].copy()
-
-                    try:
-                        conn = get_connection()
-                        cur = conn.cursor()
-                        cur.execute("DELETE FROM contratti_clienti WHERE ClienteID = %s", (sel_id,))
-                        cur.execute("DELETE FROM clienti WHERE ClienteID = %s", (sel_id,))
-                        conn.commit()
-                        conn.close()
-                        st.success("🗑️ Cliente e contratti eliminati da MySQL.")
-                    except Exception as e:
-                        st.error(f"⚠️ Errore eliminazione su MySQL: {e}")
-                        df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
-                        df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
-                        st.info("💾 Backup locale su CSV aggiornato.")
-
-                    try:
-                        st.cache_data.clear()
-                    except:
-                        pass
+                    df_cli_new.to_csv(CLIENTI_CSV, index=False, encoding="utf-8-sig")
+                    df_ct_new.to_csv(CONTRATTI_CSV, index=False, encoding="utf-8-sig")
+                    try: st.cache_data.clear()
+                    except: pass
                     st.session_state.pop("confirm_delete_cliente", None)
+                    st.success("🗑️ Cliente e contratti eliminati con successo! ✅")
                     time.sleep(0.5)
                     st.rerun()
-
                 except Exception as e:
                     st.error(f"❌ Errore durante l'eliminazione: {e}")
-
         with cdel2:
             if st.button("❌ Annulla", use_container_width=True, key=f"undo_del_{sel_id}"):
                 st.session_state.pop("confirm_delete_cliente", None)
@@ -980,6 +853,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
     st.markdown("### 🧾 Anagrafica Cliente")
 
+    # Scheda anagrafica leggibile
     st.markdown(
         f"""
         <div style='font-size:15px; line-height:1.8; padding:10px 15px; background-color:#f8fafc;
@@ -997,7 +871,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         unsafe_allow_html=True
     )
 
-    # === EDIT ANAGRAFICA ===
+    # === EDIT ANAGRAFICA (toggle) ===
     if st.session_state.get(f"edit_cli_{sel_id}", False):
         st.info("✏️ Modifica anagrafica attiva")
         with st.form(f"frm_anagrafica_{sel_id}"):
@@ -1015,17 +889,10 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 iban      = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
                 sdi       = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
+            # === TMK (menù a tendina per selezionare commerciale) ===
             tmk_options = sorted(["Giulia", "Antonella", "Laura", "Annalisa"])
-            tmk_attuale = str(cliente.get("TMK", "") or "").strip()  # <-- forza a stringa pulita
-            
-            # se il valore attuale non è valido, metti indice 0
-            if tmk_attuale in tmk_options:
-                tmk_index = tmk_options.index(tmk_attuale)
-            else:
-                tmk_index = 0
-            
-            tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_index)
-
+            tmk_attuale = cliente.get("TMK", "")
+            tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_options.index(tmk_attuale) if tmk_attuale in tmk_options else 0)
 
             salva = st.form_submit_button("💾 Salva Modifiche")
             if salva:
@@ -1035,27 +902,26 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                         "Indirizzo","Citta","CAP","Telefono","Cell","Email",
                         "PersonaRiferimento","PartitaIVA","IBAN","SDI","TMK"
                     ]] = [indirizzo, citta, cap, telefono, cell, email, persona, piva, iban, sdi, tmk_sel]
-
-                    try:
-                        save_table(df_cli, "clienti")
-                        st.success("✅ Anagrafica aggiornata su MySQL!")
-                    except Exception as e:
-                        st.error(f"⚠️ Errore salvataggio MySQL: {e}")
-                        save_clienti(df_cli)
-                        st.info("💾 Backup locale su CSV eseguito.")
-
+                    save_clienti(df_cli)
+                    st.success("✅ Anagrafica aggiornata.")
                     st.session_state[f"edit_cli_{sel_id}"] = False
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Errore durante il salvataggio: {e}")
 
-    # === NOTE CLIENTE ===
+
+    # === NOTE CLIENTE (subito sotto anagrafica) ===
     st.divider()
     st.markdown("### 📝 Note Cliente")
     st.caption("Annotazioni o informazioni utili sul cliente (visibili a tutti gli utenti).")
 
     note_attuali = cliente.get("NoteCliente", "")
-    nuove_note = st.text_area("Scrivi o modifica le note del cliente:", note_attuali, height=160, key=f"note_{sel_id}_{int(time.time()*1000)}")
+    nuove_note = st.text_area(
+        "Scrivi o modifica le note del cliente:",
+        note_attuali,
+        height=160,
+        key=f"note_{sel_id}_{int(time.time()*1000)}"
+    )
 
     n1, n2 = st.columns([0.25, 0.75])
     with n1:
@@ -1063,22 +929,15 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             try:
                 idx_row = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
                 df_cli.loc[idx_row, "NoteCliente"] = nuove_note
-
-                try:
-                    save_table(df_cli, "clienti")
-                    st.success("✅ Note salvate su MySQL!")
-                except Exception as e:
-                    st.error(f"⚠️ Errore salvataggio MySQL: {e}")
-                    save_clienti(df_cli)
-                    st.info("💾 Backup locale su CSV eseguito.")
-
+                save_clienti(df_cli)
+                st.success("✅ Note salvate correttamente.")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Errore durante il salvataggio: {e}")
     with n2:
-        st.info("Le modifiche vengono salvate anche in MySQL (con backup CSV).")
+        st.info("Le modifiche vengono salvate immediatamente nel file clienti.csv")
 
-    # === RECALL & VISITE ===
+    # === RECALL & VISITE (subito dopo le note) ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
 
@@ -1111,22 +970,15 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             idx = df_cli.index[df_cli["ClienteID"].astype(str) == sel_id][0]
             df_cli.loc[idx, ["UltimoRecall","ProssimoRecall","UltimaVisita","ProssimaVisita"]] = \
                 [fmt_date(ur), fmt_date(pr), fmt_date(uv), fmt_date(pv)]
-
-            try:
-                save_table(df_cli, "clienti")
-                st.success("✅ Date aggiornate su MySQL!")
-            except Exception as e:
-                st.error(f"⚠️ Errore salvataggio MySQL: {e}")
-                save_clienti(df_cli)
-                st.info("💾 Backup locale su CSV eseguito.")
-
+            save_clienti(df_cli)
+            st.success("✅ Date aggiornate.")
             st.rerun()
         except Exception as e:
             st.error(f"❌ Errore salvataggio recall/visite: {e}")
 
-    # === GESTIONE PREVENTIVI ===
+    # === GENERA PREVENTIVO ===
     st.divider()
-    st.markdown("### 🧾 Gestione Preventivi")
+    st.markdown("### 🧾 Genera Nuovo Preventivo")
 
     TEMPLATE_OPTIONS = {
         "Offerta A4": "Offerta_A4.docx",
@@ -1141,10 +993,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     if prev_csv.exists():
         df_prev = pd.read_csv(prev_csv, dtype=str).fillna("")
     else:
-        df_prev = pd.DataFrame(columns=["ClienteID", "NumeroOfferta", "Template", "NomeFile", "Percorso", "DataCreazione"])
-
-    # === CREA NUOVO PREVENTIVO ===
-    st.markdown("#### ➕ Crea nuovo preventivo")
+        df_prev = pd.DataFrame(columns=["ClienteID","NumeroOfferta","Template","NomeFile","Percorso","DataCreazione"])
 
     anno = datetime.now().year
     nome_cliente = cliente.get("RagioneSociale", "")
@@ -1187,7 +1036,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             out_path = PREVENTIVI_DIR / nome_file
             doc.save(out_path)
-            box_upload_if_changed(out_path)
 
             nuova_riga = {
                 "ClienteID": sel_id,
@@ -1197,11 +1045,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 "Percorso": str(out_path),
                 "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
             }
-
-            # ✅ Evita duplicati
             df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
-            df_prev = df_prev.drop_duplicates(subset=["ClienteID", "NomeFile"], keep="last")
-
             df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
 
             st.success(f"✅ Preventivo generato: {out_path.name}")
@@ -1210,38 +1054,44 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             import traceback
             st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
 
-    # === ELENCO PREVENTIVI DEL CLIENTE ===
+
+    # === ELENCO PREVENTIVI ===
     st.divider()
-    st.markdown("#### 📂 Elenco Preventivi Cliente")
+    st.markdown("### 📂 Elenco Preventivi Cliente")
 
-    df_prev_cli = df_prev[df_prev["ClienteID"].astype(str) == str(sel_id)]
-    if not df_prev_cli.empty:
-        for i, row in df_prev_cli.iterrows():
-            nome_file = row["NomeFile"]
-            percorso = row["Percorso"]
-            data = row.get("DataCreazione", "")
-            col1, col2, col3 = st.columns([4, 1, 1])
-            col1.write(f"📄 **{nome_file}**  \n🕓 {data}")
-
-            if Path(percorso).exists():
-                with open(percorso, "rb") as f:
-                    col2.download_button("⬇️", f, file_name=nome_file,
-                                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-            else:
-                col2.warning("❌ File mancante")
-
-            if col3.button("🗑️", key=f"del_prev_{i}", help="Elimina preventivo"):
-                try:
-                    df_prev = df_prev.drop(index=i)
-                    df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
-                    if Path(percorso).exists():
-                        Path(percorso).unlink()
-                    st.success(f"✅ Preventivo '{nome_file}' eliminato.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore eliminazione: {e}")
-    else:
+    prev_cli = df_prev[df_prev["ClienteID"].astype(str) == sel_id]
+    if prev_cli.empty:
         st.info("Nessun preventivo per questo cliente.")
+    else:
+        prev_cli = prev_cli.sort_values("DataCreazione", ascending=False)
+        for i, r in prev_cli.iterrows():
+            file_path = Path(r["Percorso"])
+            e1, e2, e3 = st.columns([0.6, 0.25, 0.15])
+            with e1:
+                st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}  \n📅 {r['DataCreazione']}")
+            with e2:
+                if file_path.exists():
+                    with open(file_path, "rb") as f:
+                        st.download_button(
+                            "⬇️ Scarica", f.read(),
+                            file_name=file_path.name,
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"dl_{sel_id}_{i}_{int(time.time()*1000)}"
+                        )
+            with e3:
+                if role == "admin":
+                    if st.button("🗑 Elimina", key=f"del_prev_{sel_id}_{i}_{int(time.time()*1000)}"):
+                        try:
+                            if file_path.exists():
+                                file_path.unlink()
+                            df_prev = df_prev.drop(i)
+                            df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+                            st.success("🗑 Preventivo eliminato.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Errore eliminazione: {e}")
+
+
 
 # =====================================
 # PAGINA CONTRATTI — VERSIONE STABILE 2025 (senza duplicati widget)
@@ -1266,30 +1116,9 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         st.info("Nessun cliente presente.")
         return
 
-    labels = df_cli["RagioneSociale"].astype(str).tolist()
-    # === Selectbox clienti con controllo di coerenza ===
-    if "sel_cli_ct" in st.session_state and st.session_state["sel_cli_ct"] not in labels:
-        st.session_state.pop("sel_cli_ct")  # reset automatico se valore non più valido
-    
-    sel_label = st.selectbox(
-        "Seleziona Cliente",
-        labels,
-        index=0 if labels else None,
-        key="sel_cli_ct"
-    )
-
-    
-    # Quando l'utente seleziona un cliente
-    if sel_label:
-        sel_id = df_cli.loc[df_cli["RagioneSociale"] == sel_label, "ClienteID"].iloc[0]
-    
-        # 🔹 Pulsante per aprire e poi azzerare la selezione
-        if st.button("Vai a Contratti", key=f"vai_contratti_{st.session_state.get('utente_loggato', '')}_{sel_id}"):
-            st.session_state["selected_cliente"] = sel_id
-            # 🔁 Reset del campo selectbox
-            st.session_state.pop("sel_cli_ct", None)
-            st.rerun()
-
+    labels = df_cli.apply(lambda r: f"{r['ClienteID']} — {r['RagioneSociale']}", axis=1)
+    sel_label = st.selectbox("Seleziona Cliente", labels, index=0, key="sel_cli_ct")
+    sel_id = sel_label.split(" — ")[0]
     rag_soc = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].iloc[0]
 
     st.markdown(f"<h3 style='text-align:center;color:#2563eb'>{rag_soc}</h3>", unsafe_allow_html=True)
@@ -1410,7 +1239,6 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         cols[11].markdown(f"<div class='tbl-row {row_cls}'><div class='cell mono'>{r.get('EccCol','')}</div></div>", unsafe_allow_html=True)
 
         # --- azioni (chiavi univoche)
-        # --- azioni (chiavi univoche)
         with cols[12]:
             b1, b2, b3 = st.columns(3)
 
@@ -1426,18 +1254,11 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 try:
                     nuovo_stato = "chiuso" if stato != "chiuso" else "aperto"
                     df_ct.loc[df_ct.index == i, "Stato"] = nuovo_stato
-
-                    try:
-                        save_table(df_ct, "contratti_clienti")
-                        st.toast(f"🔁 Stato contratto aggiornato su MySQL: {nuovo_stato.upper()}", icon="✅")
-                    except Exception as e:
-                        st.error(f"⚠️ Errore salvataggio MySQL: {e}")
-                        save_contratti(df_ct)
-                        st.info("💾 Backup locale su CSV eseguito.")
-
+                    save_contratti(df_ct)
+                    st.toast(f"🔁 Stato contratto aggiornato: {nuovo_stato.upper()}", icon="✅")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"❌ Errore durante l’aggiornamento dello stato: {e}")
+                    st.error(f"❌ Errore aggiornamento stato: {e}")
 
             # 🗑️ Elimina contratto
             if b3.button("🗑️", key=f"del_ct_{i}", help="Elimina contratto", disabled=permessi_limitati):
@@ -1445,60 +1266,29 @@ def page_contratti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 st.session_state["ask_delete_now"] = True
                 st.rerun()
 
-    # === ELIMINAZIONE CONTRATTO (MySQL + CSV fallback) ===
+
+    # === ELIMINAZIONE CONTRATTO ===
     if st.session_state.get("ask_delete_now") and st.session_state.get("delete_gidx") is not None:
         gidx = st.session_state["delete_gidx"]
         if gidx in ct.index:
             contratto = ct.loc[gidx]
             numero = contratto.get("NumeroContratto", "Senza numero")
-            contratto_id = str(contratto.get("ContrattoID", ""))
-
-            st.warning(f"⚠️ Eliminare definitivamente il contratto **{numero}**?")
+            st.warning(f"Eliminare definitivamente il contratto **{numero}**?")
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("✅ Sì, elimina", use_container_width=True):
-                    try:
-                        # 🔹 Rimuovi contratto dal DataFrame
-                        df_ct_new = df_ct.drop(index=gidx).reset_index(drop=True)
-
-                        # 🔹 Prova a eliminare anche da MySQL
-                        try:
-                            conn = get_connection()
-                            cur = conn.cursor()
-                            if contratto_id:
-                                cur.execute("DELETE FROM contratti_clienti WHERE ContrattoID = %s", (contratto_id,))
-                            else:
-                                cur.execute("DELETE FROM contratti_clienti WHERE NumeroContratto = %s", (numero,))
-                            conn.commit()
-                            conn.close()
-                            st.success("🗑️ Contratto eliminato da MySQL.")
-                        except Exception as e:
-                            st.error(f"⚠️ Errore eliminazione su MySQL: {e}")
-                            save_contratti(df_ct_new)
-                            st.info("💾 Backup locale su CSV aggiornato.")
-
-                        # 🔹 Aggiorna cache e interfaccia
-                        try:
-                            st.cache_data.clear()
-                        except:
-                            pass
-
-                        df_ct = df_ct_new
-                        st.session_state.pop("ask_delete_now", None)
-                        st.session_state.pop("delete_gidx", None)
-                        time.sleep(0.5)
-                        st.rerun()
-
-                    except Exception as e:
-                        st.error(f"❌ Errore durante l'eliminazione: {e}")
-
+                    df_ct = df_ct.drop(index=gidx).copy()
+                    save_contratti(df_ct)
+                    st.success("🗑️ Contratto eliminato.")
+                    st.session_state.pop("ask_delete_now", None)
+                    st.session_state.pop("delete_gidx", None)
+                    st.rerun()
             with c2:
                 if st.button("❌ Annulla", use_container_width=True):
                     st.session_state.pop("ask_delete_now", None)
                     st.session_state.pop("delete_gidx", None)
-                    st.info("Operazione annullata.")
+                    st.info("Annullato.")
                     st.rerun()
-
 
 
     # === ESPORTAZIONI (Excel + PDF) ===
@@ -1828,19 +1618,14 @@ def page_modifica_contratto(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str
                     num, fmt_date(din), fmt_date(dfi), durata, desc,
                     nf, ni, tot, copie_bn, ecc_bn, copie_col, ecc_col, stato
                 ]
-
-                try:
-                    save_table(df_ct, "contratti_clienti")
-                    st.success("✅ Contratto salvato su MySQL!")
-                except Exception as e:
-                    st.error(f"⚠️ Errore salvataggio MySQL: {e}")
-                    save_contratti(df_ct)
-                    st.info("💾 Backup locale su CSV eseguito.")
-
+                save_contratti(df_ct)
+                st.success("✅ Contratto aggiornato con successo!")
+                time.sleep(0.5)
+                st.session_state["nav_target"] = "Contratti"
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Errore durante il salvataggio del contratto: {e}")
-
+                st.error(f"❌ Errore durante il salvataggio: {e}")
+        
         if annulla:
             st.info("Operazione annullata.")
             st.session_state["nav_target"] = "Contratti"
@@ -2577,46 +2362,14 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
         st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     return df_cli, df_ct
-# =====================================
-# FIX CONTRATTI (DATE + NUMERI)
-# =====================================
-def fix_contratti_format(df_ct: pd.DataFrame) -> pd.DataFrame:
-    """
-    Converte formati e tipi numerici dei contratti.
-    Gestisce colonne mancanti o non numeriche senza errori.
-    """
-    if df_ct.empty:
-        return df_ct
-
-    try:
-        # 🔹 Correggi formati data
-        if "DataInizio" in df_ct.columns:
-            df_ct["DataInizio"] = pd.to_datetime(
-                df_ct["DataInizio"], errors="coerce", dayfirst=True
-            )
-        if "DataFine" in df_ct.columns:
-            df_ct["DataFine"] = pd.to_datetime(
-                df_ct["DataFine"], errors="coerce", dayfirst=True
-            )
-
-        # 🔹 Converte i campi numerici in float
-        for c in ["TotaleRata", "TotRata"]:
-            if c in df_ct.columns:
-                df_ct[c] = pd.to_numeric(df_ct[c], errors="coerce").fillna(0)
-
-        return df_ct
-
-    except Exception as e:
-        st.warning(f"⚠️ Errore durante fix_contratti_format: {e}")
-        return df_ct
 
 # =====================================
-# MAIN APP — versione definitiva MySQL (multi-proprietario e ruoli)
+# MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
 # =====================================
 def main():
-    st.write("✅ Avvio CRM SHT — Connessione diretta MySQL")
+    st.write("✅ Avvio CRM SHT — Buon Lavoro")
 
-    # --- LOGIN ---
+    # --- LOGIN (mostra schermata se non autenticato) ---
     if not st.session_state.get("logged_in", False):
         do_login_fullscreen()
         st.stop()
@@ -2628,14 +2381,18 @@ def main():
         st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
         st.stop()
 
-    # --- RUOLI ---
-    if user in ["fabio", "emanuela", "claudia"]:
+    # --- Ruolo e diritti di scrittura ---
+    if user == "fabio":
         ruolo_scrittura = "full"
+    elif user in ["emanuela", "claudia"]:
+        ruolo_scrittura = "full"
+    elif user in ["giulia", "antonella", "gabriele", "laura", "annalisa"]:
+        ruolo_scrittura = "limitato"
     else:
         ruolo_scrittura = "limitato"
 
-    # --- SELEZIONE VISIBILITÀ ---
-    if user in ["fabio", "emanuela", "claudia", "giulia", "antonella", "laura", "annalisa"]:
+    # --- Selettore visibilità ---
+    if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
             "📂 Visualizza clienti di:",
@@ -2645,49 +2402,78 @@ def main():
     else:
         visibilita_scelta = "Fabio"
 
-    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
-    st.sidebar.info(f"📊 Dati caricati da MySQL — Vista: {visibilita_scelta}")
+    # --- Caricamento dati base (Fabio) ---
+    df_cli_main = load_clienti()
+    df_ct_main = load_contratti()
 
-    # --- CARICAMENTO DATI PRINCIPALE (Fabio) ---
+        # --- Caricamento dati Gabriele ---
     try:
-        df_cli_main = load_table("clienti")
-        df_cli_main = df_cli_main.sort_values(by="RagioneSociale", ascending=True, na_position="last").reset_index(drop=True)
-        df_ct_main = load_table("contratti")
-        df_ct_main = fix_contratti_format(df_ct_main)
-        st.success("✅ Dati caricati da MySQL con successo")
-    except Exception as e:
-        st.error(f"❌ Errore connessione MySQL: {e}")
-        st.stop()
+        if GABRIELE_CLIENTI.exists():
+            for sep_try in [";", ",", "|", "\t"]:
+                try:
+                    df_cli_gab = pd.read_csv(
+                        GABRIELE_CLIENTI,
+                        dtype=str,
+                        sep=sep_try,
+                        encoding="utf-8-sig",
+                        on_bad_lines="skip",
+                        engine="python"
+                    ).fillna("")
+                    if len(df_cli_gab.columns) > 3:
+                        break
+                except Exception:
+                    continue
+        else:
+            df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
 
-    # --- CARICAMENTO DATI GABRIELE ---
-    try:
-        df_cli_gab = load_table("clienti_gabriele")
-        df_cli_gab = df_cli_gab.sort_values(by="RagioneSociale", ascending=True, na_position="last").reset_index(drop=True)
-        df_ct_gab = load_table("contratti_gabriele")
+        if GABRIELE_CONTRATTI.exists():
+            for sep_try in [";", ",", "|", "\t"]:
+                try:
+                    df_ct_gab = pd.read_csv(
+                        GABRIELE_CONTRATTI,
+                        dtype=str,
+                        sep=sep_try,
+                        encoding="utf-8-sig",
+                        on_bad_lines="skip",
+                        engine="python"
+                    ).fillna("")
+                    if len(df_ct_gab.columns) > 3:
+                        break
+                except Exception:
+                    continue
+        else:
+            df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
+
+        # 🔹 Correzione colonne mancanti (solo in memoria)
+        df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
+        df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
+
     except Exception as e:
         st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
-        df_cli_gab = pd.DataFrame(columns=df_cli_main.columns)
-        df_ct_gab = pd.DataFrame(columns=df_ct_main.columns)
+        df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
+        df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-    # --- VISIBILITÀ (multi-proprietario simulato, solo MySQL) ---
+    # --- Applica filtro visibilità ---
     if visibilita_scelta == "Fabio":
         df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
         df_cli, df_ct = df_cli_gab, df_ct_gab
-        st.info("📂 Vista: dati Gabriele caricati da MySQL")
-    else:  # "Tutti"
+    else:
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
-        st.info("📂 Vista combinata: Fabio + Gabriele")
 
-    # --- CORREZIONE DATE AUTOMATICA (una sola volta) ---
+    # --- Correzione date automatica una sola volta ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
-    # --- SALVATAGGIO STATO SESSIONE ---
+    # --- Sidebar info ---
+    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
+    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
+
+    # --- Salva contesto in sessione ---
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
-    # --- MENU PRINCIPALE ---
+    # --- Pagine principali ---
     PAGES = {
         "Dashboard": page_dashboard,
         "📈 Dashboard Grafici": page_dashboard_grafici,
@@ -2698,16 +2484,17 @@ def main():
         "📋 Lista Clienti": page_lista_clienti,
     }
 
-    # --- MENU SIDEBAR ---
+    # --- Menu laterale ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- NAVIGAZIONE AUTOMATICA ---
+    # --- Navigazione automatica (dai pulsanti interni) ---
     if "nav_target" in st.session_state:
-        target = st.session_state.pop("nav_target")
+        target = st.session_state.pop("nav_target")  # ✅ pop rimuove la chiave dopo l’uso
         if target in PAGES:
             page = target
 
-    # --- ESECUZIONE PAGINA SELEZIONATA ---
+
+    # --- Esecuzione pagina selezionata ---
     if page in PAGES:
         st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)

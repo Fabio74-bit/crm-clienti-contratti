@@ -1128,113 +1128,127 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         except Exception as e:
             st.error(f"❌ Errore salvataggio recall/visite: {e}")
 
-    # === GENERA PREVENTIVO ===
-    st.divider()
-    st.markdown("### 🧾 Genera Nuovo Preventivo")
+# === GENERA PREVENTIVO ===
+st.divider()
+st.markdown("### 🧾 Genera Nuovo Preventivo")
 
-    PREVENTIVI_FILE = STORAGE_DIR / "preventivi.csv"
+TEMPLATE_OPTIONS = {
+    "Offerta A4": "Offerta_A4.docx",
+    "Offerta A3": "Offerta_A3.docx",
+    "Centralino": "Offerta_Centralino.docx",
+    "Varie": "Offerta_Varie.docx",
+}
+PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
+PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
+prev_csv = STORAGE_DIR / "preventivi.csv"
 
-    # 🔹 Carica preventivi esistenti (anche da Box se presente)
-    def load_preventivi():
+# === Carica archivio preventivi ===
+if prev_csv.exists():
+    df_prev = pd.read_csv(prev_csv, dtype=str).fillna("")
+else:
+    df_prev = pd.DataFrame(columns=["NumeroOfferta","ClienteID","Cliente","Autore","Template","NomeFile","Percorso","DataCreazione"])
+
+anno = datetime.now().year
+nome_cliente = cliente.get("RagioneSociale", "")
+nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
+
+# === Numerazione sicura e globale ===
+if not df_prev.empty and "NumeroOfferta" in df_prev.columns:
+    try:
+        numeri_esistenti = (
+            df_prev["NumeroOfferta"]
+            .astype(str)
+            .str.extract(r"OFF-\d{4}-[A-Z0-9]+-(\d{3})")[0]
+            .dropna()
+            .astype(int)
+        )
+        ultimo_num = numeri_esistenti.max() if not numeri_esistenti.empty else 0
+    except Exception:
+        ultimo_num = 0
+else:
+    ultimo_num = 0
+
+nuovo_progressivo = ultimo_num + 1
+num_off = f"OFF-{anno}-{nome_sicuro}-{nuovo_progressivo:03d}"
+
+with st.form(f"frm_prev_{sel_id}"):
+    st.text_input("Numero Offerta", num_off, disabled=True)
+    nome_file = st.text_input("Nome File", f"{num_off}.docx")
+    template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
+    genera_btn = st.form_submit_button("💾 Genera Preventivo")
+
+if genera_btn:
+    try:
+        from docx import Document
+        tpl_path = Path(__file__).parent / "templates" / TEMPLATE_OPTIONS[template]
+
+        if not tpl_path.exists():
+            st.error(f"❌ Template non trovato: {tpl_path}")
+            st.stop()
+
+        doc = Document(tpl_path)
+        mappa = {
+            "CLIENTE": nome_cliente,
+            "INDIRIZZO": cliente.get("Indirizzo", ""),
+            "CITTA": cliente.get("Citta", ""),
+            "NUMERO_OFFERTA": num_off,
+            "DATA": datetime.now().strftime("%d/%m/%Y"),
+            "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
+            "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
+            "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
+            "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
+        }
+
+        for p in doc.paragraphs:
+            for k, v in mappa.items():
+                if f"<<{k}>>" in p.text:
+                    for run in p.runs:
+                        run.text = run.text.replace(f"<<{k}>>", str(v))
+
+        out_path = PREVENTIVI_DIR / nome_file
+        doc.save(out_path)
+
+        # 🔹 Salva anche su Box nella cartella OFFERTE / [autore] / [cliente]
         try:
-            # Se esiste in locale
-            if PREVENTIVI_FILE.exists():
-                df_prev = pd.read_csv(PREVENTIVI_FILE, dtype=str).fillna("")
-            else:
-                df_prev = pd.DataFrame(columns=["NumeroOfferta", "ClienteID", "Cliente", "Autore", "Template", "NomeFile", "Percorso", "DataCreazione"])
-            return df_prev
-        except Exception as e:
-            st.warning(f"⚠️ Errore caricamento preventivi: {e}")
-            return pd.DataFrame(columns=["NumeroOfferta","ClienteID","Cliente","Autore","Template","NomeFile","Percorso","DataCreazione"])
-
-    # 🔹 Salva e sincronizza preventivi su Box
-    def save_preventivi(df_prev):
-        try:
-            df_prev.to_csv(PREVENTIVI_FILE, index=False, encoding="utf-8-sig")
-            upload_to_box(PREVENTIVI_FILE)
-            st.toast("💾 Elenco preventivi sincronizzato su Box", icon="✅")
-        except Exception as e:
-            st.warning(f"⚠️ Impossibile sincronizzare preventivi su Box: {e}")
-
-    df_prev = load_preventivi()
-
-    # 🔹 Calcolo numero progressivo globale (non per cliente)
-    anno = datetime.now().year
-    next_num = len(df_prev) + 1
-    num_off = f"OFF-{anno}-{next_num:04d}"
-
-    nome_cliente = cliente.get("RagioneSociale", "")
-    nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
-    nome_file = f"{num_off}_{nome_sicuro}.docx"
-
-    TEMPLATE_OPTIONS = {
-        "Offerta A4": "Offerta_A4.docx",
-        "Offerta A3": "Offerta_A3.docx",
-        "Centralino": "Offerta_Centralino.docx",
-        "Varie": "Offerta_Varie.docx",
-    }
-
-    with st.form(f"frm_prev_{sel_id}"):
-        st.text_input("Numero Offerta", num_off, disabled=True)
-        template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
-        genera_btn = st.form_submit_button("💾 Genera Preventivo")
-
-    if genera_btn:
-        try:
-            from docx import Document
-            tpl_path = STORAGE_DIR / "templates" / TEMPLATE_OPTIONS[template]
-
-            if not tpl_path.exists():
-                st.error(f"❌ Template non trovato: {tpl_path}")
-                st.stop()
-
-            doc = Document(tpl_path)
-            mappa = {
-                "CLIENTE": nome_cliente,
-                "INDIRIZZO": cliente.get("Indirizzo", ""),
-                "CITTA": cliente.get("Citta", ""),
-                "NUMERO_OFFERTA": num_off,
-                "DATA": datetime.now().strftime("%d/%m/%Y"),
-            }
-
-            for p in doc.paragraphs:
-                for k, v in mappa.items():
-                    if f"<<{k}>>" in p.text:
-                        for run in p.runs:
-                            run.text = run.text.replace(f"<<{k}>>", str(v))
-
-            out_path = PREVENTIVI_DIR / nome_file
-            doc.save(out_path)
-
-            autore = st.session_state.get("user", "fabio").lower().strip()
+            autore = st.session_state.get("user", "fabio")
             save_preventivo_to_box(out_path, nome_cliente, autore=autore)
-
-            nuova_riga = {
-                "NumeroOfferta": num_off,
-                "ClienteID": sel_id,
-                "Cliente": nome_cliente,
-                "Autore": autore,
-                "Template": TEMPLATE_OPTIONS[template],
-                "NomeFile": nome_file,
-                "Percorso": str(out_path),
-                "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
-            }
-
-            df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
-            save_preventivi(df_prev)
-
-            st.success(f"✅ Preventivo generato e salvato: {nome_file}")
-            st.rerun()
         except Exception as e:
-            import traceback
-            st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
+            st.warning(f"⚠️ Salvataggio preventivo su Box non riuscito: {e}")
+
+        # 🔹 Aggiungi al CSV condiviso
+        nuova_riga = {
+            "NumeroOfferta": num_off,
+            "ClienteID": sel_id,
+            "Cliente": nome_cliente,
+            "Autore": autore,
+            "Template": TEMPLATE_OPTIONS[template],
+            "NomeFile": nome_file,
+            "Percorso": str(out_path),
+            "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        }
+        df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
+        df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+
+        # 🔹 Sincronizza CSV preventivi su Box
+        try:
+            upload_to_box(prev_csv)
+        except Exception as e:
+            st.warning(f"⚠️ Upload preventivi su Box non riuscito: {e}")
+
+        st.success(f"✅ Preventivo generato: {out_path.name}")
+        st.rerun()
+    except Exception as e:
+        import traceback
+        st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
+
 
     # === ELENCO PREVENTIVI ===
     st.divider()
     st.markdown("### 📂 Elenco Preventivi Cliente")
 
     prev_cli = df_prev[df_prev["ClienteID"].astype(str) == sel_id]
-    # 🔹 Mostra solo i preventivi dell'utente loggato (tranne Fabio)
+
+    # 🔹 Mostra solo i preventivi dell'utente loggato (tranne Fabio/Admin)
     utente_corrente = st.session_state.get("user", "").lower()
     if "Autore" in df_prev.columns and utente_corrente not in ["fabio", "admin"]:
         prev_cli = prev_cli[prev_cli["Autore"].str.lower() == utente_corrente]
@@ -1246,24 +1260,50 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
         for i, r in prev_cli.iterrows():
             file_path = Path(r["Percorso"])
             c1, c2, c3, c4 = st.columns([2, 1, 1, 0.5])
-            c1.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}<br>📅 {r['DataCreazione']}", unsafe_allow_html=True)
+
+            # 🔹 Mostra info principali
+            c1.markdown(
+                f"**{r['NumeroOfferta']}** — {r['Template']}<br>📅 {r['DataCreazione']}",
+                unsafe_allow_html=True
+            )
             c2.markdown(f"👤 Autore: **{r['Autore']}**")
+
+            # 🔹 Pulsante per scaricare il file
             if file_path.exists():
                 with open(file_path, "rb") as f:
-                    st.download_button("⬇️ Scarica", f.read(), file_name=file_path.name,
-                                       mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                       key=f"dl_prev_{i}")
-            if role == "admin":
+                    st.download_button(
+                        "⬇️ Scarica",
+                        f.read(),
+                        file_name=file_path.name,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"dl_prev_{i}"
+                    )
+
+            # 🔹 Pulsante elimina — visibile a Fabio/admin o all’autore stesso
+            if utente_corrente in ["fabio", "admin"] or utente_corrente == str(r["Autore"]).lower():
                 if st.button("🗑 Elimina", key=f"del_prev_{i}"):
                     try:
+                        # Rimuove file locale
                         if file_path.exists():
                             file_path.unlink()
+
+                        # Rimuove la riga dal DataFrame
                         df_prev = df_prev.drop(i)
-                        save_preventivi(df_prev)
-                        st.success("🗑 Preventivo eliminato.")
+                        df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
+
+                        # 🔹 Aggiorna anche su Box
+                        try:
+                            upload_to_box(prev_csv)
+                            st.toast("📦 Preventivi aggiornati su Box", icon="✅")
+                        except Exception as e:
+                            st.warning(f"⚠️ Upload preventivi su Box non riuscito: {e}")
+
+                        st.success(f"🗑 Preventivo {r['NumeroOfferta']} eliminato correttamente.")
                         st.rerun()
+
                     except Exception as e:
-                        st.error(f"❌ Errore eliminazione: {e}")
+                        st.error(f"❌ Errore durante l'eliminazione: {e}")
+
 
 
 # =====================================

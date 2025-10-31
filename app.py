@@ -12,39 +12,45 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from docx import Document
 from docx.shared import Pt
 # =====================================
-# CONNESSIONE DATABASE MYSQL
+# CONNESSIONE DATABASE MYSQL — STABILE E MULTIUTENTE
 # =====================================
 import mysql.connector
 from mysql.connector import Error
+import pandas as pd
+import streamlit as st
 
 def get_connection():
-    """Connessione MySQL compatibile locale + cloud"""
+    """Connessione MySQL stabile e persistente (locale + cloud)."""
     try:
-        # ✅ Se esiste la sezione mysql nei secrets (Render / GitHub)
-        if "mysql" in st.secrets:
-            cfg = st.secrets["mysql"]
-            conn = mysql.connector.connect(
-                host=cfg["host"],
-                user=cfg["user"],
-                password=cfg["password"],
-                database=cfg["database"],
-                port=cfg.get("port", 3306),
-                connection_timeout=10
-            )
-        else:
-            # ✅ Fallback locale (esecuzione da Mac)
-            conn = mysql.connector.connect(
-                host="10.10.12.25",
-                user="fabio",
-                password="fabio",
-                database="crm_sht",
-                port=3306,
-                connection_timeout=10
-            )
+        # 🔹 Usa i dati dal file secrets se presenti (Render, GitHub, ecc.)
+        cfg = st.secrets["mysql"] if "mysql" in st.secrets else {
+            "host": "10.10.12.25",
+            "user": "fabio",
+            "password": "fabio",
+            "database": "crm_sht",
+            "port": 3306
+        }
+
+        # 🔹 Crea connessione con pool (più sessioni contemporanee)
+        conn = mysql.connector.connect(
+            host=cfg["host"],
+            user=cfg["user"],
+            password=cfg["password"],
+            database=cfg["database"],
+            port=cfg.get("port", 3306),
+            connection_timeout=10,
+            autocommit=True,
+            pool_name="crm_pool",
+            pool_size=10,
+            use_pure=True
+        )
         return conn
+
     except Error as e:
         st.error(f"⚠️ Errore connessione MySQL: {e}")
         return None
+
+
 def load_table(table_name: str) -> pd.DataFrame:
     """Legge una tabella MySQL e la restituisce come DataFrame."""
     conn = get_connection()
@@ -57,8 +63,7 @@ def load_table(table_name: str) -> pd.DataFrame:
         return df.fillna("")
     except Exception as e:
         st.error(f"⚠️ Errore durante la lettura di {table_name}: {e}")
-        st.stop()
-
+        return pd.DataFrame()
     finally:
         conn.close()
 

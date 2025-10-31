@@ -15,40 +15,36 @@ from docx.shared import Pt
 # CONNESSIONE DATABASE MYSQL
 # =====================================
 import mysql.connector
+from mysql.connector import Error
 
 def get_connection():
-    """Crea la connessione al database MySQL usando le credenziali in secrets.toml"""
-    return mysql.connector.connect(
-        host=st.secrets["mysql"]["host"],
-        database=st.secrets["mysql"]["database"],
-        user=st.secrets["mysql"]["user"],
-        password=st.secrets["mysql"]["password"]
-    )
-
-def load_table(table_name: str) -> pd.DataFrame:
-    """Legge una tabella MySQL e la restituisce come DataFrame"""
-    conn = get_connection()
-    df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
-    conn.close()
-    return df
-
-def save_table(df: pd.DataFrame, table_name: str):
-    """Aggiorna una tabella MySQL in modo sicuro (senza cancellare tutto)."""
-    conn = get_connection()
-    cur = conn.cursor()
-
-    # Costruisci la query dinamica per ogni riga
-    cols = df.columns.tolist()
-    placeholders = ",".join(["%s"] * len(cols))
-    col_list = ",".join([f"`{c}`" for c in cols])
-
-    for _, row in df.iterrows():
-        data = tuple(row)
-        sql = f"REPLACE INTO {table_name} ({col_list}) VALUES ({placeholders})"
-        cur.execute(sql, data)
-
-    conn.commit()
-    conn.close()
+    """Connessione MySQL compatibile locale + cloud"""
+    try:
+        # ✅ Se esiste la sezione mysql nei secrets (Render / GitHub)
+        if "mysql" in st.secrets:
+            cfg = st.secrets["mysql"]
+            conn = mysql.connector.connect(
+                host=cfg["host"],
+                user=cfg["user"],
+                password=cfg["password"],
+                database=cfg["database"],
+                port=cfg.get("port", 3306),
+                connection_timeout=10
+            )
+        else:
+            # ✅ Fallback locale (esecuzione da Mac)
+            conn = mysql.connector.connect(
+                host="10.10.12.25",
+                user="fabio",
+                password="fabio",
+                database="crm_sht",
+                port=3306,
+                connection_timeout=10
+            )
+        return conn
+    except Error as e:
+        st.error(f"⚠️ Errore connessione MySQL: {e}")
+        return None
 
 
 # =====================================

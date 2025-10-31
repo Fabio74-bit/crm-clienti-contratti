@@ -80,7 +80,10 @@ DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 # 🔁 BOX SYNC — Sincronizzazione automatica su Render
 # =====================================
 from boxsdk import OAuth2, Client
+from pathlib import Path
+import streamlit as st
 
+# === Connessione base ===
 def get_box_client():
     """Crea client Box autenticato usando i token salvati in st.secrets"""
     auth = OAuth2(
@@ -90,9 +93,11 @@ def get_box_client():
     )
     return Client(auth)
 
-BOX_FOLDER_ID = st.secrets["box"]["backup_folder_id"]  # ID della cartella Box principale
+BOX_FOLDER_ID = st.secrets["box"]["backup_folder_id"]      # 📁 cartella principale (CRM-SHT-Backup)
+BOX_OFFERS_ID = st.secrets["box"]["offers_folder_id"]      # 📁 cartella OFFERTE
 BOX_FILES = ["clienti.csv", "contratti.csv"]
 
+# === Sincronizzazione file principali ===
 @st.cache_data(ttl=15)
 def sync_from_box():
     """Scarica automaticamente gli ultimi file da Box (ogni 15 secondi)"""
@@ -105,6 +110,7 @@ def sync_from_box():
                 if item.name == name:
                     with open(local_path, "wb") as f:
                         item.download_to(f)
+                    st.toast(f"📥 File aggiornato da Box: {name}", icon="✅")
                     break
         except Exception as e:
             st.warning(f"⚠️ Sync fallita per {name}: {e}")
@@ -115,59 +121,94 @@ def upload_to_box(path: Path):
     folder = client.folder(BOX_FOLDER_ID)
     try:
         name = path.name
-        # Se esiste già → aggiorna, altrimenti crea
         existing = [f for f in folder.get_items(limit=200) if f.name == name]
         if existing:
             existing[0].update_contents(str(path))
         else:
             folder.upload(str(path))
+        st.toast(f"📤 File sincronizzato su Box: {name}", icon="✅")
     except Exception as e:
         st.warning(f"⚠️ Upload fallito per {path.name}: {e}")
 
-# Esegui sync iniziale all’avvio
-st.info("🔁 Sincronizzazione dati da Box in corso…")
-sync_from_box()
-# =====================================
-# 📂 SALVATAGGIO PREVENTIVI SU BOX (cartelle clienti in OFFERTE)
-# =====================================
-
-def save_preventivo_to_box(file_path: Path, nome_cliente: str):
-    """
-    Carica un preventivo su Box nella cartella OFFERTE.
-    Se esiste già una cartella con il nome del cliente, salva lì.
-    Altrimenti la crea automaticamente.
-    """
+# === Sincronizzazione sottocartella Gabriele ===
+def sync_gabriele_files():
+    """Carica anche i file di Gabriele su Box, mantenendo la struttura /gabriele/"""
     client = get_box_client()
-    root_offers_id = st.secrets["box"]["offers_folder_id"]
-    root_offers = client.folder(root_offers_id)
-
-    # 🔹 Nome cartella cliente (solo lettere/numeri)
-    safe_name = "".join(c for c in nome_cliente if c.isalnum() or c in "-_").strip() or "SenzaNome"
+    root = client.folder(BOX_FOLDER_ID)
 
     try:
-        # 🔍 Cerca se la cartella del cliente esiste già
+        # Crea o trova la cartella "gabriele"
         subfolder = None
-        for item in root_offers.get_items(limit=500):
-            if item.name.lower() == safe_name.lower():
+        for item in root.get_items(limit=500):
+            if item.name.lower() == "gabriele":
                 subfolder = item
                 break
-
-        # 🆕 Se non esiste, la crea
         if not subfolder:
-            subfolder = root_offers.create_subfolder(safe_name)
-            st.toast(f"📁 Creata nuova cartella cliente su Box: {safe_name}", icon="🆕")
+            subfolder = root.create_subfolder("gabriele")
 
-        # 🔼 Carica o aggiorna il file preventivo
-        existing = [f for f in subfolder.get_items(limit=200) if f.name == file_path.name]
+        # Carica o aggiorna i file
+        base_path = Path("storage/gabriele")
+        for fname in ["clienti.csv", "contratti.csv"]:
+            fpath = base_path / fname
+            if not fpath.exists():
+                continue
+
+            existing = [f for f in subfolder.get_items(limit=200) if f.name == fname]
+            if existing:
+                existing[0].update_contents(str(fpath))
+            else:
+                subfolder.upload(str(fpath))
+
+        st.toast("📤 File di Gabriele sincronizzati su Box", icon="✅")
+
+    except Exception as e:
+        st.warning(f"⚠️ Errore sync Gabriele: {e}")
+
+# === Salvataggio preventivi ===
+def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fabio"):
+    """Salva il preventivo nella cartella OFFERTE / [autore] / [cliente]."""
+    client = get_box_client()
+    root_offers = client.folder(BOX_OFFERS_ID)
+    autore = autore.lower().strip()
+    safe_cliente = "".join(c for c in nome_cliente if c.isalnum() or c in "-_ ").strip() or "SenzaNome"
+
+    try:
+        # Crea o trova la sottocartella autore (es. /OFFERTE/gabriele)
+        subfolder_autore = None
+        for item in root_offers.get_items(limit=200):
+            if item.name.lower() == autore:
+                subfolder_autore = item
+                break
+        if not subfolder_autore:
+            subfolder_autore = root_offers.create_subfolder(autore)
+
+        # Crea o trova la sottocartella cliente
+        subfolder_cliente = None
+        for item in subfolder_autore.get_items(limit=500):
+            if item.name.lower() == safe_cliente.lower():
+                subfolder_cliente = item
+                break
+        if not subfolder_cliente:
+            subfolder_cliente = subfolder_autore.create_subfolder(safe_cliente)
+
+        # Carica o aggiorna il preventivo
+        existing = [f for f in subfolder_cliente.get_items(limit=200) if f.name == file_path.name]
         if existing:
             existing[0].update_contents(str(file_path))
         else:
-            subfolder.upload(str(file_path))
+            subfolder_cliente.upload(str(file_path))
 
-        st.toast(f"📤 Preventivo salvato su Box: {safe_name}/{file_path.name}", icon="✅")
+        st.toast(f"📤 Preventivo salvato su Box: {autore}/{safe_cliente}/{file_path.name}", icon="✅")
 
     except Exception as e:
-        st.warning(f"⚠️ Errore upload preventivo su Box: {e}")
+        st.warning(f"⚠️ Upload preventivo fallito: {e}")
+
+# === Sync iniziale all’avvio ===
+st.info("🔁 Sincronizzazione dati da Box in corso…")
+sync_from_box()
+sync_gabriele_files()
+
+
 
 # =====================================
 # COLONNE STANDARD CSV
@@ -1147,7 +1188,13 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             out_path = PREVENTIVI_DIR / nome_file
             doc.save(out_path)
-            save_preventivo_to_box(out_path, nome_cliente)
+            
+            # 🔹 Salva anche su Box nella cartella OFFERTE / [autore] / [cliente]
+            try:
+                autore = st.session_state.get("user", "fabio")
+                save_preventivo_to_box(out_path, nome_cliente, autore=autore)
+            except Exception as e:
+                st.warning(f"⚠️ Salvataggio preventivo su Box non riuscito: {e}")
             nuova_riga = {
                 "ClienteID": sel_id,
                 "NumeroOfferta": num_off,

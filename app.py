@@ -83,7 +83,6 @@ from boxsdk import OAuth2, Client
 from pathlib import Path
 import streamlit as st
 
-# === Connessione base ===
 def get_box_client():
     """Crea client Box autenticato usando i token salvati in st.secrets"""
     auth = OAuth2(
@@ -95,22 +94,21 @@ def get_box_client():
 
 BOX_FOLDER_ID = st.secrets["box"]["backup_folder_id"]      # 📁 cartella principale (CRM-SHT-Backup)
 BOX_OFFERS_ID = st.secrets["box"]["offers_folder_id"]      # 📁 cartella OFFERTE
-BOX_FILES = ["clienti.csv", "contratti.csv"]
+BOX_FILES = ["clienti.csv", "contratti.csv", "preventivi.csv"]
 
-# === Sincronizzazione file principali ===
 def sync_from_box():
-    """Scarica automaticamente gli ultimi file da Box"""
+    """Scarica automaticamente i file principali da Box"""
     client = get_box_client()
     folder = client.folder(BOX_FOLDER_ID)
     results = []
     for name in BOX_FILES:
         local_path = STORAGE_DIR / name
         try:
-            for item in folder.get_items(limit=100):
+            for item in folder.get_items(limit=200):
                 if item.name == name:
                     with open(local_path, "wb") as f:
                         item.download_to(f)
-                    results.append(f"✅ {name}")
+                    results.append(f"📥 File aggiornato da Box: {name}")
                     break
         except Exception as e:
             results.append(f"⚠️ Errore {name}: {e}")
@@ -118,7 +116,7 @@ def sync_from_box():
 
 
 def upload_to_box(path: Path):
-    """Carica un file su Box, sovrascrivendo la versione precedente"""
+    """Carica o aggiorna un file su Box"""
     client = get_box_client()
     folder = client.folder(BOX_FOLDER_ID)
     try:
@@ -132,13 +130,12 @@ def upload_to_box(path: Path):
     except Exception as e:
         st.warning(f"⚠️ Upload fallito per {path.name}: {e}")
 
-# === Sincronizzazione sottocartella Gabriele (solo se loggato Gabriele) ===
+
 def sync_gabriele_files_if_needed():
-    """Esegue la sync della cartella Gabriele solo se l’utente loggato è Gabriele."""
+    """Scarica la sottocartella Gabriele solo se è loggato"""
     user = st.session_state.get("user", "").lower().strip()
     if user != "gabriele":
-        return  # ⛔ niente sync se non è Gabriele
-
+        return
     st.info("🔁 Sincronizzazione dati di Gabriele da Box in corso…")
     client = get_box_client()
     root = client.folder(BOX_FOLDER_ID)
@@ -153,10 +150,9 @@ def sync_gabriele_files_if_needed():
 
         base_path = Path("storage/gabriele")
         base_path.mkdir(parents=True, exist_ok=True)
-
         for name in ["clienti.csv", "contratti.csv"]:
             local_path = base_path / name
-            for item in subfolder.get_items(limit=100):
+            for item in subfolder.get_items(limit=200):
                 if item.name == name:
                     with open(local_path, "wb") as f:
                         item.download_to(f)
@@ -165,14 +161,13 @@ def sync_gabriele_files_if_needed():
     except Exception as e:
         st.warning(f"⚠️ Errore sync Gabriele: {e}")
 
-# === Salvataggio preventivi ===
+
 def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fabio"):
     """Salva il preventivo nella cartella OFFERTE / [autore] / [cliente]."""
     client = get_box_client()
     root_offers = client.folder(BOX_OFFERS_ID)
     autore = autore.lower().strip()
     safe_cliente = "".join(c for c in nome_cliente if c.isalnum() or c in "-_ ").strip() or "SenzaNome"
-
     try:
         subfolder_autore = None
         for item in root_offers.get_items(limit=200):
@@ -197,21 +192,21 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
             subfolder_cliente.upload(str(file_path))
 
         st.toast(f"📤 Preventivo salvato su Box: {autore}/{safe_cliente}/{file_path.name}", icon="✅")
-
     except Exception as e:
         st.warning(f"⚠️ Upload preventivo fallito: {e}")
 
 
-# === Sync iniziale all’avvio (ottimizzata per velocità) ===
+# === Esegui la sync iniziale all’avvio ===
 st.info("🔁 Sincronizzazione dati da Box in corso…")
 
 try:
     results = sync_from_box()
     for r in results:
         st.toast(r, icon="✅")
-    sync_gabriele_files_if_needed()  # ✅ ora sincronizza solo se è Gabriele
+    sync_gabriele_files_if_needed()
 except Exception as e:
     st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
+
 
 
 
@@ -1137,36 +1132,57 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
     st.markdown("### 🧾 Genera Nuovo Preventivo")
 
+    PREVENTIVI_FILE = STORAGE_DIR / "preventivi.csv"
+
+    # 🔹 Carica preventivi esistenti (anche da Box se presente)
+    def load_preventivi():
+        try:
+            # Se esiste in locale
+            if PREVENTIVI_FILE.exists():
+                df_prev = pd.read_csv(PREVENTIVI_FILE, dtype=str).fillna("")
+            else:
+                df_prev = pd.DataFrame(columns=["NumeroOfferta", "ClienteID", "Cliente", "Autore", "Template", "NomeFile", "Percorso", "DataCreazione"])
+            return df_prev
+        except Exception as e:
+            st.warning(f"⚠️ Errore caricamento preventivi: {e}")
+            return pd.DataFrame(columns=["NumeroOfferta","ClienteID","Cliente","Autore","Template","NomeFile","Percorso","DataCreazione"])
+
+    # 🔹 Salva e sincronizza preventivi su Box
+    def save_preventivi(df_prev):
+        try:
+            df_prev.to_csv(PREVENTIVI_FILE, index=False, encoding="utf-8-sig")
+            upload_to_box(PREVENTIVI_FILE)
+            st.toast("💾 Elenco preventivi sincronizzato su Box", icon="✅")
+        except Exception as e:
+            st.warning(f"⚠️ Impossibile sincronizzare preventivi su Box: {e}")
+
+    df_prev = load_preventivi()
+
+    # 🔹 Calcolo numero progressivo globale (non per cliente)
+    anno = datetime.now().year
+    next_num = len(df_prev) + 1
+    num_off = f"OFF-{anno}-{next_num:04d}"
+
+    nome_cliente = cliente.get("RagioneSociale", "")
+    nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
+    nome_file = f"{num_off}_{nome_sicuro}.docx"
+
     TEMPLATE_OPTIONS = {
         "Offerta A4": "Offerta_A4.docx",
         "Offerta A3": "Offerta_A3.docx",
         "Centralino": "Offerta_Centralino.docx",
         "Varie": "Offerta_Varie.docx",
     }
-    PREVENTIVI_DIR = STORAGE_DIR / "preventivi"
-    PREVENTIVI_DIR.mkdir(parents=True, exist_ok=True)
-    prev_csv = STORAGE_DIR / "preventivi.csv"
-
-    if prev_csv.exists():
-        df_prev = pd.read_csv(prev_csv, dtype=str).fillna("")
-    else:
-        df_prev = pd.DataFrame(columns=["ClienteID","NumeroOfferta","Template","NomeFile","Percorso","DataCreazione"])
-
-    anno = datetime.now().year
-    nome_cliente = cliente.get("RagioneSociale", "")
-    nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
-    num_off = f"OFF-{anno}-{nome_sicuro}-{len(df_prev[df_prev['ClienteID'].astype(str) == sel_id]) + 1:03d}"
 
     with st.form(f"frm_prev_{sel_id}"):
         st.text_input("Numero Offerta", num_off, disabled=True)
-        nome_file = st.text_input("Nome File", f"{num_off}.docx")
         template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))
         genera_btn = st.form_submit_button("💾 Genera Preventivo")
 
     if genera_btn:
         try:
             from docx import Document
-            tpl_path = STORAGE_DIR / "templates" / TEMPLATE_OPTIONS[template]
+            tpl_path = TEMPLATES_DIR / TEMPLATE_OPTIONS[template]
 
             if not tpl_path.exists():
                 st.error(f"❌ Template non trovato: {tpl_path}")
@@ -1179,10 +1195,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 "CITTA": cliente.get("Citta", ""),
                 "NUMERO_OFFERTA": num_off,
                 "DATA": datetime.now().strftime("%d/%m/%Y"),
-                "ULTIMO_RECALL": fmt_date(cliente.get("UltimoRecall")),
-                "PROSSIMO_RECALL": fmt_date(cliente.get("ProssimoRecall")),
-                "ULTIMA_VISITA": fmt_date(cliente.get("UltimaVisita")),
-                "PROSSIMA_VISITA": fmt_date(cliente.get("ProssimaVisita")),
             }
 
             for p in doc.paragraphs:
@@ -1193,70 +1205,61 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
             out_path = PREVENTIVI_DIR / nome_file
             doc.save(out_path)
-            
-            # 🔹 Salva anche su Box nella cartella OFFERTE / [autore] / [cliente]
-            try:
-                autore = st.session_state.get("user", "fabio").lower().strip()
-                st.info(f"📦 Tentativo di salvataggio preventivo su Box per {autore} → {out_path.name}")
-                save_preventivo_to_box(out_path, nome_cliente, autore=autore)
-            except Exception as e:
-                st.warning(f"⚠️ Salvataggio preventivo su Box non riuscito: {e}")
 
-                
+            autore = st.session_state.get("user", "fabio").lower().strip()
+            save_preventivo_to_box(out_path, nome_cliente, autore=autore)
+
             nuova_riga = {
-                "ClienteID": sel_id,
                 "NumeroOfferta": num_off,
+                "ClienteID": sel_id,
+                "Cliente": nome_cliente,
+                "Autore": autore,
                 "Template": TEMPLATE_OPTIONS[template],
                 "NomeFile": nome_file,
                 "Percorso": str(out_path),
                 "DataCreazione": datetime.now().strftime("%d/%m/%Y %H:%M"),
             }
-            df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
-            df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
 
-            st.success(f"✅ Preventivo generato: {out_path.name}")
+            df_prev = pd.concat([df_prev, pd.DataFrame([nuova_riga])], ignore_index=True)
+            save_preventivi(df_prev)
+
+            st.success(f"✅ Preventivo generato e salvato: {nome_file}")
             st.rerun()
         except Exception as e:
             import traceback
             st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
-
 
     # === ELENCO PREVENTIVI ===
     st.divider()
     st.markdown("### 📂 Elenco Preventivi Cliente")
 
     prev_cli = df_prev[df_prev["ClienteID"].astype(str) == sel_id]
+
     if prev_cli.empty:
         st.info("Nessun preventivo per questo cliente.")
     else:
         prev_cli = prev_cli.sort_values("DataCreazione", ascending=False)
         for i, r in prev_cli.iterrows():
             file_path = Path(r["Percorso"])
-            e1, e2, e3 = st.columns([0.6, 0.25, 0.15])
-            with e1:
-                st.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}  \n📅 {r['DataCreazione']}")
-            with e2:
-                if file_path.exists():
-                    with open(file_path, "rb") as f:
-                        st.download_button(
-                            "⬇️ Scarica", f.read(),
-                            file_name=file_path.name,
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            key=f"dl_{sel_id}_{i}_{int(time.time()*1000)}"
-                        )
-            with e3:
-                if role == "admin":
-                    if st.button("🗑 Elimina", key=f"del_prev_{sel_id}_{i}_{int(time.time()*1000)}"):
-                        try:
-                            if file_path.exists():
-                                file_path.unlink()
-                            df_prev = df_prev.drop(i)
-                            df_prev.to_csv(prev_csv, index=False, encoding="utf-8-sig")
-                            st.success("🗑 Preventivo eliminato.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Errore eliminazione: {e}")
-
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 0.5])
+            c1.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}<br>📅 {r['DataCreazione']}", unsafe_allow_html=True)
+            c2.markdown(f"👤 Autore: **{r['Autore']}**")
+            if file_path.exists():
+                with open(file_path, "rb") as f:
+                    st.download_button("⬇️ Scarica", f.read(), file_name=file_path.name,
+                                       mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                       key=f"dl_prev_{i}")
+            if role == "admin":
+                if st.button("🗑 Elimina", key=f"del_prev_{i}"):
+                    try:
+                        if file_path.exists():
+                            file_path.unlink()
+                        df_prev = df_prev.drop(i)
+                        save_preventivi(df_prev)
+                        st.success("🗑 Preventivo eliminato.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore eliminazione: {e}")
 
 
 # =====================================
@@ -2571,6 +2574,14 @@ def main():
     # --- Caricamento dati base (Fabio) ---
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
+    # === Sincronizza e carica preventivi ===
+    PREVENTIVI_FILE = STORAGE_DIR / "preventivi.csv"
+    if not PREVENTIVI_FILE.exists():
+        try:
+            st.info("📦 Scarico elenco preventivi da Box…")
+            sync_from_box()  # lo include
+        except Exception as e:
+            st.warning(f"⚠️ Errore caricamento preventivi da Box: {e}")
 
         # --- Caricamento dati Gabriele ---
     try:

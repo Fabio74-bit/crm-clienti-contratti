@@ -59,7 +59,9 @@ def load_table(table_name: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        df = pd.read_sql(f"SELECT * FROM {table_name}", conn)
+        query = f"SELECT * FROM {table_name}"
+        df = pd.read_sql_query(sql=query, con=conn)
+
         return df.fillna("")
     except Exception as e:
         st.error(f"⚠️ Errore durante la lettura di {table_name}: {e}")
@@ -2560,6 +2562,38 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
         st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     return df_cli, df_ct
+# =====================================
+# FIX CONTRATTI (DATE + NUMERI)
+# =====================================
+def fix_contratti_format(df_ct: pd.DataFrame) -> pd.DataFrame:
+    """
+    Converte formati e tipi numerici dei contratti.
+    Gestisce colonne mancanti o non numeriche senza errori.
+    """
+    if df_ct.empty:
+        return df_ct
+
+    try:
+        # 🔹 Correggi formati data
+        if "DataInizio" in df_ct.columns:
+            df_ct["DataInizio"] = pd.to_datetime(
+                df_ct["DataInizio"], errors="coerce", dayfirst=True
+            )
+        if "DataFine" in df_ct.columns:
+            df_ct["DataFine"] = pd.to_datetime(
+                df_ct["DataFine"], errors="coerce", dayfirst=True
+            )
+
+        # 🔹 Converte i campi numerici in float
+        for c in ["TotaleRata", "TotRata"]:
+            if c in df_ct.columns:
+                df_ct[c] = pd.to_numeric(df_ct[c], errors="coerce").fillna(0)
+
+        return df_ct
+
+    except Exception as e:
+        st.warning(f"⚠️ Errore durante fix_contratti_format: {e}")
+        return df_ct
 
 # =====================================
 # MAIN APP — versione definitiva MySQL (multi-proprietario e ruoli)
@@ -2603,6 +2637,7 @@ def main():
     try:
         df_cli_main = load_table("clienti")
         df_ct_main = load_table("contratti")
+        df_ct_main = fix_contratti_format(df_ct_main)
         st.success("✅ Dati caricati da MySQL con successo")
     except Exception as e:
         st.error(f"❌ Errore connessione MySQL: {e}")

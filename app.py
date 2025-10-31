@@ -77,7 +77,7 @@ TEMPLATE_OPTIONS = {
 # Durate standard contratti
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 # =====================================
-# 🔁 BOX SYNC — Sincronizzazione automatica su Render
+# 🔁 BOX SYNC — Sincronizzazione automatica su Render (ottimizzata)
 # =====================================
 from boxsdk import OAuth2, Client
 from pathlib import Path
@@ -111,7 +111,7 @@ def sync_from_box():
                 if item.name == name:
                     with open(local_path, "wb") as f:
                         item.download_to(f)
-                    results.append(f"✅ {name}")
+                    results.append(f"📥 File aggiornato: {name}")
                     break
         except Exception as e:
             results.append(f"⚠️ Errore {name}: {e}")
@@ -133,9 +133,10 @@ def upload_to_box(path: Path):
     except Exception as e:
         st.warning(f"⚠️ Upload fallito per {path.name}: {e}")
 
+
 # === Sincronizzazione sottocartella Gabriele ===
 def sync_gabriele_files():
-    """Carica anche i file di Gabriele su Box, mantenendo la struttura /gabriele/"""
+    """Carica o aggiorna i file di Gabriele su Box nella sottocartella /gabriele/"""
     client = get_box_client()
     root = client.folder(BOX_FOLDER_ID)
 
@@ -149,7 +150,7 @@ def sync_gabriele_files():
         if not subfolder:
             subfolder = root.create_subfolder("gabriele")
 
-        # Carica o aggiorna i file
+        # Carica o aggiorna i file locali
         base_path = Path("storage/gabriele")
         for fname in ["clienti.csv", "contratti.csv"]:
             fpath = base_path / fname
@@ -166,6 +167,7 @@ def sync_gabriele_files():
 
     except Exception as e:
         st.warning(f"⚠️ Errore sync Gabriele: {e}")
+
 
 # === Salvataggio preventivi ===
 def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fabio"):
@@ -206,17 +208,25 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
     except Exception as e:
         st.warning(f"⚠️ Upload preventivo fallito: {e}")
 
-# === Sync iniziale all’avvio (versione sicura Streamlit 2025) ===
-st.info("🔁 Sincronizzazione dati da Box in corso…")
 
-try:
-    results = sync_from_box()
-    for r in results:
-        st.toast(r, icon="✅")
-    sync_gabriele_files()
-except Exception as e:
-    st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
+# === Sync iniziale all’avvio (una sola volta per sessione) ===
+if "box_synced_once" not in st.session_state:
+    st.info("🔁 Sincronizzazione iniziale da Box in corso…")
+    try:
+        results = sync_from_box()
+        for r in results:
+            st.toast(r, icon="✅")
+        sync_gabriele_files()
+        st.session_state["box_synced_once"] = True
+    except Exception as e:
+        st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
+else:
+    st.caption("✅ File già sincronizzati da Box in questa sessione.")
 
+# === Pulsante manuale di aggiornamento ===
+if st.sidebar.button("🔁 Aggiorna dati da Box"):
+    st.session_state.pop("box_synced_once", None)
+    st.rerun()
 
 
 

@@ -1127,6 +1127,23 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.rerun()
         except Exception as e:
             st.error(f"❌ Errore salvataggio recall/visite: {e}")
+# === Identifica cliente selezionato (compatibilità preventiva) ===
+try:
+    if "sel_cli_ct" in st.session_state:
+        sel_label = st.session_state["sel_cli_ct"]
+        sel_id = str(sel_label).split(" — ")[0]
+    elif "selected_cliente" in st.session_state:
+        sel_id = str(st.session_state["selected_cliente"])
+    else:
+        sel_id = None
+
+    if sel_id and sel_id in df_cli["ClienteID"].astype(str).values:
+        nome_cliente = df_cli.loc[df_cli["ClienteID"].astype(str) == sel_id, "RagioneSociale"].values[0]
+    else:
+        nome_cliente = ""
+except Exception:
+    sel_id = None
+    nome_cliente = ""
 
 # === GENERA PREVENTIVO ===
 st.divider()
@@ -1181,7 +1198,7 @@ else:
 nuovo_progressivo = ultimo_num + 1
 num_off = f"OFF-{anno}-{nome_sicuro}-{nuovo_progressivo:03d}"
 
-with st.form(f"frm_prev_{sel_id}"):
+with st.form(f"frm_prev_{sel_id or 'new'}"):
     st.text_input("Numero Offerta", num_off, disabled=True)
     nome_file = st.text_input("Nome File", f"{num_off}.docx")
     template = st.selectbox("Template", list(TEMPLATE_OPTIONS.keys()))

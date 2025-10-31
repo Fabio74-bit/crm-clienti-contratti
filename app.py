@@ -2556,9 +2556,14 @@ def main():
     st.write("✅ Avvio CRM SHT — Buon Lavoro")
 
     # --- LOGIN (mostra schermata se non autenticato) ---
-    if not st.session_state.get("logged_in", False):
-        do_login_fullscreen()
-        st.stop()
+    if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
+        user, role = do_login_fullscreen()
+        if not user:
+            st.stop()
+    else:
+        user = st.session_state.get("user", "")
+        role = st.session_state.get("role", "")
+
 
     user = st.session_state.get("user", "")
     role = st.session_state.get("role", "")

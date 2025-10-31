@@ -1149,7 +1149,17 @@ else:
     df_prev = pd.DataFrame(columns=["NumeroOfferta","ClienteID","Cliente","Autore","Template","NomeFile","Percorso","DataCreazione"])
 
 anno = datetime.now().year
-nome_cliente = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].values[0] if sel_id in df_cli["ClienteID"].values else ""
+# Recupera il cliente selezionato in modo sicuro
+try:
+    if "sel_cli" in st.session_state:
+        sel_id = st.session_state["sel_cli"]
+    elif "sel_cli_ct" in st.session_state:
+        sel_id = st.session_state["sel_cli_ct"].split(" — ")[0]
+    nome_cliente = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].values[0]
+except Exception:
+    nome_cliente = ""
+    st.warning("⚠️ Nessun cliente selezionato o cliente non trovato.")
+
 nome_sicuro = "".join(c for c in nome_cliente if c.isalnum())[:6].upper()
 
 # === Numerazione sicura e globale ===

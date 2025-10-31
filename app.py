@@ -57,7 +57,8 @@ def load_table(table_name: str) -> pd.DataFrame:
         return df.fillna("")
     except Exception as e:
         st.error(f"⚠️ Errore durante la lettura di {table_name}: {e}")
-        return pd.DataFrame()
+        st.stop()
+
     finally:
         conn.close()
 

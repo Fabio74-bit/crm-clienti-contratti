@@ -77,7 +77,7 @@ TEMPLATE_OPTIONS = {
 # Durate standard contratti
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 # =====================================
-# 🔁 BOX SYNC — Sincronizzazione automatica su Render (smart multiutente)
+# 🔁 BOX SYNC — Sincronizzazione automatica su Render
 # =====================================
 from boxsdk import OAuth2, Client
 from pathlib import Path
@@ -98,50 +98,22 @@ BOX_OFFERS_ID = st.secrets["box"]["offers_folder_id"]      # 📁 cartella OFFER
 BOX_FILES = ["clienti.csv", "contratti.csv"]
 
 # === Sincronizzazione file principali ===
-def sync_from_box(user: str):
-    """Scarica automaticamente solo i file del proprio utente"""
+def sync_from_box():
+    """Scarica automaticamente gli ultimi file da Box"""
     client = get_box_client()
     folder = client.folder(BOX_FOLDER_ID)
     results = []
-
-    # 🔹 Fabio → file principali
-    if user.lower() == "fabio":
-        for name in BOX_FILES:
-            local_path = STORAGE_DIR / name
-            try:
-                for item in folder.get_items(limit=100):
-                    if item.name == name:
-                        with open(local_path, "wb") as f:
-                            item.download_to(f)
-                        results.append(f"📥 File aggiornato: {name}")
-                        break
-            except Exception as e:
-                results.append(f"⚠️ Errore {name}: {e}")
-
-    # 🔹 Gabriele → file nella sottocartella /gabriele/
-    elif user.lower() == "gabriele":
+    for name in BOX_FILES:
+        local_path = STORAGE_DIR / name
         try:
-            subfolder = None
-            for item in folder.get_items(limit=200):
-                if item.name.lower() == "gabriele":
-                    subfolder = item
+            for item in folder.get_items(limit=100):
+                if item.name == name:
+                    with open(local_path, "wb") as f:
+                        item.download_to(f)
+                    results.append(f"✅ {name}")
                     break
-            if not subfolder:
-                subfolder = folder.create_subfolder("gabriele")
-
-            base_path = Path("storage/gabriele")
-            base_path.mkdir(parents=True, exist_ok=True)
-            for name in BOX_FILES:
-                local_path = base_path / name
-                for item in subfolder.get_items(limit=100):
-                    if item.name == name:
-                        with open(local_path, "wb") as f:
-                            item.download_to(f)
-                        results.append(f"📥 File aggiornato (Gabriele): {name}")
-                        break
         except Exception as e:
-            results.append(f"⚠️ Errore sync Gabriele: {e}")
-
+            results.append(f"⚠️ Errore {name}: {e}")
     return results
 
 
@@ -160,6 +132,38 @@ def upload_to_box(path: Path):
     except Exception as e:
         st.warning(f"⚠️ Upload fallito per {path.name}: {e}")
 
+# === Sincronizzazione sottocartella Gabriele (solo se loggato Gabriele) ===
+def sync_gabriele_files_if_needed():
+    """Esegue la sync della cartella Gabriele solo se l’utente loggato è Gabriele."""
+    user = st.session_state.get("user", "").lower().strip()
+    if user != "gabriele":
+        return  # ⛔ niente sync se non è Gabriele
+
+    st.info("🔁 Sincronizzazione dati di Gabriele da Box in corso…")
+    client = get_box_client()
+    root = client.folder(BOX_FOLDER_ID)
+    try:
+        subfolder = None
+        for item in root.get_items(limit=500):
+            if item.name.lower() == "gabriele":
+                subfolder = item
+                break
+        if not subfolder:
+            subfolder = root.create_subfolder("gabriele")
+
+        base_path = Path("storage/gabriele")
+        base_path.mkdir(parents=True, exist_ok=True)
+
+        for name in ["clienti.csv", "contratti.csv"]:
+            local_path = base_path / name
+            for item in subfolder.get_items(limit=100):
+                if item.name == name:
+                    with open(local_path, "wb") as f:
+                        item.download_to(f)
+                    st.toast(f"📥 File aggiornato da Box (Gabriele): {name}", icon="✅")
+                    break
+    except Exception as e:
+        st.warning(f"⚠️ Errore sync Gabriele: {e}")
 
 # === Salvataggio preventivi ===
 def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fabio"):
@@ -170,7 +174,6 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
     safe_cliente = "".join(c for c in nome_cliente if c.isalnum() or c in "-_ ").strip() or "SenzaNome"
 
     try:
-        # Crea o trova la sottocartella autore (es. /OFFERTE/gabriele)
         subfolder_autore = None
         for item in root_offers.get_items(limit=200):
             if item.name.lower() == autore:
@@ -179,7 +182,6 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
         if not subfolder_autore:
             subfolder_autore = root_offers.create_subfolder(autore)
 
-        # Crea o trova la sottocartella cliente
         subfolder_cliente = None
         for item in subfolder_autore.get_items(limit=500):
             if item.name.lower() == safe_cliente.lower():
@@ -188,7 +190,6 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
         if not subfolder_cliente:
             subfolder_cliente = subfolder_autore.create_subfolder(safe_cliente)
 
-        # Carica o aggiorna il preventivo
         existing = [f for f in subfolder_cliente.get_items(limit=200) if f.name == file_path.name]
         if existing:
             existing[0].update_contents(str(file_path))
@@ -201,25 +202,16 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
         st.warning(f"⚠️ Upload preventivo fallito: {e}")
 
 
-# === Sync iniziale all’avvio (una sola volta per sessione e per utente) ===
-utente_corrente = st.session_state.get("user", "fabio")
+# === Sync iniziale all’avvio (ottimizzata per velocità) ===
+st.info("🔁 Sincronizzazione dati da Box in corso…")
 
-if f"box_synced_{utente_corrente}" not in st.session_state:
-    st.info(f"🔁 Sincronizzazione iniziale da Box per {utente_corrente.title()} in corso…")
-    try:
-        results = sync_from_box(utente_corrente)
-        for r in results:
-            st.toast(r, icon="✅")
-        st.session_state[f"box_synced_{utente_corrente}"] = True
-    except Exception as e:
-        st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
-else:
-    st.caption(f"✅ File di {utente_corrente.title()} già sincronizzati in questa sessione.")
-
-# === Pulsante manuale di aggiornamento ===
-if st.sidebar.button("🔁 Aggiorna dati da Box"):
-    st.session_state.pop(f"box_synced_{utente_corrente}", None)
-    st.rerun()
+try:
+    results = sync_from_box()
+    for r in results:
+        st.toast(r, icon="✅")
+    sync_gabriele_files_if_needed()  # ✅ ora sincronizza solo se è Gabriele
+except Exception as e:
+    st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
 
 
 
@@ -1204,11 +1196,12 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             
             # 🔹 Salva anche su Box nella cartella OFFERTE / [autore] / [cliente]
             try:
-                autore = st.session_state.get("user", "fabio")
+                autore = st.session_state.get("user", "fabio").lower().strip()
                 st.info(f"📦 Tentativo di salvataggio preventivo su Box per {autore} → {out_path.name}")
                 save_preventivo_to_box(out_path, nome_cliente, autore=autore)
             except Exception as e:
                 st.warning(f"⚠️ Salvataggio preventivo su Box non riuscito: {e}")
+
                 
             nuova_riga = {
                 "ClienteID": sel_id,
@@ -2634,6 +2627,11 @@ def main():
     else:
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+    
+    # 🔒 Se l’utente loggato è Gabriele, forza sempre i suoi file
+    if user.lower().strip() == "gabriele":
+        df_cli, df_ct = df_cli_gab, df_ct_gab
+
 
     # --- Correzione date automatica una sola volta ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)

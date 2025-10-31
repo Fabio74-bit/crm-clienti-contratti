@@ -2558,7 +2558,7 @@ def main():
     try:
         # 🔹 tenta di leggere dal database MySQL
         df_cli_main = load_table("clienti")
-        df_ct_main = load_table("contratti_clienti")
+        df_ct_main = load_table("contratti")
         st.success("✅ Dati caricati da MySQL")
     except Exception as e:
         st.error(f"⚠️ Errore connessione MySQL: {e}")

@@ -2516,12 +2516,12 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
     return df_cli, df_ct
 
 # =====================================
-# MAIN APP — versione 2025 GitHub + Streamlit Cloud (multi-proprietario)
+# MAIN APP — versione definitiva 2025 (solo MySQL, con ruoli e visibilità)
 # =====================================
 def main():
-    st.write("✅ Avvio CRM SHT — Buon Lavoro")
+    st.write("✅ Avvio CRM SHT — Connessione diretta MySQL")
 
-    # --- LOGIN (mostra schermata se non autenticato) ---
+    # --- LOGIN ---
     if not st.session_state.get("logged_in", False):
         do_login_fullscreen()
         st.stop()
@@ -2533,18 +2533,14 @@ def main():
         st.warning("⚠️ Nessun utente loggato — ricarica la pagina.")
         st.stop()
 
-    # --- Ruolo e diritti di scrittura ---
-    if user == "fabio":
+    # --- RUOLI ---
+    if role == "admin" or user in ["fabio", "emanuela", "claudia"]:
         ruolo_scrittura = "full"
-    elif user in ["emanuela", "claudia"]:
-        ruolo_scrittura = "full"
-    elif user in ["giulia", "antonella", "gabriele", "laura", "annalisa"]:
-        ruolo_scrittura = "limitato"
     else:
         ruolo_scrittura = "limitato"
 
-    # --- Selettore visibilità ---
-    if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
+    # --- SELEZIONE VISIBILITÀ ---
+    if user in ["fabio", "emanuela", "claudia", "giulia", "antonella"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
             "📂 Visualizza clienti di:",
@@ -2554,87 +2550,48 @@ def main():
     else:
         visibilita_scelta = "Fabio"
 
-    # --- Caricamento dati base (Fabio) ---
+    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
+    st.sidebar.info(f"📊 Dati caricati da MySQL — Vista: {visibilita_scelta}")
+
+    # --- CARICAMENTO DATI PRINCIPALE ---
     try:
-        # 🔹 tenta di leggere dal database MySQL
         df_cli_main = load_table("clienti")
         df_ct_main = load_table("contratti")
-        st.success("✅ Dati caricati da MySQL")
+        st.success("✅ Dati caricati da MySQL con successo")
     except Exception as e:
-        st.error(f"⚠️ Errore connessione MySQL: {e}")
-        st.warning("Uso temporaneamente i CSV locali (solo in memoria).")
-        df_cli_main = load_clienti()
-        df_ct_main = load_contratti()
+        st.error(f"❌ Errore connessione MySQL: {e}")
+        st.stop()
 
-    # --- Caricamento dati Gabriele ---
-    try:
-        if GABRIELE_CLIENTI.exists():
-            for sep_try in [";", ",", "|", "\t"]:
-                try:
-                    df_cli_gab = pd.read_csv(
-                        GABRIELE_CLIENTI,
-                        dtype=str,
-                        sep=sep_try,
-                        encoding="utf-8-sig",
-                        on_bad_lines="skip",
-                        engine="python"
-                    ).fillna("")
-                    if len(df_cli_gab.columns) > 3:
-                        break
-                except Exception:
-                    continue
-        else:
-            df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
-
-        if GABRIELE_CONTRATTI.exists():
-            for sep_try in [";", ",", "|", "\t"]:
-                try:
-                    df_ct_gab = pd.read_csv(
-                        GABRIELE_CONTRATTI,
-                        dtype=str,
-                        sep=sep_try,
-                        encoding="utf-8-sig",
-                        on_bad_lines="skip",
-                        engine="python"
-                    ).fillna("")
-                    if len(df_ct_gab.columns) > 3:
-                        break
-                except Exception:
-                    continue
-        else:
-            df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
-
-        # 🔹 Correzione colonne mancanti (solo in memoria)
-        df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
-        df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
-
-    except Exception as e:
-        st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
-        df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
-        df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
-
-
-    # --- Applica filtro visibilità ---
+    # --- VISIBILITÀ (multi-proprietario simulato) ---
+    # Se Fabio → tutti i clienti "fabio"
+    # Se Gabriele → filtriamo solo quelli assegnati
+    # Se Tutti → uniamo le due viste
     if visibilita_scelta == "Fabio":
         df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
+        try:
+            df_cli_gab = load_table("clienti_gabriele")
+            df_ct_gab = load_table("contratti_gabriele")
+        except Exception:
+            df_cli_gab, df_ct_gab = pd.DataFrame(columns=CLIENTI_COLS), pd.DataFrame(columns=CONTRATTI_COLS)
         df_cli, df_ct = df_cli_gab, df_ct_gab
     else:
-        df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
-        df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+        try:
+            df_cli_gab = load_table("clienti_gabriele")
+            df_ct_gab = load_table("contratti_gabriele")
+            df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
+            df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
+        except Exception:
+            df_cli, df_ct = df_cli_main, df_ct_main
 
-    # --- Correzione date automatica una sola volta ---
+    # --- CORREZIONE DATE AUTOMATICA (una sola volta) ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
-    # --- Sidebar info ---
-    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
-    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
-
-    # --- Salva contesto in sessione ---
+    # --- SALVATAGGIO STATO ---
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
-    # --- Pagine principali ---
+    # --- MENU PRINCIPALE ---
     PAGES = {
         "Dashboard": page_dashboard,
         "📈 Dashboard Grafici": page_dashboard_grafici,
@@ -2645,17 +2602,16 @@ def main():
         "📋 Lista Clienti": page_lista_clienti,
     }
 
-    # --- Menu laterale ---
+    # --- MENU SIDEBAR ---
     page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
 
-    # --- Navigazione automatica (dai pulsanti interni) ---
+    # --- NAVIGAZIONE AUTOMATICA ---
     if "nav_target" in st.session_state:
-        target = st.session_state.pop("nav_target")  # ✅ pop rimuove la chiave dopo l’uso
+        target = st.session_state.pop("nav_target")
         if target in PAGES:
             page = target
 
-
-    # --- Esecuzione pagina selezionata ---
+    # --- ESECUZIONE PAGINA SELEZIONATA ---
     if page in PAGES:
         st.session_state["utente_loggato"] = user
         PAGES[page](df_cli, df_ct, ruolo_scrittura)
@@ -2666,3 +2622,4 @@ def main():
 # =====================================
 if __name__ == "__main__":
     main()
+

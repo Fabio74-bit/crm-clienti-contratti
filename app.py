@@ -196,20 +196,6 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
         st.warning(f"⚠️ Upload preventivo fallito: {e}")
 
 
-# === Esegui la sync iniziale all’avvio ===
-st.info("🔁 Sincronizzazione dati da Box in corso…")
-
-try:
-    results = sync_from_box()
-    for r in results:
-        st.toast(r, icon="✅")
-    sync_gabriele_files_if_needed()
-except Exception as e:
-    st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
-
-
-
-
 # =====================================
 # COLONNE STANDARD CSV
 # =====================================

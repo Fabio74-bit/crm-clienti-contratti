@@ -18,6 +18,7 @@ from mega_rest_sync import (
     save_preventivo_to_mega
 )
 
+
 # =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE
 # =====================================

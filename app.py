@@ -91,7 +91,7 @@ def get_box_client():
             full_config = json.load(f)
 
         # 🔹 La parte corretta da passare è solo "boxAppSettings"
-        auth = JWTAuth.from_settings_dictionary(full_config["boxAppSettings"])
+        auth = JWTAuth.from_settings_dictionary(full_config)
         client = Client(auth)
         st.toast("📦 Connessione a Box attiva (JWT)", icon="✅")
         return client

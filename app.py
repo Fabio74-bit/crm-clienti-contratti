@@ -11,7 +11,7 @@ from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from docx import Document
 from docx.shared import Pt
-from mega_sync import (
+from mega_rest_sync import (
     sync_from_mega,
     upload_to_mega,
     sync_gabriele_files,

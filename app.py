@@ -2636,3 +2636,5 @@ def main():
         pagine[pagina_scelta](df_cli, df_ct, ruolo_scrittura)
     except Exception as e:
         st.error(f"❌ Errore caricamento pagina {pagina_scelta}: {e}")
+    if __name__ == "__main__":
+    main()

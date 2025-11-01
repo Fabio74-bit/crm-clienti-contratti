@@ -23,5 +23,5 @@ PyMySQL==1.1.1
 requests==2.32.3
 mysql-connector-python==9.0.0
 
-boxsdk[jwt]
-
+# 🔐 BOX SDK con supporto JWT (autenticazione permanente)
+boxsdk[jwt]==10.0.1

@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: crm-clienti-contratti
+    env: python
+    buildCommand: |
+      pip install -U pip setuptools wheel
+      pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0

@@ -2629,14 +2629,18 @@ def main():
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
-    # --- MENU PAGINE ---
+    # --- MENU PAGINE COMPLETO ---
     st.sidebar.markdown("### 📑 Navigazione")
     pagine = {
-        "Clienti": page_clienti,
-        "Contratti": page_contratti,
-        "Dashboard": page_dashboard,
-        "Impostazioni": page_impostazioni
+        "📊 Dashboard": page_dashboard,
+        "📈 Dashboard Grafica": page_dashboard_grafici,
+        "📋 Clienti": page_clienti,
+        "📄 Contratti": page_contratti,
+        "📅 Recall e Visite": page_richiami_visite,
+        "📇 Lista Clienti": page_lista_clienti,
+        "⚙️ Impostazioni": page_impostazioni
     }
+
 
     pagina_scelta = st.sidebar.radio(
         "Seleziona pagina",

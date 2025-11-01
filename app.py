@@ -2491,7 +2491,30 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
         st.warning(f"⚠️ Correzione automatica date non completata: {e}")
 
     return df_cli, df_ct
+# =====================================
+# PAGINA IMPOSTAZIONI (base)
+# =====================================
+def page_impostazioni(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
+    st.title("⚙️ Impostazioni e Utilità")
+    st.markdown("Puoi forzare la sincronizzazione o eseguire backup manuali.")
 
+    if st.button("🔁 Sincronizza dati da Box"):
+        try:
+            res = sync_from_box()
+            for r in res:
+                st.toast(r, icon="✅")
+            st.success("✅ Dati sincronizzati con successo.")
+        except Exception as e:
+            st.error(f"❌ Errore sincronizzazione: {e}")
+
+    if st.button("📤 Forza upload su Box"):
+        try:
+            upload_to_box(CLIENTI_CSV)
+            upload_to_box(CONTRATTI_CSV)
+            upload_to_box(STORAGE_DIR / "preventivi.csv")
+            st.success("✅ Backup completato su Box.")
+        except Exception as e:
+            st.error(f"❌ Errore upload: {e}")
 # =====================================
 # MAIN APP — versione finale stabile con login e sincronizzazione Box
 # =====================================

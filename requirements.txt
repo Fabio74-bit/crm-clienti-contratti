@@ -23,9 +23,7 @@ PyMySQL==1.1.1
 requests==2.32.3
 mysql-connector-python==9.0.0
 
-# 🔐 BOX SDK completo (senza extras)
-boxsdk==10.0.1
-cryptography==46.0.3
-pyjwt==2.10.1
-requests-toolbelt==1.0.0
-# rebuild 2025-11-01
+# 🌩️ Cloud MEGA (invece di Box)
+mega.py==1.0.8
+
+

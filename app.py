@@ -11,6 +11,12 @@ from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 from docx import Document
 from docx.shared import Pt
+from mega_sync import (
+    sync_from_mega,
+    upload_to_mega,
+    sync_gabriele_files,
+    save_preventivo_to_mega
+)
 
 # =====================================
 # CONFIGURAZIONE STREAMLIT E STILE BASE
@@ -76,134 +82,6 @@ TEMPLATE_OPTIONS = {
 
 # Durate standard contratti
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
-# =====================================
-# 🔁 BOX SYNC — JWT permanente (autenticazione stabile e sicura)
-# =====================================
-from boxsdk import JWTAuth, Client
-from pathlib import Path
-import json, streamlit as st
-
-def get_box_client():
-    """Crea client Box autenticato con JWT (config.json)"""
-    try:
-        config_path = Path(st.secrets["box"]["jwt_config_path"])
-        with open(config_path) as f:
-            full_config = json.load(f)
-
-        # 🔹 La parte corretta da passare è solo "boxAppSettings"
-        auth = JWTAuth.from_settings_dictionary(full_config)
-        client = Client(auth)
-        st.toast("📦 Connessione a Box attiva (JWT)", icon="✅")
-        return client
-    except Exception as e:
-        st.error(f"❌ Errore inizializzazione Box JWT: {e}")
-        return None
-
-
-BOX_FOLDER_ID = st.secrets["box"]["backup_folder_id"]      # 📁 cartella principale (CRM-SHT-Backup)
-BOX_OFFERS_ID = st.secrets["box"]["offers_folder_id"]      # 📁 cartella OFFERTE
-BOX_FILES = ["clienti.csv", "contratti.csv", "preventivi.csv"]
-
-def sync_from_box():
-    """Scarica automaticamente i file principali da Box"""
-    client = get_box_client()
-    if not client:
-        st.error("❌ Connessione Box non disponibile.")
-        return []
-    folder = client.folder(BOX_FOLDER_ID)
-    results = []
-    for name in BOX_FILES:
-        local_path = STORAGE_DIR / name
-        try:
-            for item in folder.get_items(limit=200):
-                if item.name == name:
-                    with open(local_path, "wb") as f:
-                        item.download_to(f)
-                    results.append(f"📥 File aggiornato da Box: {name}")
-                    break
-        except Exception as e:
-            results.append(f"⚠️ Errore {name}: {e}")
-    return results
-
-
-def upload_to_box(path: Path):
-    """Carica o aggiorna un file su Box"""
-    client = get_box_client()
-    if not client:
-        st.warning("⚠️ Connessione Box non disponibile.")
-        return
-    folder = client.folder(BOX_FOLDER_ID)
-    try:
-        name = path.name
-        existing = [f for f in folder.get_items(limit=200) if f.name == name]
-        if existing:
-            existing[0].update_contents(str(path))
-        else:
-            folder.upload(str(path))
-        st.toast(f"📤 File sincronizzato su Box: {name}", icon="✅")
-    except Exception as e:
-        st.warning(f"⚠️ Upload fallito per {path.name}: {e}")
-
-
-def sync_gabriele_files_if_needed():
-    """Scarica la sottocartella Gabriele solo se è loggato"""
-    user = st.session_state.get("user", "").lower().strip()
-    if user != "gabriele":
-        return
-    st.info("🔁 Sincronizzazione dati di Gabriele da Box in corso…")
-    client = get_box_client()
-    if not client:
-        st.warning("⚠️ Connessione Box non disponibile.")
-        return
-    root = client.folder(BOX_FOLDER_ID)
-    try:
-        subfolder = next((i for i in root.get_items(limit=500) if i.name.lower() == "gabriele"), None)
-        if not subfolder:
-            subfolder = root.create_subfolder("gabriele")
-
-        base_path = Path("storage/gabriele")
-        base_path.mkdir(parents=True, exist_ok=True)
-        for name in ["clienti.csv", "contratti.csv"]:
-            local_path = base_path / name
-            for item in subfolder.get_items(limit=200):
-                if item.name == name:
-                    with open(local_path, "wb") as f:
-                        item.download_to(f)
-                    st.toast(f"📥 File aggiornato da Box (Gabriele): {name}", icon="✅")
-                    break
-    except Exception as e:
-        st.warning(f"⚠️ Errore sync Gabriele: {e}")
-
-
-def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fabio"):
-    """Salva il preventivo nella cartella OFFERTE / [autore] / [cliente]."""
-    client = get_box_client()
-    if not client:
-        st.warning("⚠️ Connessione Box non disponibile.")
-        return
-    root_offers = client.folder(BOX_OFFERS_ID)
-    autore = autore.lower().strip()
-    safe_cliente = "".join(c for c in nome_cliente if c.isalnum() or c in "-_ ").strip() or "SenzaNome"
-    try:
-        subfolder_autore = next((i for i in root_offers.get_items(limit=200) if i.name.lower() == autore), None)
-        if not subfolder_autore:
-            subfolder_autore = root_offers.create_subfolder(autore)
-
-        subfolder_cliente = next((i for i in subfolder_autore.get_items(limit=500)
-                                  if i.name.lower() == safe_cliente.lower()), None)
-        if not subfolder_cliente:
-            subfolder_cliente = subfolder_autore.create_subfolder(safe_cliente)
-
-        existing = [f for f in subfolder_cliente.get_items(limit=200) if f.name == file_path.name]
-        if existing:
-            existing[0].update_contents(str(file_path))
-        else:
-            subfolder_cliente.upload(str(file_path))
-
-        st.toast(f"📤 Preventivo salvato su Box: {autore}/{safe_cliente}/{file_path.name}", icon="✅")
-    except Exception as e:
-        st.warning(f"⚠️ Upload preventivo fallito: {e}")
-
 
 
 
@@ -358,7 +236,7 @@ def save_clienti(df: pd.DataFrame):
 
     # 🔹 Sincronizza su Box
     try:
-        upload_to_box(CLIENTI_CSV)
+        upload_to_mega(CLIENTI_CSV)
         st.toast("📤 Dati clienti sincronizzati su Box.", icon="✅")
     except Exception as e:
         st.warning(f"⚠️ Upload clienti su Box non riuscito: {e}")
@@ -375,7 +253,7 @@ def save_contratti(df: pd.DataFrame):
 
     # 🔹 Sincronizza su Box
     try:
-        upload_to_box(CONTRATTI_CSV)
+        upload_to_mega(CONTRATTI_CSV)
         st.toast("📤 Dati contratti sincronizzati su Box.", icon="✅")
     except Exception as e:
         st.warning(f"⚠️ Upload contratti su Box non riuscito: {e}")
@@ -1168,7 +1046,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             doc = genera_preventivo_word(template, nome_cliente, num_off, out_path)
 
             autore = st.session_state.get("user", "fabio")
-            save_preventivo_to_box(out_path, nome_cliente, autore=autore)
+            save_preventivo_to_mega(out_path, nome_cliente, autore=autore)
 
             nuova_riga = {
                 "NumeroOfferta": num_off,
@@ -2511,7 +2389,7 @@ def page_impostazioni(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     if st.button("🔁 Sincronizza dati da Box"):
         try:
-            res = sync_from_box()
+            res = sync_from_mega()
             for r in res:
                 st.toast(r, icon="✅")
             st.success("✅ Dati sincronizzati con successo.")
@@ -2520,9 +2398,9 @@ def page_impostazioni(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
     if st.button("📤 Forza upload su Box"):
         try:
-            upload_to_box(CLIENTI_CSV)
-            upload_to_box(CONTRATTI_CSV)
-            upload_to_box(STORAGE_DIR / "preventivi.csv")
+            upload_to_mega(CLIENTI_CSV)
+            upload_to_mega(CONTRATTI_CSV)
+            upload_to_mega(STORAGE_DIR / "preventivi.csv")
             st.success("✅ Backup completato su Box.")
         except Exception as e:
             st.error(f"❌ Errore upload: {e}")
@@ -2545,10 +2423,10 @@ def main():
     if "box_synced" not in st.session_state:
         st.info("🔁 Sincronizzazione iniziale dati da Box in corso…")
         try:
-            results = sync_from_box()
+            results = sync_from_mega()
             for r in results:
                 st.toast(r, icon="✅")
-            sync_gabriele_files_if_needed()
+            sync_gabriele_files()
             st.session_state["box_synced"] = True
             st.toast("📦 Dati sincronizzati da Box", icon="✅")
         except Exception as e:

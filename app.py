@@ -2645,7 +2645,18 @@ def main():
     pagina_scelta = st.sidebar.radio(
         "Seleziona pagina",
         list(pagine.keys()),
-        index=list(pagine.keys()).index(st.session_state.get("last_page", "Clienti")),
+        # --- Selezione pagina con fallback sicuro ---
+    last_page = st.session_state.get("last_page", "📋 Clienti")
+    if last_page not in pagine:
+        last_page = "📋 Clienti"
+    
+    pagina_scelta = st.sidebar.radio(
+        "Seleziona pagina",
+        list(pagine.keys()),
+        index=list(pagine.keys()).index(last_page),
+        key="main_page_selector"
+    )
+
         key="main_page_selector"
     )
 

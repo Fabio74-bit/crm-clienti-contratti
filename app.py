@@ -86,16 +86,18 @@ import json, streamlit as st
 def get_box_client():
     """Crea client Box autenticato con JWT (config.json)"""
     try:
-        config_path = st.secrets["box"]["jwt_config_path"]
+        config_path = Path(st.secrets["box"]["jwt_config_path"])
         with open(config_path) as f:
-            box_config = json.load(f)
-        auth = JWTAuth.from_settings_dictionary(box_config)
+            full_config = json.load(f)
+
+        # 🔹 La parte corretta da passare è solo "boxAppSettings"
+        auth = JWTAuth.from_settings_dictionary(full_config["boxAppSettings"])
         client = Client(auth)
         st.toast("📦 Connessione a Box attiva (JWT)", icon="✅")
         return client
     except Exception as e:
         st.error(f"❌ Errore inizializzazione Box JWT: {e}")
-        raise
+        return None
 
 
 BOX_FOLDER_ID = st.secrets["box"]["backup_folder_id"]      # 📁 cartella principale (CRM-SHT-Backup)
@@ -105,6 +107,9 @@ BOX_FILES = ["clienti.csv", "contratti.csv", "preventivi.csv"]
 def sync_from_box():
     """Scarica automaticamente i file principali da Box"""
     client = get_box_client()
+    if not client:
+        st.error("❌ Connessione Box non disponibile.")
+        return []
     folder = client.folder(BOX_FOLDER_ID)
     results = []
     for name in BOX_FILES:
@@ -124,6 +129,9 @@ def sync_from_box():
 def upload_to_box(path: Path):
     """Carica o aggiorna un file su Box"""
     client = get_box_client()
+    if not client:
+        st.warning("⚠️ Connessione Box non disponibile.")
+        return
     folder = client.folder(BOX_FOLDER_ID)
     try:
         name = path.name
@@ -144,13 +152,12 @@ def sync_gabriele_files_if_needed():
         return
     st.info("🔁 Sincronizzazione dati di Gabriele da Box in corso…")
     client = get_box_client()
+    if not client:
+        st.warning("⚠️ Connessione Box non disponibile.")
+        return
     root = client.folder(BOX_FOLDER_ID)
     try:
-        subfolder = None
-        for item in root.get_items(limit=500):
-            if item.name.lower() == "gabriele":
-                subfolder = item
-                break
+        subfolder = next((i for i in root.get_items(limit=500) if i.name.lower() == "gabriele"), None)
         if not subfolder:
             subfolder = root.create_subfolder("gabriele")
 
@@ -171,23 +178,19 @@ def sync_gabriele_files_if_needed():
 def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fabio"):
     """Salva il preventivo nella cartella OFFERTE / [autore] / [cliente]."""
     client = get_box_client()
+    if not client:
+        st.warning("⚠️ Connessione Box non disponibile.")
+        return
     root_offers = client.folder(BOX_OFFERS_ID)
     autore = autore.lower().strip()
     safe_cliente = "".join(c for c in nome_cliente if c.isalnum() or c in "-_ ").strip() or "SenzaNome"
     try:
-        subfolder_autore = None
-        for item in root_offers.get_items(limit=200):
-            if item.name.lower() == autore:
-                subfolder_autore = item
-                break
+        subfolder_autore = next((i for i in root_offers.get_items(limit=200) if i.name.lower() == autore), None)
         if not subfolder_autore:
             subfolder_autore = root_offers.create_subfolder(autore)
 
-        subfolder_cliente = None
-        for item in subfolder_autore.get_items(limit=500):
-            if item.name.lower() == safe_cliente.lower():
-                subfolder_cliente = item
-                break
+        subfolder_cliente = next((i for i in subfolder_autore.get_items(limit=500)
+                                  if i.name.lower() == safe_cliente.lower()), None)
         if not subfolder_cliente:
             subfolder_cliente = subfolder_autore.create_subfolder(safe_cliente)
 
@@ -200,6 +203,7 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
         st.toast(f"📤 Preventivo salvato su Box: {autore}/{safe_cliente}/{file_path.name}", icon="✅")
     except Exception as e:
         st.warning(f"⚠️ Upload preventivo fallito: {e}")
+
 
 
 

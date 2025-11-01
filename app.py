@@ -2493,12 +2493,12 @@ def fix_dates_once(df_cli: pd.DataFrame, df_ct: pd.DataFrame) -> tuple[pd.DataFr
     return df_cli, df_ct
 
 # =====================================
-# MAIN APP — versione stabile con login corretto e sync Box dopo accesso
+# MAIN APP — versione finale stabile con login e sincronizzazione Box
 # =====================================
 def main():
-    st.write("✅ Avvio CRM SHT — Buon Lavoro")
+    st.write("✅ Avvio CRM SHT — Buon lavoro")
 
-    # --- LOGIN (mostra schermata se non autenticato) ---
+    # --- LOGIN ---
     if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
         user, role = do_login_fullscreen()
         if not user:
@@ -2507,7 +2507,7 @@ def main():
         user = st.session_state.get("user", "")
         role = st.session_state.get("role", "")
 
-    # --- Sincronizzazione da Box (solo dopo login) ---
+    # --- SYNC BOX (solo dopo login, eseguita una volta per sessione) ---
     if "box_synced" not in st.session_state:
         st.info("🔁 Sincronizzazione iniziale dati da Box in corso…")
         try:
@@ -2520,7 +2520,7 @@ def main():
         except Exception as e:
             st.warning(f"⚠️ Errore durante la sincronizzazione iniziale: {e}")
 
-    # --- Ruolo e diritti di scrittura ---
+    # --- RUOLI ---
     if user == "fabio":
         ruolo_scrittura = "full"
     elif user in ["emanuela", "claudia"]:
@@ -2530,7 +2530,7 @@ def main():
     else:
         ruolo_scrittura = "limitato"
 
-    # --- Selettore visibilità ---
+    # --- VISIBILITÀ DATI ---
     if user in ["fabio", "giulia", "antonella", "emanuela", "claudia"]:
         visibilita_opzioni = ["Fabio", "Gabriele", "Tutti"]
         visibilita_scelta = st.sidebar.radio(
@@ -2541,22 +2541,22 @@ def main():
     else:
         visibilita_scelta = "Fabio"
 
-    # --- Caricamento dati base (Fabio) ---
+    # --- MOSTRA INFO UTENTE ---
+    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
+    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
+
+    # --- CARICAMENTO DATI ---
     df_cli_main = load_clienti()
     df_ct_main = load_contratti()
 
-    # --- Caricamento dati Gabriele ---
+    # --- CARICAMENTO DATI GABRIELE ---
     try:
         if GABRIELE_CLIENTI.exists():
             for sep_try in [";", ",", "|", "\t"]:
                 try:
                     df_cli_gab = pd.read_csv(
-                        GABRIELE_CLIENTI,
-                        dtype=str,
-                        sep=sep_try,
-                        encoding="utf-8-sig",
-                        on_bad_lines="skip",
-                        engine="python"
+                        GABRIELE_CLIENTI, dtype=str, sep=sep_try,
+                        encoding="utf-8-sig", on_bad_lines="skip", engine="python"
                     ).fillna("")
                     if len(df_cli_gab.columns) > 3:
                         break
@@ -2569,12 +2569,8 @@ def main():
             for sep_try in [";", ",", "|", "\t"]:
                 try:
                     df_ct_gab = pd.read_csv(
-                        GABRIELE_CONTRATTI,
-                        dtype=str,
-                        sep=sep_try,
-                        encoding="utf-8-sig",
-                        on_bad_lines="skip",
-                        engine="python"
+                        GABRIELE_CONTRATTI, dtype=str, sep=sep_try,
+                        encoding="utf-8-sig", on_bad_lines="skip", engine="python"
                     ).fillna("")
                     if len(df_ct_gab.columns) > 3:
                         break
@@ -2583,16 +2579,14 @@ def main():
         else:
             df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-        # 🔹 Correzione colonne mancanti (solo in memoria)
         df_cli_gab = ensure_columns(df_cli_gab, CLIENTI_COLS)
         df_ct_gab = ensure_columns(df_ct_gab, CONTRATTI_COLS)
-
     except Exception as e:
         st.warning(f"⚠️ Impossibile caricare i dati di Gabriele: {e}")
         df_cli_gab = pd.DataFrame(columns=CLIENTI_COLS)
         df_ct_gab = pd.DataFrame(columns=CONTRATTI_COLS)
 
-    # --- Applica filtro visibilità ---
+    # --- APPLICA FILTRO VISIBILITÀ ---
     if visibilita_scelta == "Fabio":
         df_cli, df_ct = df_cli_main, df_ct_main
     elif visibilita_scelta == "Gabriele":
@@ -2601,42 +2595,44 @@ def main():
         df_cli = pd.concat([df_cli_main, df_cli_gab], ignore_index=True)
         df_ct = pd.concat([df_ct_main, df_ct_gab], ignore_index=True)
 
-    # 🔒 Se l’utente loggato è Gabriele, forza sempre i suoi file
+    # 🔒 Se l’utente è Gabriele → forzo i suoi file
     if user.lower().strip() == "gabriele":
         df_cli, df_ct = df_cli_gab, df_ct_gab
 
-    # --- Correzione date automatica una sola volta ---
+    # --- CORREGGI DATE (una sola volta) ---
     df_cli, df_ct = fix_dates_once(df_cli, df_ct)
 
-    # --- Sidebar info ---
-    st.sidebar.success(f"👤 {user} — Ruolo: {role}")
-    st.sidebar.info(f"📂 Vista: {visibilita_scelta}")
-
-    # --- Salva contesto in sessione ---
+    # --- CONTESTO SESSIONE ---
     st.session_state["ruolo_scrittura"] = ruolo_scrittura
     st.session_state["visibilita"] = visibilita_scelta
 
-    # --- Pagine principali ---
-    PAGES = {
-        "Dashboard": page_dashboard,
-        "📈 Dashboard Grafici": page_dashboard_grafici,
+    # --- MENU PAGINE ---
+    st.sidebar.markdown("### 📑 Navigazione")
+    pagine = {
         "Clienti": page_clienti,
         "Contratti": page_contratti,
-        "✏️ Modifica Contratto": page_modifica_contratto,
-        "📅 Recall e Visite": page_richiami_visite,
-        "📋 Lista Clienti": page_lista_clienti,
+        "Dashboard": page_dashboard,
+        "Impostazioni": page_impostazioni
     }
 
-    # --- Menu laterale ---
-    page = st.sidebar.radio("📂 Menu principale", list(PAGES.keys()), index=0)
+    pagina_scelta = st.sidebar.radio(
+        "Seleziona pagina",
+        list(pagine.keys()),
+        index=list(pagine.keys()).index(st.session_state.get("last_page", "Clienti")),
+        key="main_page_selector"
+    )
 
-    # --- Navigazione automatica ---
-    if "nav_target" in st.session_state:
-        target = st.session_state.pop("nav_target")
-        if target in PAGES:
-            page = target
+    # --- Salva ultima pagina ---
+    st.session_state["last_page"] = pagina_scelta
 
-    # --- Esecuzione pagina selezionata ---
-    if page in PAGES:
-        st.session_state["utente_loggato"] = user
-        PAGES[page](df_cli, df_ct, ruolo_scrittura)
+    # --- NAVIGAZIONE AUTOMATICA ---
+    if st.session_state.get("_go_contratti_now"):
+        st.session_state["_go_contratti_now"] = False
+        pagina_scelta = "Contratti"
+        st.session_state["main_page_selector"] = "Contratti"
+
+    # --- RENDER PAGINA ---
+    try:
+        pagine[pagina_scelta](df_cli, df_ct, ruolo_scrittura)
+    except Exception as e:
+        st.error(f"❌ Errore caricamento pagina {pagina_scelta}: {e}")

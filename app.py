@@ -2641,22 +2641,15 @@ def main():
         "⚙️ Impostazioni": page_impostazioni
     }
 
-
-    pagina_scelta = st.sidebar.radio(
-        "Seleziona pagina",
-        list(pagine.keys()),
-        # --- Selezione pagina con fallback sicuro ---
+    # --- Selezione pagina con fallback sicuro ---
     last_page = st.session_state.get("last_page", "📋 Clienti")
     if last_page not in pagine:
         last_page = "📋 Clienti"
-    
+
     pagina_scelta = st.sidebar.radio(
         "Seleziona pagina",
         list(pagine.keys()),
         index=list(pagine.keys()).index(last_page),
-        key="main_page_selector"
-    )
-
         key="main_page_selector"
     )
 
@@ -2666,14 +2659,15 @@ def main():
     # --- NAVIGAZIONE AUTOMATICA ---
     if st.session_state.get("_go_contratti_now"):
         st.session_state["_go_contratti_now"] = False
-        pagina_scelta = "Contratti"
-        st.session_state["main_page_selector"] = "Contratti"
+        pagina_scelta = "📄 Contratti"
+        st.session_state["main_page_selector"] = "📄 Contratti"
 
     # --- RENDER PAGINA ---
     try:
         pagine[pagina_scelta](df_cli, df_ct, ruolo_scrittura)
     except Exception as e:
         st.error(f"❌ Errore caricamento pagina {pagina_scelta}: {e}")
+
 
 # =====================================
 # AVVIO APP

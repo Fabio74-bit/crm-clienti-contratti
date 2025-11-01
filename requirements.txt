@@ -28,3 +28,4 @@ boxsdk==10.0.1
 cryptography==46.0.3
 pyjwt==2.10.1
 requests-toolbelt==1.0.0
+# rebuild 2025-11-01

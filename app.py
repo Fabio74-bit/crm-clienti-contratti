@@ -906,7 +906,7 @@ def page_dashboard(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
 
 
 # =====================================
-# PAGINA CLIENTI (con anagrafica visibile + editor, note e recall vicini)
+# PAGINA CLIENTI (VERSIONE STABILE CON PREVENTIVI E LOGIN CORRETTO)
 # =====================================
 def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.subheader("📋 Gestione Clienti")
@@ -992,7 +992,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     st.divider()
     st.markdown("### 🧾 Anagrafica Cliente")
 
-    # Scheda anagrafica leggibile
     st.markdown(
         f"""
         <div style='font-size:15px; line-height:1.8; padding:10px 15px; background-color:#f8fafc;
@@ -1028,7 +1027,6 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 iban      = st.text_input("🏦 IBAN", cliente.get("IBAN", ""))
                 sdi       = st.text_input("📡 SDI", cliente.get("SDI", ""))
 
-            # === TMK (menù a tendina per selezionare commerciale) ===
             tmk_options = sorted(["Giulia", "Antonella", "Laura", "Annalisa"])
             tmk_attuale = cliente.get("TMK", "")
             tmk_sel = st.selectbox("🧭 Assegna TMK", tmk_options, index=tmk_options.index(tmk_attuale) if tmk_attuale in tmk_options else 0)
@@ -1048,8 +1046,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
                 except Exception as e:
                     st.error(f"❌ Errore durante il salvataggio: {e}")
 
-
-    # === NOTE CLIENTE (subito sotto anagrafica) ===
+    # === NOTE CLIENTE ===
     st.divider()
     st.markdown("### 📝 Note Cliente")
     st.caption("Annotazioni o informazioni utili sul cliente (visibili a tutti gli utenti).")
@@ -1076,7 +1073,7 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
     with n2:
         st.info("Le modifiche vengono salvate immediatamente nel file clienti.csv")
 
-    # === RECALL & VISITE (subito dopo le note) ===
+    # === RECALL & VISITE ===
     st.divider()
     st.markdown("### ⚡ Recall e Visite")
 
@@ -1114,48 +1111,19 @@ def page_clienti(df_cli: pd.DataFrame, df_ct: pd.DataFrame, role: str):
             st.rerun()
         except Exception as e:
             st.error(f"❌ Errore salvataggio recall/visite: {e}")
-# === Identifica cliente selezionato (compatibilità preventiva) ===
-try:
-    if "sel_cli_ct" in st.session_state:
-        sel_label = st.session_state["sel_cli_ct"]
-        sel_id = str(sel_label).split(" — ")[0]
-    elif "selected_cliente" in st.session_state:
-        sel_id = str(st.session_state["selected_cliente"])
-    else:
-        sel_id = None
 
-    if sel_id and sel_id in df_cli["ClienteID"].astype(str).values:
-        nome_cliente = df_cli.loc[df_cli["ClienteID"].astype(str) == sel_id, "RagioneSociale"].values[0]
-    else:
-        nome_cliente = ""
-except Exception:
-    sel_id = None
-    nome_cliente = ""
-# 🔒 Mostra solo se l'utente è loggato
-if "user" not in st.session_state or not st.session_state["user"]:
-    st.warning("🔐 Effettua il login per creare o visualizzare preventivi.")
-    st.stop()
+    # === SEZIONE PREVENTIVI ===
+    st.divider()
+    st.markdown("## 🧾 Gestione Preventivi Cliente")
 
-# =====================================
-# 🧾 GENERA NUOVO PREVENTIVO (in pagina cliente)
-# =====================================
+    utente_corrente = st.session_state.get("user", "").lower().strip()
+    if not utente_corrente:
+        st.warning("🔐 Effettua il login per creare o visualizzare preventivi.")
+        return
 
-# 🔒 Richiede login attivo
-utente_corrente = st.session_state.get("user", "").lower()
-if not utente_corrente:
-    st.warning("🔐 Effettua il login per creare o visualizzare preventivi.")
-    st.stop()
+    sel_id = str(cliente["ClienteID"])
+    nome_cliente = cliente["RagioneSociale"]
 
-st.divider()
-st.markdown("### 🧾 Genera Nuovo Preventivo")
-
-# === Controllo cliente selezionato ===
-if not sel_id or sel_id not in df_cli["ClienteID"].values:
-    st.warning("⚠️ Nessun cliente selezionato o cliente non trovato.")
-else:
-    nome_cliente = df_cli.loc[df_cli["ClienteID"] == sel_id, "RagioneSociale"].values[0]
-
-    # === Calcola numero progressivo preventivo ===
     PREVENTIVI_FILE = STORAGE_DIR / "preventivi.csv"
     if not PREVENTIVI_FILE.exists():
         df_prev = pd.DataFrame(columns=[
@@ -1168,15 +1136,12 @@ else:
 
     anno_corrente = datetime.now().year
     prev_anno = df_prev[df_prev["NumeroOfferta"].str.contains(f"OFF-{anno_corrente}", na=False)]
-    if not prev_anno.empty:
-        ultimo_num = max([int(x.split("-")[-1]) for x in prev_anno["NumeroOfferta"].tolist() if x.split("-")[-1].isdigit()])
-    else:
-        ultimo_num = 0
+    ultimo_num = max([int(x.split("-")[-1]) for x in prev_anno["NumeroOfferta"].tolist() if x.split("-")[-1].isdigit()], default=0)
     nuovo_num = ultimo_num + 1
     num_off = f"OFF-{anno_corrente:04d}-{nuovo_num:03d}"
 
-    # === Form preventivo ===
     with st.form(f"frm_prev_{sel_id}"):
+        st.subheader("🧾 Crea Nuovo Preventivo")
         col1, col2 = st.columns([2, 1])
         with col1:
             st.text_input("Numero Offerta", num_off, disabled=True)
@@ -1187,15 +1152,13 @@ else:
 
     if genera:
         try:
-            out_path = Path("storage") / "preventivi" / nome_file
+            out_path = PREVENTIVI_DIR / nome_file
             out_path.parent.mkdir(parents=True, exist_ok=True)
             doc = genera_preventivo_word(template, nome_cliente, num_off, out_path)
 
-            # 🔹 Salva anche su Box nella cartella OFFERTE / [autore] / [cliente]
             autore = st.session_state.get("user", "fabio")
             save_preventivo_to_box(out_path, nome_cliente, autore=autore)
 
-            # 🔹 Aggiungi riga al CSV preventivi
             nuova_riga = {
                 "NumeroOfferta": num_off,
                 "ClienteID": sel_id,
@@ -1216,54 +1179,47 @@ else:
             import traceback
             st.error(f"❌ Errore durante la generazione del preventivo:\n\n{traceback.format_exc()}")
 
-# =====================================
-# 📂 ELENCO PREVENTIVI CLIENTE
-# =====================================
-st.divider()
-st.markdown("### 📂 Elenco Preventivi Cliente")
+    # === Elenco preventivi cliente ===
+    st.divider()
+    st.subheader("📂 Elenco Preventivi")
 
-df_prev = pd.read_csv(STORAGE_DIR / "preventivi.csv", dtype=str).fillna("")
-prev_cli = df_prev[df_prev["ClienteID"].astype(str) == sel_id]
+    df_prev = pd.read_csv(PREVENTIVI_FILE, dtype=str).fillna("")
+    prev_cli = df_prev[df_prev["ClienteID"].astype(str) == sel_id]
 
-# 🔹 Filtra per autore (solo Fabio e admin vedono tutto)
-if "Autore" in df_prev.columns and utente_corrente not in ["fabio", "admin"]:
-    prev_cli = prev_cli[prev_cli["Autore"].str.lower() == utente_corrente]
+    if "Autore" in df_prev.columns and utente_corrente not in ["fabio", "admin"]:
+        prev_cli = prev_cli[prev_cli["Autore"].str.lower() == utente_corrente]
 
-if prev_cli.empty:
-    st.info("Nessun preventivo per questo cliente.")
-else:
-    prev_cli = prev_cli.sort_values("DataCreazione", ascending=False)
-    for i, r in prev_cli.iterrows():
-        file_path = Path(r["Percorso"])
-        c1, c2, c3, c4 = st.columns([2, 1, 1, 0.6])
-        c1.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}<br>📅 {r['DataCreazione']}", unsafe_allow_html=True)
-        c2.markdown(f"👤 Autore: **{r['Autore']}**")
+    if prev_cli.empty:
+        st.info("Nessun preventivo per questo cliente.")
+    else:
+        prev_cli = prev_cli.sort_values("DataCreazione", ascending=False)
+        for i, r in prev_cli.iterrows():
+            file_path = Path(r["Percorso"])
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 0.6])
+            c1.markdown(f"**{r['NumeroOfferta']}** — {r['Template']}<br>📅 {r['DataCreazione']}", unsafe_allow_html=True)
+            c2.markdown(f"👤 Autore: **{r['Autore']}**")
 
-        # 🔹 Pulsante download
-        if file_path.exists():
-            with open(file_path, "rb") as f:
-                c3.download_button(
-                    "⬇️ Scarica",
-                    f.read(),
-                    file_name=file_path.name,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key=f"dl_prev_{i}"
-                )
+            if file_path.exists():
+                with open(file_path, "rb") as f:
+                    c3.download_button(
+                        "⬇️ Scarica",
+                        f.read(),
+                        file_name=file_path.name,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"dl_prev_{i}"
+                    )
 
-        # 🔹 Pulsante elimina (solo admin)
-        if utente_corrente in ["fabio", "admin"]:
-            if c4.button("🗑 Elimina", key=f"del_prev_{i}"):
-                try:
-                    if file_path.exists():
-                        file_path.unlink()
-                    df_prev = df_prev.drop(i)
-                    df_prev.to_csv(STORAGE_DIR / "preventivi.csv", index=False, encoding="utf-8-sig")
-                    st.success("🗑 Preventivo eliminato.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Errore eliminazione: {e}")
-
-
+            if utente_corrente in ["fabio", "admin"]:
+                if c4.button("🗑 Elimina", key=f"del_prev_{i}"):
+                    try:
+                        if file_path.exists():
+                            file_path.unlink()
+                        df_prev = df_prev.drop(i)
+                        df_prev.to_csv(PREVENTIVI_FILE, index=False, encoding="utf-8-sig")
+                        st.success("🗑 Preventivo eliminato.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Errore eliminazione: {e}")
 
 
 # =====================================

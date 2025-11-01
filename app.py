@@ -77,20 +77,26 @@ TEMPLATE_OPTIONS = {
 # Durate standard contratti
 DURATE_MESI = ["12", "24", "36", "48", "60", "72"]
 # =====================================
-# 🔁 BOX SYNC — Sincronizzazione automatica su Render
+# 🔁 BOX SYNC — JWT permanente (autenticazione stabile e sicura)
 # =====================================
-from boxsdk import OAuth2, Client
+from boxsdk import JWTAuth, Client
 from pathlib import Path
-import streamlit as st
+import json, streamlit as st
 
 def get_box_client():
-    """Crea client Box autenticato usando i token salvati in st.secrets"""
-    auth = OAuth2(
-        client_id=st.secrets["box"]["client_id"],
-        client_secret=st.secrets["box"]["client_secret"],
-        access_token=st.secrets["box"]["access_token"]
-    )
-    return Client(auth)
+    """Crea client Box autenticato con JWT (config.json)"""
+    try:
+        config_path = st.secrets["box"]["jwt_config_path"]
+        with open(config_path) as f:
+            box_config = json.load(f)
+        auth = JWTAuth.from_settings_dictionary(box_config)
+        client = Client(auth)
+        st.toast("📦 Connessione a Box attiva (JWT)", icon="✅")
+        return client
+    except Exception as e:
+        st.error(f"❌ Errore inizializzazione Box JWT: {e}")
+        raise
+
 
 BOX_FOLDER_ID = st.secrets["box"]["backup_folder_id"]      # 📁 cartella principale (CRM-SHT-Backup)
 BOX_OFFERS_ID = st.secrets["box"]["offers_folder_id"]      # 📁 cartella OFFERTE
@@ -194,6 +200,7 @@ def save_preventivo_to_box(file_path: Path, nome_cliente: str, autore: str = "fa
         st.toast(f"📤 Preventivo salvato su Box: {autore}/{safe_cliente}/{file_path.name}", icon="✅")
     except Exception as e:
         st.warning(f"⚠️ Upload preventivo fallito: {e}")
+
 
 
 # =====================================
